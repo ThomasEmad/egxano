@@ -83,6 +83,10 @@ const HARVEST_ONLY = process.argv.includes("--harvest-only")
 const minYearArg = process.argv.find((a) => a.startsWith("--min-year="))
 const MIN_YEAR = minYearArg ? Number(minYearArg.split("=")[1]) : null
 const REPLACE_ENABLED = !process.argv.includes("--no-replace")
+const applyWorkersArg = (() => {
+  const a = process.argv.find((x) => x.startsWith("--apply-workers="))
+  return a ? Number(a.split("=")[1]) : null
+})()
 
 const SNAPSHOT = "reports/tv-financials-snapshot.json"
 const PLAN = "reports/tv-financials-plan.json"
@@ -927,7 +931,10 @@ const STATUS_RANK = { APPROVED: 0, VALIDATED: 1, EXTRACTED: 2, PROCESSING: 3, NE
 
 async function applyPlan(entries) {
   mkdirSync("reports", { recursive: true })
-  const rollback = { generatedAt: new Date().toISOString(), source: SOURCE, parser: PARSER, reports: [], values: [], replaced: [] }
+  // merge with any prior journal so repeated applies keep a complete undo
+  // trail (runRollback is idempotent — already-undone ids are skipped there)
+  const prior = existsSync(ROLLBACK) ? JSON.parse(readFileSync(ROLLBACK, "utf8")) : null
+  const rollback = { generatedAt: new Date().toISOString(), source: SOURCE, parser: PARSER, reports: prior?.reports ?? [], values: prior?.values ?? [], replaced: prior?.replaced ?? [] }
   const blocked = []
   let reportCount = 0
   let valueCount = 0
@@ -946,7 +953,11 @@ async function applyPlan(entries) {
     }
   }
 
-  for (const entry of bySlot.values()) {
+  const APPLY_WORKERS = applyWorkersArg ? Math.max(1, Math.min(8, applyWorkersArg)) : 4
+  const slots = [...bySlot.values()]
+  let cursor = 0
+  let doneSlots = 0
+  async function processSlot(entry) {
     let reportId = entry.reportId
     if (!reportId) {
       // soft-deleted / superseded / FAILED rows still occupy the key — never
@@ -957,7 +968,7 @@ async function applyPlan(entries) {
       })
       if (dup && (dup.deletedAt || (STATUS_RANK[dup.processingStatus] ?? 9) >= 8)) {
         blocked.push({ ticker: entry.ticker, periodLabel: entry.periodLabel, reason: dup.deletedAt ? "SOFT_DELETED" : dup.processingStatus })
-        continue
+        return
       }
       if (dup) {
         reportId = dup.id
@@ -990,13 +1001,15 @@ async function applyPlan(entries) {
         reportCount++
       }
     }
-    // values: only-missing-slot with an in-memory pre-check + P2002 backstop
+    // values: only-missing-slot with an in-memory pre-check + P2002 backstop.
+    // Each value is an independent unit — a skip/replace decision for one must
+    // never abort the rest of the entry (per-value continue semantics).
     const existing = await db.financialValue.findMany({
       where: { reportId },
       select: { metricCode: true, subPeriod: true },
     })
     const have = new Set(existing.filter((v) => !v.subPeriod || v.subPeriod === "CURRENT").map((v) => v.metricCode))
-    for (const v of entry.values) {
+    const writeValue = async (v) => {
       // v2 replacement: the slot is occupied by a lower-trust value the plan
       // decided to replace. Re-verify the target still holds the planned value
       // (no concurrent edit), snapshot the old row for the rollback journal,
@@ -1004,13 +1017,13 @@ async function applyPlan(entries) {
       let cur = null
       if (v.replaceOf) {
         cur = await db.financialValue.findUnique({ where: { id: v.replaceOf.id } })
-        if (!cur) continue
+        if (!cur) return
         const curVal = cur.normalizedValue ?? cur.value
         if (Math.abs(Number(curVal) - v.replaceOf.value) > Math.max(Math.abs(Number(curVal)) * 0.01, 1)) {
           blocked.push({ ticker: entry.ticker, periodLabel: entry.periodLabel, metric: v.metric, reason: "REPLACE_TARGET_CHANGED" })
-          continue
+          return
         }
-      } else if (have.has(v.metric)) continue
+      } else if (have.has(v.metric)) return
       const validationStatus = v.suspect ? "NEEDS_REVIEW" : "VALID"
       const confidence = v.suspect ? 0.7 : 0.85
       const notes = [
@@ -1051,7 +1064,7 @@ async function applyPlan(entries) {
           rollback.replaced.push({ ticker: entry.ticker, periodLabel: entry.periodLabel, metric: v.metric, newValueId: row.id, oldRow })
           replaceCount++
           valueCount++
-          continue
+          return
         }
         const row = await db.financialValue.create({
           data: {
@@ -1079,11 +1092,26 @@ async function applyPlan(entries) {
         rollback.values.push({ id: row.id, ticker: entry.ticker, metric: v.metric, value: v.value })
         valueCount++
       } catch (e) {
-        if (String(e?.code) === "P2002") { blocked.push({ ticker: entry.ticker, periodLabel: entry.periodLabel, metric: v.metric, reason: "VALUE_UNIQUE" }); continue }
+        if (String(e?.code) === "P2002") { blocked.push({ ticker: entry.ticker, periodLabel: entry.periodLabel, metric: v.metric, reason: "VALUE_UNIQUE" }); return }
         throw e
       }
     }
+    for (const v of entry.values) await writeValue(v)
   }
+  // bounded-concurrency apply — each slot is independent (unique constraints +
+  // per-row re-verification make races safe); 4 workers cut the pooler RTT wall
+  await Promise.all(Array.from({ length: APPLY_WORKERS }, async () => {
+    while (cursor < slots.length) {
+      const e = slots[cursor++]
+      try {
+        await processSlot(e)
+      } catch (e2) {
+        log(`slot ${e.ticker} ${e.periodLabel} FAILED: ${String(e2?.message || e2).slice(0, 120)}`)
+        blocked.push({ ticker: e.ticker, periodLabel: e.periodLabel, reason: "SLOT_ERROR" })
+      }
+      if (++doneSlots % 50 === 0) log(`apply ${doneSlots}/${slots.length} slots (values ${valueCount}, replaced ${replaceCount})`)
+    }
+  }))
   writeFileSync(ROLLBACK, JSON.stringify(rollback), "utf8")
   if (blocked.length) {
     writeFileSync("reports/tv-financials-blocked.json", JSON.stringify({ generatedAt: new Date().toISOString(), blocked }, null, 2), "utf8")
