@@ -25,6 +25,7 @@ interface CompareCompany {
   sector: string
   fiscalYear: number | null
   periodLabel: string | null
+  periodType: string | null
   metrics: Record<string, number>
 }
 
@@ -141,6 +142,11 @@ export default function ComparePage() {
     return ids.map((id) => ({ id, ticker: map.get(id) ?? "…" }))
   }, [ids, data, searchResults])
 
+  const basisMixed = useMemo(() => {
+    const labels = (data?.companies ?? []).map((c) => c.periodLabel).filter(Boolean) as string[]
+    return new Set(labels).size > 1
+  }, [data])
+
   const bestByMetric = useMemo(() => {
     const best = new Map<string, string>()
     for (const def of data?.metricDefs ?? []) {
@@ -253,6 +259,14 @@ export default function ComparePage() {
         {isLoading ? (
           <Skeleton className="h-96 rounded-xl" />
         ) : data && data.companies.length >= 2 ? (
+          <>
+          {basisMixed ? (
+            <p className="mb-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-400">
+              {ar
+                ? "ملاحظة: الشركات مقارنة على فترات مختلفة — كل عمود يعرض الفترة الموضحة تحته (سنوي / 9 أشهر / نصف سنوي / ربع سنوي)."
+                : "Note: companies are compared on different periods — each column shows its exact basis (FY / 9M / H1 / quarter)."}
+            </p>
+          ) : null}
           <Card className="border-border/60 p-0">
             <CardContent className="p-0">
               <div className="overflow-x-auto">
@@ -299,6 +313,7 @@ export default function ComparePage() {
               </div>
             </CardContent>
           </Card>
+          </>
         ) : ids.length >= 2 ? (
           <Card className="border-border/60">
             <CardContent className="p-8 text-center text-sm text-muted-foreground">{ar ? "لا توجد بيانات كافية لهذه الشركات" : "Not enough data for these companies"}</CardContent>

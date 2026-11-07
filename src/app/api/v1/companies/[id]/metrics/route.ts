@@ -78,8 +78,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     _max: { periodEnd: true },
   })
   const latestAnnualEnd = latestEnds.find((g) => g.periodType === "ANNUAL")?._max.periodEnd ?? null
+  // quarters-only display rule: H1/9M filings no longer count toward the
+  // "freshest interim view" default — only discrete quarterly filings do
   const latestInterimEnd = latestEnds
-    .filter((g) => g.periodType !== "ANNUAL")
+    .filter((g) => g.periodType === "QUARTERLY")
     .map((g) => g._max.periodEnd)
     .filter((d): d is Date => !!d)
     .sort((a, b) => b.getTime() - a.getTime())[0] ?? null

@@ -34,3 +34,7 @@ download/egx-turso-dump.sql.gz
 download/zi2kelvZ
 .vercel
 .env*
+
+# next dev build artifacts (local smoke tests)
+.next/
+dev.log
