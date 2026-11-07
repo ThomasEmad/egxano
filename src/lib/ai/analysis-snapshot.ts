@@ -221,6 +221,7 @@ export async function buildAiSnapshotBundle(company: AiSnapshotCompany): Promise
   const trustedReports = await db.financialReport.findMany({
     where: {
       companyId: company.id,
+      deletedAt: null,
       processingStatus: { in: [...TRUSTED_REPORT_STATUSES] },
     },
     select: {

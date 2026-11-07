@@ -79,6 +79,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     by: ["periodType"],
     where: {
       companyId,
+      deletedAt: null,
       processingStatus: { in: [...TRUSTED_REPORT_STATUSES] },
       periodType: { in: ["ANNUAL", "QUARTERLY", "SEMIANNUAL", "NINE_MONTH"] },
     },
@@ -99,6 +100,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           companyId,
           validationStatus: "VALID",
           report: {
+            deletedAt: null,
             processingStatus: { in: [...TRUSTED_REPORT_STATUSES] },
             statementType,
             periodType: { in: PERIOD_VIEW_TYPES[periodView] },

@@ -9,6 +9,7 @@
 //   node scripts/tradingview-financials-import.mjs --tickers=ABUK,COMI  # restrict to tickers (smoke test)
 //   node scripts/tradingview-financials-import.mjs --limit=10           # first N companies
 //   node scripts/tradingview-financials-import.mjs --workers=6          # parallel browser contexts (default 5)
+//   node scripts/tradingview-financials-import.mjs --min-year=2021      # ignore TV columns older than FY2021
 //
 // Why TradingView: EGX fundamentals on TradingView carry the FULL exact-value
 // history per company — income statement (~24 rows), balance sheet (6 rows),
@@ -21,6 +22,14 @@
 // Import policy (conservative, mirrors the platform's established rules):
 //   • only-missing-slot: existing values are NEVER overwritten; conflicts (>5%)
 //     go to reports/tv-financials-conflicts.json for review.
+//   • v2 REPLACE: an exception to only-missing — when the existing value comes
+//     from a LOWER-trust source (Yahoo-level aggregator) and TradingView's own
+//     year-set passes the discrete-quarter sum check, the wrong value is
+//     replaced (old row deleted, journal kept). Verified driver case: HDBK
+//     FY2025 revenue 30.6bn (Yahoo YTD mix) vs TV 44.7bn (= Σ quarters).
+//   • v2 CUMULATIVE REPAIR: H1/9M slots that TV does not publish are repaired
+//     by summing TV's discrete calendar quarters (December filers only); only
+//     when every constituent quarter exists.
 //   • period identity = (periodType, periodLabel, CONSOLIDATED) AND the stored
 //     periodEnd must match TradingView's within 45 days — fiscal-year changes
 //     (e.g. ABUK Jun-end → Dec-end) make the same label a DIFFERENT period;
@@ -71,20 +80,50 @@ const PAGE_DELAY_OVERRIDE = DELAY_MS ?? null
 const TV403_COOLDOWN_MS = 45_000
 const TV403_BREAKER = 3
 const HARVEST_ONLY = process.argv.includes("--harvest-only")
+const minYearArg = process.argv.find((a) => a.startsWith("--min-year="))
+const MIN_YEAR = minYearArg ? Number(minYearArg.split("=")[1]) : null
+const REPLACE_ENABLED = !process.argv.includes("--no-replace")
 
 const SNAPSHOT = "reports/tv-financials-snapshot.json"
 const PLAN = "reports/tv-financials-plan.json"
 const ROLLBACK = "reports/tv-financials-rollback.json"
 const CONFLICTS = "reports/tv-financials-conflicts.json"
+const REPLACEMENTS = "reports/tv-financials-replacements.json"
 const ERRORS = "reports/tv-financials-errors.json"
 const AUDIT_MARK = "TV_FIN_IMPORT:"
-const PARSER = "tv-financials-import@1"
+const PARSER = "tv-financials-import@2"
 const SOURCE = "TRADINGVIEW_FINANCIALS"
 const METHOD = "TRADINGVIEW_HARVEST"
 const CONFLICT_PCT = 5
 const SUM_TOL_PCT = 8
 const SUM_TOL_ABS = 1_000_000 // EGP 1m
 const PERIOD_END_TOL_DAYS = 45
+
+// ----------------------------------------------------- source trust rank ----
+// Who wins a (report, metric) slot when values disagree. TradingView exact
+// statements outrank aggregator feeds whose YTD/discrete mix is demonstrably
+// polluted (HDBK FY2025 revenue), but never outrank official filings, curated
+// summaries or deliberate manual entries. Unknown sources stay unreplacable.
+const RANK_TV = 3
+const SOURCE_RANK = {
+  EXCEL_STATEMENTS: 6,
+  PDF_STATEMENTS: 6,
+  ASKBORA_SUMMARY: 5,
+  MANUAL_ENTRY: 4,
+  TRADINGVIEW_FINANCIALS: RANK_TV,
+  YAHOO_FINANCE_API: 1,
+}
+function sourceRank(reportSource, extractionMethod) {
+  const s = String(reportSource || "").toUpperCase()
+  for (const key of Object.keys(SOURCE_RANK)) if (s.includes(key)) return SOURCE_RANK[key]
+  if (s.includes("YAHOO")) return 1
+  if (s.includes("TRADINGVIEW")) return RANK_TV
+  // no report-level provenance → fall back to the value's own method
+  if (extractionMethod === "API_IMPORT") return 1
+  if (extractionMethod === "TRADINGVIEW_HARVEST") return RANK_TV
+  if (extractionMethod === "MANUAL_ENTRY") return 4
+  return RANK_TV // unknown → conservative: never replaced
+}
 const PAGE_LOAD_TIMEOUT = 45_000
 const SETTLE_MS = 900
 const QUARTER_SETTLE_MS = 1_400
@@ -632,7 +671,7 @@ function matrixFromView(view) {
 async function loadExistingReports(companyIds) {
   const rows = await db.financialReport.findMany({
     where: { companyId: { in: companyIds }, deletedAt: null },
-    select: { id: true, companyId: true, periodType: true, periodLabel: true, periodEnd: true, statementType: true, processingStatus: true },
+    select: { id: true, companyId: true, periodType: true, periodLabel: true, periodEnd: true, fiscalYear: true, statementType: true, processingStatus: true, sourceName: true },
   })
   const map = new Map()
   for (const r of rows) {
@@ -648,21 +687,24 @@ async function loadExistingReports(companyIds) {
 async function planFromSnapshot(snapshot, companies) {
   const companyIds = companies.map((c) => c.id)
   const existingReports = await loadExistingReports(companyIds)
-  const existingValues = new Map() // reportId → Set(metricCode)
+  const existingValues = new Map() // reportId → Map(metricCode → { id, value, method })
   const valRows = await db.financialValue.findMany({
     where: { companyId: { in: companyIds }, isDemoData: false },
-    select: { reportId: true, metricCode: true, value: true, normalizedValue: true, subPeriod: true, id: true },
+    select: { reportId: true, metricCode: true, value: true, normalizedValue: true, subPeriod: true, id: true, extractionMethod: true },
   })
   for (const v of valRows) {
     if (v.subPeriod && v.subPeriod !== "CURRENT") continue
     if (!existingValues.has(v.reportId)) existingValues.set(v.reportId, new Map())
-    existingValues.get(v.reportId).set(v.metricCode, v.normalizedValue ?? v.value)
+    existingValues.get(v.reportId).set(v.metricCode, { id: v.id, value: v.normalizedValue ?? v.value, method: v.extractionMethod })
   }
+  // report provenance for the trust ranking (reports carry the source name)
+  const reportSourceById = new Map([...existingReports.values()].map((r) => [r.id, r.sourceName]))
 
   const planEntries = []
   const conflicts = []
   const skipped = []
-  const stats = { newReports: 0, fills: 0, conflicts: 0, skippedSlots: 0, companies: 0 }
+  const replacements = []
+  const stats = { newReports: 0, fills: 0, conflicts: 0, replacements: 0, skippedSlots: 0, companies: 0 }
   const sumChecks = [] // accumulated across all companies for the summary
 
   for (const comp of companies) {
@@ -722,6 +764,7 @@ async function planFromSnapshot(snapshot, companies) {
     // windows, which would pull a 5th quarter for mid-year filers.
     const suspectSlots = new Set() // "periodType|label|code"
     const sumDetail = new Map() // suspect slot → {sum, fyValue, quarters}
+    const passingYears = new Set() // "code|tvFiscalYear" — year-sets whose Σ quarters matches the FY value
     for (const [code, pm] of perMetric) {
       if (NO_SUM_CHECK.has(code)) continue // averages/ratios — summing is meaningless
       if (!FLOW_METRICS.has(code)) continue // stock (balance-sheet) metrics are point-in-time — never summed
@@ -732,13 +775,15 @@ async function planFromSnapshot(snapshot, companies) {
         const tol = Math.max(Math.abs(fySlot.value) * SUM_TOL_PCT / 100, SUM_TOL_ABS)
         const ok = Math.abs(sum - fySlot.value) <= tol
         sumChecks.push({ code, fy, ok, sum, fyValue: fySlot.value, quarters: qs.length })
-        if (!ok) for (const [k] of qs) { suspectSlots.add(`${k}|${code}`); sumDetail.set(`${k}|${code}`, { sum, fyValue: fySlot.value, quarters: qs.length }) }
+        if (ok) passingYears.add(`${code}|${fySlot.tvFiscalYear}`)
+        else for (const [k] of qs) { suspectSlots.add(`${k}|${code}`); sumDetail.set(`${k}|${code}`, { sum, fyValue: fySlot.value, quarters: qs.length }) }
       }
     }
 
     // build plan entries per period
     for (const [key, slot] of periodOwner.entries()) {
       const { period } = slot
+      if (MIN_YEAR && period.fiscalYear < MIN_YEAR) continue
       const repKey = `${comp.id}|${period.periodType}|${period.periodLabel}|CONSOLIDATED`
       const existing = existingReports.get(repKey)
       const writes = []
@@ -750,9 +795,21 @@ async function planFromSnapshot(snapshot, companies) {
           const slotVals = existingValues.get(existing.id)
           const prev = slotVals?.get(code)
           if (prev !== undefined) {
-            const pct = Math.abs(v - prev) / Math.max(Math.abs(prev), 1) * 100
-            if (pct > CONFLICT_PCT) { conflicts.push({ ticker: comp.ticker, period: period.periodLabel, metric: code, existing: prev, tv: v, diffPct: +pct.toFixed(1) }); stats.conflicts++ }
-            continue // only-missing: never overwrite
+            const pct = Math.abs(v - prev.value) / Math.max(Math.abs(prev.value), 1) * 100
+            if (pct > CONFLICT_PCT) {
+              // v2 replace: lower-trust value + TV value proven by its year's sum-check
+              const prevRank = sourceRank(reportSourceById.get(existing.id), prev.method)
+              const yearProven = passingYears.has(`${code}|${period.tvFiscalYear}`)
+              if (REPLACE_ENABLED && prevRank < RANK_TV && !suspect && yearProven) {
+                replacements.push({ ticker: comp.ticker, period: period.periodLabel, metric: code, existing: prev.value, existingSource: reportSourceById.get(existing.id) ?? prev.method, tv: v, diffPct: +pct.toFixed(1) })
+                writes.push({ code, value: v, suspect: false, sumCheck: null, replaceOf: { id: prev.id, value: prev.value } })
+                stats.replacements++
+              } else {
+                conflicts.push({ ticker: comp.ticker, period: period.periodLabel, metric: code, existing: prev.value, tv: v, diffPct: +pct.toFixed(1) })
+                stats.conflicts++
+              }
+            }
+            continue // slot occupied — only the replacement write above may land
           }
         }
         writes.push({ code, value: v, suspect, sumCheck: suspect ? sumDetail.get(`${key}|${code}`) : null })
@@ -781,14 +838,84 @@ async function planFromSnapshot(snapshot, companies) {
         sourceUrl: rec.statements[slot.statement]?.url ?? null,
         tvSymbol: rec.tvSymbol,
         ambiguity: slot.ambiguity ?? false,
-        values: writes.map((w) => ({ metric: w.code, value: w.value, kind: statementKind(w.code), label: AR_LABEL[w.code] ?? prettyCode(w.code), suspect: w.suspect, sumCheck: w.sumCheck })),
+        values: writes.map((w) => ({ metric: w.code, value: w.value, kind: statementKind(w.code), label: AR_LABEL[w.code] ?? prettyCode(w.code), suspect: w.suspect, sumCheck: w.sumCheck, replaceOf: w.replaceOf ?? null, reconstructed: w.reconstructed ?? false })),
       })
       if (!existing) stats.newReports++
       stats.fills += writes.length
     }
+
+    // v2 cumulative repair: TV does not publish H1/9M columns for most EGX
+    // names, so a polluted cumulative slot (HDBK 9M-2025 revenue 7.68bn < its
+    // own Q1) had no TV counterpart. For December filers the calendar
+    // cumulative is an arithmetic identity over TV's discrete quarters:
+    //   flow metrics  → value = Σ (Q1..Qk)   stock metrics → value @ period end
+    if (REPLACE_ENABLED) {
+      const cumulReports = [...existingReports.values()].filter((r) =>
+        r.companyId === comp.id && r.statementType === "CONSOLIDATED" &&
+        (r.periodType === "SEMIANNUAL" || r.periodType === "NINE_MONTH"))
+      for (const rep of cumulReports) {
+        const m = String(rep.periodLabel || "").match(/^(H[12]|9M)\s+(\d{4})$/)
+        if (!m) continue
+        const year = Number(m[2])
+        if (MIN_YEAR && year < MIN_YEAR) continue
+        const targetEnd = rep.periodEnd ? new Date(rep.periodEnd) : null
+        if (!targetEnd) continue
+        // December filer only: a TV annual column must end in December of the label year
+        let decFiler = false
+        for (const pm of perMetric.values()) {
+          const a = pm.annual.get(year)
+          if (a && a.end.getUTCMonth() === 11) { decFiler = true; break }
+        }
+        if (!decFiler) continue
+        const slotVals = existingValues.get(rep.id)
+        if (!slotVals) continue
+        const kNeeded = rep.periodType === "SEMIANNUAL" ? 2 : 3
+        const repairs = []
+        for (const [code, prev] of slotVals) {
+          const kind = statementKind(code)
+          if (kind === "OTHER" && !AR_LABEL[code]) continue
+          const pm = perMetric.get(code)
+          if (!pm) continue
+          const qs = [...pm.quarters.values()].filter((q) =>
+            q.end.getUTCFullYear() === year && q.end.getTime() <= targetEnd.getTime() + 5 * 86_400_000 && q.end.getUTCMonth() !== 11)
+          let ref = null
+          if (kind === "BALANCE_SHEET") {
+            // point-in-time: the quarter ending on the cumulative's period end
+            const at = qs.find((q) => daysBetween(q.end, targetEnd) <= 5)
+            if (at) ref = at.value
+          } else if (FLOW_METRICS.has(code) && !NO_SUM_CHECK.has(code)) {
+            if (qs.length === kNeeded) ref = qs.reduce((a, q) => a + q.value, 0)
+          }
+          if (ref === null || !Number.isFinite(ref)) continue
+          const pct = Math.abs(ref - prev.value) / Math.max(Math.abs(prev.value), 1) * 100
+          if (pct <= CONFLICT_PCT) continue
+          if (!passingYears.has(`${code}|${year}`)) continue // TV year-set must be coherent
+          repairs.push({ code, value: ref, suspect: false, sumCheck: null, replaceOf: { id: prev.id, value: prev.value }, reconstructed: true })
+          replacements.push({ ticker: comp.ticker, period: rep.periodLabel, metric: code, existing: prev.value, existingSource: rep.sourceName ?? prev.method, tv: ref, diffPct: +pct.toFixed(1), note: kNeeded === 2 ? "H1 = Σ Q1+Q2 (TV)" : "9M = Σ Q1+Q2+Q3 (TV)" })
+          stats.replacements++
+        }
+        if (repairs.length === 0) continue
+        const stUrl = rec.statements["income-statement"]?.url ?? null
+        planEntries.push({
+          ticker: comp.ticker,
+          companyId: comp.id,
+          reportId: rep.id,
+          periodType: rep.periodType,
+          periodLabel: rep.periodLabel,
+          fiscalYear: year,
+          periodStart: new Date(targetEnd.getTime() - (rep.periodType === "SEMIANNUAL" ? 6 : 9) * 30.44 * 86_400_000).toISOString().slice(0, 10),
+          periodEnd: targetEnd.toISOString().slice(0, 10),
+          statement: "income-statement",
+          sourceUrl: stUrl,
+          tvSymbol: rec.tvSymbol,
+          ambiguity: false,
+          values: repairs.map((w) => ({ metric: w.code, value: w.value, kind: statementKind(w.code), label: AR_LABEL[w.code] ?? prettyCode(w.code), suspect: false, sumCheck: null, replaceOf: w.replaceOf, reconstructed: true })),
+        })
+      }
+    }
     stats.companies++
   }
-  return { entries: planEntries, conflicts, skipped, stats, sumChecks: sumChecksSample(sumChecks) }
+  return { entries: planEntries, conflicts, skipped, replacements, stats, sumChecks: sumChecksSample(sumChecks) }
 }
 function sumChecksSample(checks) {
   const bad = checks.filter((c) => !c.ok)
@@ -800,10 +927,11 @@ const STATUS_RANK = { APPROVED: 0, VALIDATED: 1, EXTRACTED: 2, PROCESSING: 3, NE
 
 async function applyPlan(entries) {
   mkdirSync("reports", { recursive: true })
-  const rollback = { generatedAt: new Date().toISOString(), source: SOURCE, parser: PARSER, reports: [], values: [] }
+  const rollback = { generatedAt: new Date().toISOString(), source: SOURCE, parser: PARSER, reports: [], values: [], replaced: [] }
   const blocked = []
   let reportCount = 0
   let valueCount = 0
+  let replaceCount = 0
 
   // group by report slot: entries may target the same existing report from
   // different statements (income/balance/cash) — merge their values
@@ -869,14 +997,62 @@ async function applyPlan(entries) {
     })
     const have = new Set(existing.filter((v) => !v.subPeriod || v.subPeriod === "CURRENT").map((v) => v.metricCode))
     for (const v of entry.values) {
-      if (have.has(v.metric)) continue
+      // v2 replacement: the slot is occupied by a lower-trust value the plan
+      // decided to replace. Re-verify the target still holds the planned value
+      // (no concurrent edit), snapshot the old row for the rollback journal,
+      // then swap.
+      let cur = null
+      if (v.replaceOf) {
+        cur = await db.financialValue.findUnique({ where: { id: v.replaceOf.id } })
+        if (!cur) continue
+        const curVal = cur.normalizedValue ?? cur.value
+        if (Math.abs(Number(curVal) - v.replaceOf.value) > Math.max(Math.abs(Number(curVal)) * 0.01, 1)) {
+          blocked.push({ ticker: entry.ticker, periodLabel: entry.periodLabel, metric: v.metric, reason: "REPLACE_TARGET_CHANGED" })
+          continue
+        }
+      } else if (have.has(v.metric)) continue
       const validationStatus = v.suspect ? "NEEDS_REVIEW" : "VALID"
       const confidence = v.suspect ? 0.7 : 0.85
       const notes = [
         `${AUDIT_MARK} TradingView ${entry.tvSymbol} (${entry.statement}); source ${entry.sourceUrl}`,
+        ...(v.replaceOf ? [`REPLACED lower-trust value ${v.replaceOf.value} (source-rank policy, year sum-check passed)`] : []),
+        ...(v.reconstructed ? [`cumulative repaired from TV discrete quarters`] : []),
         ...(v.suspect && v.sumCheck ? [`sum-check FAILED vs FY: Σ ${v.sumCheck.quarters} quarters = ${v.sumCheck.sum} vs FY ${v.sumCheck.fyValue} — flagged for review`] : []),
       ].join(" | ")
       try {
+        if (v.replaceOf) {
+          // delete FIRST: (reportId, metricCode, subPeriod) is unique — creating
+          // before the delete would hit P2002 against the old row itself. The
+          // old row is already snapshotted in `cur` (journal below), so the
+          // swap stays reversible even if the create fails after the delete.
+          await db.financialValue.delete({ where: { id: v.replaceOf.id } })
+          const { companyId: _c, reportId: _r, id: _i, createdAt: _ca, updatedAt: _ua, ...oldRow } = cur
+          const row = await db.financialValue.create({
+            data: {
+              companyId: entry.companyId,
+              reportId,
+              metricCode: v.metric,
+              originalLabel: AR_LABEL[v.metric] ?? v.label ?? prettyCode(v.metric),
+              value: v.value,
+              currency: "EGP",
+              unit: "UNIT",
+              normalizedValue: v.value,
+              statementType: v.kind || statementKind(v.metric),
+              subPeriod: "CURRENT",
+              extractionMethod: METHOD,
+              confidence,
+              validationStatus,
+              validationNotes: notes,
+              sourceText: entry.sourceUrl,
+              isDemoData: false,
+            },
+            select: { id: true },
+          })
+          rollback.replaced.push({ ticker: entry.ticker, periodLabel: entry.periodLabel, metric: v.metric, newValueId: row.id, oldRow })
+          replaceCount++
+          valueCount++
+          continue
+        }
         const row = await db.financialValue.create({
           data: {
             companyId: entry.companyId,
@@ -913,15 +1089,19 @@ async function applyPlan(entries) {
     writeFileSync("reports/tv-financials-blocked.json", JSON.stringify({ generatedAt: new Date().toISOString(), blocked }, null, 2), "utf8")
     log(`blocked (soft-deleted/failed/unique): ${blocked.length} → reports/tv-financials-blocked.json`)
   }
+  if (rollback.replaced.length) {
+    writeFileSync(REPLACEMENTS, JSON.stringify({ generatedAt: new Date().toISOString(), parser: PARSER, replaced: rollback.replaced.map(({ oldRow, ...rest }) => ({ ...rest, oldValue: oldRow.value, reportId: oldRow.reportId })) }, null, 2), "utf8")
+    log(`replaced lower-trust values: ${rollback.replaced.length} → reports/tv-financials-replacements.json`)
+  }
   await db.auditLog.create({
     data: {
       actor: "system",
       action: "UPLOAD",
       entityType: "FinancialReport",
-      details: `${AUDIT_MARK} ${reportCount} reports created, ${valueCount} values added (parser ${PARSER}); rollback ${ROLLBACK}`,
+      details: `${AUDIT_MARK} ${reportCount} reports created, ${valueCount} values added, ${replaceCount} lower-trust values replaced (parser ${PARSER}); rollback ${ROLLBACK}`,
     },
   })
-  return { reportCount, valueCount }
+  return { reportCount, valueCount, replaceCount }
 }
 
 async function runRollback() {
@@ -929,12 +1109,30 @@ async function runRollback() {
   const data = JSON.parse(readFileSync(ROLLBACK, "utf8"))
   let values = 0
   let reports = 0
+  let restored = 0
   let skipped = 0
   for (const v of data.values ?? []) {
     const row = await db.financialValue.findUnique({ where: { id: v.id }, select: { validationNotes: true } })
     if (!row || !String(row.validationNotes ?? "").includes(AUDIT_MARK)) { skipped++; continue }
     await db.financialValue.delete({ where: { id: v.id } })
     values++
+  }
+  // v2: undo replacements — remove the TV row we wrote, recreate the old row
+  for (const r of data.replaced ?? []) {
+    if (r.newValueId) {
+      const nv = await db.financialValue.findUnique({ where: { id: r.newValueId }, select: { validationNotes: true } })
+      if (nv && String(nv.validationNotes ?? "").includes(AUDIT_MARK)) {
+        await db.financialValue.delete({ where: { id: r.newValueId } })
+        values++
+      }
+    }
+    const old = r.oldRow
+    if (!old?.reportId || !old?.metricCode) { skipped++; continue }
+    const dup = await db.financialValue.findFirst({ where: { reportId: old.reportId, metricCode: old.metricCode, subPeriod: old.subPeriod ?? "CURRENT" }, select: { id: true } })
+    if (dup) { skipped++; continue }
+    const { id: _i, createdAt: _c, updatedAt: _u, ...createData } = old
+    await db.financialValue.create({ data: createData })
+    restored++
   }
   for (const r of data.reports ?? []) {
     const rep = await db.financialReport.findUnique({ where: { id: r.id }, select: { notes: true, _count: { select: { values: true } } } })
@@ -948,10 +1146,10 @@ async function runRollback() {
       actor: "system",
       action: "DELETE",
       entityType: "FinancialReport",
-      details: `${AUDIT_MARK} rollback: ${values} values removed, ${reports} reports deleted, ${skipped} skipped`,
+      details: `${AUDIT_MARK} rollback: ${values} values removed, ${restored} replaced values restored, ${reports} reports deleted, ${skipped} skipped`,
     },
   })
-  log(`rollback done: ${values} values, ${reports} reports, ${skipped} skipped`)
+  log(`rollback done: ${values} values removed, ${restored} restored, ${reports} reports, ${skipped} skipped`)
 }
 
 async function recomputeAll() {
@@ -977,15 +1175,19 @@ function printPlanSummary(plan) {
   log(`companies planned:      ${s.companies}`)
   log(`new reports:            ${s.newReports}`)
   log(`values to write:        ${s.fills}`)
+  log(`replacements (v2):      ${s.replacements}${REPLACE_ENABLED ? "" : " (disabled)"}`)
   log(`conflicts (>5% diff):   ${s.conflicts}`)
   log(`skipped slots:          ${s.skippedSlots}`)
   log(`skipped companies:      ${plan.skipped.filter((x) => !x.metric).length}`)
   log(`sum-checks:             ${plan.sumChecks.total} (${plan.sumChecks.failed} failed)`)
+  if (MIN_YEAR) log(`min fiscal year:        ${MIN_YEAR} (older TV columns ignored)`)
   const byType = {}
   for (const e of plan.entries) byType[e.periodType] = (byType[e.periodType] ?? 0) + 1
   log(`entries by period type: ${JSON.stringify(byType)}`)
   const sample = plan.entries.filter((e) => e.ticker === "ABUK").slice(0, 6)
   for (const e of sample) log(`  ABUK ${e.periodLabel.padEnd(9)} → ${e.values.length} values (${e.reportId ? "fill" : "NEW"})`)
+  const repSample = (plan.replacements ?? []).slice(0, 8)
+  for (const r of repSample) log(`  REPLACE ${r.ticker} ${r.period} ${r.metric}: ${r.existing} → ${r.tv} (${r.diffPct}%)${r.note ? " [" + r.note + "]" : ""}`)
 }
 
 // ----------------------------------------------------------------- main ----
@@ -1030,8 +1232,9 @@ async function main() {
   }
 
   const plan = await planFromSnapshot(snapshot, target)
-  writeFileSync(PLAN, JSON.stringify({ generatedAt: new Date().toISOString(), apply: APPLY, ...plan }, null, 2), "utf8")
+  writeFileSync(PLAN, JSON.stringify({ generatedAt: new Date().toISOString(), apply: APPLY, minYear: MIN_YEAR, replaceEnabled: REPLACE_ENABLED, ...plan }, null, 2), "utf8")
   if (plan.conflicts.length) writeFileSync(CONFLICTS, JSON.stringify({ generatedAt: new Date().toISOString(), conflicts: plan.conflicts }, null, 2), "utf8")
+  if (plan.replacements?.length) writeFileSync(REPLACEMENTS, JSON.stringify({ generatedAt: new Date().toISOString(), planned: true, replacements: plan.replacements }, null, 2), "utf8")
   printPlanSummary(plan)
 
   if (!APPLY) {
@@ -1039,7 +1242,7 @@ async function main() {
   } else {
     const t0 = Date.now()
     const res = await applyPlan(plan.entries)
-    log(`apply done in ${((Date.now() - t0) / 1000).toFixed(0)}s: ${res.reportCount} reports created, ${res.valueCount} values written`)
+    log(`apply done in ${((Date.now() - t0) / 1000).toFixed(0)}s: ${res.reportCount} reports created, ${res.valueCount} values written, ${res.replaceCount} lower-trust values replaced`)
     if (RECOMPUTE) await recomputeAll()
   }
   await db.$disconnect()

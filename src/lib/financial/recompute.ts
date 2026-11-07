@@ -473,7 +473,7 @@ export async function recomputeCompany(companyId: string): Promise<RecomputeResu
   if (!company) throw new Error(`Company ${companyId} not found`)
 
   const reports = await db.financialReport.findMany({
-    where: { companyId, processingStatus: { in: TRUSTED_STATUSES } },
+    where: { companyId, deletedAt: null, processingStatus: { in: TRUSTED_STATUSES } },
     include: { values: true },
     // version ascending so a newer restatement overwrites the same bucket
     orderBy: [{ fiscalYear: "asc" }, { periodLabel: "asc" }, { version: "asc" }],

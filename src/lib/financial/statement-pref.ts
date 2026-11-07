@@ -261,7 +261,7 @@ export async function latestCalcPeriodKeys(
 export async function availableReportStatementTypes(companyId: string): Promise<string[]> {
   const { db } = await import("@/lib/db")
   const rows = await db.financialReport.findMany({
-    where: { companyId, processingStatus: { in: [...TRUSTED_REPORT_STATUSES] } },
+    where: { companyId, deletedAt: null, processingStatus: { in: [...TRUSTED_REPORT_STATUSES] } },
     select: { statementType: true },
     distinct: ["statementType"],
   })
@@ -325,6 +325,7 @@ export async function availableReportPeriodViews(
   const rows = await db.financialReport.findMany({
     where: {
       companyId,
+      deletedAt: null,
       processingStatus: { in: [...TRUSTED_REPORT_STATUSES] },
       ...(statementType ? { statementType } : {}),
     },
