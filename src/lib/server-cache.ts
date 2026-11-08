@@ -1,25 +1,59 @@
 // Tiny in-memory response cache for expensive, rarely-changing computations.
-// stale-while-revalidate: an expired entry is served instantly while a
-// single-flight background refresh runs. All entries are invalidated whenever
-// the data pipeline recomputes (recompute-all, financial-ops edits) — the DB
-// stays the source of truth.
+// stale-while-revalidate with a HARD staleness bound: an expired entry is
+// served instantly while a single-flight background refresh runs, but past
+// maxStaleMs the caller WAITS for the refresh — a failing refresh can never
+// pin a poison value forever. All entries are invalidated whenever the data
+// pipeline recomputes (recompute-all, financial-ops edits) — the DB stays the
+// source of truth.
 
-const store = new Map<string, { value: unknown; at: number; refreshing?: boolean }>()
+const store = new Map<
+  string,
+  { value: unknown; at: number; refreshing?: boolean; waiters?: ((v: unknown) => void)[] }
+>()
 
 export async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+  const maxStaleMs = ttlMs * 5
   const hit = store.get(key)
   if (hit) {
-    if (Date.now() - hit.at < ttlMs) return hit.value as T
-    // stale: serve it and refresh in the background (one refresh at a time)
-    if (!hit.refreshing) {
-      hit.refreshing = true
-      fn()
-        .then((value) => store.set(key, { value, at: Date.now(), refreshing: false }))
-        .catch(() => {
-          hit.refreshing = false
-        })
+    const age = Date.now() - hit.at
+    if (age < ttlMs) return hit.value as T
+    if (age < maxStaleMs) {
+      // stale but tolerable: serve it and refresh in the background (one
+      // refresh at a time); late waiters receive the refreshed value.
+      if (!hit.refreshing) {
+        hit.refreshing = true
+        fn()
+          .then((value) => {
+            const waiters = hit.waiters ?? []
+            store.set(key, { value, at: Date.now() })
+            for (const w of waiters) w(value)
+          })
+          .catch(() => {
+            hit.refreshing = false
+          })
+      }
+      return hit.value as T
     }
-    return hit.value as T
+    // beyond the staleness bound: block on a single-flight refresh
+    if (hit.refreshing && hit.waiters) {
+      return new Promise<T>((resolve) => hit.waiters!.push(resolve)) as T
+    }
+    hit.refreshing = true
+    hit.waiters = []
+    try {
+      const value = await fn()
+      const waiters = hit.waiters
+      store.set(key, { value, at: Date.now() })
+      for (const w of waiters ?? []) w(value)
+      return value
+    } catch (e) {
+      hit.refreshing = false
+      hit.waiters = []
+      // refresh failed past the bound — serve the last known value rather
+      // than erroring (the next call retries); if there is none, rethrow.
+      if (hit.value !== undefined) return hit.value as T
+      throw e
+    }
   }
   const value = await fn()
   store.set(key, { value, at: Date.now() })
