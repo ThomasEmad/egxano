@@ -43,6 +43,7 @@ import { Input } from "@/components/ui/input"
 import { PremiumGate } from "@/components/egx/premium-gate"
 import { HealthTab } from "@/components/egx/health-tab"
 import { PriceChart } from "@/components/egx/price-chart"
+import { TradingViewTechnicalGauge } from "@/components/egx/tradingview"
 import { QaBox } from "@/components/egx/qa-box"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -368,7 +369,16 @@ export function CompanyDetail({
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
-          <PriceChart companyId={companyId} />
+          <PriceChart companyId={companyId} ticker={c.ticker} />
+          <Card className="border-border/60 p-0">
+            <CardContent className="p-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h3 className="text-sm font-bold">{lang === "ar" ? "الملخص الفني" : "Technical Summary"}</h3>
+                <span className="text-[10px] text-muted-foreground/70">TradingView</span>
+              </div>
+              <TradingViewTechnicalGauge ticker={c.ticker} />
+            </CardContent>
+          </Card>
           <OverviewTab companyId={companyId} basis={basisOverride} />
           <QaBox companyId={companyId} />
         </TabsContent>

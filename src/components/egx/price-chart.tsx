@@ -10,6 +10,7 @@ import { TrendingDown, TrendingUp } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useI18n } from "@/lib/i18n"
+import { TradingViewChart } from "@/components/egx/tradingview"
 
 interface PricePoint {
   asOf: string
@@ -30,9 +31,19 @@ function fmtEgp(v: number): string {
   return v.toFixed(2)
 }
 
-export function PriceChart({ companyId, height = 240 }: { companyId: string; height?: number }) {
+export function PriceChart({
+  companyId,
+  ticker,
+  height = 240,
+}: {
+  companyId: string
+  /** TradingView symbol suffix (EGX ticker). Absent → TV view hidden. */
+  ticker?: string
+  height?: number
+}) {
   const { t, lang } = useI18n()
   const [range, setRange] = useState<(typeof RANGES)[number]["key"]>("1y")
+  const [source, setSource] = useState<"tv" | "snapshots">("tv")
   const { data, isLoading } = useQuery({
     queryKey: ["prices", companyId],
     queryFn: () => fetch(`/api/v1/companies/${companyId}/prices`).then((r) => (r.ok ? (r.json() as Promise<{ prices: PricePoint[] }>) : { prices: [] as PricePoint[] })),
@@ -56,8 +67,32 @@ export function PriceChart({ companyId, height = 240 }: { companyId: string; hei
   const changePct = first && last && first !== 0 ? ((last - first) / Math.abs(first)) * 100 : null
   const changeGood = (changePct ?? 0) >= 0
 
+  // TradingView view — live chart with RSI/MACD studies, presentation only.
+  if (source === "tv" && ticker) {
+    return (
+      <Card className="border-border/60 p-0">
+        <CardContent className="p-4">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1">
+              <span className="rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary">TradingView</span>
+              <button
+                onClick={() => setSource("snapshots")}
+                disabled={series.length < 2}
+                className="rounded-md px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition-colors duration-150 hover:bg-muted/60 disabled:opacity-40 disabled:hover:bg-transparent"
+              >
+                {lang === "ar" ? "لقطاتنا" : "Our snapshots"}
+              </button>
+            </div>
+            <span className="text-[10px] text-muted-foreground/70">{lang === "ar" ? "شارت + مؤشرات RSI وMACD — بيانات متأخرة 15 دقيقة" : "chart + RSI/MACD studies — 15-min delayed data"}</span>
+          </div>
+          <TradingViewChart ticker={ticker} height={Math.max(height, 420)} />
+        </CardContent>
+      </Card>
+    )
+  }
+
   if (isLoading) return <Skeleton className="h-64 w-full rounded-xl" />
-  if (series.length < 2) {
+  if (series.length < 2 && source === "snapshots") {
     return (
       <Card className="border-border/60">
         <CardContent className="flex flex-col items-center justify-center gap-1 py-8 text-center">
@@ -69,7 +104,6 @@ export function PriceChart({ companyId, height = 240 }: { companyId: string; hei
       </Card>
     )
   }
-
 
   return (
     <Card className="border-border/60 p-0">
@@ -86,6 +120,13 @@ export function PriceChart({ companyId, height = 240 }: { companyId: string; hei
             ) : null}
           </div>
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => setSource("tv")}
+              disabled={!ticker}
+              className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors duration-150 ${source === "tv" && ticker ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/60 disabled:opacity-40 disabled:hover:bg-transparent"}`}
+            >
+              TradingView
+            </button>
             {RANGES.map((r) => (
               <button
                 key={r.key}
