@@ -1,5 +1,4 @@
 import { NextRequest } from "next/server"
-import { after } from "next/server"
 import { db } from "@/lib/db"
 import { audit } from "@/lib/audit"
 import { requireAuth, unauthorizedResponse } from "@/lib/access"
@@ -55,21 +54,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         return Response.json({ status: "ready", reportKey: result.report.reportKey, cached: true })
       case "generating":
         return Response.json({ status: "generating", jobRef: result.job.id, reportKey: result.job.reportKey }, { status: 202 })
-      case "queued":
-        after(async () => {
-          try {
-            await processJob(result.job.id, { budgetMs: 45_000 })
-          } catch (e) {
-            console.error("refresh background job crashed:", e instanceof Error ? e.message.slice(0, 200) : e)
-          }
-        })
+      case "queued": {
         await audit("AI_ANALYSIS", {
           actor: userId,
           entityType: "Company",
           entityId: result.ctx.company.id,
           details: `Premium refresh requested (${lang}) — key ${result.job.reportKey.slice(0, 12)}`,
         })
+        const outcome = await processJob(result.job.id, { budgetMs: 45_000 }).catch((e) => {
+          console.error("refresh inline generation crashed:", e instanceof Error ? e.message.slice(0, 200) : e)
+          return { status: "failed_permanent", error: "inline crash" } as const
+        })
+        if (outcome.status === "completed") {
+          const report = await db.aiAnalysisReport.findUnique({ where: { reportKey: result.job.reportKey } })
+          if (report) return Response.json({ status: "ready", reportKey: result.job.reportKey, cached: false })
+        }
         return Response.json({ status: "generating", jobRef: result.job.id, reportKey: result.job.reportKey }, { status: 202 })
+      }
       case "quota_exhausted":
         return Response.json({ error: "USAGE_LIMIT_EXCEEDED" }, { status: 429 })
     }

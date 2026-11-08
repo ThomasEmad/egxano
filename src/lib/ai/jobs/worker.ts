@@ -55,6 +55,7 @@ async function claimJob(jobId: string): Promise<boolean> {
     where: {
       id: jobId,
       status: { in: ["PENDING", "PROCESSING"] },
+      attempts: { lt: MAX_ATTEMPTS },
       OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }],
     },
     data: {
@@ -331,6 +332,7 @@ export async function processPendingJobs(
   const candidates = await db.aiAnalysisJob.findMany({
     where: {
       status: { in: ["PENDING", "PROCESSING"] },
+      attempts: { lt: MAX_ATTEMPTS },
       OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }],
     },
     orderBy: [{ priority: "asc" }, { createdAt: "asc" }],

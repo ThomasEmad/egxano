@@ -1,5 +1,4 @@
 import { NextRequest } from "next/server"
-import { after } from "next/server"
 import { db } from "@/lib/db"
 import { audit } from "@/lib/audit"
 import { requireAuth, unauthorizedResponse } from "@/lib/access"
@@ -146,27 +145,41 @@ async function postHandler(req: Request, { params }: { params: Promise<{ id: str
       invalidateServerCache()
       return Response.json({ analysis: serializeReport(result.report), cached: true })
     }
-    case "generating":
     case "queued": {
-      const isFreshEnqueue = result.kind === "queued"
-      if (isFreshEnqueue) {
-        // Process in the background — the response returns immediately.
-        after(async () => {
-          try {
-            // the 60s window minus the request handling above → ~45s of real
-            // generation room; anything longer is finished by the worker kicks
-            await processJob(result.job.id, { budgetMs: 45_000 })
-          } catch (e) {
-            console.error("ai-analysis background job crashed:", e instanceof Error ? e.message.slice(0, 200) : e)
-          }
-        })
+      // The requesting invocation carries the generation: it is the ONE
+      // serverless window that is guaranteed large (60s cap) and attached to
+      // a user. Concurrent requesters of the same identity receive 202 and
+      // poll — they share this report the moment it lands. If the inline
+      // window cannot finish, the job stays queued for the health-cron /
+      // cron-worker windows (50s / 280s) and the poll shows "generating".
+      const outcome = await processJob(result.job.id, { budgetMs: 45_000 }).catch((e) => {
+        console.error("ai-analysis inline generation crashed:", e instanceof Error ? e.message.slice(0, 200) : e)
+        return { status: "failed_permanent", error: "inline crash" } as const
+      })
+      if (outcome.status === "completed") {
+        const report = await db.aiAnalysisReport.findUnique({ where: { reportKey: result.job.reportKey } })
+        if (report) {
+          return Response.json({ analysis: serializeReport(report), cached: false })
+        }
       }
       return Response.json(
         {
           status: "generating",
           jobRef: result.job.id,
           reportKey: result.job.reportKey,
-          message: "Report generation started — poll the status endpoint.",
+          message: "Report generation continues in the background — poll the status endpoint.",
+        },
+        { status: 202 }
+      )
+    }
+    case "generating": {
+      // Another invocation (a concurrent user) owns this generation.
+      return Response.json(
+        {
+          status: "generating",
+          jobRef: result.job.id,
+          reportKey: result.job.reportKey,
+          message: "Report generation already running — poll the status endpoint.",
         },
         { status: 202 }
       )
