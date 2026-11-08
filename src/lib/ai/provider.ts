@@ -107,6 +107,24 @@ export interface AiChatRequest {
 export interface AiChatResult {
   content: string
   model: string
+  /** token usage when the provider reports it (optional, best-effort) */
+  usage?: { promptTokens?: number; completionTokens?: number }
+}
+
+/**
+ * Per-provider connection config for the multi-provider orchestrator.
+ * When omitted, the module-level env configuration is used EXACTLY as before
+ * (single primary provider) — zero behavior change for existing callers.
+ */
+export interface ExternalProviderConfig {
+  /** stable id used for quarantine tracking / audit labels */
+  id: string
+  baseUrl: string
+  apiKeys: string[]
+  /** explicit model priority chain (discovery still self-heals retirements) */
+  models?: string[]
+  /** NVIDIA reasoning toggle */
+  thinking?: "on" | "off"
 }
 
 /** All configured keys: AI_API_KEY first, then AI_API_KEYS extras — deduped. */
@@ -172,8 +190,21 @@ let discoveryInflight: Promise<void> | null = null
 // request dies that way, quarantine the provider for a short window so users
 // get the instant rule-based fallback instead of waiting out the full budget;
 // the quarantine expires quickly so recovery is picked up promptly.
+// v6: quarantine is tracked PER PROVIDER (multi-provider orchestrator); the
+// unkeyed module-level calls keep working against the "primary" provider.
 const QUARANTINE_MS = 3 * 60_000
-let quarantineUntil = 0
+const quarantineUntilByProvider = new Map<string, number>()
+const DEFAULT_PROVIDER_ID = "primary"
+
+export function isProviderQuarantined(providerId: string = DEFAULT_PROVIDER_ID): boolean {
+  const until = quarantineUntilByProvider.get(providerId) ?? 0
+  if (until && Date.now() >= until) quarantineUntilByProvider.delete(providerId)
+  return (quarantineUntilByProvider.get(providerId) ?? 0) > Date.now()
+}
+
+export function quarantineProvider(providerId: string = DEFAULT_PROVIDER_ID, ms: number = QUARANTINE_MS): void {
+  quarantineUntilByProvider.set(providerId, Date.now() + ms)
+}
 
 /** Models that cannot serve a grounded text analysis (media/embedding/voice). */
 function nonChatModel(id: string): boolean {
@@ -252,7 +283,7 @@ export function _resetDiscoveryCacheForTests(): void {
 }
 
 export function _resetQuarantineForTests(): void {
-  quarantineUntil = 0
+  quarantineUntilByProvider.clear()
 }
 
 /** Populate discoveryCache once per TTL; concurrent callers share one GET.
@@ -389,12 +420,13 @@ function buildAttemptPlan(budgetMs: number, chain: string[]): ApiAttempt[] {
 async function readSseContent(
   res: Response,
   timeoutMs: number
-): Promise<{ content: string; raw: string }> {
+): Promise<{ content: string; raw: string; usage?: { promptTokens?: number; completionTokens?: number } }> {
   if (!res.body) throw new Error("AI provider returned no response body")
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ""
   let content = ""
+  let usage: { promptTokens?: number; completionTokens?: number } | undefined
   // Error bodies can arrive labeled text/event-stream, so the content-type
   // gate alone misses them — capture every non-`data:` line for diagnosis and
   // rate-limit detection.
@@ -421,9 +453,16 @@ async function readSseContent(
     try {
       const parsed = JSON.parse(data) as {
         choices?: { delta?: { content?: string } }[]
+        usage?: { prompt_tokens?: number; completion_tokens?: number }
       }
       const piece = parsed?.choices?.[0]?.delta?.content
       if (typeof piece === "string") content += piece
+      if (parsed?.usage && (typeof parsed.usage.prompt_tokens === "number" || typeof parsed.usage.completion_tokens === "number")) {
+        usage = {
+          promptTokens: parsed.usage.prompt_tokens,
+          completionTokens: parsed.usage.completion_tokens,
+        }
+      }
     } catch {
       // partial/keep-alive frames — skip
     }
@@ -446,25 +485,32 @@ async function readSseContent(
   } finally {
     reader.cancel().catch(() => {})
   }
-  return { content, raw }
+  return { content, raw, usage }
 }
 
-async function chatViaExternalApi(req: AiChatRequest): Promise<AiChatResult> {
-  if (Date.now() < quarantineUntil) {
+export async function chatViaExternalApi(req: AiChatRequest, cfg?: ExternalProviderConfig): Promise<AiChatResult> {
+  const providerId = cfg?.id ?? DEFAULT_PROVIDER_ID
+  if (isProviderQuarantined(providerId)) {
     throw new Error(
-      `AI provider quarantined for ${Math.ceil((quarantineUntil - Date.now()) / 1000)}s after repeated serving hangs — use the fallback`
+      `AI provider '${providerId}' quarantined for ${Math.ceil(((quarantineUntilByProvider.get(providerId) ?? 0) - Date.now()) / 1000)}s after repeated serving hangs — use the fallback`
     )
   }
-  const keys = apiKeys()
+  const keys = cfg?.apiKeys?.length ? cfg.apiKeys : apiKeys()
+  if (!keys.length) throw new Error("AI API error 401: no API key configured")
   const apiKey = keys[0] ?? ""
-  const baseUrl = (process.env.AI_BASE_URL || DEFAULT_BASE_URL).trim().replace(/\/+$/, "")
+  const baseUrl = (cfg?.baseUrl || process.env.AI_BASE_URL || DEFAULT_BASE_URL).trim().replace(/\/+$/, "")
   const maxTokens = Number(process.env.AI_MAX_TOKENS || "") || DEFAULT_MAX_TOKENS
   // v5.1: NVIDIA reasoning phase measured 5-15s of dead time on 40KB prompts
   // before the first content byte; OFF makes the answer stream immediately.
-  const nvidiaThinking = (process.env.AI_THINKING || "off").trim().toLowerCase() === "on"
+  const nvidiaThinking = (cfg?.thinking ?? (process.env.AI_THINKING || "off")).trim().toLowerCase() === "on"
   const budget = Math.min(req.timeoutMs ?? DEFAULT_TIMEOUT_MS, 120_000)
   const deadline = Date.now() + budget
-  const models = await resolveModelPlan(baseUrl, apiKey, budget)
+  // Explicit chains from the orchestrator config are honored verbatim;
+  // discovery still self-heals retired members inside the same request.
+  const planModels = cfg?.models?.filter(Boolean).length ? cfg.models.filter(Boolean) : null
+  const models = planModels
+    ? { models: planModels, discovered: false, discoveredCount: 0 }
+    : await resolveModelPlan(baseUrl, apiKey, budget)
   const plan = buildAttemptPlan(budget, models.models)
 
   const messages = [
@@ -478,6 +524,7 @@ async function chatViaExternalApi(req: AiChatRequest): Promise<AiChatResult> {
   // with the next key; "permanent" is declared only when all keys are dead.
   const deadKeys = new Set<string>()
   let keyCursor = Math.floor(Math.random() * Math.max(keys.length, 1))
+
   const nextLiveKey = (): string | null => {
     for (let n = 0; n < keys.length; n++) {
       const k = keys[keyCursor % keys.length] ?? ""
@@ -594,7 +641,7 @@ async function chatViaExternalApi(req: AiChatRequest): Promise<AiChatResult> {
       // Accumulate `delta.content` from the SSE stream; `reasoning_content`
       // deltas (GLM/Nemotron/MiniMax reasoning models) are intentionally
       // skipped.
-      const { content, raw } = await readSseContent(res, attempt.timeoutMs)
+      const { content, raw, usage } = await readSseContent(res, attempt.timeoutMs)
       if (!content.trim()) {
         // v4.2: patient-retry when the body says rate-limit OR when an
         // instant 200 arrives completely empty — from a streaming endpoint
@@ -620,7 +667,7 @@ async function chatViaExternalApi(req: AiChatRequest): Promise<AiChatResult> {
         outcomes.push(`${attempt.model}@${attempt.timeoutMs}ms: ${raw.trim() ? "200 non-SSE body" : "empty stream"}`)
         continue
       }
-      return { content, model: attempt.model }
+      return { content, model: attempt.model, usage }
     } catch (e) {
       if (e instanceof Error && KEY_FATAL_ERROR_RE.test(e.message) && deadKeys.size >= keys.length) throw e
       const msg = e instanceof Error ? e.message : String(e)
@@ -638,7 +685,7 @@ async function chatViaExternalApi(req: AiChatRequest): Promise<AiChatResult> {
   // Full per-attempt chain — the 502 message / audit entry becomes a complete
   // diagnostic (models tried, budgets, failure kinds, discovery state).
   const allHung = outcomes.length > 0 && outcomes.every((o) => o.endsWith(": timeout"))
-  if (allHung) quarantineUntil = Date.now() + QUARANTINE_MS
+  if (allHung) quarantineProvider(providerId, QUARANTINE_MS)
   throw new Error(
     `AI failed after ${outcomes.length}/${plan.length} attempts (discovery:${models.discoveredCount})${allHung ? " — provider quarantined 3min (serving hang)" : ""}: ${outcomes.join("; ")}`
   )
@@ -646,7 +693,7 @@ async function chatViaExternalApi(req: AiChatRequest): Promise<AiChatResult> {
 
 // ---------- z-ai sandbox SDK ----------
 
-async function chatViaSandboxSdk(req: AiChatRequest): Promise<AiChatResult> {
+export async function chatViaSandboxSdk(req: AiChatRequest): Promise<AiChatResult> {
   const { default: ZAI } = await import("z-ai-web-dev-sdk")
   const zai = await ZAI.create()
   const timeoutMs = req.timeoutMs ?? DEFAULT_TIMEOUT_MS

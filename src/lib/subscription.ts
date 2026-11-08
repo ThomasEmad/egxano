@@ -40,20 +40,42 @@ export async function getUserSubscription(userId: string): Promise<SubscriptionI
   }
 }
 
+// Hot-path cache: premium status is read on EVERY authenticated request to
+// premium features. Under load it shares the blame for connection-pool
+// exhaustion. 60s bounded staleness; explicit invalidation on any write path
+// that changes premium state (activate/cancel/reject below).
+const premiumCache = new Map<string, { value: boolean; at: number }>()
+const PREMIUM_CACHE_TTL_MS = 60_000
+
+export function invalidatePremiumCache(userId?: string): void {
+  if (userId) premiumCache.delete(userId)
+  else premiumCache.clear()
+}
+
 export async function isPremiumUser(userId: string): Promise<boolean> {
+  const hit = premiumCache.get(userId)
+  if (hit && Date.now() - hit.at < PREMIUM_CACHE_TTL_MS) return hit.value
   const sub = await db.subscription.findUnique({
     where: { userId },
     include: { plan: true },
   })
-  if (!sub) return false
-  if (sub.status !== "ACTIVE") return false
+  if (!sub) {
+    premiumCache.set(userId, { value: false, at: Date.now() })
+    return false
+  }
+  if (sub.status !== "ACTIVE") {
+    premiumCache.set(userId, { value: false, at: Date.now() })
+    return false
+  }
   if (sub.endDate && new Date(sub.endDate) < new Date()) {
     await db.subscription.update({
       where: { id: sub.id },
       data: { status: "EXPIRED" },
     })
+    premiumCache.set(userId, { value: false, at: Date.now() })
     return false
   }
+  premiumCache.set(userId, { value: true, at: Date.now() })
   return true
 }
 

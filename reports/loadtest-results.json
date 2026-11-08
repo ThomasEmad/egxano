@@ -1,0 +1,82 @@
+{
+ "at": "2026-11-08T01:23:02.470Z",
+ "base": "http://127.0.0.1:3100",
+ "ticker": "COMI",
+ "results": [
+  {
+   "scenario": "read-report",
+   "vus": 250,
+   "durationSec": 30,
+   "requests": 31202,
+   "rps": 1040.1,
+   "avgMs": 241,
+   "p50Ms": 209,
+   "p95Ms": 391,
+   "p99Ms": 528,
+   "maxMs": 12141,
+   "errors": 0,
+   "statusCodes": {
+    "200": 31202
+   }
+  },
+  {
+   "scenario": "read-report",
+   "vus": 500,
+   "durationSec": 30,
+   "requests": 33136,
+   "rps": 1104.5,
+   "avgMs": 553,
+   "p50Ms": 383,
+   "p95Ms": 489,
+   "p99Ms": 10336,
+   "maxMs": 27141,
+   "errors": 443,
+   "statusCodes": {
+    "200": 32693,
+    "503": 443
+   }
+  },
+  {
+   "scenario": "read-report",
+   "vus": 1000,
+   "durationSec": 30,
+   "requests": 34400,
+   "rps": 1146.7,
+   "avgMs": 885,
+   "p50Ms": 817,
+   "p95Ms": 1016,
+   "p99Ms": 1606,
+   "maxMs": 30368,
+   "errors": 0,
+   "statusCodes": {
+    "200": 34400
+   }
+  },
+  {
+   "scenario": "status-poll",
+   "vus": 500,
+   "durationSec": 20,
+   "requests": 8957,
+   "rps": 447.9,
+   "avgMs": 1162,
+   "p50Ms": 33,
+   "p95Ms": 19026,
+   "p99Ms": 20654,
+   "maxMs": 28129,
+   "errors": 409,
+   "statusCodes": {
+    "200": 8548,
+    "503": 409
+   }
+  },
+  {
+   "scenario": "generation-burst-25-same-identity",
+   "statusCodes": {
+    "200": 10,
+    "429": 15
+   },
+   "jobRef": null,
+   "note": "exactly one 201/202 queue + rest 202/200 = dedup ok"
+  }
+ ]
+}

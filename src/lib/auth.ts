@@ -73,24 +73,66 @@ export async function createSession(userId: string): Promise<string> {
 
 export async function getSessionUser(token: string | null): Promise<string | null> {
   if (!token) return null
+  const key = hashToken(token)
+  // Hot-path cache: every authenticated request used to cost a DB round-trip
+  // just for auth — under load (thousands of concurrent readers) that alone
+  // saturates the connection pool. A short TTL keeps logout semantics intact
+  // (the invalidators below clear the cache in the same process), while
+  // repeat reads of the same session cost zero DB.
+  const hit = sessionCache.get(key)
+  if (hit) {
+    if (hit.expiresAt < new Date()) {
+      sessionCache.delete(key)
+      return null
+    }
+    // bounded staleness: revalidate against the DB every 5 minutes so a
+    // revocation performed in another process converges quickly
+    if (Date.now() - hit.cachedAt > 5 * 60_000) {
+      sessionCache.delete(key)
+    } else {
+      return hit.userId
+    }
+  }
   const session = await db.session.findUnique({
-    where: { token: hashToken(token) },
+    where: { token: key },
     select: { userId: true, expiresAt: true },
   })
   if (!session) return null
   if (session.expiresAt < new Date()) {
-    await db.session.delete({ where: { token: hashToken(token) } }).catch(() => {})
+    await db.session.delete({ where: { token: key } }).catch(() => {})
     return null
+  }
+  sessionCache.set(key, { userId: session.userId, expiresAt: session.expiresAt, cachedAt: Date.now() })
+  if (sessionCache.size > 10_000) {
+    // bound memory: drop the oldest quarter when the cache grows too large
+    const entries = [...sessionCache.entries()].sort((a, b) => a[1].cachedAt - b[1].cachedAt)
+    for (let i = 0; i < Math.floor(entries.length / 4); i++) sessionCache.delete(entries[i][0])
   }
   return session.userId
 }
 
+interface CachedSession {
+  userId: string
+  expiresAt: Date
+  cachedAt: number
+}
+const sessionCache = new Map<string, CachedSession>()
+
+export function clearSessionCache(token?: string | null, userId?: string): void {
+  if (token) sessionCache.delete(hashToken(token))
+  if (userId) {
+    for (const [k, v] of sessionCache) if (v.userId === userId) sessionCache.delete(k)
+  }
+}
+
 export async function invalidateSession(token: string | null): Promise<void> {
+  clearSessionCache(token)
   if (!token) return
   await db.session.delete({ where: { token: hashToken(token) } }).catch(() => {})
 }
 
 export async function invalidateUserSessions(userId: string): Promise<void> {
+  clearSessionCache(null, userId)
   await db.session.deleteMany({ where: { userId } }).catch(() => {})
 }
 

@@ -48,6 +48,9 @@ model Company {
   dividends         Dividend[]
   marketPrices      MarketPrice[]
   aiAnalyses        AiAnalysis[]
+  priceBars         PriceBar[]
+  aiReports         AiAnalysisReport[]
+  aiJobs            AiAnalysisJob[]
   debtInstruments       DebtInstrument[]
   segmentDisclosures    SegmentDisclosure[]
   fairValueMovements    FairValueMovement[]
@@ -260,6 +263,143 @@ model AiAnalysis {
   createdAt   DateTime @default(now())
 
   @@index([companyId, createdAt])
+}
+
+// =============================================================================
+// AI ANALYSIS ENGINE v2 (production-grade reports)
+// =============================================================================
+
+// Daily OHLCV price bars feeding the deterministic technical-analysis engine.
+// A bar is an observed trading session from the authorized public data source —
+// sessions are never synthesized, forward-filled, or interpolated. Indicators
+// that need more history than exists report "insufficient data" instead.
+model PriceBar {
+  id         String   @id @default(cuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ts         DateTime // trading session date (UTC midnight of that session)
+  open       Float
+  high       Float
+  low        Float
+  close      Float
+  volume     Float?
+  currency   String   @default("EGP")
+  sourceName String
+  isDemoData Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@unique([companyId, ts])
+}
+
+// Versioned AI analysis report. reportKey is the DETERMINISTIC cache identity:
+// sha256(companyId + financial dataHash + technicalHash + priceAsOf + engine/
+// prompt/config versions + lang + depth). Identical inputs reuse the report
+// across all users — page visits never trigger inference. The unique
+// constraint is the last line of defense against duplicate artifacts.
+model AiAnalysisReport {
+  id             String    @id @default(cuid())
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reportKey      String    @unique
+  lang           String    @default("en") // ar | en
+  status         String    @default("PENDING") // COMPLETED | FAILED (artifact rows are terminal-state only)
+  content        String? // full markdown report
+  sections       String? // JSON map of validated section -> markdown body
+  stance         String? // bullish | cautiously_positive | neutral | bearish (extracted, null when absent)
+  // --- data identity / freshness ---
+  dataHash       String // sha256 of the financial snapshot used
+  technicalHash  String? // sha256 of the technical snapshot used
+  priceAsOf      DateTime? // latest market price date included
+  financialAsOf  DateTime? // period end of the latest financial period included
+  periodKey      String? // anchor financial period key
+  dataCompleteness String? // JSON { financialCoveragePct, technicalCoveragePct, limitations[] }
+  // --- versions ---
+  promptVersion  String
+  configVersion  String
+  technicalVersion String
+  // --- generation metadata ---
+  provider       String?
+  model          String?
+  degraded       Boolean   @default(false) // true = rule-based fallback (no LLM)
+  tokensIn       Int?
+  tokensOut      Int?
+  latencyMs      Int?
+  wordCount      Int?
+  attempt        Int       @default(0)
+  error          String?
+  inputSummary   String? // truncated exact input JSON (verification / audit)
+  requestedBy    String? // first requesting user id (ids only, no PII)
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  @@index([companyId, createdAt])
+  @@index([companyId, status])
+  @@index([dataHash])
+}
+
+// Durable background-generation job. The unique reportKey prevents duplicate
+// jobs for the same report identity; the lease columns (leasedBy/leaseUntil)
+// plus the conditional claim make concurrent processing safe across serverless
+// instances. Terminal-state rows are deleted by the worker sweep, so a later
+// authorized refresh of the same identity can enqueue again.
+model AiAnalysisJob {
+  id          String    @id @default(cuid())
+  reportKey   String    @unique
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lang        String    @default("en")
+  priority    Int       @default(100) // lower = processed sooner
+  status      String    @default("PENDING") // PENDING | PROCESSING | FAILED
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  leasedBy    String? // worker instance id
+  leaseUntil  DateTime? // claim expiry — stale leases are re-claimed
+  lastError   String?
+  requestedBy String? // user id that triggered generation (audit only)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  startedAt   DateTime?
+  finishedAt  DateTime?
+
+  @@index([status, priority, createdAt])
+  @@index([companyId, status])
+}
+
+// Per-call usage accounting for cost tracking and spend caps. Never stores
+// credentials or user content.
+model AiProviderUsage {
+  id         String   @id @default(cuid())
+  provider   String // adapter id (e.g. the configured chain id — never a secret)
+  model      String?
+  kind       String   @default("report") // report | chat | probe
+  ok         Boolean  @default(true)
+  errorKind  String? // timeout | rate_limit | auth | server | parse | network | other
+  tokensIn   Int?
+  tokensOut  Int?
+  latencyMs  Int?
+  costUsdEst Float?
+  companyId  String?
+  reportKey  String?
+  createdAt  DateTime @default(now())
+
+  @@index([provider, createdAt])
+  @@index([kind, createdAt])
+}
+
+// Structured event trail of the analysis pipeline (lifecycle + control
+// actions). Complements AuditLog with report-key granularity.
+model AiAnalysisEvent {
+  id        String   @id @default(cuid())
+  companyId String?
+  reportKey String?
+  kind      String // ENQUEUED | CLAIMED | COMPLETED | FAILED | CACHE_HIT | REFRESH_RATE_LIMITED | KILL_SWITCH | SPEND_LIMIT | STALE_RECLAIMED | SWEEP
+  details   String?
+  actor     String? // userId or "system"
+  createdAt DateTime @default(now())
+
+  @@index([kind, createdAt])
+  @@index([companyId])
 }
 
 // Derived metrics stored separately from source values, with formula version

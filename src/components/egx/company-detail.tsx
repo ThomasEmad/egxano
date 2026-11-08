@@ -47,7 +47,7 @@ import { QaBox } from "@/components/egx/qa-box"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { api, type AiChatMessage, type EventItem, type MetricsData } from "@/lib/client/api"
+import { api, type AiAnalysisData, type AiAnalysisStatusData, type AiChatMessage, type EventItem, type MetricsData } from "@/lib/client/api"
 import { useI18n, type DictKey } from "@/lib/i18n"
 import { formatEgp, formatPercent, formatRatio } from "@/lib/financial/units"
 import { RAW_METRIC_MAP } from "@/lib/financial/registry"
@@ -1691,8 +1691,9 @@ function DocumentsTable({ companyId }: { companyId: string }) {
 
 /* ---------------- AI analysis tab ---------------- */
 
-function AiLoadingPanel() {
+function AiLoadingPanel({ status }: { status?: string }) {
   const { t, lang } = useI18n()
+  const processing = status === "processing"
   return (
     <Card className="p-0">
       <CardContent className="flex flex-col items-center justify-center gap-4 p-10 text-center">
@@ -1701,7 +1702,7 @@ function AiLoadingPanel() {
           <span className="absolute inset-2 rounded-full bg-primary/10 animate-pulse" aria-hidden />
           <Sparkles className="relative h-7 w-7 text-primary" aria-hidden />
         </div>
-        <p className="text-sm font-semibold">{t("co.aiLoading")}</p>
+        <p className="text-sm font-semibold">{processing ? t("co.aiLoading") : t("co.aiQueued")}</p>
         <div className="flex items-center gap-1.5" aria-hidden>
           {[0, 1, 2].map((i) => (
             <span key={i} className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
@@ -1709,8 +1710,8 @@ function AiLoadingPanel() {
         </div>
         <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
           {lang === "ar"
-            ? "يقرأ النموذج القيم المالية الموثقة من قاعدة البيانات فقط. قد تستغرق العملية حتى دقيقة."
-            : "The model reads only verified financial values from the database. This can take up to a minute."}
+            ? "التقرير يُولَّد في الخلفية من البيانات الموثقة فقط — يمكنك ترك الصفحة والعودة لاحقاً؛ جميع المستخدمين يشاركون نفس التقرير."
+            : "The report is being generated in the background from verified data only — you can leave and come back; all users share the same report."}
         </p>
       </CardContent>
     </Card>
@@ -1720,6 +1721,7 @@ function AiLoadingPanel() {
 function AiAnalysisTab({ companyId }: { companyId: string }) {
   const { t, lang } = useI18n()
   const queryClient = useQueryClient()
+  const [jobRef, setJobRef] = useState<string | null>(null)
   const { data: subData } = useQuery({ queryKey: ["my-subscription"], queryFn: () => api.subscription() })
   const isPremium = !!subData?.isPremium
   const usage = subData?.smartAnalysisUsage
@@ -1732,21 +1734,72 @@ function AiAnalysisTab({ companyId }: { companyId: string }) {
     queryFn: () => api.aiAnalysis(companyId, lang),
   })
 
-  const generate = useMutation({
-    mutationFn: () => api.generateAiAnalysis(companyId, lang),
-    onSuccess: () => {
+  // Generation is a BACKGROUND JOB: POST returns 202 + jobRef immediately.
+  // While a job exists we poll the lightweight status endpoint; the moment it
+  // reports a completed report we invalidate and the full report renders.
+  const statusQuery = useQuery({
+    queryKey: ["ai-analysis-status", companyId, lang, jobRef],
+    queryFn: () => api.aiAnalysisStatus(companyId, lang, jobRef),
+    enabled: !!jobRef,
+    // stop polling the moment the report is ready or the job exhausted
+    refetchInterval: (query) => {
+      const d = query.state.data as AiAnalysisStatusData | undefined
+      if (!d) return 5000
+      if (d.status === "ready") return false
+      if (d.status === "failed" && (d.attempts ?? 0) >= 3) return false
+      return 5000
+    },
+    refetchIntervalInBackground: false,
+  })
+  const polledReport = statusQuery.data?.report ?? null
+  const statusReady = statusQuery.data?.status === "ready" && !!statusQuery.data.report
+  const statusExhausted = statusQuery.data?.status === "failed" && (statusQuery.data.attempts ?? 0) >= 3
+  const statusFailed = statusQuery.data?.status === "failed"
+  useEffect(() => {
+    // state derivation happens in render below; this effect only refreshes
+    // the surrounding server state once a report becomes ready.
+    if (statusReady || statusExhausted) {
       queryClient.invalidateQueries({ queryKey: ["ai-analysis", companyId, lang] })
       queryClient.invalidateQueries({ queryKey: ["my-subscription"] })
+    }
+  }, [statusReady, statusExhausted, companyId, lang, queryClient])
+
+  const generate = useMutation({
+    mutationFn: () => api.generateAiAnalysis(companyId, lang),
+    onSuccess: (res) => {
+      if (res.status === "generating" && res.jobRef) {
+        setJobRef(res.jobRef)
+        statusQuery.refetch()
+      } else {
+        // served from cache — the analysis arrived inline
+        queryClient.invalidateQueries({ queryKey: ["ai-analysis", companyId, lang] })
+      }
+      queryClient.invalidateQueries({ queryKey: ["my-subscription"] })
+    },
+  })
+
+  const refresh = useMutation({
+    mutationFn: () => api.refreshAiAnalysis(companyId, lang),
+    onSuccess: (res) => {
+      if (res.status === "generating" && res.jobRef) {
+        setJobRef(res.jobRef)
+        statusQuery.refetch()
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["ai-analysis", companyId, lang] })
+      }
     },
   })
 
   const err = generate.error as (Error & { status?: number; body?: unknown }) | null
   const noData = !!err && (err.status === 400 || /NO_DATA/i.test(err.message))
+  const jobFailed = statusFailed && statusExhausted && !polledReport
   const usageLimited = !!err && (err.status === 429 || /USAGE_LIMIT_EXCEEDED/i.test(err.message))
-  const analysis = data?.analysis ?? null
-  const stance = extractStance(analysis?.content ?? "")
+  const premiumErr = !!err && /PREMIUM_REQUIRED/i.test(err.message)
+  const generating = !!jobRef && !statusReady && !statusExhausted
+  const analysis = (polledReport ?? data?.analysis ?? null) as AiAnalysisData["analysis"]
+  const stance = analysis ? extractStance(analysis.content ?? "") : null
   if (isLoading) return <Skeleton className="h-72 rounded-xl" />
-  if (generate.isPending) return <AiLoadingPanel />
+  if (generating) return <AiLoadingPanel status={statusQuery.data?.status ?? "queued"} />
 
   if (usageLimited) {
     return (
@@ -1766,17 +1819,26 @@ function AiAnalysisTab({ companyId }: { companyId: string }) {
     )
   }
 
+  const completeness = analysis?.completeness ?? null
+
   return (
     <div className="space-y-3">
+      {jobFailed ? (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" aria-hidden />
+          <AlertTitle>{t("co.aiFailed")}</AlertTitle>
+          {statusQuery.data?.lastError ? <AlertDescription className="font-mono text-xs">{statusQuery.data.lastError.slice(0, 200)}</AlertDescription> : null}
+        </Alert>
+      ) : null}
       {err ? (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" aria-hidden />
-          <AlertTitle>{noData ? t("co.aiNoData") : t("co.aiFailed")}</AlertTitle>
+          <AlertTitle>{noData ? t("co.aiNoData") : premiumErr ? (lang === "ar" ? "إعادة التوليد للبريميوم" : "Refresh requires Premium") : t("co.aiFailed")}</AlertTitle>
           {!noData && err.message ? <AlertDescription className="font-mono text-xs">{err.message}</AlertDescription> : null}
         </Alert>
       ) : null}
 
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         {isPremium ? (
           <Badge variant="secondary">{lang === "ar" ? "بريميوم — غير محدود" : "Premium — unlimited"}</Badge>
         ) : (
@@ -1784,6 +1846,30 @@ function AiAnalysisTab({ companyId }: { companyId: string }) {
             {lang === "ar" ? `التحليلات الذكية: ${usageLabel}` : `Smart Analyses: ${usageLabel}`}
           </Badge>
         )}
+        {analysis?.priceAsOf ? (
+          <Badge variant="outline" className="gap-1">
+            <CalendarDays className="h-3 w-3" aria-hidden />
+            {lang === "ar" ? "السعر حتى" : "Price as of"} {String(analysis.priceAsOf).slice(0, 10)}
+          </Badge>
+        ) : null}
+        {analysis?.financialAsOf ? (
+          <Badge variant="outline" className="gap-1">
+            <FileText className="h-3 w-3" aria-hidden />
+            {lang === "ar" ? "القوائم حتى" : "Financials as of"} {String(analysis.financialAsOf).slice(0, 10)}
+          </Badge>
+        ) : null}
+        {completeness?.financialCoveragePct != null ? (
+          <Badge variant="outline" className="gap-1">
+            <Scale className="h-3 w-3" aria-hidden />
+            {lang === "ar" ? `اكتمال مالي ${completeness.financialCoveragePct}%` : `Financial coverage ${completeness.financialCoveragePct}%`}
+          </Badge>
+        ) : null}
+        {completeness?.technicalCoveragePct != null ? (
+          <Badge variant="outline" className="gap-1">
+            <ChartBar className="h-3 w-3" aria-hidden />
+            {lang === "ar" ? `اكتمال فني ${completeness.technicalCoveragePct}%` : `Technical coverage ${completeness.technicalCoveragePct}%`}
+          </Badge>
+        ) : null}
       </div>
 
       {analysis ? (
@@ -1794,16 +1880,23 @@ function AiAnalysisTab({ companyId }: { companyId: string }) {
                 <Sparkles className="h-4 w-4 text-primary" aria-hidden />
                 {t("co.aiAnalysis")}
                 {analysis.model ? <Badge variant="secondary" className="font-mono text-[10px]">{analysis.model}</Badge> : null}
-                <span className="text-[11px] font-normal text-muted-foreground">{fmt(analysis.createdAt)}</span>
-                <Badge variant="outline" className="font-mono text-[9px]" title={analysis.dataHash}>
-                  {analysis.dataHash.slice(0, 10)}
+                <span className="text-[11px] font-normal text-muted-foreground">{fmt(analysis.completedAt ?? analysis.createdAt)}</span>
+                <Badge variant="outline" className="font-mono text-[9px]" title={analysis.reportKey ?? analysis.dataHash}>
+                  {(analysis.reportKey ?? analysis.dataHash).slice(0, 10)}
                 </Badge>
               </CardTitle>
               <div className="flex items-center gap-2">
                 {stance ? <StanceBadge stance={stance} /> : null}
-                <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => generate.mutate()}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs"
+                  disabled={refresh.isPending || generating}
+                  onClick={() => (isPremium ? refresh.mutate() : generate.mutate())}
+                  title={isPremium ? undefined : lang === "ar" ? "إعادة التوليد الفوري متاحة للبريميوم — الزر يعيد الطلب من الكاش" : "Instant refresh is premium — the button re-requests from cache"}
+                >
                   <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-                  {t("co.aiRegenerate")}
+                  {isPremium ? (lang === "ar" ? "تحديث البريميوم" : "Premium refresh") : t("co.aiRegenerate")}
                 </Button>
               </div>
             </CardHeader>
@@ -1822,6 +1915,12 @@ function AiAnalysisTab({ companyId }: { companyId: string }) {
                       ? "التحليل المخزّن مكتوب بلغة تانية — اضغط «إعادة التوليد» عشان يُكتب بالعربي من نفس البيانات."
                       : "The stored analysis was generated in another language — press Regenerate to rewrite it in your language from the same data."}
                   </AlertDescription>
+                </Alert>
+              ) : null}
+              {completeness?.limitations?.length ? (
+                <Alert className="mb-4">
+                  <Info className="h-4 w-4" aria-hidden />
+                  <AlertDescription className="text-xs">{completeness.limitations.join(" • ")}</AlertDescription>
                 </Alert>
               ) : null}
               <div dir={lang === "ar" ? "rtl" : "ltr"}>
@@ -1844,9 +1943,9 @@ function AiAnalysisTab({ companyId }: { companyId: string }) {
               <Sparkles className="h-7 w-7 text-primary" aria-hidden />
             </div>
             <p className="mx-auto max-w-md text-sm leading-relaxed text-muted-foreground">{t("co.aiEmpty")}</p>
-            <Button size="sm" className="gap-1.5" onClick={() => generate.mutate()}>
+            <Button size="sm" className="gap-1.5" onClick={() => generate.mutate()} disabled={generate.isPending}>
               <Sparkles className="h-4 w-4" aria-hidden />
-              {t("co.aiGenerate")}
+              {generate.isPending ? t("co.aiQueued") : t("co.aiGenerate")}
             </Button>
           </CardContent>
         </Card>
