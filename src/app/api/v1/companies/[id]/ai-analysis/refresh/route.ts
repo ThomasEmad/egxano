@@ -18,6 +18,7 @@ import { processJob } from "@/lib/ai/jobs/worker"
 export const maxDuration = 60
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const postT0 = Date.now()
   try {
     const userId = await requireAuth(req)
     if (!userId) return unauthorizedResponse()
@@ -61,7 +62,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           entityId: result.ctx.company.id,
           details: `Premium refresh requested (${lang}) — key ${result.job.reportKey.slice(0, 12)}`,
         })
-        const outcome = await processJob(result.job.id, { budgetMs: 36_000 }).catch((e) => {
+        const inlineBudget = Math.max(18_000, 46_000 - (Date.now() - postT0))
+        const outcome = await processJob(result.job.id, { budgetMs: inlineBudget }).catch((e) => {
           console.error("refresh inline generation crashed:", e instanceof Error ? e.message.slice(0, 200) : e)
           return { status: "failed_permanent", error: "inline crash" } as const
         })

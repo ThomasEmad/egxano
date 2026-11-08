@@ -185,6 +185,13 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<GenerateRes
     const adapter = chain[p]
     const remaining = totalBudget - (Date.now() - started)
     if (remaining < 5_000) break
+    // Fair shares: the first provider gets ≤40% (a hung provider must not eat
+    // the fallbacks' window), every later provider gets an equal slice of the
+    // rest. A provider that finishes early leaves its remainder to the next.
+    const share =
+      p === 0
+        ? Math.min(remaining, Math.max(8_000, totalBudget * 0.4))
+        : Math.min(remaining, Math.max(8_000, (totalBudget * 0.6) / Math.max(chain.length - 1, 1)))
     if (!adapter.configured()) continue
     if (!breakerAllows(adapter.id)) {
       errors.push({ providerId: adapter.id, kind: "error", message: "circuit breaker open", at: Date.now() })
@@ -199,10 +206,10 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<GenerateRes
       const result = await withGenerationSlot(
         () =>
           adapter.generate(
-            { system: opts.system, user: opts.user, history: opts.history, timeoutMs: Math.min(opts.timeoutMs, remaining) },
+            { system: opts.system, user: opts.user, history: opts.history, timeoutMs: Math.min(opts.timeoutMs, Math.floor(share)) },
             opts.onAttempt
           ),
-        Math.min(60_000, remaining)
+        Math.min(60_000, Math.floor(share) + 5_000)
       )
       breakerRecord(adapter.id, true)
       await recordUsage({
