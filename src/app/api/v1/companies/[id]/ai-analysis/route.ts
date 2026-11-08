@@ -153,7 +153,9 @@ async function postHandler(req: Request, { params }: { params: Promise<{ id: str
         // Process in the background — the response returns immediately.
         after(async () => {
           try {
-            await processJob(result.job.id)
+            // the 60s window minus the request handling above → ~45s of real
+            // generation room; anything longer is finished by the worker kicks
+            await processJob(result.job.id, { budgetMs: 45_000 })
           } catch (e) {
             console.error("ai-analysis background job crashed:", e instanceof Error ? e.message.slice(0, 200) : e)
           }

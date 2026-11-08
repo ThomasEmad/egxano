@@ -12,6 +12,7 @@ import {
   rateLimitAllows,
   withGenerationSlot,
   type AiProviderAdapter,
+  classifyError,
   type AttemptInfo,
   type GenerateRequest,
   type GenerateResult,
@@ -218,6 +219,15 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<GenerateRes
       return result
     } catch (err) {
       breakerRecord(adapter.id, false)
+      await recordUsage({
+        providerId: adapter.id,
+        kind: opts.kind,
+        ok: false,
+        errorKind: classifyError(err),
+        latencyMs: Date.now() - started,
+        companyId: opts.companyId,
+        reportKey: opts.reportKey,
+      })
       if (!(err instanceof AiUnavailableError) || err.kind !== "concurrency") {
         // concurrency rejections are local, not provider failures
       }

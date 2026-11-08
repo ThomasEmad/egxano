@@ -22,7 +22,17 @@ import { RULE_BASED_MODEL } from "@/lib/ai/analysis-snapshot"
 import { PROMPT_VERSION, CONFIG_VERSION } from "@/lib/ai/report/identity"
 import { invalidateServerCache } from "@/lib/server-cache"
 
-export const JOB_LEASE_MS = 4 * 60_000
+/**
+ * Worker time window. Vercel serverless constrains `after()` to the host
+ * invocation's maxDuration, so every kick path passes an EXPLICIT budget that
+ * fits its window (POST after() ≈ 45s, health cron 60s → 50s, manual worker
+ * 300s). The lease is sized so a live worker never outlives it.
+ */
+export const JOB_LEASE_MS = 90_000
+export const DEFAULT_WORKER_BUDGET_MS = Math.min(
+  Math.max(Number(process.env.AI_WORKER_BUDGET_MS || "") || 50_000, 20_000),
+  80_000
+)
 export const MAX_ATTEMPTS = 3
 /** Worker instance id (diagnostics). */
 const WORKER_ID = `w-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
@@ -176,7 +186,7 @@ function technicalSummaryLines(ctx: ReportContext, lang: "ar" | "en"): string[] 
  * Process one job end-to-end. NEVER throws — all outcomes are returned so
  * callers (after(), cron, health kick) can log safely.
  */
-export async function processJob(jobId: string): Promise<JobOutcome> {
+export async function processJob(jobId: string, opts?: { budgetMs?: number }): Promise<JobOutcome> {
   const claimed = await claimJob(jobId)
   if (!claimed) return { status: "in_progress", leasedByOther: true }
   const job = await db.aiAnalysisJob.findUnique({ where: { id: jobId } })
@@ -226,7 +236,7 @@ export async function processJob(jobId: string): Promise<JobOutcome> {
         kind: "report",
         companyId: company.id,
         reportKey: ctx.reportKey,
-        timeoutMs: Number(process.env.AI_REPORT_TIMEOUT_MS || "") || 100_000,
+        timeoutMs: opts?.budgetMs ?? DEFAULT_WORKER_BUDGET_MS,
       })
 
       const validation = validateReport({ markdown: result.content }, { lang, hasFinancialData: ctx.hasFinancialData })
@@ -309,7 +319,10 @@ export async function processJob(jobId: string): Promise<JobOutcome> {
  * Claim & process up to `limit` PENDING jobs (priority order). Used by the
  * cron worker endpoint and the health-kick path.
  */
-export async function processPendingJobs(limit = 2): Promise<{ processed: number; outcomes: JobOutcome[] }> {
+export async function processPendingJobs(
+  limit = 2,
+  opts?: { budgetMs?: number }
+): Promise<{ processed: number; outcomes: JobOutcome[] }> {
   const candidates = await db.aiAnalysisJob.findMany({
     where: {
       status: { in: ["PENDING", "PROCESSING"] },
@@ -320,7 +333,7 @@ export async function processPendingJobs(limit = 2): Promise<{ processed: number
     select: { id: true },
   })
   const outcomes: JobOutcome[] = []
-  for (const c of candidates) outcomes.push(await processJob(c.id))
+  for (const c of candidates) outcomes.push(await processJob(c.id, opts))
   return { processed: candidates.length, outcomes }
 }
 

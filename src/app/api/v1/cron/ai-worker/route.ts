@@ -26,7 +26,7 @@ async function handle(req: NextRequest) {
   try {
     const limit = Math.min(Math.max(Number(req.nextUrl.searchParams.get("limit") || "") || 2, 1), 5)
     const sweep = await sweepJobs()
-    const run = await processPendingJobs(limit)
+    const run = await processPendingJobs(limit, { budgetMs: 280_000 })
     return Response.json({
       ok: true,
       tookMs: Date.now() - started,

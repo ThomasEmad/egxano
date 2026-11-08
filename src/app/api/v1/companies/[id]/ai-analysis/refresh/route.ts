@@ -58,7 +58,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       case "queued":
         after(async () => {
           try {
-            await processJob(result.job.id)
+            await processJob(result.job.id, { budgetMs: 45_000 })
           } catch (e) {
             console.error("refresh background job crashed:", e instanceof Error ? e.message.slice(0, 200) : e)
           }

@@ -1,8 +1,6 @@
 import { NextRequest } from "next/server"
-import { after } from "next/server"
 import { db } from "@/lib/db"
 import { requireAuth, unauthorizedResponse } from "@/lib/access"
-import { processJob } from "@/lib/ai/jobs/worker"
 import { cachedRead } from "@/lib/hot-read"
 
 // GET /api/v1/companies/[id]/ai-analysis/status?lang=ar|en&jobRef=<id>
@@ -56,20 +54,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     })
     const { job, report } = snap
 
-    // Stale-job recovery: a PENDING/PROCESSING job whose lease expired is
-    // re-claimed from this poll (fire-and-forget, never blocks the response).
+    // Stale-job recovery WITHOUT generation: a 30s function window cannot host
+    // a full report generation, so this poll only releases expired leases back
+    // to PENDING (fast, indexed). The next health-cron/worker kick claims it.
     const leaseStale =
       job &&
-      job.status !== "FAILED" &&
-      (!job.leaseUntil || job.leaseUntil.getTime() < Date.now())
+      job.status === "PROCESSING" &&
+      job.leaseUntil !== null &&
+      job.leaseUntil.getTime() < Date.now()
     if (leaseStale && job) {
-      after(async () => {
-        try {
-          await processJob(job.id)
-        } catch (e) {
-          console.error("status-poll worker kick failed:", e instanceof Error ? e.message.slice(0, 200) : e)
-        }
-      })
+      await db.aiAnalysisJob
+        .updateMany({
+          where: { id: job.id, status: "PROCESSING", leaseUntil: { lt: new Date() } },
+          data: { status: "PENDING", leasedBy: null, leaseUntil: null },
+        })
+        .catch(() => {})
     }
 
     return Response.json(

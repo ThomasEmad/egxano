@@ -12,6 +12,10 @@ import { after } from "next/server"
 const BOOT = Date.now()
 let lastWorkerKick = 0
 
+// Vercel Hobby allows up to 60s for this function — the 5-minute external
+// health cron therefore doubles as a 50-second AI worker window.
+export const maxDuration = 60
+
 export async function GET() {
   const t0 = Date.now()
   if (Date.now() - lastWorkerKick > 90_000 && process.env.AI_HEALTH_KICK !== "0") {
@@ -20,7 +24,7 @@ export async function GET() {
       try {
         const { processPendingJobs, sweepJobs } = await import("@/lib/ai/jobs/worker")
         await sweepJobs()
-        await processPendingJobs(2)
+        await processPendingJobs(2, { budgetMs: 50_000 })
       } catch (e) {
         console.error("health worker kick failed:", e instanceof Error ? e.message.slice(0, 200) : e)
       }
