@@ -61,7 +61,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           entityId: result.ctx.company.id,
           details: `Premium refresh requested (${lang}) — key ${result.job.reportKey.slice(0, 12)}`,
         })
-        const outcome = await processJob(result.job.id, { budgetMs: 40_000 }).catch((e) => {
+        const outcome = await processJob(result.job.id, { budgetMs: 36_000 }).catch((e) => {
           console.error("refresh inline generation crashed:", e instanceof Error ? e.message.slice(0, 200) : e)
           return { status: "failed_permanent", error: "inline crash" } as const
         })

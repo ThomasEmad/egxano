@@ -152,7 +152,7 @@ async function postHandler(req: Request, { params }: { params: Promise<{ id: str
       // poll — they share this report the moment it lands. If the inline
       // window cannot finish, the job stays queued for the health-cron /
       // cron-worker windows (50s / 280s) and the poll shows "generating".
-      const outcome = await processJob(result.job.id, { budgetMs: 40_000 }).catch((e) => {
+      const outcome = await processJob(result.job.id, { budgetMs: 36_000 }).catch((e) => {
         console.error("ai-analysis inline generation crashed:", e instanceof Error ? e.message.slice(0, 200) : e)
         return { status: "failed_permanent", error: "inline crash" } as const
       })
