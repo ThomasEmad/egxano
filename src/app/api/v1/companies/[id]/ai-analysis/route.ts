@@ -175,7 +175,30 @@ async function postHandler(req: Request, { params }: { params: Promise<{ id: str
       )
     }
     case "generating": {
-      // Another invocation (a concurrent user) owns this generation.
+      // Another invocation owns this generation — UNLESS its lease expired
+      // (the owning function hit the window cap or crashed). An abandoned job
+      // is reclaimed by THIS requester's invocation, which becomes the worker.
+      const activeJob = await db.aiAnalysisJob.findUnique({
+        where: { reportKey: result.job.reportKey },
+        select: { id: true, status: true, leaseUntil: true, attempts: true },
+      })
+      const abandoned =
+        activeJob &&
+        activeJob.status !== "FAILED" &&
+        (!activeJob.leaseUntil || activeJob.leaseUntil.getTime() < Date.now())
+      if (abandoned && activeJob) {
+        const inlineBudget = Math.max(18_000, 46_000 - (Date.now() - postT0))
+        const outcome = await processJob(activeJob.id, { budgetMs: inlineBudget }).catch((e) => {
+          console.error("ai-analysis reclaim generation crashed:", e instanceof Error ? e.message.slice(0, 200) : e)
+          return { status: "failed_permanent", error: "reclaim crash" } as const
+        })
+        if (outcome.status === "completed") {
+          const report = await db.aiAnalysisReport.findUnique({ where: { reportKey: result.job.reportKey } })
+          if (report) {
+            return Response.json({ analysis: serializeReport(report), cached: false })
+          }
+        }
+      }
       return Response.json(
         {
           status: "generating",
