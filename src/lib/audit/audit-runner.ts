@@ -9,6 +9,16 @@
 //   4. Accuracy, completeness, freshness and provenance are scored separately.
 //
 // Idempotent: same DB state → same findings/order/counters.
+//
+// Execution models (both share auditCompanies + persistResults):
+//   * runFullAudit               — one pass over all companies (admin trigger).
+//   * startOrResumeChunkedAudit  — ≤ chunkSize companies per call, resumable via
+//     a Setting cursor; the cron route chains calls until done. Lives inside
+//     the serverless window no matter how the data grows.
+//
+// Writes are BATCHED per pass (one issue createMany + one score replace) — the
+// per-company write loop (~600 round trips) was the other reason the daily
+// cron outgrew its 300s window after the Nov-2026 backfill.
 
 import { db } from "@/lib/db"
 import type { AuditCheckResult, AuditRunType } from "./types"
@@ -25,11 +35,31 @@ import { classifyCheck, type IssueClass, type RootCause } from "./issue-class"
 import { isAuthoritativeValue } from "@/lib/financial/integrity-policy"
 
 const MONTH_MS = 1000 * 60 * 60 * 24 * 30.4
+const CURSOR_PREFIX = "audit_cursor:"
 
 export interface AuditRunnerOptions {
   type?: AuditRunType
   limitCompanies?: number
   persist?: boolean
+}
+
+export interface ChunkedAuditOptions {
+  type: AuditRunType
+  /** Max companies processed per call. */
+  chunkSize: number
+  /** Continue an existing running run (cron chain). */
+  resumeRunId?: string
+}
+
+export interface ChunkedAuditResult {
+  done: boolean
+  runId: string
+  type: AuditRunType
+  checkedSoFar: number
+  issuesSoFar: number
+  remaining: number
+  lastTicker: string | null
+  summary?: AuditRunSummary
 }
 
 export interface CompanyAuditOutcome {
@@ -184,41 +214,17 @@ function canonicalPeriods(reports: ReportRow[]): Array<{ period: string; fiscalY
   return out
 }
 
-export async function runFullAudit(opts: AuditRunnerOptions = {}): Promise<AuditRunSummary> {
-  const started = new Date()
-  const type: AuditRunType = opts.type ?? "manual"
-  const persist = opts.persist ?? true
+// ────────────────────────────── data loading ──────────────────────────────
 
-  const runRow = persist
-    ? await db.auditRun.create({ data: { type, startedAt: started, status: "running" } })
-    : null
-
-  // Self-heal: runs left "running" by a hard kill (lambda window exceeded) would
-  // otherwise sit orphaned forever and their partial issues would double-count.
-  if (runRow) {
-    await db.auditRun.updateMany({
-      where: { status: "running", startedAt: { lt: new Date(Date.now() - 3_600_000) } },
-      data: { status: "failed", endedAt: new Date() },
-    })
-  }
-
-  const companies = await db.company.findMany({
-    where: { isActive: true },
-    ...(opts.limitCompanies ? { take: opts.limitCompanies } : {}),
-    orderBy: { ticker: "asc" },
-  })
-
-  // global ISIN → ticker map for uniqueness check (done at report level)
-  const allCompaniesRaw = await db.company.findMany({ select: { ticker: true, isin: true } })
-  const isinMap = new Map<string, string>()
-  for (const c of allCompaniesRaw) if (c.isin) isinMap.set(c.isin, c.ticker)
-
-  // Bulk-load every report + value ONCE. The per-company query loop (297
-  // round-trips with the full value payload, including heavy source text)
-  // outgrew the 300s lambda window after the Nov-2026 backfill nearly doubled
-  // the data. One query, only the columns the checks actually read.
+/**
+ * Bulk-load reports + values for the given companies. One query, only the
+ * columns the checks actually read (heavy source text/bbox stay out of the
+ * result). Returns reports grouped by companyId, ordered per company.
+ */
+async function loadReportsByCompany(companyIds: string[]): Promise<Map<string, ReportRow[]>> {
+  if (companyIds.length === 0) return new Map()
   const allReports = await db.financialReport.findMany({
-    where: { deletedAt: null, companyId: { in: companies.map(c => c.id) } },
+    where: { deletedAt: null, companyId: { in: companyIds } },
     orderBy: [{ fiscalYear: "asc" }, { periodLabel: "asc" }],
     select: {
       companyId: true,
@@ -246,24 +252,77 @@ export async function runFullAudit(opts: AuditRunnerOptions = {}): Promise<Audit
       },
     },
   })
-  const reportsByCompany = new Map<string, ReportRow[]>()
+  const byCompany = new Map<string, ReportRow[]>()
   for (const r of allReports) {
     const { companyId, ...rest } = r
-    void companyId
-    const list = reportsByCompany.get(companyId)
+    const list = byCompany.get(companyId)
     if (list) list.push(rest as unknown as ReportRow)
-    else reportsByCompany.set(companyId, [rest as unknown as ReportRow])
+    else byCompany.set(companyId, [rest as unknown as ReportRow])
   }
+  return byCompany
+}
 
-  const outcomes: CompanyAuditOutcome[] = []
-  const byCategory: Record<string, number> = {}
-  const byClass: Record<IssueClass, number> = { blocker: 0, coverage: 0, advisory: 0, metadata: 0 }
-  const byRootCause: Record<string, number> = {}
-  const found = { critical: 0, high: 0, medium: 0, low: 0 }
+/**
+ * Runs orphaned-run recovery: runs left "running" by a hard kill (lambda
+ * window exceeded) would otherwise sit orphaned forever and their PARTIAL
+ * issue sets would pollute the open-issues baseline. Runs older than 15 min
+ * are marked failed and their open issues removed.
+ */
+async function healOrphanedRuns(): Promise<number> {
+  const cutoff = new Date(Date.now() - 15 * 60_000)
+  const orphans = await db.auditRun.findMany({
+    where: { status: "running", startedAt: { lt: cutoff } },
+    select: { id: true },
+  })
+  if (orphans.length === 0) return 0
+  for (const o of orphans) {
+    await db.auditIssue.deleteMany({ where: { auditRunId: o.id } }).catch(() => {})
+    await db.setting.deleteMany({ where: { key: `${CURSOR_PREFIX}${o.id}` } }).catch(() => {})
+  }
+  await db.auditRun.updateMany({
+    where: { id: { in: orphans.map(o => o.id) } },
+    data: { status: "failed", endedAt: new Date() },
+  })
+  return orphans.length
+}
+
+// ─────────────────────────── per-company pipeline ───────────────────────────
+
+interface CompanyResult {
+  outcome: CompanyAuditOutcome
+  issueRows: Array<{
+    auditRunId: string
+    ticker: string
+    metricCode: string | null
+    period: string | null
+    category: string
+    severity: string
+    description: string
+    descriptionAr: string | null
+    currentValue: string | null
+    expectedValue: string | null
+    status: string
+  }>
+  scoreRow: {
+    ticker: string
+    score: number
+    rating: string
+    breakdownJson: string
+    auditRunId: string
+    computedAt: Date
+  }
+}
+
+async function auditCompanies(
+  companies: Awaited<ReturnType<typeof loadActiveCompanies>>,
+  runId: string | null,
+  isinMap: Map<string, string>,
+): Promise<CompanyResult[]> {
+  const reportsByCompany = await loadReportsByCompany(companies.map(c => c.id))
+  const results: CompanyResult[] = []
 
   for (const company of companies) {
     const ticker = company.ticker
-
     const reports = reportsByCompany.get(company.id) ?? []
 
     // ── partition values (own-period values only, one per metric per report)
@@ -412,7 +471,7 @@ export async function runFullAudit(opts: AuditRunnerOptions = {}): Promise<Audit
     // ── score
     const issueCompat = issues.map((i, idx) => ({
       id: `chk_${idx}`,
-      auditRunId: runRow?.id ?? "dry",
+      auditRunId: runId ?? "dry",
       ticker,
       metricCode: i.metricCode,
       period: i.period,
@@ -430,65 +489,113 @@ export async function runFullAudit(opts: AuditRunnerOptions = {}): Promise<Audit
       criticalCoveragePct: Math.round((presentCount / criticalSet.length) * 100),
     })
 
-    // ── persist issues + score
-    if (runRow && issues.length > 0) {
-      await db.auditIssue.createMany({
-        data: issues.map(i => ({
-          auditRunId: runRow.id,
-          ticker,
-          metricCode: i.metricCode ?? null,
-          period: i.period ?? null,
-          category: i.category,
-          severity: i.severity,
-          description: `[${i.checkName}] ${i.details}`,
-          descriptionAr: i.detailsAr ? `[${i.checkName}] ${i.detailsAr}` : null,
-          currentValue: i.currentValue !== undefined ? String(i.currentValue) : null,
-          expectedValue: i.expectedValue !== undefined ? String(i.expectedValue) : null,
-          status: "open",
-        })),
-      })
-    }
-    if (runRow) {
-      await db.companyConfidenceScore.upsert({
-        where: { ticker },
-        create: {
-          ticker, score, rating, breakdownJson: JSON.stringify(breakdown),
-          auditRunId: runRow.id, computedAt: new Date(),
-        },
-        update: {
-          score, rating, breakdownJson: JSON.stringify(breakdown),
-          auditRunId: runRow.id, computedAt: new Date(),
-        },
-      })
-    }
+    results.push({
+      outcome: {
+        ticker, nameEn: company.nameEn, sector: company.sector,
+        issues, confidence: score, confidenceRating: rating,
+        accuracy: breakdown.accuracy ?? 0,
+        completeness: breakdown.completeness ?? 0,
+        freshness: breakdown.freshness ?? 0,
+        provenance: breakdown.provenance ?? 0,
+        certification: breakdown.certification ?? "review_required",
+        latestDataPeriod: latestReport?.label ?? null,
+        latestDataAgeMonths,
+        sources,
+        usableValues,
+        quarantinedValues,
+      },
+      issueRows: issues.map(i => ({
+        auditRunId: runId ?? "dry",
+        ticker,
+        metricCode: i.metricCode ?? null,
+        period: i.period ?? null,
+        category: i.category,
+        severity: i.severity,
+        description: `[${i.checkName}] ${i.details}`,
+        descriptionAr: i.detailsAr ? `[${i.checkName}] ${i.detailsAr}` : null,
+        currentValue: i.currentValue !== undefined ? String(i.currentValue) : null,
+        expectedValue: i.expectedValue !== undefined ? String(i.expectedValue) : null,
+        status: "open",
+      })),
+      scoreRow: {
+        ticker, score, rating,
+        breakdownJson: JSON.stringify(breakdown),
+        auditRunId: runId ?? "dry",
+        computedAt: new Date(),
+      },
+    })
+  }
 
-    // ── counters
-    for (const i of issues) {
+  return results
+}
+
+async function loadActiveCompanies(limitCompanies?: number) {
+  return db.company.findMany({
+    where: { isActive: true },
+    ...(limitCompanies ? { take: limitCompanies } : {}),
+    orderBy: { ticker: "asc" },
+  })
+}
+
+function tally(results: CompanyResult[]) {
+  const found = { critical: 0, high: 0, medium: 0, low: 0 }
+  const byCategory: Record<string, number> = {}
+  const byClass: Record<IssueClass, number> = { blocker: 0, coverage: 0, advisory: 0, metadata: 0 }
+  const byRootCause: Record<string, number> = {}
+  for (const r of results) {
+    for (const i of r.outcome.issues) {
       found[i.severity as keyof typeof found] = (found[i.severity as keyof typeof found] ?? 0) + 1
       byCategory[i.category] = (byCategory[i.category] ?? 0) + 1
       byClass[i.issueClass as IssueClass] = (byClass[i.issueClass as IssueClass] ?? 0) + 1
       byRootCause[i.rootCause ?? "OTHER"] = (byRootCause[i.rootCause ?? "OTHER"] ?? 0) + 1
     }
-
-    outcomes.push({
-      ticker, nameEn: company.nameEn, sector: company.sector,
-      issues, confidence: score, confidenceRating: rating,
-      accuracy: breakdown.accuracy ?? 0,
-      completeness: breakdown.completeness ?? 0,
-      freshness: breakdown.freshness ?? 0,
-      provenance: breakdown.provenance ?? 0,
-      certification: breakdown.certification ?? "review_required",
-      latestDataPeriod: latestReport?.label ?? null,
-      latestDataAgeMonths,
-      sources,
-      usableValues,
-      quarantinedValues,
-    })
   }
+  return { found, byCategory, byClass, byRootCause }
+}
+
+/** Batched writes: one issue createMany + one score replace per pass. */
+async function persistResults(runId: string, results: CompanyResult[]): Promise<void> {
+  const issueRows = results.flatMap(r => r.issueRows)
+  if (issueRows.length > 0) {
+    await db.auditIssue.createMany({ data: issueRows })
+  }
+  const tickers = results.map(r => r.scoreRow.ticker)
+  if (tickers.length > 0) {
+    // Replace-in-place: two statements, no per-company round trips. Scores are
+    // recomputed every run — a millisecond gap is invisible to readers.
+    await db.$transaction([
+      db.companyConfidenceScore.deleteMany({ where: { ticker: { in: tickers } } }),
+      db.companyConfidenceScore.createMany({ data: results.map(r => r.scoreRow) }),
+    ])
+  }
+}
+
+// ─────────────────────────────── full audit ───────────────────────────────
+
+export async function runFullAudit(opts: AuditRunnerOptions = {}): Promise<AuditRunSummary> {
+  const started = new Date()
+  const type: AuditRunType = opts.type ?? "manual"
+  const persist = opts.persist ?? true
+
+  if (persist) await healOrphanedRuns()
+
+  const runRow = persist
+    ? await db.auditRun.create({ data: { type, startedAt: started, status: "running" } })
+    : null
+  const runId = runRow?.id ?? "dry"
+
+  const allCompaniesRaw = await db.company.findMany({ select: { ticker: true, isin: true } })
+  const isinMap = new Map<string, string>()
+  for (const c of allCompaniesRaw) if (c.isin) isinMap.set(c.isin, c.ticker)
+
+  const companies = await loadActiveCompanies(opts.limitCompanies)
+  const results = await auditCompanies(companies, runRow?.id ?? null, isinMap)
+  const { found, byCategory, byClass, byRootCause } = tally(results)
+
+  if (runRow) await persistResults(runRow.id, results)
 
   const ended = new Date()
   const durationSec = Math.round((ended.getTime() - started.getTime()) / 1000)
-  let runId = "dry"
   if (runRow) {
     await db.auditRun.update({
       where: { id: runRow.id },
@@ -498,7 +605,6 @@ export async function runFullAudit(opts: AuditRunnerOptions = {}): Promise<Audit
         issuesFound: found.critical + found.high + found.medium + found.low,
       },
     })
-    runId = runRow.id
   }
 
   return {
@@ -506,8 +612,120 @@ export async function runFullAudit(opts: AuditRunnerOptions = {}): Promise<Audit
     companiesChecked: companies.length,
     issuesFound: { ...found, total: found.critical + found.high + found.medium + found.low },
     byClass, byCategory, byRootCause,
-    outcomes,
+    outcomes: results.map(r => r.outcome),
   }
+}
+
+// ────────────────────────────── chunked audit ──────────────────────────────
+
+/**
+ * Process ≤ chunkSize companies per call and leave a resumable cursor. The
+ * cron route loops within its window, then chains the next call via after().
+ * Guarantees completion regardless of data growth, one small window at a time.
+ */
+export async function startOrResumeChunkedAudit(opts: ChunkedAuditOptions): Promise<ChunkedAuditResult> {
+  await healOrphanedRuns()
+
+  // resolve the run row (resume an ACTIVE recent run, else start fresh)
+  let runRow: { id: string; startedAt: Date } | null = null
+  if (opts.resumeRunId) {
+    const candidate = await db.auditRun.findUnique({
+      where: { id: opts.resumeRunId },
+      select: { id: true, startedAt: true, status: true },
+    })
+    if (candidate && candidate.status === "running" && Date.now() - candidate.startedAt.getTime() < 2 * 3_600_000) {
+      runRow = candidate
+    }
+  }
+  const cursorKey = runRow ? `${CURSOR_PREFIX}${runRow.id}` : null
+  let lastTicker: string | null = null
+  let checkedSoFar = 0
+  let issuesSoFar = 0
+  const startedAt = runRow?.startedAt ?? new Date()
+
+  if (runRow && cursorKey) {
+    const raw = await db.setting.findUnique({ where: { key: cursorKey } })
+    if (raw?.value) {
+      try {
+        const c = JSON.parse(raw.value) as { lastTicker?: string; checked?: number; issues?: number }
+        lastTicker = c.lastTicker ?? null
+        checkedSoFar = c.checked ?? 0
+        issuesSoFar = c.issues ?? 0
+      } catch { /* malformed cursor → start from the top of this run */ }
+    }
+  } else {
+    runRow = await db.auditRun.create({
+      data: { type: opts.type, startedAt, status: "running" },
+      select: { id: true, startedAt: true },
+    })
+  }
+  const runId = runRow!.id
+
+  const allCompaniesRaw = await db.company.findMany({ select: { ticker: true, isin: true } })
+  const isinMap = new Map<string, string>()
+  for (const c of allCompaniesRaw) if (c.isin) isinMap.set(c.isin, c.ticker)
+
+  const remaining = lastTicker
+    ? await db.company.count({ where: { isActive: true, ticker: { gt: lastTicker } } })
+    : await db.company.count({ where: { isActive: true } })
+
+  if (remaining === 0) {
+    // everything processed — finalize
+    const durationSec = Math.round((Date.now() - startedAt.getTime()) / 1000)
+    await db.auditRun.update({
+      where: { id: runId },
+      data: { endedAt: new Date(), durationSec, status: "completed", companiesChecked: checkedSoFar, issuesFound: issuesSoFar },
+    })
+    await db.setting.deleteMany({ where: { key: `${CURSOR_PREFIX}${runId}` } }).catch(() => {})
+    return { done: true, runId, type: opts.type, checkedSoFar, issuesSoFar, remaining: 0, lastTicker, summary: undefined }
+  }
+
+  const companies = await db.company.findMany({
+    where: { isActive: true, ...(lastTicker ? { ticker: { gt: lastTicker } } : {}) },
+    orderBy: { ticker: "asc" },
+    take: opts.chunkSize,
+  })
+
+  const results = await auditCompanies(companies, runId, isinMap)
+  await persistResults(runId, results)
+
+  const chunkTally = tally(results)
+  checkedSoFar += companies.length
+  issuesSoFar += chunkTally.found.critical + chunkTally.found.high + chunkTally.found.medium + chunkTally.found.low
+  lastTicker = companies[companies.length - 1].ticker
+  const leftAfter = remaining - companies.length
+
+  if (leftAfter === 0) {
+    const durationSec = Math.round((Date.now() - startedAt.getTime()) / 1000)
+    await db.auditRun.update({
+      where: { id: runId },
+      data: { endedAt: new Date(), durationSec, status: "completed", companiesChecked: checkedSoFar, issuesFound: issuesSoFar },
+    })
+    await db.setting.deleteMany({ where: { key: `${CURSOR_PREFIX}${runId}` } }).catch(() => {})
+    return {
+      done: true, runId, type: opts.type, checkedSoFar, issuesSoFar, remaining: 0, lastTicker,
+      summary: {
+        runId, type: opts.type, startedAt, durationSec,
+        companiesChecked: checkedSoFar,
+        issuesFound: { ...chunkTally.found, total: 0 }, // cumulative totals live on the run row; per-call tallies are chunk-local
+        byClass: chunkTally.byClass, byCategory: chunkTally.byCategory, byRootCause: chunkTally.byRootCause,
+        outcomes: results.map(r => r.outcome),
+      },
+    }
+  }
+
+  // persist the cursor for the next chained call
+  await db.setting.upsert({
+    where: { key: `${CURSOR_PREFIX}${runId}` },
+    create: { key: `${CURSOR_PREFIX}${runId}`, value: JSON.stringify({ lastTicker, checked: checkedSoFar, issues: issuesSoFar }), type: "json", description: "audit chunk resume cursor" },
+    update: { value: JSON.stringify({ lastTicker, checked: checkedSoFar, issues: issuesSoFar }) },
+  })
+  await db.auditRun.update({
+    where: { id: runId },
+    data: { companiesChecked: checkedSoFar, issuesFound: issuesSoFar },
+  })
+
+  return { done: false, runId, type: opts.type, checkedSoFar, issuesSoFar, remaining: leftAfter, lastTicker }
 }
 
 export type { RootCause }
