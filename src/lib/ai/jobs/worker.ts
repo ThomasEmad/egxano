@@ -30,7 +30,7 @@ import { invalidateServerCache } from "@/lib/server-cache"
  */
 export const JOB_LEASE_MS = 90_000
 export const DEFAULT_WORKER_BUDGET_MS = Math.min(
-  Math.max(Number(process.env.AI_WORKER_BUDGET_MS || "") || 50_000, 20_000),
+  Math.max(Number(process.env.AI_WORKER_BUDGET_MS || "") || 40_000, 20_000),
   80_000
 )
 /**

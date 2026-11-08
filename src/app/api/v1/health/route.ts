@@ -24,7 +24,7 @@ export async function GET() {
       try {
         const { processPendingJobs, sweepJobs } = await import("@/lib/ai/jobs/worker")
         await sweepJobs()
-        await processPendingJobs(2, { budgetMs: 50_000 })
+        await processPendingJobs(2, { budgetMs: 38_000 })
       } catch (e) {
         console.error("health worker kick failed:", e instanceof Error ? e.message.slice(0, 200) : e)
       }
