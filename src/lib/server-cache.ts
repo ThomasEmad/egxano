@@ -26,7 +26,7 @@ export async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>
           .then((value) => {
             const waiters = hit.waiters ?? []
             store.set(key, { value, at: Date.now() })
-            for (const w of waiters) w(value)
+            for (const w of waiters) w(value as unknown)
           })
           .catch(() => {
             hit.refreshing = false
@@ -44,7 +44,7 @@ export async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>
       const value = await fn()
       const waiters = hit.waiters
       store.set(key, { value, at: Date.now() })
-      for (const w of waiters ?? []) w(value)
+      for (const w of waiters ?? []) w(value as unknown)
       return value
     } catch (e) {
       hit.refreshing = false
