@@ -1,19 +1,19 @@
 import { NextRequest } from "next/server"
-import fs from "fs"
-import path from "path"
 import { db } from "@/lib/db"
+import { getFreshMarketSnapshot } from "@/lib/market/snapshot"
 
 // GET /api/v1/market/ticker — index levels + top movers.
 //
-// The primary snapshot (`public/data/market-ticker.json`) is refreshed from the
-// public TradingView Meza (15-minute delayed) by
-// `scripts/refresh-market-snapshot.mjs`. It carries `indices`, `movers`,
-// `indicesAsOf` and `pricesAsOf`, so the strip does not need a second database
-// query and does not derive a previous close from a month-old row.
+// The snapshot comes from getFreshMarketSnapshot(): the DB `Setting` row
+// written by /api/v1/cron/market when it is newer (serverless-safe intraday
+// refresh), falling back to the build-time `public/data/market-ticker.json`.
+// It carries `indices`, `movers`, `indicesAsOf` and `pricesAsOf`, so the strip
+// does not need a second database query and does not derive a previous close
+// from a month-old row.
 //
-// The database path remains as a fallback for older snapshots that only contain
-// indices; it compares the latest two MarketPrice points with a ±50% cap so
-// splits / legacy bad-scale rows do not render as movers.
+// The database path remains as a fallback for snapshots without movers; it
+// compares the latest two MarketPrice points with a ±50% cap so splits /
+// legacy bad-scale rows do not render as movers.
 
 let cache: { data: unknown; at: number } | null = null
 
@@ -24,18 +24,16 @@ export async function GET(req: NextRequest) {
   const isFresh = req.nextUrl.searchParams.get("fresh") === "true"
   if (!isFresh && cache && Date.now() - cache.at < 15_000) return Response.json(cache.data)
   try {
-    // The snapshot ships inside `public/` so it is present in the standalone
-    // build (the launcher copies `public/` into `.next/standalone`). Reading
-    // `../egx-data` broke in production because the server's cwd is the
-    // standalone folder, not the repo root.
-    const snapFile = path.join(process.cwd(), "public", "data", "market-ticker.json")
-    const snap = JSON.parse(fs.readFileSync(snapFile, "utf8")) as {
-      asOf: string
-      indicesAsOf?: string
-      pricesAsOf?: string
-      delayMinutes?: number | null
-      indices: { name: string; level: number; changePct: number }[]
-      movers?: SnapshotMover[]
+    // Freshest of (DB Setting row, build-time file) — validated shape.
+    const parsed = await getFreshMarketSnapshot()
+    if (!parsed) throw new Error("no market snapshot available")
+    const snap = {
+      asOf: parsed.asOf ?? "",
+      indicesAsOf: parsed.indicesAsOf ?? undefined,
+      pricesAsOf: parsed.pricesAsOf ?? undefined,
+      delayMinutes: parsed.delayMinutes,
+      indices: parsed.indices,
+      movers: parsed.movers,
     }
 
     let gainers: SnapshotMover[] = []

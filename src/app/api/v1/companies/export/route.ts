@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
-import { readMarketSnapshot } from "@/lib/market/snapshot"
+import { getFreshMarketSnapshot } from "@/lib/market/snapshot"
 
 // GET /api/v1/companies/export — CSV download of the whole active-company
 // directory with the freshest recorded price. Public data, 5-minute cache.
 // Used by the "تصدير CSV" button on /companies and by power users/scripts.
 
 export async function GET(_req: NextRequest) {
-  const snapshot = readMarketSnapshot()
+  const snapshot = await getFreshMarketSnapshot()
   const movers = new Map<string, { price: number; changePct: number | null }>()
   for (const m of snapshot?.movers ?? []) {
     movers.set(m.ticker.toUpperCase(), { price: m.price, changePct: m.changePct ?? null })

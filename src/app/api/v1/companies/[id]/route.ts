@@ -2,7 +2,7 @@ import { db } from "@/lib/db"
 import { buildScanContextsCached } from "@/lib/financial/scan-service"
 import { latestCalcPeriodKeys } from "@/lib/financial/statement-pref"
 import { getLatestPrice } from "@/lib/financial/market"
-import { readMarketSnapshot, moverMap } from "@/lib/market/snapshot"
+import { getFreshMarketSnapshot, moverMap } from "@/lib/market/snapshot"
 import { latestAnnouncedPeriodEnd } from "@/lib/financial/period-validity"
 import { evaluateRule, type ScanCondition } from "@/lib/financial/scanner"
 
@@ -33,7 +33,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const companyId = company.id
 
   // snapshot first (the freshest source the platform has), durable table second
-  const snapshot = readMarketSnapshot()
+  const snapshot = await getFreshMarketSnapshot()
   const mover = moverMap(snapshot).get(company.ticker.toUpperCase())
   const snapshotAsOf = snapshot?.pricesAsOf ?? snapshot?.asOf ?? null
   const price = mover

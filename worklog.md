@@ -692,3 +692,15 @@ Work Log:
 - **`docs/analyst-style-guide.md`**: المرجع الدائم للأسلوب (المصادر، مبادئ الحرفة، عقد الأقسام، إجراء رفع الإصدار) — أي تعديل برومبت مستقبلي يرجع إليه.
 - **تحقق حقيقي من طرف إلى طرف** عبر `scripts/sample-analyst-note.ts` (يبني سياق التقرير الحتمي من قاعدة الإنتاج ويستدعي المزوّد تمامًا كالووركر): عينة عربية كاملة على EFID بالنمط الجديد — آليات، مقارنات مؤطرة، مناطق دعم/مقاومة بمسافاتها وعدد اللمسات، محفزات إبطال قابلة للرصد (العينة في download/sample-analyst-note-EFID-ar.md).
 - الدمج مع شجرة TradingView المتزامنة: تغييرات الجلسة الموازية (next.config + tradingview.tsx + company-detail + price-chart) دخلت كاملة بدون أي تراجع.
+
+## 2026-11-09 — تحديث الأسعار تلقائيًا (الإنتاج، مجاني، بدون بنية جديدة)
+- **المشكلة (ملاحظة المالك):** الأسعار مش بتتحدث تلقائيًا في الإنتاج — آخر snapshot محمّل 2026-11-06 (من جلسة ساندبوكس). السكريبت القديم `refresh-market-snapshot.mjs` بيكتب **ملف** `public/data/market-ticker.json` — على Vercel نظام الملفات زائل، فالكتابة بتضيع، والقراءة بتفضل على نسخة البناء لحد النشر الجاي.
+- **الحل (قاعدة البيانات هي مصدر الحقيقة للطزاجة):**
+  - `src/lib/market/refresh.ts` (جديد): سحب من نفس scanner TradingView العام (مؤشرات + كل الأسهم) + كتابة ذرية في `$transaction`: الـ snapshot JSON كامل في `Setting.market_ticker_snapshot_v1` + صف `MarketPrice` واحد لكل شركة لكل يوم UTC (sourceName `TRADINGVIEW_SCANNER` — الحذف يقتصر على صفوفنا لنفس اليوم فقط، فلا تضخم ولا مساس بمصادر أخرى).
+  - `GET /api/v1/cron/market` (جديد): بنفس عقد `CRON_SECRET` (timing-safe) زي audit/maintenance — maxDuration 60، in-flight مشترك، idempotent تمامًا.
+  - `getFreshMarketSnapshot()` في `snapshot.ts`: كل القراء (القائمة، صفحة الشركة، ticker، القطاعات، status، export) بياخدوا الأحدث بين صف الـ Setting وملف البناء بمقارنة asOf — مع كاش 15 ثانية لكل lambda (تكلفة إضافية ~صفر على المسارات الساخنة).
+  - **تحديث انتهازي:** لو الأحدث أقدم من 20 دقيقة داخل نافذة جلسة EGX (أحد–خميس 9–16 القاهرة) أو أقدم من 26 ساعة في أي وقت — `after()` يطلق تجديدًا في الخلفية (cooldown 10 دقائق/lambda) — الزيارة نفسها بتشغّل التحديث بدون أي اعتماد خارجي.
+  - **سلسلة الإغلاق اليومي:** cron الـ audit اليومي (6:00 UTC) صار ينهي بتجديد سوق مضمون حتى بدون زوار.
+- **الهوية الحتمية للتحليل سليمة:** `builder.ts` بيقتطع `priceAsOf` لتاريخ (`slice(0,10)`) قبل الهاش — تحديثات الـ intraday مش بتكسر تقرير اليوم، والإغلاق الجديد يوم تداول جديد هو اللي بيلّد هوية جديدة.
+- **CRON_SECRET اتدوّر** (القديمة ضاعت مع إعادة تدوير الساندبوكس) عبر Vercel env API — الجديدة في `scripts/.cron_secret` محليًا؛ crons المنصة بتقرأها تلقائيًا بعد النشر.
+- **الاختبارات:** 12 اختبار جديد لـ buildSnapshotFromScanner/parseSnapshot/newerSnapshot/isEgxRefreshWindow/startOfUtcDay — **12/12 ✅**، tsc نظيف، eslint نظيف، vitest الكاملة 185/189 (الـ 4 auth البيئية السابقة)، build ناجح (بعد استعادة DATABASE_URL على Supabase pooler — إعادة التدوير مسحت .env.local).

@@ -52,6 +52,16 @@ export async function GET(req: NextRequest) {
     } catch (e) {
       console.error("audit-chained ai-worker failed:", e instanceof Error ? e.message.slice(0, 200) : e)
     }
+    // Chain a market refresh: the audit cron is a guaranteed daily invocation,
+    // so this anchors at least one EOD price pull per day even with zero
+    // visitors (the DB-based refresh survives serverless, unlike the old file).
+    let market: { ok: boolean; asOf?: string; pricesWritten?: number } | null = null
+    try {
+      const { refreshMarketSnapshot } = await import("@/lib/market/refresh")
+      market = await refreshMarketSnapshot()
+    } catch (e) {
+      console.error("audit-chained market refresh failed:", e instanceof Error ? e.message.slice(0, 200) : e)
+    }
     return Response.json({
       ok: true,
       scheduledType: type,
@@ -61,6 +71,7 @@ export async function GET(req: NextRequest) {
       issues: summary.issuesFound,
       byCategory: summary.byCategory,
       aiWorker,
+      market,
     })
   } catch (error) {
     return Response.json(
