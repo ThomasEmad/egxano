@@ -38,3 +38,6 @@ download/zi2kelvZ
 # next dev build artifacts (local smoke tests)
 .next/
 dev.log
+
+# local DB archive with real user data — never in git (report F08)
+prisma/prisma/dev.zip
