@@ -193,6 +193,15 @@ export async function runFullAudit(opts: AuditRunnerOptions = {}): Promise<Audit
     ? await db.auditRun.create({ data: { type, startedAt: started, status: "running" } })
     : null
 
+  // Self-heal: runs left "running" by a hard kill (lambda window exceeded) would
+  // otherwise sit orphaned forever and their partial issues would double-count.
+  if (runRow) {
+    await db.auditRun.updateMany({
+      where: { status: "running", startedAt: { lt: new Date(Date.now() - 3_600_000) } },
+      data: { status: "failed", endedAt: new Date() },
+    })
+  }
+
   const companies = await db.company.findMany({
     where: { isActive: true },
     ...(opts.limitCompanies ? { take: opts.limitCompanies } : {}),
@@ -204,6 +213,48 @@ export async function runFullAudit(opts: AuditRunnerOptions = {}): Promise<Audit
   const isinMap = new Map<string, string>()
   for (const c of allCompaniesRaw) if (c.isin) isinMap.set(c.isin, c.ticker)
 
+  // Bulk-load every report + value ONCE. The per-company query loop (297
+  // round-trips with the full value payload, including heavy source text)
+  // outgrew the 300s lambda window after the Nov-2026 backfill nearly doubled
+  // the data. One query, only the columns the checks actually read.
+  const allReports = await db.financialReport.findMany({
+    where: { deletedAt: null, companyId: { in: companies.map(c => c.id) } },
+    orderBy: [{ fiscalYear: "asc" }, { periodLabel: "asc" }],
+    select: {
+      companyId: true,
+      id: true,
+      periodType: true,
+      periodLabel: true,
+      fiscalYear: true,
+      periodEnd: true,
+      statementType: true,
+      sourceName: true,
+      sourceUrl: true,
+      version: true,
+      extractionMethod: true,
+      createdAt: true,
+      values: {
+        select: {
+          metricCode: true,
+          normalizedValue: true,
+          currency: true,
+          unit: true,
+          subPeriod: true,
+          validationStatus: true,
+          validationNotes: true,
+        },
+      },
+    },
+  })
+  const reportsByCompany = new Map<string, ReportRow[]>()
+  for (const r of allReports) {
+    const { companyId, ...rest } = r
+    void companyId
+    const list = reportsByCompany.get(companyId)
+    if (list) list.push(rest as unknown as ReportRow)
+    else reportsByCompany.set(companyId, [rest as unknown as ReportRow])
+  }
+
   const outcomes: CompanyAuditOutcome[] = []
   const byCategory: Record<string, number> = {}
   const byClass: Record<IssueClass, number> = { blocker: 0, coverage: 0, advisory: 0, metadata: 0 }
@@ -213,11 +264,7 @@ export async function runFullAudit(opts: AuditRunnerOptions = {}): Promise<Audit
   for (const company of companies) {
     const ticker = company.ticker
 
-    const reports = (await db.financialReport.findMany({
-      where: { companyId: company.id, deletedAt: null },
-      include: { values: true },
-      orderBy: [{ fiscalYear: "asc" }, { periodLabel: "asc" }],
-    })) as unknown as ReportRow[]
+    const reports = reportsByCompany.get(company.id) ?? []
 
     // ── partition values (own-period values only, one per metric per report)
     let usableValues = 0

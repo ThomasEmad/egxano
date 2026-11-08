@@ -44,11 +44,14 @@ export async function GET(req: NextRequest) {
     // Chain the AI job worker: the audit cron is a guaranteed daily invocation
     // with a large window — use its tail to drain queued report generations
     // (e.g. ones whose provider was congested during user requests).
+    // Budget note: audit (~60-120s at current data volume) + 2 jobs (~80s) +
+    // market refresh (~30s) must stay inside the 300s window — jobs left
+    // behind are picked up by the next invocation, so under-running is safe.
     let aiWorker: { processed: number } | null = null
     try {
       const { processPendingJobs, sweepJobs } = await import("@/lib/ai/jobs/worker")
       await sweepJobs()
-      aiWorker = await processPendingJobs(3, { budgetMs: 200_000 })
+      aiWorker = await processPendingJobs(2, { budgetMs: 100_000 })
     } catch (e) {
       console.error("audit-chained ai-worker failed:", e instanceof Error ? e.message.slice(0, 200) : e)
     }
