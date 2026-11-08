@@ -11,6 +11,7 @@ import { buildAiSnapshotBundle } from "@/lib/ai/analysis-snapshot"
 import { buildExtendedMetrics, type PeriodInput } from "@/lib/financial/report-metrics"
 import { buildTechnicalBundle, TECHNICAL_VERSION, type TechnicalBundle } from "@/lib/technical/analyze"
 import { parsePeriodKey } from "@/lib/financial/periods"
+import { cached, invalidateServerCache } from "@/lib/server-cache"
 import { CONFIG_VERSION, PROMPT_VERSION, REPORT_DEPTH, buildReportKey } from "./identity"
 
 export interface ReportContext {
@@ -85,6 +86,19 @@ function technicalCoverage(tech: TechnicalBundle): number {
 }
 
 export async function buildReportContext(
+  company: { id: string; ticker: string; nameEn: string; nameAr: string | null; sector: string; industry: string | null; sharesOutstanding?: number | null; listingStatus?: string },
+  lang: "ar" | "en"
+): Promise<ReportContext> {
+  // The context is deterministic per (company, lang, data) — cache it for 5
+  // minutes so the worker invocation spends its WHOLE window on the LLM
+  // instead of re-paying the ~10-20s snapshot build. Data-pipeline writes
+  // call invalidateServerCache(), which clears this with the rest.
+  return cached(`ai-report-ctx:${company.id}:${lang}`, 5 * 60_000, () =>
+    buildReportContextUncached(company, lang)
+  )
+}
+
+async function buildReportContextUncached(
   company: { id: string; ticker: string; nameEn: string; nameAr: string | null; sector: string; industry: string | null; sharesOutstanding?: number | null; listingStatus?: string },
   lang: "ar" | "en"
 ): Promise<ReportContext> {
