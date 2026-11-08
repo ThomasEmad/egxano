@@ -26,7 +26,7 @@ export async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>
           .then((value) => {
             const waiters = hit.waiters ?? []
             store.set(key, { value, at: Date.now() })
-            for (const w of waiters) w(value as unknown)
+            for (const w of waiters) (w as (v: unknown) => void)(value)
           })
           .catch(() => {
             hit.refreshing = false
@@ -36,7 +36,7 @@ export async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>
     }
     // beyond the staleness bound: block on a single-flight refresh
     if (hit.refreshing && hit.waiters) {
-      return new Promise<T>((resolve) => hit.waiters!.push(resolve)) as T
+      return new Promise<T>((resolve) => hit.waiters!.push((v) => resolve(v as T))) as T
     }
     hit.refreshing = true
     hit.waiters = []
