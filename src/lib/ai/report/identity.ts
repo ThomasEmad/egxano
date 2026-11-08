@@ -9,7 +9,7 @@
 
 import { createHash } from "node:crypto"
 
-export const PROMPT_VERSION = "prompt@3"
+export const PROMPT_VERSION = "prompt@4"
 export const CONFIG_VERSION = "cfg@1"
 export const REPORT_DEPTH = "standard"
 
