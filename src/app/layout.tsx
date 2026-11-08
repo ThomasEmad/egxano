@@ -6,6 +6,7 @@ import { Providers } from "./providers";
 import { ServiceWorkerRegistration } from "@/components/sw-registration";
 import { OrganizationSchema, WebSiteSchema } from "@/components/seo/structured-data";
 import { siteConfig } from "@/lib/seo-config";
+import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -124,6 +125,7 @@ export default function RootLayout({
         <Toaster />
         <OrganizationSchema />
         <WebSiteSchema />
+        <Analytics />
       </body>
     </html>
   );
