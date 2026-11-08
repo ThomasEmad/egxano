@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server"
 import { secureBearerMatch } from "@/lib/secure-compare"
 
+// Large window so the audit AND the chained AI worker drain both fit.
+export const maxDuration = 300
+
 // GET /api/v1/cron/audit?type=daily|weekly — scheduled audit entry point.
 // Vercel Cron calls this with `Authorization: Bearer $CRON_SECRET` when the
 // CRON_SECRET env var is configured (timing-safe comparison). Also usable by
@@ -38,6 +41,17 @@ export async function GET(req: NextRequest) {
     const summary = await runFullAudit({ type, persist: true })
     const { invalidateServerCache } = await import("@/lib/server-cache")
     invalidateServerCache()
+    // Chain the AI job worker: the audit cron is a guaranteed daily invocation
+    // with a large window — use its tail to drain queued report generations
+    // (e.g. ones whose provider was congested during user requests).
+    let aiWorker: { processed: number } | null = null
+    try {
+      const { processPendingJobs, sweepJobs } = await import("@/lib/ai/jobs/worker")
+      await sweepJobs()
+      aiWorker = await processPendingJobs(3, { budgetMs: 200_000 })
+    } catch (e) {
+      console.error("audit-chained ai-worker failed:", e instanceof Error ? e.message.slice(0, 200) : e)
+    }
     return Response.json({
       ok: true,
       scheduledType: type,
@@ -46,6 +60,7 @@ export async function GET(req: NextRequest) {
       companiesChecked: summary.companiesChecked,
       issues: summary.issuesFound,
       byCategory: summary.byCategory,
+      aiWorker,
     })
   } catch (error) {
     return Response.json(
