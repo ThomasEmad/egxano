@@ -155,6 +155,7 @@ const dict = {
   "co.aiRegenerate": { en: "Regenerate analysis", ar: "إعادة توليد التحليل" },
   "co.aiLoading": { en: "Analyzing verified financial data…", ar: "جارٍ تحليل البيانات المالية الموثقة…" },
   "co.aiGrounded": { en: "Generated exclusively from verified database values. Unavailable figures are reported as such — never invented. Cached until underlying data changes.", ar: "مُولّد حصراً من القيم الموثقة في قاعدة البيانات. الأرقام غير المتوفرة تُذكر كذلك — لا تُختلق أبداً. يُخزن مؤقتاً حتى تتغير البيانات الأساسية." },
+  "co.aiQueued": { en: "Queued for generation…", ar: "في قائمة التوليد…" },
   "co.aiFailed": { en: "AI generation failed — please try again.", ar: "فشل توليد التحليل — يرجى المحاولة مجدداً." },
   "co.aiNoData": { en: "No verified financial data to analyze yet.", ar: "لا توجد بيانات مالية موثقة لتحليلها بعد." },
   "co.aiDegraded": { en: "Offline fallback — rule-based reading (no language model). Regenerate for the full expert analysis.", ar: "وضع بديل دون اتصال — تحليل قائم على القواعد (بدون نموذج لغوي). أعد التوليد للحصول على التحليل الخبير الكامل." },

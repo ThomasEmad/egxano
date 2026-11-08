@@ -154,7 +154,7 @@ async function gatherCompanyAnalyticsUncached(companyId: string): Promise<Gather
           select: { companyId: true, code: true, value: true },
         }),
         db.financialReport.findMany({
-          where: { OR: yearPairs, periodType: "ANNUAL", statementType: "CONSOLIDATED", processingStatus: { in: TRUSTED } },
+          where: { OR: yearPairs, deletedAt: null, periodType: "ANNUAL", statementType: "CONSOLIDATED", processingStatus: { in: TRUSTED } },
           orderBy: [{ companyId: "asc" }, { version: "desc" }],
           select: { id: true, companyId: true },
         }),

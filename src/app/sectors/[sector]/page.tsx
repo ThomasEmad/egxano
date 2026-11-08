@@ -6,7 +6,7 @@ import { siteConfig } from "@/lib/seo-config"
 import { BreadcrumbSchema, StructuredData } from "@/components/seo/structured-data"
 import { fetchCalcMany } from "@/lib/financial/statement-pref"
 import { selectLatestByCompany } from "@/lib/financial/latest-period"
-import { moverMap, readMarketSnapshot } from "@/lib/market/snapshot"
+import { moverMap, getFreshMarketSnapshot } from "@/lib/market/snapshot"
 import { SectorPageShell } from "./sector-shell"
 
 export const revalidate = 3600
@@ -117,7 +117,7 @@ export default async function SectorPage({
 
   // The 15-minute snapshot is fresher than the durable price rows. Use it when
   // available; the table still prints the timestamp so the delay is explicit.
-  const snapshot = readMarketSnapshot()
+  const snapshot = await getFreshMarketSnapshot()
   const movers = moverMap(snapshot)
   const snapshotAsOf = snapshot?.pricesAsOf ?? snapshot?.asOf ?? null
   for (const company of companies) {

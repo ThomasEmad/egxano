@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client"
 import { db } from "@/lib/db"
 import { fetchCalcMany } from "@/lib/financial/statement-pref"
 import { latestPriceByCompany } from "@/lib/financial/latest-price"
-import { moverMap, readMarketSnapshot } from "@/lib/market/snapshot"
+import { moverMap, getFreshMarketSnapshot } from "@/lib/market/snapshot"
 
 type CompanyWithCounts = Prisma.CompanyGetPayload<{
   include: { _count: { select: { reports: true; events: true; dividends: true } } }
@@ -67,7 +67,7 @@ async function listCompanies(url: URL): Promise<unknown> {
     ]
   }
 
-  const snapshot = readMarketSnapshot()
+  const snapshot = await getFreshMarketSnapshot()
   const movers = moverMap(snapshot)
 
   const includeCounts = { _count: { select: { reports: true, events: true, dividends: true } } } as const

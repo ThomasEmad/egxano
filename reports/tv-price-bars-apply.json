@@ -1,0 +1,198 @@
+{
+ "at": "2026-11-08T00:17:15.150Z",
+ "apply": true,
+ "ok": 0,
+ "results": {
+  "ACRO": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "AIHC": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "ARPI": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "ARVA": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "DIFC": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "DCCC": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "ECSC": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "ESRS": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "GEOS": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "GETO": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "GOCO": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "GROV": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "NAMI": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "NAPR": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "NCEM": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "NOAF": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "PTCC": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "RMTV": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "SIMO": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "TRST": {
+   "count": 0,
+   "first": null,
+   "last": null
+  },
+  "UASG": {
+   "count": 0,
+   "first": null,
+   "last": null
+  }
+ },
+ "errors": [
+  {
+   "ticker": "ACRO",
+   "error": "no bars"
+  },
+  {
+   "ticker": "AIHC",
+   "error": "no bars"
+  },
+  {
+   "ticker": "ARPI",
+   "error": "no bars"
+  },
+  {
+   "ticker": "ARVA",
+   "error": "no bars"
+  },
+  {
+   "ticker": "DIFC",
+   "error": "no bars"
+  },
+  {
+   "ticker": "DCCC",
+   "error": "no bars"
+  },
+  {
+   "ticker": "ECSC",
+   "error": "no bars"
+  },
+  {
+   "ticker": "ESRS",
+   "error": "no bars"
+  },
+  {
+   "ticker": "GEOS",
+   "error": "no bars"
+  },
+  {
+   "ticker": "GETO",
+   "error": "no bars"
+  },
+  {
+   "ticker": "GOCO",
+   "error": "no bars"
+  },
+  {
+   "ticker": "GROV",
+   "error": "no bars"
+  },
+  {
+   "ticker": "NAMI",
+   "error": "no bars"
+  },
+  {
+   "ticker": "NAPR",
+   "error": "no bars"
+  },
+  {
+   "ticker": "NCEM",
+   "error": "no bars"
+  },
+  {
+   "ticker": "NOAF",
+   "error": "no bars"
+  },
+  {
+   "ticker": "PTCC",
+   "error": "no bars"
+  },
+  {
+   "ticker": "RMTV",
+   "error": "no bars"
+  },
+  {
+   "ticker": "SIMO",
+   "error": "no bars"
+  },
+  {
+   "ticker": "TRST",
+   "error": "no bars"
+  },
+  {
+   "ticker": "UASG",
+   "error": "no bars"
+  }
+ ]
+}

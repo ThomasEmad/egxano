@@ -261,7 +261,7 @@ export async function latestCalcPeriodKeys(
 export async function availableReportStatementTypes(companyId: string): Promise<string[]> {
   const { db } = await import("@/lib/db")
   const rows = await db.financialReport.findMany({
-    where: { companyId, processingStatus: { in: [...TRUSTED_REPORT_STATUSES] } },
+    where: { companyId, deletedAt: null, processingStatus: { in: [...TRUSTED_REPORT_STATUSES] } },
     select: { statementType: true },
     distinct: ["statementType"],
   })
@@ -277,10 +277,15 @@ export async function availableReportStatementTypes(companyId: string): Promise<
 
 export type PeriodView = "annual" | "interim"
 
-/** Report periodTypes that belong to each view — the sets are disjoint */
+/** Report periodTypes that belong to each view — the sets are disjoint.
+ *  Interim = DISCRETE QUARTERS ONLY (Q1..Q4, each labeled with its fiscal
+ *  year). H1/9M cumulative filings are source documents kept in the DB for
+ *  derivation/audit but are NEVER shown as statement columns: owners ruled
+ *  (2026-11) that mixing H1/9M columns with quarters makes the tables
+ *  unreadable — investors read a quarter sequence, not a filing list. */
 export const PERIOD_VIEW_TYPES: Record<PeriodView, string[]> = {
   annual: ["ANNUAL"],
-  interim: ["QUARTERLY", "SEMIANNUAL", "NINE_MONTH"],
+  interim: ["QUARTERLY"],
 }
 
 export function isPeriodView(v: string | null | undefined): v is PeriodView {
@@ -300,7 +305,9 @@ export function defaultPeriodView(available: PeriodView[]): PeriodView | null {
   return null
 }
 
-/** Chronological rank of a period within its fiscal year (Q1 < H1 < 9M < FY) */
+/** Chronological rank of a period within its fiscal year (Q1 < H1 < 9M < FY).
+ *  Still used by non-display paths (compare basis scoring, latest-period
+ *  selection) — the display layer itself is quarters-only. */
 export function withinYearRank(periodType: string, label: string): number {
   const up = label.toUpperCase()
   if (periodType === "QUARTERLY") {
@@ -325,6 +332,7 @@ export async function availableReportPeriodViews(
   const rows = await db.financialReport.findMany({
     where: {
       companyId,
+      deletedAt: null,
       processingStatus: { in: [...TRUSTED_REPORT_STATUSES] },
       ...(statementType ? { statementType } : {}),
     },

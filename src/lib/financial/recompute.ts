@@ -473,7 +473,7 @@ export async function recomputeCompany(companyId: string): Promise<RecomputeResu
   if (!company) throw new Error(`Company ${companyId} not found`)
 
   const reports = await db.financialReport.findMany({
-    where: { companyId, processingStatus: { in: TRUSTED_STATUSES } },
+    where: { companyId, deletedAt: null, processingStatus: { in: TRUSTED_STATUSES } },
     include: { values: true },
     // version ascending so a newer restatement overwrites the same bucket
     orderBy: [{ fiscalYear: "asc" }, { periodLabel: "asc" }, { version: "asc" }],
@@ -676,6 +676,9 @@ export async function recomputeCompany(companyId: string): Promise<RecomputeResu
   const detected = preferredStatementType === "NONE" ? [] : detectEvents(eventPeriods)
 
   // Persist atomically-ish (delete + recreate for this company, both statement types)
+  // timeout: data-heavy companies (thousands of rows) exceed the 5s default on
+  // any connection with real-world latency — 30s keeps the swap atomic without
+  // ever being the bottleneck.
   await db.$transaction(async (tx) => {
     await tx.calculatedMetric.deleteMany({ where: { companyId } })
     await tx.financialEvent.deleteMany({ where: { companyId } })
@@ -699,7 +702,7 @@ export async function recomputeCompany(companyId: string): Promise<RecomputeResu
         })),
       })
     }
-  })
+  }, { timeout: 30_000, maxWait: 10_000 })
 
   const statementTypesUsed = [...new Set(allBuckets.map((b) => b.statementType))].sort()
 

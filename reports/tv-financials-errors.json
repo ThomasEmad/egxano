@@ -1,4 +1,165 @@
 {
-  "generatedAt": "2026-11-06T02:48:59.377Z",
-  "errors": []
+  "generatedAt": "2026-11-07T23:12:08.359Z",
+  "errors": [
+    {
+      "ticker": "ACRO",
+      "errors": [
+        "income-statement:NO_SYMBOL_ON_TV",
+        "balance-sheet:NO_SYMBOL_ON_TV",
+        "cash-flow:NO_SYMBOL_ON_TV"
+      ]
+    },
+    {
+      "ticker": "ADRI",
+      "errors": [
+        "income-statement:NO_SYMBOL_ON_TV",
+        "balance-sheet:NO_SYMBOL_ON_TV",
+        "cash-flow:NO_SYMBOL_ON_TV"
+      ]
+    },
+    {
+      "ticker": "AIDC",
+      "errors": [
+        "income-statement:NO_SYMBOL_ON_TV",
+        "balance-sheet:NO_SYMBOL_ON_TV",
+        "cash-flow:NO_SYMBOL_ON_TV"
+      ]
+    },
+    {
+      "ticker": "AIHC",
+      "errors": [
+        "income-statement:NO_SYMBOL_ON_TV",
+        "balance-sheet:NO_SYMBOL_ON_TV",
+        "cash-flow:NO_SYMBOL_ON_TV"
+      ]
+    },
+    {
+      "ticker": "APPC",
+      "errors": [
+        "balance-sheet:HTTP_403"
+      ]
+    },
+    {
+      "ticker": "ARVA",
+      "errors": [
+        "income-statement:HTTP_403",
+        "balance-sheet:HTTP_403",
+        "cash-flow:NO_SYMBOL_ON_TV"
+      ]
+    },
+    {
+      "ticker": "ARPI",
+      "errors": [
+        "income-statement:NO_SYMBOL_ON_TV",
+        "balance-sheet:HTTP_403",
+        "cash-flow:HTTP_403"
+      ]
+    },
+    {
+      "ticker": "ASCM",
+      "errors": [
+        "income-statement:HTTP_403",
+        "balance-sheet:HTTP_403"
+      ]
+    },
+    {
+      "ticker": "ASPI",
+      "errors": [
+        "cash-flow:HTTP_403"
+      ]
+    },
+    {
+      "ticker": "AXPH",
+      "errors": [
+        "income-statement:HTTP_403",
+        "cash-flow:HTTP_403"
+      ]
+    },
+    {
+      "ticker": "BIDI",
+      "errors": [
+        "income-statement:HTTP_403",
+        "cash-flow:HTTP_403"
+      ]
+    },
+    {
+      "ticker": "BQDC",
+      "errors": [
+        "income-statement:NO_SYMBOL_ON_TV",
+        "balance-sheet:NO_SYMBOL_ON_TV",
+        "cash-flow:HTTP_403"
+      ]
+    },
+    {
+      "ticker": "BINV",
+      "errors": [
+        "balance-sheet:HTTP_403",
+        "cash-flow:HTTP_403"
+      ]
+    },
+    {
+      "ticker": "BIGP",
+      "errors": [
+        "income-statement:HTTP_403",
+        "balance-sheet:HTTP_403",
+        "cash-flow:HTTP_403"
+      ]
+    },
+    {
+      "ticker": "BONY",
+      "errors": [
+        "income-statement:HTTP_403",
+        "balance-sheet:HTTP_403",
+        "cash-flow:HTTP_403"
+      ]
+    },
+    {
+      "ticker": "CAED",
+      "errors": [
+        "income-statement:HTTP_403",
+        "balance-sheet:HTTP_403",
+        "cash-flow:HTTP_403"
+      ]
+    },
+    {
+      "ticker": "CANA",
+      "errors": [
+        "income-statement:HTTP_403",
+        "balance-sheet:HTTP_403",
+        "cash-flow:HTTP_403"
+      ]
+    },
+    {
+      "ticker": "CCAP",
+      "errors": [
+        "income-statement:HTTP_403",
+        "balance-sheet:HTTP_403",
+        "cash-flow:HTTP_403"
+      ]
+    },
+    {
+      "ticker": "CCRS",
+      "errors": [
+        "income-statement:HTTP_403",
+        "balance-sheet:HTTP_403",
+        "cash-flow:HTTP_403"
+      ]
+    },
+    {
+      "ticker": "CEFM",
+      "errors": [
+        "income-statement:HTTP_403",
+        "balance-sheet:HTTP_403",
+        "cash-flow:HTTP_403"
+      ]
+    },
+    {
+      "ticker": "CFGH",
+      "errors": [
+        "income-statement:HTTP_403",
+        "balance-sheet:HTTP_403",
+        "cash-flow:HTTP_403"
+      ]
+    }
+  ]
 }

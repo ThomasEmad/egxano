@@ -69,12 +69,12 @@ async function buildUndervalued(): Promise<unknown> {
       select: { companyId: true, code: true, value: true, fiscalYear: true },
     }),
     db.financialReport.findMany({
-      where: { companyId: { in: ids }, periodType: "ANNUAL", processingStatus: { in: TRUSTED }, statementType: "CONSOLIDATED" },
+      where: { companyId: { in: ids }, deletedAt: null, periodType: "ANNUAL", processingStatus: { in: TRUSTED }, statementType: "CONSOLIDATED" },
       select: { id: true, companyId: true, fiscalYear: true },
       orderBy: { version: "desc" },
     }),
     db.financialValue.findMany({
-      where: { report: { periodType: "ANNUAL", processingStatus: { in: TRUSTED }, statementType: "CONSOLIDATED" }, metricCode: { in: NEEDED }, validationStatus: "VALID" },
+      where: { report: { deletedAt: null, periodType: "ANNUAL", processingStatus: { in: TRUSTED }, statementType: "CONSOLIDATED" }, metricCode: { in: NEEDED }, validationStatus: "VALID" },
       select: { reportId: true, metricCode: true, normalizedValue: true },
     }),
     db.marketPrice.findMany({

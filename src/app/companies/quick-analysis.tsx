@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useI18n } from "@/lib/i18n"
-import { api, getUserToken, type AiAnalysisData } from "@/lib/client/api"
+import { api, getUserToken, type AiAnalysisData, type AiAnalysisGenerateResult } from "@/lib/client/api"
 
 export interface QuickAiTarget {
   ticker: string
@@ -29,7 +29,7 @@ export interface QuickAiTarget {
 export type GenerateMutation = {
   isPending: boolean
   variables?: { ticker: string; lang: string } | undefined
-  data?: (AiAnalysisData & { cached?: boolean; degraded?: boolean }) | undefined
+  data?: AiAnalysisGenerateResult | undefined
   error: unknown
   mutate: (v: { ticker: string; lang: string }) => void
 }
@@ -101,7 +101,20 @@ export function QuickAiAnalysisDialog({
   const usageExhausted = !!err && (err.status === 429 || /USAGE_LIMIT_EXCEEDED/i.test(err.message)) && /USAGE_LIMIT/i.test(errCode || err.message)
   const rateLimited = !!err && err.status === 429 && !usageExhausted
   const authError = !!err && err.status === 401
-  const analysis = forThisTarget ? gen.data?.analysis ?? null : null
+
+  // POST returns 202 + jobRef — generation is a background job shared by all
+  // users. Poll the lightweight status endpoint while the job lives; when it
+  // reports a completed report, show it here directly.
+  const quickJobRef = forThisTarget && gen.data?.status === "generating" ? gen.data.jobRef ?? null : null
+  const statusQuery = useQuery({
+    queryKey: ["quick-ai-status", target?.ticker, lang, quickJobRef],
+    queryFn: () => api.aiAnalysisStatus(target!.ticker, lang, quickJobRef),
+    enabled: open && !!quickJobRef && !!target,
+    refetchInterval: 5000,
+  })
+  const statusReport = statusQuery.data?.report ?? null
+  const generating = !!quickJobRef && (statusQuery.data?.status === "pending" || statusQuery.data?.status === "processing" || statusQuery.isLoading)
+  const analysis = forThisTarget ? (statusReport ?? (gen.data?.analysis as AiAnalysisData["analysis"]) ?? null) : null
   // No token at all, or the server rejected the session (401) → sign-in CTA.
   const showLogin = !loggedIn || authError
 
@@ -150,7 +163,7 @@ export function QuickAiAnalysisDialog({
               {ar ? "تسجيل الدخول" : "Sign in"}
             </Button>
           </div>
-        ) : forThisTarget && gen.isPending ? (
+        ) : forThisTarget && (gen.isPending || generating) ? (
           <div className="flex flex-col items-center gap-4 py-8 text-center">
             <div className="relative flex h-16 w-16 items-center justify-center">
               <span className="absolute inset-0 rounded-full bg-primary/15 animate-ping" aria-hidden />
@@ -229,7 +242,7 @@ export function QuickAiAnalysisDialog({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-1.5">
                 {analysis.model ? <Badge variant="secondary" className="font-mono text-[10px]">{analysis.model}</Badge> : null}
-                {gen.data?.cached ? (
+                {gen.data?.cached || (quickJobRef === null && gen.data?.analysis) ? (
                   <Badge variant="outline" className="text-[10px]">{ar ? "من الكاش — نفس البيانات" : "cached — same data"}</Badge>
                 ) : null}
                 <span className="text-[11px] text-muted-foreground">{fmtDate(analysis.createdAt, ar)}</span>
@@ -240,7 +253,7 @@ export function QuickAiAnalysisDialog({
               </Button>
             </div>
 
-            {gen.data?.degraded ? (
+            {analysis.degraded ? (
               <Alert className="border-warning/40 bg-warning/5">
                 <AlertTriangle className="h-4 w-4 text-warning" aria-hidden />
                 <AlertDescription className="text-xs">

@@ -2,6 +2,7 @@ import { db } from "@/lib/db"
 import { buildScanContextsCached } from "@/lib/financial/scan-service"
 import { latestCalcPeriodKeys } from "@/lib/financial/statement-pref"
 import { getLatestPrice } from "@/lib/financial/market"
+import { getFreshMarketSnapshot, moverMap } from "@/lib/market/snapshot"
 import { latestAnnouncedPeriodEnd } from "@/lib/financial/period-validity"
 import { evaluateRule, type ScanCondition } from "@/lib/financial/scanner"
 
@@ -11,6 +12,11 @@ import { evaluateRule, type ScanCondition } from "@/lib/financial/scanner"
 // against it (cheap) instead of running a full scan per rule (42 full scans).
 // latestPeriods comes from the company's preferred statement-type set
 // (CONSOLIDATED when available, else STANDALONE — never mixed).
+//
+// Price freshness parity (owner report: list pages showed the fresh
+// 15-minute-delayed snapshot price while the company page showed a stale
+// MarketPrice row): the SAME snapshot-first chain as the companies list —
+// public market-ticker snapshot by ticker, then the durable MarketPrice table.
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -26,10 +32,22 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!company) return Response.json({ error: "NOT_FOUND" }, { status: 404 })
   const companyId = company.id
 
-  const [presets, periods, price, latestReport] = await Promise.all([
+  // snapshot first (the freshest source the platform has), durable table second
+  const snapshot = await getFreshMarketSnapshot()
+  const mover = moverMap(snapshot).get(company.ticker.toUpperCase())
+  const snapshotAsOf = snapshot?.pricesAsOf ?? snapshot?.asOf ?? null
+  const price = mover
+    ? {
+        price: mover.price,
+        asOf: snapshotAsOf ? new Date(snapshotAsOf) : new Date(),
+        currency: "EGP",
+        sourceName: "market-ticker (15-min delayed)",
+        isDemoData: false,
+      }
+    : await getLatestPrice(companyId)
+  const [presets, periods, latestReport] = await Promise.all([
     db.scannerRule.findMany({ where: { isPreset: true, isActive: true } }),
     latestCalcPeriodKeys(companyId),
-    getLatestPrice(companyId),
     // freshness: latest period-end across trusted filings (data-as-of display)
     db.financialReport.findFirst({
       where: {

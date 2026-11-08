@@ -1,0 +1,118 @@
+{
+  "generatedAt": "2026-11-07T23:15:03.515Z",
+  "parser": "tv-financials-import@2",
+  "replaced": [
+    {
+      "ticker": "AMER",
+      "periodLabel": "FY 2021",
+      "metric": "NET_PROFIT",
+      "newValueId": "cmw70sh8l0015rb2c7s6q0abh",
+      "oldValue": 104377405
+    },
+    {
+      "ticker": "ATLC",
+      "periodLabel": "FY 2024",
+      "metric": "OPERATING_CASH_FLOW",
+      "newValueId": "cmw70t8ac007xrb2cq0xsavcx",
+      "oldValue": 469405000
+    },
+    {
+      "ticker": "ATLC",
+      "periodLabel": "FY 2024",
+      "metric": "INVESTING_CASH_FLOW",
+      "newValueId": "cmw70takh008drb2cfq4bp5d0",
+      "oldValue": -747031000
+    },
+    {
+      "ticker": "ATLC",
+      "periodLabel": "FY 2024",
+      "metric": "FINANCING_CASH_FLOW",
+      "newValueId": "cmw70td08008trb2cvevlvp1p",
+      "oldValue": 393609000
+    },
+    {
+      "ticker": "ATLC",
+      "periodLabel": "FY 2024",
+      "metric": "NET_CHANGE_IN_CASH",
+      "newValueId": "cmw70tg1u009lrb2crrwx0e41",
+      "oldValue": 11640000
+    },
+    {
+      "ticker": "ATLC",
+      "periodLabel": "FY 2024",
+      "metric": "FREE_CASH_FLOW",
+      "newValueId": "cmw70tibw009vrb2cpm58sul6",
+      "oldValue": 467616000
+    },
+    {
+      "ticker": "BINV",
+      "periodLabel": "FY 2023",
+      "metric": "REVENUE",
+      "newValueId": "cmw70tiev009zrb2cbj8pb9t7",
+      "oldValue": 419178391
+    },
+    {
+      "ticker": "BINV",
+      "periodLabel": "FY 2024",
+      "metric": "REVENUE",
+      "newValueId": "cmw70tjkt00a5rb2cst5w2e54",
+      "oldValue": 112271763
+    },
+    {
+      "ticker": "BINV",
+      "periodLabel": "FY 2023",
+      "metric": "OPERATING_INCOME",
+      "newValueId": "cmw70tknp00abrb2cap5bbjsv",
+      "oldValue": 118597679
+    },
+    {
+      "ticker": "BINV",
+      "periodLabel": "FY 2024",
+      "metric": "OPERATING_INCOME",
+      "newValueId": "cmw70tlu400ahrb2ct4aocgmk",
+      "oldValue": 118929385
+    },
+    {
+      "ticker": "BINV",
+      "periodLabel": "FY 2023",
+      "metric": "NET_PROFIT",
+      "newValueId": "cmw70tnnh00arrb2c2pqzjlcl",
+      "oldValue": 693764113
+    },
+    {
+      "ticker": "BINV",
+      "periodLabel": "FY 2024",
+      "metric": "NET_PROFIT",
+      "newValueId": "cmw70tpln00b3rb2c4h053wzn",
+      "oldValue": 1655571043
+    },
+    {
+      "ticker": "BINV",
+      "periodLabel": "FY 2023",
+      "metric": "EBITDA",
+      "newValueId": "cmw70trjr00bdrb2cwb6jdwpc",
+      "oldValue": 888211510
+    },
+    {
+      "ticker": "BINV",
+      "periodLabel": "FY 2024",
+      "metric": "EBITDA",
+      "newValueId": "cmw70ttig00blrb2ccavvah6e",
+      "oldValue": 1835923382
+    },
+    {
+      "ticker": "BINV",
+      "periodLabel": "FY 2023",
+      "metric": "EBIT",
+      "newValueId": "cmw70ttsn00bnrb2c5thy8l5f",
+      "oldValue": 886486264
+    },
+    {
+      "ticker": "BINV",
+      "periodLabel": "FY 2024",
+      "metric": "EBIT",
+      "newValueId": "cmw70tvrq00bprb2c7bjfq04a",
+      "oldValue": 2001700490
+    }
+  ]
+}

@@ -27,10 +27,11 @@ import {
 // boundary) contribute periods/statements.
 //
 // Period-view separation: `?period_view=annual|interim` selects ANNUAL filings
-// only or interim filings (QUARTERLY/SEMIANNUAL/NINE_MONTH) only — the two are
-// NEVER mixed in one response (mixing FY columns with 9M/H1/Q columns makes the
-// statements unreadable for investors). Default: annual when available, else
-// interim. `availablePeriodViews` tells the UI which toggles to offer.
+// only or DISCRETE QUARTERLY filings only — the two are NEVER mixed in one
+// response. H1/9M cumulative filings are not rendered as columns (owner rule:
+// investors read Q1→Q4 sequences, each quarter labeled with its fiscal year).
+// Default: annual when available, else interim. `availablePeriodViews` tells
+// the UI which toggles to offer.
 
 // Internal maintenance markers must never reach the public UI (product rule:
 // no data provenance / tooling notes for end users). If a source label carries
@@ -79,14 +80,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     by: ["periodType"],
     where: {
       companyId,
+      deletedAt: null,
       processingStatus: { in: [...TRUSTED_REPORT_STATUSES] },
       periodType: { in: ["ANNUAL", "QUARTERLY", "SEMIANNUAL", "NINE_MONTH"] },
     },
     _max: { periodEnd: true },
   })
   const latestAnnualEnd = latestEnds.find((g) => g.periodType === "ANNUAL")?._max.periodEnd ?? null
+  // quarters-only display rule: H1/9M filings no longer count toward the
+  // "freshest interim view" default — only discrete quarterly filings do
   const latestInterimEnd = latestEnds
-    .filter((g) => g.periodType !== "ANNUAL")
+    .filter((g) => g.periodType === "QUARTERLY")
     .map((g) => g._max.periodEnd)
     .filter((d): d is Date => !!d)
     .sort((a, b) => b.getTime() - a.getTime())[0] ?? null
@@ -99,6 +103,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           companyId,
           validationStatus: "VALID",
           report: {
+            deletedAt: null,
             processingStatus: { in: [...TRUSTED_REPORT_STATUSES] },
             statementType,
             periodType: { in: PERIOD_VIEW_TYPES[periodView] },

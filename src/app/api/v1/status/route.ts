@@ -1,5 +1,5 @@
 import { db } from "@/lib/db"
-import { readMarketSnapshot } from "@/lib/market/snapshot"
+import { getFreshMarketSnapshot } from "@/lib/market/snapshot"
 import { cachedResponse } from "@/lib/public-cache"
 
 // GET /api/v1/status — public, machine-readable platform status: what the
@@ -20,7 +20,7 @@ export async function GET() {
         db.aiAnalysis.count(),
       ])
 
-    const snapshot = readMarketSnapshot()
+    const snapshot = await getFreshMarketSnapshot()
 
     return {
       status: "ok",

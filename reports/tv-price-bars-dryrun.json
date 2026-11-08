@@ -1,0 +1,1112 @@
+{
+ "at": "2026-11-07T23:58:52.247Z",
+ "apply": false,
+ "count": 0,
+ "results": {},
+ "errors": [
+  {
+   "ticker": "AALR",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ABUK",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ACAMD",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ACAP",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ACGC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ACRO",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ACTF",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ADCI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ADIB",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ADPC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ADRI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "AFDI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "AFMC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "AIDC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "AIFI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "AIHC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "AJWA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ALCN",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ALEX",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ALUM",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "AMER",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "AMES",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "AMIA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "AMII",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "AMOC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "AMPI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "APPC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "APSW",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ARAB",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ARCC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "AREH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ARPI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ARVA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ASCM",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ASPI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ATLC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ATQA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "AXPH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "BIDI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "BIGP",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "BINV",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "BIOC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "BONY",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "BQDC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "BTFH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "CAED",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "CCAP",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "CANA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "CCRS",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "CEFM",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "CERA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "CFGH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "CICH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "CIEB",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "CIRA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "CLHO",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "CNFN",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "COMI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "COSG",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "COPR",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "CPCI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "CPME",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "CRST",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "CSAG",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "DAPH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "DCCC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "DCRC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "DEIN",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "DGTZ",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "DIFC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "DOMT",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "DSCW",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "DTPP",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EALR",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EASB",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EAST",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EBSC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ECAP",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ECSC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EDFM",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EEII",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EFIC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EFID",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EFIH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EGAL",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EGAS",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EGBE",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EGCH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EGREF",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EGSA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EGTS",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EHDR",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EITP",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ELEC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ELKA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ELNA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ELSH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ELWA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EMFD",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ENGC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EOSB",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EPCO",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EPPK",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ESRS",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ETEL",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ETRS",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "EXPA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "FAIT",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "FERC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "FIRE",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "FNAR",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "FTNS",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "FWRY",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "GBCO",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "GDWA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "GEOS",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "GETO",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "GGCC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "GGRN",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "GIHD",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "GMCI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "GOCO",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "GOUR",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "GPIM",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "GPPL",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "GRCA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "GROV",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "GSSC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "GTEX",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "GTHE",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "GTWL",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "HBCO",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "HDBK",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "HELI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "HRHO",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "IBCT",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ICFC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ICID",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ICLE",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "IDRE",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "IEEC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "IFAP",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "INEG",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "INFI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "IRAX",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "IRON",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ISMA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ISMQ",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ISPH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "JUFO",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "KABO",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "KORA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "KRDI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "KWIN",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "KZPC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "LCSW",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "LUTS",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MAAL",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MASR",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MBEG",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MBSC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MCQE",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MCRO",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MEGM",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MENA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MEPA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MFPC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MFSC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MHOT",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MICH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MILS",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MIPH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MISR",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MKIT",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MMAT",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MOED",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MOIL",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MOIN",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MOSC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MPCI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MPCO",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MTIE",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "MPRC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "NAHO",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "NAMI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "NAPR",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "NARE",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "NBKE",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "NCCW",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "NCEM",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "NCGC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "NDRL",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "NEDA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "NHPS",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "NINH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "NOAF",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "NIPH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "OBRI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "OCDI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "OCPH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ODIN",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "OFH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "OIH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "OLFI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ORAS",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ORWE",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ORHD",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "PACH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "PHAR",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "PHDC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "PHGC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "PHTV",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "POCO",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "POUL",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "PRCL",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "PRDC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "PRMH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "PTCC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "QNBE",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "RAKT",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "RACC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "RAYA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "RMDA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "RKAZ",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "RMTV",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ROTO",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "RREI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "RTVC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SAIB",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "RUBX",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SAUD",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SCFM",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SCTS",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SCEM",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SDTI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SEIG",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SIMO",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SIPC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SKPC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SMFR",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SMPP",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SNFC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SNFI",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SPHT",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SPIN",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SPMD",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SUGR",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SUCE",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SVCE",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "SWDY",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "TALM",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "TANM",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "TMGH",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "TAQA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "TORA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "TRTO",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "TRST",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "TWSA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "TYCN",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "UASG",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "UBEE",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "UEGC",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "UEFM",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "UNIP",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "UNIT",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "UTOP",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "UPMS",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "VALU",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "VERT",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "VLMR",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "VLMRA",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "WATP",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "WCDF",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "WKOL",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ZMID",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  },
+  {
+   "ticker": "ZEOT",
+   "error": "Error: page.evaluate: SyntaxError: Unexpected token '}'\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:290:30)\n    at "
+  }
+ ]
+}

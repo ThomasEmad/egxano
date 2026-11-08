@@ -9,6 +9,9 @@ const scriptSrc = [
   ...(isDev ? ["'unsafe-eval'"] : []),
   "https://www.googletagmanager.com",
   "https://www.google-analytics.com",
+  // TradingView embed widgets (public chart/technical-summary iframes on the
+  // company page). Presentation only — no platform data leaves the app.
+  "https://s3.tradingview.com",
 ].join(" ");
 
 const contentSecurityPolicy = [
@@ -17,7 +20,9 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
-  "connect-src 'self' https://www.google-analytics.com",
+  "connect-src 'self' https://www.google-analytics.com https://*.tradingview.com wss://*.tradingview.com",
+  // TradingView widgets render inside iframes hosted on these origins.
+  "frame-src https://s3.tradingview.com https://s.tradingview.com https://www.tradingview.com https://tradingview-widget.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

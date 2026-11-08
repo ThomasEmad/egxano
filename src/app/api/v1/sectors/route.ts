@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
 import { periodOrder, selectLatestByCompany, type PeriodRef } from "@/lib/financial/latest-period"
-import { moverMap, readMarketSnapshot } from "@/lib/market/snapshot"
+import { moverMap, getFreshMarketSnapshot } from "@/lib/market/snapshot"
 import { cached } from "@/lib/server-cache"
 
 interface SectorAgg {
@@ -124,7 +124,7 @@ async function computeSectorAggregates(basis: "latest" | "annual" | "ttm", year:
     { fullPeriodCodes: ["roe", "roa", "net_margin"] },
   )
 
-  const snapshot = readMarketSnapshot()
+  const snapshot = await getFreshMarketSnapshot()
   const movers = moverMap(snapshot)
 
   const sectorMap = new Map<string, SectorAgg>()
