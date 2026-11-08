@@ -2,12 +2,16 @@ import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
 import { requireAuth, unauthorizedResponse } from "@/lib/access"
 import { cachedRead } from "@/lib/hot-read"
+import { after } from "next/server"
+import { processJob } from "@/lib/ai/jobs/worker"
 
 // GET /api/v1/companies/[id]/ai-analysis/status?lang=ar|en&jobRef=<id>
 // Lightweight generation-status poll. Returns the latest job for the company
 // + language; when a completed report exists for the job's identity it is
 // returned immediately. A stale PENDING job (lease expired) is re-kicked via
 // after() — the poll path is also the recovery path.
+
+let lastPollKick = 0
 
 export const maxDuration = 30
 
@@ -54,21 +58,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     })
     const { job, report } = snap
 
-    // Stale-job recovery WITHOUT generation: a 30s function window cannot host
-    // a full report generation, so this poll only releases expired leases back
-    // to PENDING (fast, indexed). The next health-cron/worker kick claims it.
-    const leaseStale =
+    // Recovery via the poll itself: the polling user's invocation donates its
+    // remaining window (~29s of the 30s maxDuration) to process the job. A
+    // claimable job = PENDING with a free lease, or PROCESSING with an expired
+    // lease. Kicks are throttled per lambda so a poll storm donates ONE worker.
+    const claimable =
       job &&
-      job.status === "PROCESSING" &&
-      job.leaseUntil !== null &&
-      job.leaseUntil.getTime() < Date.now()
-    if (leaseStale && job) {
-      await db.aiAnalysisJob
-        .updateMany({
-          where: { id: job.id, status: "PROCESSING", leaseUntil: { lt: new Date() } },
-          data: { status: "PENDING", leasedBy: null, leaseUntil: null },
-        })
-        .catch(() => {})
+      job.status !== "FAILED" &&
+      (!job.leaseUntil || job.leaseUntil.getTime() < Date.now()) &&
+      (job.status === "PENDING" || job.status === "PROCESSING")
+    if (claimable && job && Date.now() - lastPollKick > 15_000) {
+      lastPollKick = Date.now()
+      after(async () => {
+        try {
+          await processJob(job.id, { budgetMs: 24_000 })
+        } catch (e) {
+          console.error("status-poll worker kick failed:", e instanceof Error ? e.message.slice(0, 200) : e)
+        }
+      })
     }
 
     return Response.json(

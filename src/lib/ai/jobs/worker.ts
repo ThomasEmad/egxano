@@ -33,7 +33,12 @@ export const DEFAULT_WORKER_BUDGET_MS = Math.min(
   Math.max(Number(process.env.AI_WORKER_BUDGET_MS || "") || 50_000, 20_000),
   80_000
 )
-export const MAX_ATTEMPTS = 3
+/**
+ * 5 attempts: 1×45s (POST after) + up to 3×24s (poll donations) + 50s
+ * (health-cron worker). Short windows still make progress (fast providers);
+ * only after ALL of them does the clearly-labeled degraded artifact serve.
+ */
+export const MAX_ATTEMPTS = 5
 /** Worker instance id (diagnostics). */
 const WORKER_ID = `w-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
 
