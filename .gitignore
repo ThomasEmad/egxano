@@ -1,0 +1,8 @@
+
+# agent workspace state (never commit)
+.mimosa/
+.initial_snapshot.json
+err.txt
+out.txt
+diff.err
+dev.pid
