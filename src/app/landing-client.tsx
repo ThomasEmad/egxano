@@ -451,13 +451,13 @@ export default function LandingClient() {
                 <p className="text-center text-muted-foreground">{ar ? "لا توجد نتائج حديثة" : "No recent results"}</p>
               ) : (
                 latestResults.map((result) => (
-                  <ResultRow key={result.id} result={result} ar={ar} />
+                  <ResultRow key={result.companyId} result={result} ar={ar} />
                 ))
               )}
 
               <div className="mt-8 text-center">
                 <Link
-                  href="/results"
+                  href="/companies"
                   className="inline-flex items-center gap-2 font-medium text-primary underline-offset-4 hover:underline"
                 >
                   {ar ? "كل جولات النتائج" : "All results rounds"}
@@ -713,13 +713,13 @@ function HeroPreview({
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <MetricPreview
             label={ar ? "السعر" : "Price"}
-            value={priceText(company.price)}
-            change={changeText(company.change)}
+            value={priceText(company.marketPrice?.price)}
+            change={changeText(company.marketPrice?.changePct)}
             unit={ar ? "ج.م" : "EGP"}
           />
           <MetricPreview
             label={ar ? "التغير" : "Change"}
-            value={changeText(company.change)}
+            value={changeText(company.marketPrice?.changePct)}
             unit="%"
           />
           <MetricPreview
@@ -890,11 +890,11 @@ function ResultRow({ result, ar }: { result: { id: string; companyId: string; co
         <div className="flex items-center gap-4">
           <div className="text-right min-w-[120px]">
             <p className="text-sm font-bold tabular text-foreground">
-              {result.netProfit === null ? "—" : result.netProfit >= 1e9 ? `${(result.netProfit / 1e9).toFixed(2)}B` : result.netProfit >= 1e6 ? `${(result.netProfit / 1e6).toFixed(1)}M` : `${result.netProfit?.toLocaleString(ar ? "ar-EG" : "en-GB")}`}
+              {result.netProfit == null ? "—" : result.netProfit >= 1e9 ? `${(result.netProfit / 1e9).toFixed(2)}B` : result.netProfit >= 1e6 ? `${(result.netProfit / 1e6).toFixed(1)}M` : `${result.netProfit?.toLocaleString(ar ? "ar-EG" : "en-GB")}`}
             </p>
             <p className="text-[10px] text-muted-foreground">{ar ? "صافي الربح" : "Net profit"}</p>
           </div>
-          {result.change !== null && (
+          {result.change != null && (
             <div className={`text-right font-semibold ${result.change >= 0 ? "text-success" : "text-destructive"}`}>
               <p className="text-sm">{result.change >= 0 ? "+" : ""}{result.change.toFixed(1)}%</p>
               <p className="text-[10px] text-muted-foreground">{ar ? "التغير" : "Change"}</p>
@@ -937,9 +937,9 @@ function MarketMoversCard({
             </div>
             <div className="flex items-center gap-2 text-right">
               <span className={`text-sm font-bold tabular ${color}`}>
-                {item.change !== null ? `${item.change >= 0 ? "+" : ""}${item.change.toFixed(2)}%` : "—"}
+                {item.marketPrice?.changePct != null ? `${item.marketPrice.changePct >= 0 ? "+" : ""}${item.marketPrice.changePct.toFixed(2)}%` : "—"}
               </span>
-              <span className="text-[11px] text-muted-foreground">{priceText(item.price)} {ar ? "ج.م" : "EGP"}</span>
+              <span className="text-[11px] text-muted-foreground">{priceText(item.marketPrice?.price)} {ar ? "ج.م" : "EGP"}</span>
             </div>
           </Link>
         ))}

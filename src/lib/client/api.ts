@@ -425,9 +425,11 @@ export const api = {
     fetch("/api/v1/dashboard/latest-results").then((r) =>
       handle<{
         results: {
-          companyId: string; ticker: string; name: string; nameEn: string
+          id: string; companyId: string; ticker: string; name: string; nameEn: string
+          companyName: string; period: string
           periodLabel: string; periodType: string; fiscalYear: number
-          asOf: string; source: string; netProfit: number
+          asOf: string; statementType: string; netProfit: number
+          change: number | null; reportUrl: string
         }[]
       }>(r)
     ),
