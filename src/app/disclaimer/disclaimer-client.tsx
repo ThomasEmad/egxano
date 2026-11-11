@@ -17,8 +17,8 @@ export default function DisclaimerClient() {
       <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
         <p>
           {lang === "ar"
-            ? "Meza يقدم بيانات مالية ومؤشرات تحليلية لأغراض معلوماتية فقط. لا يعتبر أي من المحتوى الموجود على هذا الموقع نصيحة استثمارية أو عرضاً أو طلباً لشراء أو بيع أي أوراق مالية."
-            : "Meza provides financial data and analytical indicators for informational purposes only. Nothing on this site constitutes investment advice, or an offer or solicitation to buy or sell any securities."}
+            ? "إيجيكسّانو يقدم بيانات مالية ومؤشرات تحليلية لأغراض معلوماتية فقط. لا يعتبر أي من المحتوى الموجود على هذا الموقع نصيحة استثمارية أو عرضاً أو طلباً لشراء أو بيع أي أوراق مالية."
+            : "EGXANO provides financial data and analytical indicators for informational purposes only. Nothing on this site constitutes investment advice, or an offer or solicitation to buy or sell any securities."}
         </p>
         <p>
           {lang === "ar"

@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { BrandMark } from "@/components/brand/logo"
 import { usePathname } from "next/navigation"
 import { Activity, Menu, X } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
@@ -79,11 +80,11 @@ export function MobileNavDrawer() {
           <div className="absolute inset-y-0 start-0 flex w-72 max-w-[85vw] flex-col border-e border-border/60 bg-sidebar shadow-xl">
             {/* Brand + close */}
             <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-border/60 px-4">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-                <Activity className="h-4.5 w-4.5" />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-foreground shadow-sm">
+                <BrandMark size={28} />
               </div>
               <div className="flex flex-1 flex-col leading-tight">
-                <span className="font-bold tracking-tight text-foreground">Meza</span>
+                <span className="font-extrabold tracking-[0.08em] text-foreground">EGXANO</span>
                 <span className="text-[10px] text-muted-foreground">
                   {ar ? "تحليل بيانات البورصة المصرية" : "EGX market intelligence"}
                 </span>
@@ -145,7 +146,7 @@ export function MobileNavDrawer() {
 
             {/* Footer */}
             <div className="shrink-0 border-t border-border/40 px-4 py-3">
-              <p className="text-[10px] leading-none text-muted-foreground/70">Meza v0.3.0</p>
+              <p className="text-[10px] leading-none text-muted-foreground/70">EGXANO v0.3.0</p>
               <p className="mt-1.5 text-[10px] leading-tight text-muted-foreground/50">
                 {ar
                   ? "أسعار متأخرة 15 دقيقة — ليست نصيحة استثمارية"

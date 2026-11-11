@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Activity } from "lucide-react"
+import { BrandMark } from "@/components/brand/logo"
 import { useI18n } from "@/lib/i18n"
 
 export function AppFooter() {
@@ -25,14 +25,12 @@ export function AppFooter() {
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <Activity className="h-3.5 w-3.5" />
-            </div>
-            <span className="font-bold tracking-tight text-foreground">Meza</span>
+            <BrandMark size={26} />
+            <span className="font-extrabold tracking-[0.08em] text-foreground">EGXANO</span>
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>{ar ? "حقوق الطبع والنشر" : "©"}</span>
-            <span>{new Date().getFullYear()} Meza</span>
+            <span>{new Date().getFullYear()} EGXANO</span>
           </div>
         </div>
 

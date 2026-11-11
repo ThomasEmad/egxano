@@ -64,6 +64,11 @@
 :root {
   --radius: 0.75rem;
 
+  /* EGXANO brand accent — WCAG-aware lime split:
+     light surfaces use the deep accessible lime (5.49:1 on white),
+     dark surfaces use the brighter acid lime (13.3:1 on graphite). */
+  --brand-accent: #52731B;
+
   /* Light Theme - Clean Professional */
   --background: #F9FAF8;
   --foreground: #0C1210;
@@ -146,6 +151,7 @@
 
 .dark {
   /* Dark Theme - Premium Graphite + Acid Lime */
+  --brand-accent: #A3E635;
   --background: #050807;
   --foreground: #F8FAF7;
 
@@ -257,6 +263,12 @@
     @apply font-semibold tracking-tight;
     line-height: 1.2;
   }
+}
+
+/* Financial numerals — tabular figures for aligned tables & KPIs */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
 /* Modern Scrollbars */

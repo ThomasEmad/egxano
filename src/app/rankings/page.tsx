@@ -20,7 +20,7 @@ export const metadata: Metadata = {
       languages: { en: "/rankings", "ar-EG": "/rankings" },
     },
   openGraph: {
-    title: "EGX company rankings — Meza",
+    title: "EGX company rankings — EGXANO",
     description: "Rank Egyptian Exchange companies by verified financial metrics, with each row's period shown.",
     url: "/rankings",
     type: "website",

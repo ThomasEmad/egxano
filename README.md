@@ -1,4 +1,4 @@
-# Meza — Windows workspace
+# EGXANO — Windows workspace
 
 Next.js 16 + TypeScript + Prisma/SQLite financial-intelligence platform for Egyptian
 Exchange (EGX) companies. Bilingual (EN/AR + RTL). Zero invented data: every figure

@@ -12,7 +12,7 @@ export default function PrivacyClient() {
     ? [
         {
           h: "1. من نحن",
-          p: "Meza منصة مستقلة لتحليل بيانات البورصة المصرية. نحن المتحكم في البيانات الشخصية التي تُجمع عبر الموقع. للتواصل بشأن الخصوصية: privacy@meza-ashy.vercel.app.",
+          p: "إيجيكسّانو منصة مستقلة لتحليل بيانات البورصة المصرية. نحن المتحكم في البيانات الشخصية التي تُجمع عبر الموقع. للتواصل بشأن الخصوصية: privacy@meza-ashy.vercel.app.",
         },
         {
           h: "2. البيانات التي نجمعها",
@@ -62,7 +62,7 @@ export default function PrivacyClient() {
     : [
         {
           h: "1. Who we are",
-          p: "Meza is an independent Egyptian Exchange financial-analysis platform. We are the controller of personal data collected through the site. Privacy contact: privacy@meza-ashy.vercel.app.",
+          p: "EGXANO is an independent Egyptian Exchange financial-analysis platform. We are the controller of personal data collected through the site. Privacy contact: privacy@meza-ashy.vercel.app.",
         },
         {
           h: "2. Data we collect",

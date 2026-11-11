@@ -28,8 +28,8 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   applicationName: siteConfig.name,
   title: {
-    default: "Meza — Egyptian Exchange Financial Data & Rankings",
-    template: "%s · Meza",
+    default: "EGXANO — Egyptian Exchange Research & Analysis",
+    template: "%s · EGXANO",
   },
   description: siteConfig.description,
   keywords: [
@@ -64,7 +64,7 @@ export const metadata: Metadata = {
         url: siteConfig.ogImage,
         width: 1200,
         height: 630,
-        alt: "Meza — audited Egyptian Exchange financial data",
+        alt: "EGXANO — independent Egyptian Exchange research",
       },
     ],
   },
@@ -89,8 +89,11 @@ export const metadata: Metadata = {
   // Canonical URLs are set per page. A global canonical would point every
   // route at "/" and de-index the whole site.
   icons: {
-    icon: [{ url: "/logo.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/logo.svg" }],
+    icon: [
+      { url: "/favicon.ico", sizes: "32x32" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png" }],
   },
 };
 
