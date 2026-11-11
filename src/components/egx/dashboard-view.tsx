@@ -140,14 +140,14 @@ export function DashboardView({
           <Skeleton className="h-full w-full rounded-[20px]" />
         </section>
         <div className="grid gap-6 lg:grid-cols-12">
-          <div className="lg:col-span-4"><Skeleton className="h-[240px] rounded-[20px]" /></div>
-          <div className="lg:col-span-4"><Skeleton className="h-[240px] rounded-[20px]" /></div>
-          <div className="lg:col-span-4"><Skeleton className="h-[240px] rounded-[20px]" /></div>
+          <div className="lg:col-span-4 min-w-0"><Skeleton className="h-[240px] rounded-[20px]" /></div>
+          <div className="lg:col-span-4 min-w-0"><Skeleton className="h-[240px] rounded-[20px]" /></div>
+          <div className="lg:col-span-4 min-w-0"><Skeleton className="h-[240px] rounded-[20px]" /></div>
         </div>
         <div className="grid gap-6 lg:grid-cols-12">
-          <div className="lg:col-span-4"><Skeleton className="h-[200px] rounded-[20px]" /></div>
-          <div className="lg:col-span-4"><Skeleton className="h-[200px] rounded-[20px]" /></div>
-          <div className="lg:col-span-4"><Skeleton className="h-[200px] rounded-[20px]" /></div>
+          <div className="lg:col-span-4 min-w-0"><Skeleton className="h-[200px] rounded-[20px]" /></div>
+          <div className="lg:col-span-4 min-w-0"><Skeleton className="h-[200px] rounded-[20px]" /></div>
+          <div className="lg:col-span-4 min-w-0"><Skeleton className="h-[200px] rounded-[20px]" /></div>
         </div>
       </div>
     )
@@ -368,7 +368,7 @@ function SectorPerformancePanel({
     .sort((a, b) => (b.dayChangePct ?? -Infinity) - (a.dayChangePct ?? -Infinity))
 
   return (
-    <div className="lg:col-span-4">
+    <div className="lg:col-span-4 min-w-0">
       <Card className="border-border/60 p-0">
         <CardHeader className="pb-3 px-5">
           <div className="flex items-center justify-between gap-2">
@@ -458,7 +458,7 @@ function MarketSummaryPanel({ breadth, ar }: { breadth: BreadthData | null | und
   ]
 
   return (
-    <div className="lg:col-span-4">
+    <div className="lg:col-span-4 min-w-0">
       <Card className="border-border/60 p-0">
         <CardHeader className="pb-3 px-5">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -525,7 +525,7 @@ function Egx30ChartPanel({
     value.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   return (
-    <div className="lg:col-span-4">
+    <div className="lg:col-span-4 min-w-0">
       <Card className="border-border/60 p-0">
         <CardHeader className="pb-3 px-5">
           <div className="flex items-center justify-between gap-2">
@@ -611,7 +611,7 @@ function EventsPanel({
 }) {
   const { pick } = useI18n()
   return (
-    <div className="lg:col-span-4">
+    <div className="lg:col-span-4 min-w-0">
       <Card className="border-border/60 p-0">
         <CardHeader className="pb-3 px-5">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -676,7 +676,7 @@ function WatchlistPanel({
   const priceMap = new Map(watchPrices.map((p) => [p.ticker, p]))
 
   return (
-    <div className="lg:col-span-4">
+    <div className="lg:col-span-4 min-w-0">
       <Card className="border-border/60 p-0">
         <CardHeader className="pb-3 px-5 flex items-center justify-between">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -741,7 +741,7 @@ function OpportunitiesPanel({
   const results = valuation?.results ?? []
 
   return (
-    <div className="lg:col-span-4">
+    <div className="lg:col-span-4 min-w-0">
       <Card className="border-border/60 p-0">
         <CardContent className="p-0">
           <div className="relative overflow-hidden rounded-[20px] border border-primary/30 bg-gradient-to-br from-primary/10 via-surface to-transparent p-5 sm:p-6 h-[200px] flex flex-col">
