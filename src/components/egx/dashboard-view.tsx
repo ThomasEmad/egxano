@@ -108,8 +108,8 @@ export function DashboardView({
   const { data: breadth } = useQuery({
     queryKey: ["market-breadth"],
     queryFn: () => fetch("/api/v1/market/breadth").then((r) => (r.ok ? (r.json() as Promise<BreadthData>) : null)),
-    staleTime: 60_000,
-    refetchInterval: 300_000,
+    staleTime: 300_000,
+    refetchInterval: 600_000,
   })
 
   const isPremium = !!subData?.isPremium
@@ -118,17 +118,19 @@ export function DashboardView({
 
   const { data: watchPrices } = useQuery({
     queryKey: ["watch-prices", watchIds.join(",")],
-    queryFn: () => fetch(`/api/v1/market/ticker?fresh=true`).then((r) => (r.ok ? (r.json() as Promise<{ movers?: { ticker: string; price: number; changePct: number }[] }>) : { movers: [] })),
+    // Egress diet: no ?fresh bypass (it defeated every cache layer per poll);
+    // 5-min poll — prices change once per trading day.
+    queryFn: () => fetch(`/api/v1/market/ticker`).then((r) => (r.ok ? (r.json() as Promise<{ movers?: { ticker: string; price: number; changePct: number }[] }>) : { movers: [] })),
     enabled: watchIds.length > 0,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 120_000,
+    refetchInterval: 300_000,
   })
 
   const alertsQuery = useQuery({
     queryKey: ["watch-alerts", watchIds.join(",")],
     queryFn: () => api.eventsFeed(watchIds, 8),
     enabled: watchIds.length > 0 && isPremium,
-    refetchInterval: 60_000,
+    refetchInterval: 300_000,
   })
 
   if (isLoading) {
@@ -503,7 +505,7 @@ function Egx30ChartPanel({
   const { data, isLoading } = useQuery({
     queryKey: ["market-ticker"],
     queryFn: () =>
-      fetch("/api/v1/market/ticker?fresh=true").then((r) =>
+      fetch("/api/v1/market/ticker").then((r) =>
         r.ok
           ? (r.json() as Promise<{
               indices: { name: string; level: number; changePct: number }[]
@@ -512,8 +514,8 @@ function Egx30ChartPanel({
             }>)
           : null,
       ),
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 120_000,
+    refetchInterval: 300_000,
   })
 
   const egx30 = data?.indices?.find((i) => i.name === "EGX30")

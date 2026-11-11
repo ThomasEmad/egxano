@@ -43,7 +43,7 @@ async function getHandler(req: Request, { params }: { params: Promise<{ id: stri
   const raw = decodeURIComponent(id)
   const upper = raw.toUpperCase()
   // Company identity is stable — cache the resolution per raw input.
-  const company = await cachedRead(`ai-company:${raw}`, 60_000, async () => {
+  const company = await cachedRead(`ai-company:${raw}`, 10 * 60_000, async () => {
     return db.company.findFirst({
       where: { OR: [{ id: raw }, { ticker: upper }, { isin: upper }] },
       select: { id: true },
@@ -53,48 +53,46 @@ async function getHandler(req: Request, { params }: { params: Promise<{ id: stri
 
   const langParam = new URL(req.url).searchParams.get("lang")?.toLowerCase() === "ar" ? "ar" : "en"
 
-  // The report payload is USER-INDEPENDENT (auth is checked above; the content
-  // and generation status are shared by everyone on the same data identity).
-  // A 15s single-flight cache absorbs read storms (10k users opening the same
-  // company) at exactly ONE DB query per window instead of thousands.
-  const payload = await cachedRead(`ai-report-latest:${company.id}:${langParam}`, 15_000, async () => {
-    // Latest COMPLETED artifact, preferring the requested language.
-    const latest = await db.aiAnalysisReport.findFirst({
-      where: { companyId: company.id, status: "COMPLETED" },
-      orderBy: [{ lang: langParam === "ar" ? "desc" : "asc" }, { createdAt: "desc" }],
-    })
-    const preferred =
-      latest && latest.lang === langParam
-        ? latest
-        : (await db.aiAnalysisReport.findFirst({
-            where: { companyId: company.id, status: "COMPLETED", lang: langParam },
-            orderBy: { createdAt: "desc" },
-          })) ?? latest
+  // Egress diet (2026-11-10): the report payload (the large markdown/sections
+  // body) is cached per company+lang for 5 minutes — a COMPLETED artifact is
+  // immutable, so the previous 15s window re-streamed the full report text
+  // ~20x more often than needed. The active-job probe stays UNCACHED (one
+  // tiny indexed query) so the generation chip stays live.
+  const analysis = company.id
+    ? await cachedRead(`ai-report:${company.id}:${langParam}`, 5 * 60_000, async () => {
+        const latest = await db.aiAnalysisReport.findFirst({
+          where: { companyId: company.id, status: "COMPLETED" },
+          orderBy: [{ lang: langParam === "ar" ? "desc" : "asc" }, { createdAt: "desc" }],
+        })
+        const preferred =
+          latest && latest.lang === langParam
+            ? latest
+            : (await db.aiAnalysisReport.findFirst({
+                where: { companyId: company.id, status: "COMPLETED", lang: langParam },
+                orderBy: { createdAt: "desc" },
+              })) ?? latest
+        return preferred ? serializeReport(preferred) : null
+      })
+    : null
 
-    // Active generation (for the status chip).
-    const activeJob = await db.aiAnalysisJob.findFirst({
-      where: { companyId: company.id, lang: langParam, status: { in: ["PENDING", "PROCESSING"] } },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, status: true, reportKey: true, createdAt: true },
-    })
-    return {
-      analysis: preferred
-        ? {
-            ...serializeReport(preferred),
-          }
-        : null,
-      generation: activeJob
-        ? {
-            status: activeJob.status === "PROCESSING" ? "processing" : "pending",
-            jobRef: activeJob.id,
-            reportKey: activeJob.reportKey,
-            startedAt: activeJob.createdAt,
-          }
-        : null,
-    }
+  // Active generation (for the status chip) — tiny, always fresh.
+  const activeJob = await db.aiAnalysisJob.findFirst({
+    where: { companyId: company.id, lang: langParam, status: { in: ["PENDING", "PROCESSING"] } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, status: true, reportKey: true, createdAt: true },
   })
 
-  return Response.json(payload)
+  return Response.json({
+    analysis,
+    generation: activeJob
+      ? {
+          status: activeJob.status === "PROCESSING" ? "processing" : "pending",
+          jobRef: activeJob.id,
+          reportKey: activeJob.reportKey,
+          startedAt: activeJob.createdAt,
+        }
+      : null,
+  })
 }
 
 async function postHandler(req: Request, { params }: { params: Promise<{ id: string }> }) {

@@ -1,11 +1,13 @@
 import { NextRequest } from "next/server"
 import { cachedResponse } from "@/lib/public-cache"
+import { cached } from "@/lib/server-cache"
 import { db } from "@/lib/db"
 import { CALC_METRIC_MAP } from "@/lib/financial/registry"
 import {
   isStalePeriod,
   periodOrder,
   selectLatestByCompany,
+  type LatestSelectionRow,
   type PeriodRef,
 } from "@/lib/financial/latest-period"
 
@@ -47,8 +49,13 @@ interface RankRow {
   stale: boolean
 }
 
-// 60s in-process SWR cache, keyed by the full query tuple — rankings is the
-// site's heaviest read (scans every CalculatedMetric row for the metric).
+// Egress diet (2026-11-10): the metric rows (5k+ for one code across ~20
+// periods × 274 companies) are cached per metric for 6h — data changes once
+// per trading day and the pipeline recompute invalidates the process cache.
+// Every query variant (sector / order / basis / year) is then derived from
+// that one cached row-set instead of re-pulling the table, and the response
+// carries CDN edge-cache headers (public-cache) so most requests never reach
+// a lambda at all.
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
   const metric = url.searchParams.get("metric") ?? "roe"
@@ -65,8 +72,46 @@ export async function GET(req: NextRequest) {
   }
 
   const key = `rankings:${metric}|${sector}|${order}|${basis}|${year ?? ""}`
-  return cachedResponse(key, 60 * 1000, () => buildRankings(metric, sector, order, basis, year))
+  return cachedResponse(key, 10 * 60 * 1000, () => buildRankings(metric, sector, order, basis, year))
 }
+
+/** Light rows for one metric — cached per metric (NOT per variant). */
+async function metricRows(metric: string): Promise<LatestSelectionRow[]> {
+  return cached(`rankings:rows:${metric}`, 6 * 60 * 60_000, async () =>
+    db.calculatedMetric.findMany({
+      where: { code: metric, valueStatus: "OK", value: { not: null } },
+      select: {
+        companyId: true,
+        code: true,
+        periodKey: true,
+        periodType: true,
+        fiscalYear: true,
+        periodLabel: true,
+        value: true,
+        valueStatus: true,
+        statementType: true,
+      },
+    })
+  )
+}
+
+async function activeCompanies(sector: string) {
+  return db.company.findMany({
+    where: { isActive: true, ...(sector ? { sector } : {}) },
+    select: { id: true, ticker: true, nameEn: true, nameAr: true, sector: true },
+  })
+}
+
+const sectorsList = () =>
+  cached("sectors:distinct", 24 * 60 * 60_000, async () => {
+    const rows = await db.company.findMany({
+      where: { isActive: true },
+      select: { sector: true },
+      distinct: ["sector"],
+      orderBy: { sector: "asc" },
+    })
+    return rows.map((s) => s.sector)
+  })
 
 async function buildRankings(
   metric: string,
@@ -75,30 +120,25 @@ async function buildRankings(
   basis: "latest" | "annual" | "ttm",
   year: number | null
 ): Promise<unknown> {
-  const companies = await db.company.findMany({
-    where: { isActive: true, ...(sector ? { sector } : {}) },
-    select: { id: true, ticker: true, nameEn: true, nameAr: true, sector: true },
-  })
+  const [companies, rows] = await Promise.all([activeCompanies(sector), metricRows(metric)])
   if (companies.length === 0) {
-    return { metric: metricInfo(metric), basis, results: [], sectors: await sectors(), total: 0 }
+    return { metric: metricInfo(metric), basis, results: [], sectors: await sectorsList(), total: 0 }
   }
 
-  const rows = await db.calculatedMetric.findMany({
-    where: {
-      companyId: { in: companies.map((c) => c.id) },
-      code: metric,
-      valueStatus: "OK",
-      value: { not: null },
-    },
-  })
+  const companyIds = new Set(companies.map((c) => c.id))
+  const scoped0 = rows.filter((r) => companyIds.has(r.companyId))
 
   const filtered = basis === "latest"
-    ? rows
-    : rows.filter((r) => r.periodType === (basis === "annual" ? "ANNUAL" : "TTM"))
+    ? scoped0
+    : scoped0.filter((r) => r.periodType === (basis === "annual" ? "ANNUAL" : "TTM"))
 
   // Years the metric actually covers (basis-filtered, sector-independent) —
-  // the UI period dropdown renders exactly this list.
-  const years = [...new Set(filtered.map((r) => r.fiscalYear))].sort((a, b) => b - a)
+  // the UI period dropdown renders exactly this list. Sector-independent by
+  // design: derive from the unfiltered metric rows.
+  const yearsForBasis = basis === "latest"
+    ? rows
+    : rows.filter((r) => r.periodType === (basis === "annual" ? "ANNUAL" : "TTM"))
+  const years = [...new Set(yearsForBasis.map((r) => r.fiscalYear))].sort((a, b) => b - a)
 
   // A pinned year scopes every company to one period window.
   const scoped = year ? filtered.filter((r) => r.fiscalYear === year) : filtered
@@ -146,7 +186,7 @@ async function buildRankings(
     year,
     years,
     results,
-    sectors: await sectors(),
+    sectors: await sectorsList(),
     total: results.length,
   }
 }
@@ -156,12 +196,3 @@ function metricInfo(code: string) {
   return { code, labelEn: def.labelEn, labelAr: def.labelAr, unit: def.unit }
 }
 
-async function sectors(): Promise<string[]> {
-  const rows = await db.company.findMany({
-    where: { isActive: true },
-    select: { sector: true },
-    distinct: ["sector"],
-    orderBy: { sector: "asc" },
-  })
-  return rows.map((s) => s.sector)
-}

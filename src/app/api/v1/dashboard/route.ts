@@ -25,9 +25,10 @@ export async function GET(req: NextRequest) {
     deletedAt: null,
   }
 
-  // Public, user-independent stats + scanner cards: cached for 60s (the four
-  // counts include a large joined value count that took seconds cold).
-  const base = await cached("dashboard:public", 60_000, async () => {
+  // Public, user-independent stats + scanner cards: cached 5min (the four
+  // counts include a large joined value count that took seconds cold; the
+  // pipeline invalidates the process cache on recompute).
+  const base = await cached("dashboard:public", 5 * 60_000, async () => {
     const [companyCount, reportCount, valueCount, eventCount, upcomingDividends, scannerCards] = await Promise.all([
       db.company.count({ where: { isActive: true } }),
       db.financialReport.count({ where: trustedReportWhere }),

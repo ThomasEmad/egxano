@@ -98,7 +98,7 @@ function HeaderSearch() {
       return r.ok ? r.json() : { results: [] }
     },
     enabled: debounced.length >= 2,
-    staleTime: 60_000,
+    staleTime: 300_000,
   })
   const results = debounced.length >= 2 ? data?.results ?? [] : []
 
@@ -216,7 +216,7 @@ export function AppHeader({
           })
         : Promise.resolve(null),
     enabled: mounted,
-    staleTime: 60_000,
+    staleTime: 300_000,
     retry: false,
   })
   const loggedIn = !!me?.user

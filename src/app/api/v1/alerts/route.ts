@@ -4,7 +4,7 @@ import { getSessionUser } from "@/lib/auth"
 import { checkEndpointRateLimit, getClientIp } from "@/lib/rate-limit"
 import { audit } from "@/lib/audit"
 import { readMarketSnapshot } from "@/lib/market/snapshot"
-import { latestPriceByCompany } from "@/lib/financial/latest-price"
+import { latestPricesPerCompany } from "@/lib/market/latest-price"
 
 // GET    /api/v1/alerts            — list the signed-in user's price alerts
 //                                    (lazily evaluates active alerts against
@@ -44,14 +44,9 @@ export async function GET(req: NextRequest) {
     }
 
     const ids = [...new Set(active.map((a) => a.companyId))]
-    const dbPrices = await db.marketPrice.findMany({
-      where: { companyId: { in: ids }, price: { gte: 0.0000001 } },
-      orderBy: [{ companyId: "asc" }, { asOf: "asc" }],
-      select: { companyId: true, price: true, asOf: true },
-    })
-    const dbLatest = latestPriceByCompany(
-      dbPrices.filter((p) => p.price !== null).map((p) => ({ companyId: p.companyId, asOf: p.asOf, price: p.price as number }))
-    )
+    // only the freshest close per alert company is consumed — one row per
+    // company via DISTINCT ON (was the full price history per company)
+    const dbLatest = await latestPricesPerCompany(ids)
 
     const triggered: string[] = []
     const priced = active.map((a) => {

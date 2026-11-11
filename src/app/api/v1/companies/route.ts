@@ -3,7 +3,7 @@ import { cachedResponse } from "@/lib/public-cache"
 import type { Prisma } from "@prisma/client"
 import { db } from "@/lib/db"
 import { fetchCalcMany } from "@/lib/financial/statement-pref"
-import { latestPriceByCompany } from "@/lib/financial/latest-price"
+import { latestPricesPerCompany } from "@/lib/market/latest-price"
 import { moverMap, getFreshMarketSnapshot } from "@/lib/market/snapshot"
 
 type CompanyWithCounts = Prisma.CompanyGetPayload<{
@@ -26,13 +26,14 @@ type CompanyWithCounts = Prisma.CompanyGetPayload<{
 // the durable MarketPrice table. Missing price/shares stays null; it is never
 // replaced with zero.
 
-// 30s in-process SWR cache keyed by the normalized query — the companies
-// list is the busiest endpoint on the site (search + pagination + the
-// snapshot merge). Stale-while-revalidate keeps it O(1) at scale.
+// 5-min SWR cache keyed by the normalized query — the companies list is the
+// busiest endpoint on the site (search + pagination + the snapshot merge).
+// Data changes once per trading day; stale-while-revalidate + CDN edge
+// caching (public-cache) keep it ~O(1) at 10k visitors.
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
   const key = `companies:${url.searchParams.toString()}`
-  return cachedResponse(key, 30 * 1000, () => listCompanies(url))
+  return cachedResponse(key, 5 * 60 * 1000, () => listCompanies(url))
 }
 
 async function listCompanies(url: URL): Promise<unknown> {
@@ -87,14 +88,9 @@ async function listCompanies(url: URL): Promise<unknown> {
     })
 
     const ids = all.map((c) => c.id)
-    const dbPrices = ids.length
-      ? await db.marketPrice.findMany({
-          where: { companyId: { in: ids }, isDemoData: false },
-          orderBy: { asOf: "desc" },
-          select: { companyId: true, price: true, asOf: true },
-        })
-      : []
-    const latestDb = latestPriceByCompany(dbPrices)
+    // Latest close per company via DISTINCT ON — one row per company (~275)
+    // instead of the whole price history (13k+ rows).
+    const latestDb = ids.length ? await latestPricesPerCompany(ids) : new Map()
 
     const ranked = all
       .map((company) => {
@@ -134,7 +130,7 @@ async function listCompanies(url: URL): Promise<unknown> {
 
   const ids = pageCompanies.map((c) => c.id)
 
-  const [{ filtered: metrics }, dbPrices] = await Promise.all([
+  const [{ filtered: metrics }, latestDb] = await Promise.all([
     ids.length
       ? fetchCalcMany(ids, {
           periodType: "ANNUAL",
@@ -142,15 +138,9 @@ async function listCompanies(url: URL): Promise<unknown> {
         })
       : Promise.resolve({ filtered: [] as Awaited<ReturnType<typeof fetchCalcMany>>["filtered"] }),
     ids.length
-      ? db.marketPrice.findMany({
-          where: { companyId: { in: ids }, isDemoData: false },
-          orderBy: { asOf: "desc" },
-          select: { companyId: true, price: true, asOf: true },
-        })
-      : Promise.resolve([] as { companyId: string; price: number; asOf: Date }[]),
+      ? latestPricesPerCompany(ids)
+      : Promise.resolve(new Map<string, { companyId: string; price: number; asOf: Date }>()),
   ])
-
-  const latestDb = latestPriceByCompany(dbPrices)
 
   const snapshotMetrics: Record<string, Record<string, { value: number | null; status: string; periodLabel: string; fiscalYear: number }>> = {}
   for (const m of metrics) {

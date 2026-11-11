@@ -54,9 +54,12 @@ function buildMaps(
   return { buildLatest, buildPrior, priceOf, priceAsOfOf, cmYear }
 }
 
-// 2min SWR cache — the screen batches 4 heavy queries over every company.
+// 6h SWR cache — the screen batches 4 heavy queries over every company.
 export async function GET() {
-  return cachedResponse("undervalued", 2 * 60 * 1000, buildUndervalued)
+  // Annual fundamentals + prices change once per trading day — 6h SWR cache
+  // (was 2min, which re-pulled the annual metrics/values/prices slices for
+  // every serverless instance many times a day). CDN-edge-cacheable on top.
+  return cachedResponse("undervalued", 6 * 60 * 60 * 1000, buildUndervalued)
 }
 
 async function buildUndervalued(): Promise<unknown> {
