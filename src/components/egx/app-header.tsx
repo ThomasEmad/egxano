@@ -316,7 +316,7 @@ export function AppHeader({
               onClick={() => setPremiumOpen(true)}
               title="Premium"
             >
-              <Crown className="h-4 w-4 text-amber-500" />
+              <Crown className="h-4 w-4 text-gold" />
               <span className="hidden md:inline text-xs font-semibold">Premium</span>
             </Button>
 
@@ -351,7 +351,7 @@ export function AppHeader({
               className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               title={lang === "ar" ? "جودة البيانات والاعتماد" : "Data quality & certification"}
             >
-              <BadgeCheck className="h-4 w-4 text-emerald-500" />
+              <BadgeCheck className="h-4 w-4 text-positive" />
               <span className="hidden xl:inline">{lang === "ar" ? "جودة البيانات" : "Data quality"}</span>
             </Link>
 
@@ -561,7 +561,7 @@ export function AppHeader({
             <div className="w-full max-w-md rounded-xl border border-border/70 bg-card shadow-xl shadow-black/10" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between border-b border-border/70 p-4">
                 <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
-                  <Crown className="h-5 w-5 text-amber-500" />
+                  <Crown className="h-5 w-5 text-gold" />
                   {lang === "ar" ? "بريميوم" : "Premium"}
                 </h2>
                 <Button variant="ghost" size="sm" onClick={() => setPremiumOpen(false)}>{lang === "ar" ? "إغلاق" : "Close"}</Button>

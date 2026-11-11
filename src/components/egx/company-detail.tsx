@@ -314,14 +314,14 @@ export function CompanyDetail({
               <ScanSearch className="h-3.5 w-3.5 text-primary" />
               {t("co.matchedScanners")}
               {!isPremium && data.matchedPresets.length > 0 ? (
-                <Lock className="h-3 w-3 text-amber-500" aria-hidden />
+                <Lock className="h-3 w-3 text-gold" aria-hidden />
               ) : null}
             </p>
             {!isPremium ? (
               data.matchedPresets.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic">{t("common.noData")}</p>
               ) : (
-                <a href="/premium" className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-700 transition-colors duration-150 hover:bg-amber-500/10 dark:text-amber-400">
+                <a href="/premium" className="flex items-center gap-2 rounded-lg border border-gold/30 bg-gold/5 px-3 py-2 text-[11px] text-gold transition-colors duration-150 hover:bg-gold/10">
                   <Lock className="h-3 w-3 shrink-0" aria-hidden />
                   <span>{lang === "ar" ? `تمت مطابقة ${data.matchedPresets.length} ماسح — متاح لمشتركي Premium` : `${data.matchedPresets.length} scanner matches — Premium only`}</span>
                 </a>
@@ -364,7 +364,7 @@ export function CompanyDetail({
           <TabsTrigger value="technical" className="gap-1.5"><Activity className="h-3.5 w-3.5" />{t("co.techTab")}</TabsTrigger>
           <TabsTrigger value="statements" className="gap-1.5"><Table2 className="h-3.5 w-3.5" />{t("co.statements")}</TabsTrigger>
           <TabsTrigger value="health" className="gap-1.5"><HeartPulse className="h-3.5 w-3.5 text-destructive" />{t("co.health")}</TabsTrigger>
-          <TabsTrigger value="events" className="gap-1.5"><Flame className="h-3.5 w-3.5" />{t("co.events")} ({c.counts.events}) {!isPremium ? <Lock className="h-3 w-3 text-amber-500" aria-hidden /> : null}</TabsTrigger>
+          <TabsTrigger value="events" className="gap-1.5"><Flame className="h-3.5 w-3.5" />{t("co.events")} ({c.counts.events}) {!isPremium ? <Lock className="h-3 w-3 text-gold" aria-hidden /> : null}</TabsTrigger>
           <TabsTrigger value="peers" className="gap-1.5"><Users className="h-3.5 w-3.5" />{t("peers.tab")}</TabsTrigger>
           <TabsTrigger value="dividends" className="gap-1.5"><CalendarDays className="h-3.5 w-3.5" />{t("co.dividends")}</TabsTrigger>
           <TabsTrigger value="documents" className="gap-1.5"><FileText className="h-3.5 w-3.5 text-info" />{t("co.filings")} ({c.counts.reports ?? 0})</TabsTrigger>
@@ -606,7 +606,7 @@ function OverviewTab({ companyId, basis }: { companyId: string; basis: string | 
                 <TooltipProvider delayDuration={0}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <p className="mt-1.5 flex items-center gap-1 text-sm font-semibold text-slate-400">
+                      <p className="mt-1.5 flex items-center gap-1 text-sm font-semibold text-muted-foreground">
                         — <Info className="h-3 w-3" />
                       </p>
                     </TooltipTrigger>
@@ -716,7 +716,7 @@ function MarketSnapshot({ metrics, companyId }: { metrics: MetricsData; companyI
                   <TooltipProvider delayDuration={0}>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-slate-400">
+                        <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-muted-foreground">
                           — <Info className="h-3 w-3" />
                         </p>
                       </TooltipTrigger>
@@ -762,7 +762,7 @@ function TrendChart({ data }: { data: { label: string; revenue: number | null; p
           <div className="flex items-center gap-3 text-[11px] font-semibold">
             <span>{hovered.label}:</span>
             <span className="text-primary tabular">{formatEgp(hovered.revenue)}</span>
-            <span className={`tabular ${(hovered.profit ?? 0) >= 0 ? "text-success" : "text-rose-600 dark:text-rose-400"}`}>
+            <span className={`tabular ${(hovered.profit ?? 0) >= 0 ? "text-success" : "text-negative"}`}>
               {formatEgp(hovered.profit)}
               {margin !== null ? ` (${margin.toFixed(1)}%)` : ""}
             </span>
@@ -1320,9 +1320,9 @@ export function EventsList({ events, emptyText }: { events: EventItem[]; emptyTe
     return <p className="p-6 text-center text-sm text-muted-foreground">{emptyText}</p>
   }
   const toneBorder: Record<string, string> = {
-    positive: "border-s-4 border-s-emerald-500/70",
-    negative: "border-s-4 border-s-red-500/70",
-    neutral: "border-s-4 border-s-slate-400/60",
+    positive: "border-s-4 border-s-positive/70",
+    negative: "border-s-4 border-s-negative/70",
+    neutral: "border-s-4 border-s-neutral/60",
   }
   return (
     <div className="max-h-[560px] space-y-3 overflow-y-auto scrollbar-thin pe-1">
@@ -1476,10 +1476,10 @@ function PeersTab({ companyId }: { companyId: string }) {
                               peer.isSelf
                                 ? positive
                                   ? "bg-primary"
-                                  : "bg-red-500"
+                                  : "bg-negative"
                                 : positive
                                   ? "bg-primary/35 group-hover:bg-primary/50"
-                                  : "bg-red-500/40"
+                                  : "bg-negative/40"
                             }`}
                             style={{ width: `${width}%` }}
                           />
@@ -1595,19 +1595,19 @@ function CompanyDividendsTab({ companyId }: { companyId: string }) {
           <dl className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
             <div>
               <dt className="text-muted-foreground">{t("dv.announcement")}</dt>
-              <dd className="font-medium tabular">{fmt(d.announcementDate) ?? <span className="text-slate-400">{t("dv.notAnnounced")}</span>}</dd>
+              <dd className="font-medium tabular">{fmt(d.announcementDate) ?? <span className="text-muted-foreground">{t("dv.notAnnounced")}</span>}</dd>
             </div>
             <div>
               <dt className="text-muted-foreground">{t("dv.eligibility")}</dt>
-              <dd className="font-medium tabular">{fmt(d.eligibilityDate) ?? <span className="text-slate-400">{t("dv.notAnnounced")}</span>}</dd>
+              <dd className="font-medium tabular">{fmt(d.eligibilityDate) ?? <span className="text-muted-foreground">{t("dv.notAnnounced")}</span>}</dd>
             </div>
             <div>
               <dt className="text-muted-foreground">{t("dv.exDate")}</dt>
-              <dd className="font-medium tabular">{fmt(d.exDividendDate) ?? <span className="text-slate-400">{t("dv.notAnnounced")}</span>}</dd>
+              <dd className="font-medium tabular">{fmt(d.exDividendDate) ?? <span className="text-muted-foreground">{t("dv.notAnnounced")}</span>}</dd>
             </div>
             <div>
               <dt className="text-muted-foreground">{t("dv.distribution")}</dt>
-              <dd className="font-medium tabular">{fmt(d.distributionDate) ?? <span className="text-slate-400">{t("dv.notAnnounced")}</span>}</dd>
+              <dd className="font-medium tabular">{fmt(d.distributionDate) ?? <span className="text-muted-foreground">{t("dv.notAnnounced")}</span>}</dd>
             </div>
           </dl>
           {d.notes ? <p className="mt-2 text-[11px] italic text-muted-foreground">{d.notes}</p> : null}
@@ -1665,7 +1665,7 @@ function DocumentsTable({ companyId }: { companyId: string }) {
           {docs.map((doc) => (
             <tr key={doc.id} className="border-b last:border-0 align-top hover:bg-muted/30">
               <td className="p-2.5">
-                <p className="max-w-44 break-all font-medium">{doc.fileName ?? <span className="text-slate-400">{t("co.notAvailable")}</span>}</p>
+                <p className="max-w-44 break-all font-medium">{doc.fileName ?? <span className="text-muted-foreground">{t("co.notAvailable")}</span>}</p>
                 {doc.fileSize != null ? (
                   <p className="mt-0.5 text-[10px] tabular text-muted-foreground">{(doc.fileSize / 1024).toFixed(1)} KB</p>
                 ) : null}

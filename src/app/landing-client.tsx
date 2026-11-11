@@ -129,7 +129,7 @@ export default function LandingClient() {
             <div className="grid items-center gap-10 lg:grid-cols-[1fr_340px]">
             <div className="max-w-3xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary mb-8 backdrop-blur-xs">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="h-2 w-2 rounded-full bg-positive animate-pulse" />
                 <span>
                   {ar ? "منصة استخبارات مالية مستقلة · البورصة المصرية EGX" : "Independent Financial Intelligence Platform · Egyptian Exchange"}
                 </span>
@@ -139,14 +139,14 @@ export default function LandingClient() {
                 {ar ? (
                   <>
                     افهم السهم <br />
-                    <span className="bg-gradient-to-r from-primary to-teal-500 bg-clip-text text-transparent">
+                    <span className="bg-gradient-to-r from-primary to-chart-3 bg-clip-text text-transparent">
                       قبل ما تقرر.
                     </span>
                   </>
                 ) : (
                   <>
                     Understand <br />
-                    <span className="bg-gradient-to-r from-primary to-teal-500 bg-clip-text text-transparent">
+                    <span className="bg-gradient-to-r from-primary to-chart-3 bg-clip-text text-transparent">
                       the Egyptian Market.
                     </span>
                   </>
@@ -173,7 +173,7 @@ export default function LandingClient() {
                   </Button>
                 </Link>
                 <Link href="/premium">
-                  <Button size="lg" variant="ghost" className="h-12 px-5 gap-2 text-sm text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/5">
+                  <Button size="lg" variant="ghost" className="h-12 px-5 gap-2 text-sm text-gold border-gold/30 hover:bg-gold/5">
                     <Crown className="h-4 w-4" />
                     <span>Premium</span>
                   </Button>
@@ -199,7 +199,7 @@ export default function LandingClient() {
                   </div>
                 </div>
                 <div className="rounded-xl border border-border/60 bg-card/80 p-3.5 backdrop-blur-xs hover:bg-card/100 transition-colors">
-                  <div className="text-2xl sm:text-3xl font-extrabold tabular text-emerald-600 dark:text-emerald-400">
+                  <div className="text-2xl sm:text-3xl font-extrabold tabular text-positive">
                     {stats ? stats.validValues.toLocaleString() : "—"}
                   </div>
                   <div className="text-[11px] font-medium text-muted-foreground mt-0.5">
@@ -207,7 +207,7 @@ export default function LandingClient() {
                   </div>
                 </div>
                 <div className="rounded-xl border border-border/60 bg-card/80 p-3.5 backdrop-blur-xs hover:bg-card/100 transition-colors">
-                  <div className="text-2xl sm:text-3xl font-extrabold tabular text-teal-600 dark:text-teal-400">
+                  <div className="text-2xl sm:text-3xl font-extrabold tabular text-info">
                     {stats ? stats.events.toLocaleString() : "—"}
                   </div>
                   <div className="text-[11px] font-medium text-muted-foreground mt-0.5">
@@ -247,7 +247,7 @@ export default function LandingClient() {
                           {c.marketPrice?.price != null ? c.marketPrice.price.toFixed(2) : "—"}
                         </span>
                         <span
-                          className={`block text-[10px] font-semibold tabular ${(c.marketPrice?.changePct ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}
+                          className={`block text-[10px] font-semibold tabular ${(c.marketPrice?.changePct ?? 0) >= 0 ? "text-positive" : "text-negative"}`}
                           dir="ltr"
                         >
                           {c.marketPrice?.changePct != null
@@ -385,7 +385,7 @@ export default function LandingClient() {
 
                       <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground pt-3 border-t border-border/40">
                         <span className="flex items-center gap-1">
-                          <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                          <ShieldCheck className="h-3 w-3 text-positive" />
                           {latestFy ? `${ar ? "آخر سنة مالية" : "Latest FY"} ${latestFy}` : (ar ? "بيانات متحققة" : "Verified data")}
                         </span>
                         <span className="flex items-center gap-0.5 text-primary font-medium group-hover:translate-x-0.5 rtl-flip transition-transform">
@@ -432,7 +432,7 @@ export default function LandingClient() {
               </Card>
 
               <Card className="border-border/60 bg-card p-6 rounded-2xl transition-all hover:shadow-md">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mb-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-positive/10 text-positive mb-4">
                   <ShieldCheck className="h-6 w-6" />
                 </div>
                 <h3 className="text-lg font-bold tracking-tight">{ar ? "أرقام فعلية بدون تعويض" : "Real Figures, No Filler"}</h3>
@@ -444,7 +444,7 @@ export default function LandingClient() {
               </Card>
 
               <Card className="border-border/60 bg-card p-6 rounded-2xl transition-all hover:shadow-md">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 mb-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-info/10 text-info mb-4">
                   <Scale className="h-6 w-6" />
                 </div>
                 <h3 className="text-lg font-bold tracking-tight">{ar ? "مقارنة قطاعية منضبطة" : "Strict Sector Benchmarking"}</h3>
@@ -454,7 +454,7 @@ export default function LandingClient() {
               </Card>
 
               <Card className="border-border/60 bg-card p-6 rounded-2xl transition-all hover:shadow-md">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 mb-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-warning/10 text-warning mb-4">
                   <Sparkles className="h-6 w-6" />
                 </div>
                 <h3 className="text-lg font-bold tracking-tight">{ar ? "ذكاء اصطناعي موثق" : "Grounded AI Synthesis"}</h3>
@@ -606,7 +606,7 @@ export default function LandingClient() {
                 </Link>
                 <Link href="/premium">
                   <Button size="lg" variant="outline" className="h-11 px-6 text-sm border-border/80">
-                    <Crown className="h-4 w-4 text-amber-500" />
+                    <Crown className="h-4 w-4 text-gold" />
                     {ar ? "عرض باقات Premium" : "View Premium Plans"}
                   </Button>
                 </Link>

@@ -49,6 +49,12 @@
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
   --color-gold: var(--gold);
+  /* Brand constants + market-direction aliases (financial semantics only) */
+  --color-brand-lime: var(--brand-lime);
+  --color-brand-ink: var(--brand-ink);
+  --color-market-up: var(--positive);
+  --color-market-down: var(--negative);
+  --color-market-flat: var(--neutral);
   --color-surface: var(--surface);
   --color-surface-elevated: var(--surface-elevated);
   --color-surface-secondary: var(--surface-secondary);
@@ -68,6 +74,10 @@
      light surfaces use the deep accessible lime (5.49:1 on white),
      dark surfaces use the brighter acid lime (13.3:1 on graphite). */
   --brand-accent: #52731B;
+
+  /* Brand constants — identical in both themes (logo mark, graphite brand blocks) */
+  --brand-lime: #A3E635;
+  --brand-ink: #0B0F0D;
 
   /* Light Theme - Clean Professional */
   --background: #F9FAF8;
