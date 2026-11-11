@@ -67,11 +67,18 @@ export async function GET(req: NextRequest) {
     }
   })
 
-  // Premium-only recent events stay per-user (never cached).
+  // Premium-only recent events stay per-user (never cached). FRESHNESS: only
+  // events detected from periods of the last two fiscal years surface here —
+  // the old unfiltered query happily served a 2022 "turned profitable" story
+  // as news. The events library regenerates rows per period; detectedAt being
+  // recent does NOT mean the underlying event is recent, hence the fiscalYear
+  // floor (the honest, period-based filter).
+  const EVENT_FRESH_FY = new Date().getFullYear() - 1
   const recentEvents = isPremium
     ? await db.financialEvent.findMany({
+        where: { fiscalYear: { gte: EVENT_FRESH_FY } },
         include: { company: { select: { id: true, ticker: true, nameEn: true, nameAr: true, isDemoData: true } } },
-        orderBy: [{ detectedAt: "desc" }],
+        orderBy: [{ fiscalYear: "desc" }, { detectedAt: "desc" }],
         take: 8,
       })
     : []

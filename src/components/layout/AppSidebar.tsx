@@ -9,22 +9,20 @@ import Link from "next/link"
 import { BrandMark } from "@/components/brand/logo"
 import { usePathname } from "next/navigation"
 import {
-  Bell,
+  Activity,
   Briefcase,
   Building2,
   CalendarDays,
   Crown,
-  Gem,
-  Info,
   LayoutDashboard,
   Scale,
+  ScanSearch,
+  Shield,
   ShieldCheck,
-  Layers,
   Trophy,
 } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
-import { EGXANOWordmark } from "@/components/brand/brand-mark"
 
 export interface NavItem {
   href: string
@@ -42,36 +40,33 @@ export interface NavSection {
 
 // Single source of truth for navigation — shared with the mobile drawer
 // (MobileNavDrawer), which mirrors these sections below the sm breakpoint.
-// Grouped by the research loop, not by feature type: research → monitor.
 export const SECTIONS: NavSection[] = [
   {
-    label: "Research",
-    labelAr: "البحث",
+    label: "Platform",
+    labelAr: "المنصة",
     items: [
-      { href: "/dashboard", label: "Research home", labelAr: "لوحة البحث", icon: LayoutDashboard },
+      { href: "/dashboard", label: "Dashboard", labelAr: "لوحة القيادة", icon: LayoutDashboard },
+      { href: "/dashboard#/scanners", label: "Scans", labelAr: "الماسحات", icon: ScanSearch },
+      { href: "/rankings", label: "Rankings", labelAr: "ترتيب الأسهم", icon: Trophy },
       { href: "/companies", label: "Companies", labelAr: "الشركات", icon: Building2 },
+      { href: "/sectors", label: "Sectors", labelAr: "القطاعات", icon: Shield },
       { href: "/compare", label: "Compare", labelAr: "المقارنة", icon: Scale },
-      { href: "/rankings", label: "Rankings", labelAr: "الترتيب", icon: Trophy },
-      { href: "/undervalued", label: "Valuation screen", labelAr: "فحص التقييم", icon: Gem },
-      { href: "/sectors", label: "Sectors", labelAr: "القطاعات", icon: Layers },
     ],
   },
   {
-    label: "Monitor",
-    labelAr: "المتابعة",
+    label: "My space",
+    labelAr: "مساحتي",
     items: [
-      { href: "/watchlist", label: "Watchlist", labelAr: "قائمة المتابعة", icon: ShieldCheck },
       { href: "/portfolio", label: "Portfolio", labelAr: "المحفظة", icon: Briefcase },
       { href: "/dividends", label: "Dividends", labelAr: "التوزيعات", icon: CalendarDays },
-      { href: "/alerts", label: "Alerts", labelAr: "التنبيهات", icon: Bell },
+      { href: "/watchlist", label: "Watchlist", labelAr: "قائمة المتابعة", icon: ShieldCheck },
     ],
   },
   {
-    label: "Plans & about",
-    labelAr: "الباقات وعن EGXANO",
+    label: "Trust & plans",
+    labelAr: "الثقة والباقات",
     items: [
       { href: "/premium", label: "Premium", labelAr: "بريميوم", icon: Crown },
-      { href: "/about", label: "About EGXANO", labelAr: "عن EGXANO", icon: Info },
     ],
   },
 ]
@@ -83,6 +78,12 @@ export function AppSidebar() {
 
   const isActive = (item: NavItem) => {
     if (item.href === "/dashboard") return pathname === "/" || pathname === "/dashboard"
+    if (item.href.startsWith("/dashboard#/")) {
+      // hash views live on the dashboard SPA — match pathname + hash
+      if (pathname !== "/dashboard" && pathname !== "/") return false
+      if (typeof window === "undefined") return false
+      return window.location.hash === item.href.slice(item.href.indexOf("#"))
+    }
     if (item.exact) return pathname === item.href
     return pathname === item.href || pathname.startsWith(`${item.href}/`)
   }
@@ -98,9 +99,6 @@ export function AppSidebar() {
         className="flex h-16 shrink-0 items-center gap-2.5 border-b border-border/60 px-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label="EGXANO — Home"
       >
-<<<<<<< HEAD
-        <EGXANOWordmark lang={lang} size={32} />
-=======
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-foreground shadow-sm">
           <BrandMark size={28} />
         </div>
@@ -110,7 +108,6 @@ export function AppSidebar() {
             {ar ? "تحليل بيانات البورصة المصرية" : "EGX market intelligence"}
           </span>
         </div>
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
       </Link>
 
       {/* Navigation */}
@@ -159,22 +156,12 @@ export function AppSidebar() {
 
       {/* Footer */}
       <div className="shrink-0 border-t border-border/40 px-4 py-3">
-<<<<<<< HEAD
-        <p className="text-[10px] leading-tight text-muted-foreground">
-=======
         <p className="text-[10px] leading-none text-muted-foreground/70">EGXANO v0.3.0</p>
         <p className="mt-1.5 text-[10px] leading-tight text-muted-foreground/50">
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
           {ar
-            ? "أسعار متأخرة 15 دقيقة — ليست نصيحة استثمارية."
-            : "Prices delayed 15 min — not investment advice."}
+            ? "أسعار متأخرة 15 دقيقة — ليست نصيحة استثمارية"
+            : "Prices delayed 15 min — not investment advice"}
         </p>
-        <Link
-          href="/status"
-          className="mt-1.5 inline-block text-[10px] font-medium text-muted-foreground/80 underline-offset-2 hover:text-foreground hover:underline"
-        >
-          {ar ? "حالة البيانات والحداثة" : "Data status & freshness"}
-        </Link>
       </div>
     </aside>
   )

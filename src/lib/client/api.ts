@@ -464,6 +464,16 @@ export const api = {
 
   downloadReportUrl: (id: string) => `/api/v1/reports/${id}/download`,
 
+  companyTechnical: (id: string) =>
+    fetch(`/api/v1/companies/${id}/technical`).then((r) =>
+      handle<{
+        companyId: string
+        ticker: string
+        snapshot: import("@/components/egx/technical-tab").TechSnapshot
+        hash: string
+      }>(r)
+    ),
+
   companyDocuments: (id: string) =>
     fetch(`/api/v1/companies/${id}/documents`).then((r) => handle<{ documents: CompanyDocument[] }>(r)),
 

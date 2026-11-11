@@ -1,72 +1,33 @@
-﻿"use client"
+"use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
-import { Check, Eye, EyeOff, Loader2, UserPlus } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Loader2, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { LayoutShell } from "@/components/layout/LayoutShell"
-import { EGXANOWordmark } from "@/components/brand/brand-mark"
-import { BRAND } from "@/lib/brand"
-import { useI18n } from "@/lib/i18n"
 import { setUserToken, getUserToken, clearUserToken } from "@/lib/client/api"
 import { OAuthButtons } from "@/components/auth/oauth-buttons"
 import { useWatchlist } from "@/lib/client/watchlist"
-
-const PASSWORD_MIN = 8
-const PASSWORD_MAX = 72
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-/** Only same-site absolute paths survive; anything else falls back to home. */
-function sanitizeNext(raw: string | null): string {
-  if (!raw) return "/"
-  if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\")) return "/"
-  return raw
-}
-
-/** Map API error codes to plain, bilingual messages — never render a raw code. */
-function registerError(code: string | undefined, ar: boolean): string {
-  switch (code) {
-    case "EMAIL_ALREADY_EXISTS":
-      return ar
-        ? "البريد الإلكتروني ده عنده حساب بالفعل — سجّل الدخول بدلاً من كده."
-        : "This email already has an account — sign in instead."
-    case "VALIDATION":
-      return ar ? "راجع البيانات المدخلة — كلمة المرور من 8 لـ 72 حرفاً." : "Please check your details — password must be 8–72 characters."
-    case "RATE_LIMITED":
-      return ar ? "محاولات كتير — جرّب تاني بعد كام دقيقة." : "Too many attempts — try again in a few minutes."
-    case "EMAIL_AND_PASSWORD_REQUIRED":
-      return ar ? "البريد الإلكتروني وكلمة المرور مطلوبين." : "Email and password are required."
-    case "INTERNAL_ERROR":
-      return ar ? "تعذّر إنشاء الحساب دلوقتي — جرّب تاني بعد شوية." : "Couldn't create the account right now — please try again shortly."
-    default:
-      return ar ? "تعذّر إنشاء الحساب. جرّب تاني." : "Couldn't create the account. Please try again."
-  }
-}
 
 interface FieldErrors {
   name?: string
   email?: string
   password?: string
+  confirm?: string
   terms?: string
 }
 
 function RegisterForm() {
   const router = useRouter()
-  const search = useSearchParams()
-  const { lang } = useI18n()
-  const ar = lang === "ar"
-  const next = sanitizeNext(search.get("next"))
-
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirm, setConfirm] = useState("")
   const [terms, setTerms] = useState(false)
   const [touched, setTouched] = useState<Record<string, boolean>>({})
-  const [showPassword, setShowPassword] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -89,32 +50,19 @@ function RegisterForm() {
     }
   }, [])
 
-  // Optional name: only validate once touched and non-empty.
+  // real-time validation — every field validates as soon as it's been touched
   const errors: FieldErrors = {}
-  if (touched.name && name.trim().length > 0 && name.trim().length < 2) {
-    errors.name = ar ? "الاسم قصير جداً — اكتب حرفين على الأقل أو سيبه فاضي." : "Name is too short — use at least 2 characters, or leave it blank."
-  }
-  if (touched.email && !EMAIL_RE.test(email)) {
-    errors.email = ar ? "بريد إلكتروني غير صالح." : "Invalid email address."
-  }
-  if (touched.password) {
-    if (password.length < PASSWORD_MIN) errors.password = ar ? "كلمة المرور لازم تكون 8 أحرف على الأقل." : "Password must be at least 8 characters."
-    else if (password.length > PASSWORD_MAX) errors.password = ar ? "كلمة المرور أطول من الحد (72 حرفاً)." : "Password is longer than the 72-character limit."
-  }
-  if (touched.terms && !terms) {
-    errors.terms = ar ? "الموافقة على الشروط مطلوبة." : "Consent is required."
-  }
+  if (touched.name && name.trim().length < 2) errors.name = "الاسم قصير جدًا — Name is too short"
+  if (touched.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = "بريد إلكتروني غير صالح — Invalid email"
+  if (touched.password && password.length < 6) errors.password = "6 أحرف على الأقل — At least 6 characters"
+  if (touched.confirm && confirm !== password) errors.confirm = "كلمتا المرور غير متطابقتين — Passwords do not match"
+  if (touched.terms && !terms) errors.terms = "الموافقة على الشروط مطلوبة — Required"
 
-  const valid =
-    (name.trim().length === 0 || name.trim().length >= 2) &&
-    EMAIL_RE.test(email) &&
-    password.length >= PASSWORD_MIN &&
-    password.length <= PASSWORD_MAX &&
-    terms
+  const valid = name.trim().length >= 2 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && password.length >= 6 && confirm === password && terms
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setTouched({ name: true, email: true, password: true, terms: true })
+    setTouched({ name: true, email: true, password: true, confirm: true, terms: true })
     if (!valid) return
     setLoading(true)
     setServerError(null)
@@ -122,75 +70,45 @@ function RegisterForm() {
       const res = await fetch("/api/v1/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, ...(name.trim() ? { name: name.trim() } : {}) }),
+        body: JSON.stringify({ name, email, password }),
       })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setServerError(registerError(data?.error, ar))
-        return
-      }
-      // register → auto sign-in when the API returns a session
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Registration failed")
+      // register → auto sign-in when the API returns a session, else go to login
       if (data.token) {
         setUserToken(data.token, true)
         void useWatchlist.getState().syncFromServer()
-        router.replace(next)
+        router.replace("/")
         router.refresh()
       } else {
-        router.replace(`/login${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`)
+        router.replace("/login")
       }
-    } catch {
-      setServerError(
-        ar
-          ? "تعذّر الوصول للسيرفر. اتأكد من الاتصال وجرّب تاني."
-          : "We couldn't reach the server. Check your connection and try again.",
-      )
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : "Registration failed")
     } finally {
       setLoading(false)
     }
   }
 
-  const field = (key: "name" | "email" | "password" | "terms") => (touched[key] ? errors[key] : undefined)
+  const field = (key: "name" | "email" | "password" | "confirm" | "terms") => (touched[key] ? errors[key] : undefined)
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
-        <div className="mb-6 text-center">
-          <div className="flex justify-center">
-            <EGXANOWordmark lang={lang} size={40} />
-          </div>
-          <h1 className="mt-5 text-xl font-semibold tracking-tight text-foreground">
-            {ar ? "إنشاء حساب مجاني" : "Create a free account"}
-          </h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            {ar
-              ? "احفظ قائمة المتابعة والمحفظة والأسعار المستهدفة. مجاني — بدون بطاقة."
-              : "Save your watchlist, portfolio and price targets. Free — no card required."}
-          </p>
-          <ul className="mx-auto mt-3 inline-flex flex-col gap-1 text-start text-[11px] leading-relaxed text-muted-foreground">
-            <li className="flex items-center gap-1.5">
-              <Check className="h-3 w-3 shrink-0 text-positive" aria-hidden />
-              {ar ? "مزامنة قائمة المتابعة على كل أجهزتك" : "Sync your watchlist across devices"}
-            </li>
-            <li className="flex items-center gap-1.5">
-              <Check className="h-3 w-3 shrink-0 text-positive" aria-hidden />
-              {ar ? "محفظة وأسعار مستهدفة تُحفظ مع حسابك" : "Portfolio and price targets saved to your account"}
-            </li>
-            <li className="flex items-center gap-1.5">
-              <Check className="h-3 w-3 shrink-0 text-positive" aria-hidden />
-              {ar ? "3 تحليلات ذكية شهرياً على الحساب المجاني" : "3 Smart Analyses a month on the free account"}
-            </li>
-          </ul>
-          <p className="mt-2 text-[11px] text-muted-foreground/80">
-            {ar ? "منصة أبحاث مستقلة — غير تابعة للبورصة المصرية." : "Independent research platform — not affiliated with the Egyptian Exchange."}
-          </p>
+    <div className="flex min-h-[70vh] items-center justify-center px-4 py-10">
+      <div className="w-full max-w-sm">
+        <div className="mb-6 flex flex-col items-center gap-2">
+          <span
+            aria-hidden
+            className="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/15 to-primary/5 text-sm font-bold tracking-wide text-primary"
+          >
+            EGX
+          </span>
+          <h1 className="text-lg font-bold">إنشاء حساب — Create account</h1>
         </div>
-
-        <Card className="border-border/70 p-0 shadow-sm">
+        <Card className="w-full overflow-hidden p-0 border-border/60 shadow-lg shadow-black/5">
+          <div className="h-1 w-full bg-gradient-to-r from-primary/70 via-primary/40 to-primary/10" />
           <form onSubmit={submit} className="space-y-4 p-6" noValidate>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium" htmlFor="reg-name">
-                {ar ? "الاسم (اختياري)" : "Name (optional)"}
-              </Label>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium" htmlFor="reg-name">الاسم — Full name</Label>
               <Input
                 id="reg-name"
                 value={name}
@@ -198,20 +116,12 @@ function RegisterForm() {
                 onBlur={() => setTouched((t) => ({ ...t, name: true }))}
                 autoComplete="name"
                 aria-invalid={!!field("name")}
-                aria-describedby={field("name") ? "reg-name-error" : undefined}
                 disabled={loading}
               />
-              {field("name") ? (
-                <p id="reg-name-error" className="text-[11px] text-destructive">
-                  {field("name")}
-                </p>
-              ) : null}
+              {field("name") ? <p className="text-[11px] text-red-600 dark:text-red-400">{field("name")}</p> : null}
             </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium" htmlFor="reg-email">
-                {ar ? "البريد الإلكتروني" : "Email"}
-              </Label>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium" htmlFor="reg-email">Email</Label>
               <Input
                 id="reg-email"
                 type="email"
@@ -220,152 +130,75 @@ function RegisterForm() {
                 onBlur={() => setTouched((t) => ({ ...t, email: true }))}
                 autoComplete="email"
                 aria-invalid={!!field("email")}
-                aria-describedby={field("email") ? "reg-email-error" : undefined}
                 disabled={loading}
               />
-              {field("email") ? (
-                <p id="reg-email-error" className="text-[11px] text-destructive">
-                  {field("email")}
-                </p>
-              ) : null}
+              {field("email") ? <p className="text-[11px] text-red-600 dark:text-red-400">{field("email")}</p> : null}
             </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium" htmlFor="reg-password">
-                {ar ? "كلمة المرور" : "Password"}
-              </Label>
-              <div className="relative">
-                <Input
-                  id="reg-password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onBlur={() => setTouched((t) => ({ ...t, password: true }))}
-                  autoComplete="new-password"
-                  aria-invalid={!!field("password")}
-                  aria-describedby={field("password") ? "reg-password-error" : "reg-password-hint"}
-                  disabled={loading}
-                  className="pe-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-pressed={showPassword}
-                  aria-label={showPassword ? (ar ? "إخفاء كلمة المرور" : "Hide password") : ar ? "إظهار كلمة المرور" : "Show password"}
-                  className="absolute end-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
-                </button>
-              </div>
-              {field("password") ? (
-                <p id="reg-password-error" className="text-[11px] text-destructive">
-                  {field("password")}
-                </p>
-              ) : (
-                <p id="reg-password-hint" className="text-[11px] text-muted-foreground">
-                  {ar ? "من 8 لـ 72 حرفاً." : "8–72 characters."}
-                </p>
-              )}
+            <div className="space-y-1">
+              <Label className="text-xs font-medium" htmlFor="reg-password">كلمة المرور — Password</Label>
+              <Input
+                id="reg-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onBlur={() => setTouched((t) => ({ ...t, password: true }))}
+                autoComplete="new-password"
+                aria-invalid={!!field("password")}
+                disabled={loading}
+              />
+              {field("password") ? <p className="text-[11px] text-red-600 dark:text-red-400">{field("password")}</p> : null}
             </div>
-
-            <div className="space-y-1.5">
-              <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={terms}
-                  onChange={(e) => {
-                    setTerms(e.target.checked)
-                    setTouched((t) => ({ ...t, terms: true }))
-                  }}
-                  className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[var(--primary)]"
-                  aria-invalid={!!field("terms")}
-                  aria-describedby={field("terms") ? "reg-terms-error" : undefined}
-                />
-                <span>
-                  {ar ? (
-                    <>
-                      أوافق على{" "}
-                      <Link href="/terms" target="_blank" rel="noreferrer" className="font-medium text-primary underline underline-offset-2">
-                        شروط الاستخدام
-                      </Link>{" "}
-                      وأكدت إني قرأت{" "}
-                      <Link href="/privacy" target="_blank" rel="noreferrer" className="font-medium text-primary underline underline-offset-2">
-                        سياسة الخصوصية
-                      </Link>
-                      . Meza أداة بحث — مش توصية استثمارية.
-                    </>
-                  ) : (
-                    <>
-                      I agree to the{" "}
-                      <Link href="/terms" target="_blank" rel="noreferrer" className="font-medium text-primary underline underline-offset-2">
-                        Terms of Service
-                      </Link>{" "}
-                      and confirm I&apos;ve read the{" "}
-                      <Link href="/privacy" target="_blank" rel="noreferrer" className="font-medium text-primary underline underline-offset-2">
-                        Privacy Policy
-                      </Link>
-                      . Meza is a research tool — not investment advice.
-                    </>
-                  )}
-                </span>
-              </label>
-              {field("terms") ? (
-                <p id="reg-terms-error" className="text-[11px] text-destructive">
-                  {field("terms")}
-                </p>
-              ) : null}
+            <div className="space-y-1">
+              <Label className="text-xs font-medium" htmlFor="reg-confirm">تأكيد كلمة المرور — Confirm password</Label>
+              <Input
+                id="reg-confirm"
+                type="password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                onBlur={() => setTouched((t) => ({ ...t, confirm: true }))}
+                autoComplete="new-password"
+                aria-invalid={!!field("confirm")}
+                disabled={loading}
+              />
+              {field("confirm") ? <p className="text-[11px] text-red-600 dark:text-red-400">{field("confirm")}</p> : null}
             </div>
-
+            <label className="flex cursor-pointer items-start gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={terms}
+                onChange={(e) => { setTerms(e.target.checked); setTouched((t) => ({ ...t, terms: true })) }}
+                className="mt-0.5 h-3.5 w-3.5 accent-[var(--primary)]"
+                aria-invalid={!!field("terms")}
+              />
+              <span>
+                أوافق على شروط الاستخدام وأفهم أن التطبيق أداة معلوماتية وليست توصية استثمارية — I agree to the terms; this is an informational tool, not investment advice.
+              </span>
+            </label>
+            {field("terms") ? <p className="text-[11px] text-red-600 dark:text-red-400">{field("terms")}</p> : null}
             {serverError ? (
-              <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs leading-relaxed text-destructive">
+              <p className="rounded-lg border border-red-500/40 bg-red-500/8 px-3 py-2 text-xs text-red-600 dark:text-red-400" role="alert">
                 {serverError}
               </p>
             ) : null}
-
             <Button type="submit" className="w-full" disabled={loading || !valid}>
-              {loading ? <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden /> : <UserPlus className="me-2 h-4 w-4" aria-hidden />}
-              {ar ? "إنشاء الحساب" : "Create account"}
+              {loading && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+              <UserPlus className="me-1 h-4 w-4" aria-hidden />
+              Create account
             </Button>
-
             <p className="text-center text-xs text-muted-foreground">
-              {ar ? "لديك حساب بالفعل؟" : "Already have an account?"}{" "}
-              <Link href={`/login${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`} className="font-medium text-primary underline-offset-2 hover:underline">
-                {ar ? "تسجيل الدخول" : "Sign in"}
+              لديك حساب بالفعل؟{" "}
+              <Link href="/login" className="font-medium text-primary hover:underline">
+                تسجيل الدخول — Sign in
               </Link>
             </p>
-
-            <OAuthButtons next={next} />
+            <OAuthButtons next="/" />
           </form>
         </Card>
-
-        <p className="mt-5 text-center text-[11px] leading-relaxed text-muted-foreground/80">
-          {ar ? BRAND.trustLineAr : BRAND.trustLineEn}
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function RegisterSkeleton() {
-  return (
-    <div className="flex min-h-[70vh] items-center justify-center">
-      <div className="w-full max-w-md space-y-3 px-4" aria-busy="true" aria-live="polite">
-        <span className="sr-only">{`جارٍ التحميل — Loading`}</span>
-        <div className="mx-auto h-10 w-40 rounded-lg bg-muted" />
-        <div className="mx-auto h-4 w-64 rounded bg-muted" />
-        <div className="h-64 w-full rounded-xl bg-muted" />
       </div>
     </div>
   )
 }
 
 export default function RegisterPage() {
-  return (
-    <LayoutShell chrome="marketing">
-      <Suspense fallback={<RegisterSkeleton />}>
-        <RegisterForm />
-      </Suspense>
-    </LayoutShell>
-  )
+  return <RegisterForm />
 }
-

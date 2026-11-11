@@ -1,9 +1,10 @@
-﻿"use client"
+"use client"
 
 import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import ReactMarkdown, { type Components } from "react-markdown"
 import {
+  Activity,
   AlertTriangle,
   ArrowLeft,
   BarChart3,
@@ -11,15 +12,16 @@ import {
   ChartBar,
   Check,
   Copy,
+  Crown,
   Download,
   ExternalLink,
   FileText,
   FileX2,
   Flame,
+  HeartPulse,
   Info,
   Languages,
   Lock,
-  LogIn,
   Minus,
   Pencil,
   Plus,
@@ -34,16 +36,8 @@ import {
   Users,
   X,
 } from "lucide-react"
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip as ChartTooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { TechnicalTab } from "@/components/egx/technical-tab"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -53,21 +47,14 @@ import { HealthTab } from "@/components/egx/health-tab"
 import { PriceChart } from "@/components/egx/price-chart"
 import { TradingViewTechnicalGauge } from "@/components/egx/tradingview"
 import { QaBox } from "@/components/egx/qa-box"
-import { AiReportRenderer } from "@/components/ai/ai-report-renderer"
-import { AiAnalystChat } from "@/components/ai/ai-analyst-chat"
-import { AiQaBox } from "@/components/ai/ai-qa-box"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
-import { DataStateBadge, FreshnessBadge, MarketDataLine, SourceLine, UnavailableNote } from "@/components/brand/data-trust"
-import { MetricTip } from "@/components/brand/metric-tip"
-import { SectionHeading } from "@/components/brand/section-heading"
-import { api, type AiAnalysisData, type AiAnalysisStatusData, type AiChatMessage, type CompanyDetail as CompanyDetailData, type CompanyDocument, type DividendItem, type EventItem, type MetricsData } from "@/lib/client/api"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { api, type AiAnalysisData, type AiAnalysisStatusData, type AiChatMessage, type EventItem, type MetricsData } from "@/lib/client/api"
 import { useI18n, type DictKey } from "@/lib/i18n"
-import { formatDate, formatMoney } from "@/lib/brand"
-import { sectorLabel } from "@/lib/sectors"
 import { formatEgp, formatPercent, formatRatio } from "@/lib/financial/units"
 import { RAW_METRIC_MAP } from "@/lib/financial/registry"
+import { TEMP_EDIT_MODE } from "@/lib/temp-edit"
 import { useToast } from "@/hooks/use-toast"
 import { DemoBadge, EventBadge, StarButton, StatusChip } from "./shared"
 
@@ -82,40 +69,7 @@ const PEER_METRICS = [
   { code: "p_b", fmt: (v: number) => formatRatio(v), betterWhen: "lower" },
 ] as const
 
-type SubTab = "overview" | "statements" | "peers" | "ai"
-
-/** The research reading order required by the brand brief. */
-const OVERVIEW_SECTIONS = [
-  { id: "company", en: "The company", ar: "الشركة" },
-  { id: "performance", en: "What changed", ar: "اللي اتغيّر" },
-  { id: "profitability", en: "Profitability", ar: "الربحية" },
-  { id: "position", en: "Financial position", ar: "المركز المالي" },
-  { id: "valuation", en: "Valuation", ar: "التقييم" },
-  { id: "technical", en: "Technical", ar: "الفني" },
-  { id: "risks", en: "Risks & flags", ar: "المخاطر" },
-  { id: "next", en: "What to check next", ar: "اللي تفحصه بعد كده" },
-] as const
-type SectionId = (typeof OVERVIEW_SECTIONS)[number]["id"]
-
-const LISTING_STATUS_LABELS: Record<string, { en: string; ar: string }> = {
-  LISTED: { en: "Listed", ar: "مدرجة" },
-  SUSPENDED: { en: "Suspended", ar: "موقوفة" },
-  DELISTED: { en: "Delisted", ar: "مشطوبة" },
-}
-
-function listingStatusLabel(status: string, ar: boolean): string {
-  const label = LISTING_STATUS_LABELS[status]
-  if (label) return ar ? label.ar : label.en
-  return status.replaceAll("_", " ")
-}
-
-function ListingStatusChip({ status, ar }: { status: string; ar: boolean }) {
-  return (
-    <Badge variant="outline" className="text-[10px] whitespace-nowrap">
-      {listingStatusLabel(status, ar)}
-    </Badge>
-  )
-}
+type SubTab = "overview" | "technical" | "statements" | "health" | "events" | "peers" | "dividends" | "documents" | "ai"
 
 /** Bilingual label for a report statement basis (CONSOLIDATED / STANDALONE). */
 function basisBadgeLabel(basis: string | null | undefined, t: (k: DictKey) => string): string {
@@ -124,9 +78,43 @@ function basisBadgeLabel(basis: string | null | undefined, t: (k: DictKey) => st
   return basis ?? "—"
 }
 
-// Professional markdown styling for financial analysis — section
-// headings carry a colored marker bar and tables are styled as data tables.
-const aiMdComponents = {
+// Manual prose styling for the AI analysis markdown (no typography plugin).
+const mdComponents: Components = {
+  h1: ({ children }) => <h2 className="mt-5 text-base font-bold first:mt-0">{children}</h2>,
+  h2: ({ children }) => <h3 className="mt-5 text-sm font-bold first:mt-0">{children}</h3>,
+  h3: ({ children }) => <h4 className="mt-4 text-sm font-semibold first:mt-0">{children}</h4>,
+  h4: ({ children }) => <h5 className="mt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground first:mt-0">{children}</h5>,
+  p: ({ children }) => <p className="text-sm leading-relaxed">{children}</p>,
+  ul: ({ children }) => <ul className="my-2 list-disc space-y-1 ps-5 text-sm">{children}</ul>,
+  ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 ps-5 text-sm">{children}</ol>,
+  li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+  a: ({ children }) => (
+    <span className="text-primary underline underline-offset-2">
+      {children}
+    </span>
+  ),
+  blockquote: ({ children }) => (
+    <blockquote className="my-2 border-s-2 border-border ps-3 text-sm italic text-muted-foreground">{children}</blockquote>
+  ),
+  hr: () => <hr className="my-4 border-border" />,
+  code: ({ children }) => <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{children}</code>,
+  pre: ({ children }) => <pre className="my-2 overflow-x-auto rounded-md bg-muted p-3 text-xs">{children}</pre>,
+  table: ({ children }) => (
+    <div className="my-3 overflow-x-auto rounded-md border">
+      <table className="w-full text-xs">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
+  th: ({ children }) => <th className="border-b p-2 text-start font-medium">{children}</th>,
+  td: ({ children }) => <td className="border-b p-2 align-top">{children}</td>,
+}
+
+// AI-analysis markdown styling — same base as the chat but with section
+// headings that carry a colored marker bar and a divider, and tighter tables
+// (the Key Numbers table is the visual centerpiece of the analysis).
+const aiMdComponents: Components = {
+  ...mdComponents,
   h2: ({ children }) => (
     <h3 className="mt-6 flex items-center gap-2 border-b border-border/70 pb-1.5 text-sm font-bold first:mt-0">
       <span aria-hidden className="inline-block h-3.5 w-1 shrink-0 rounded-full bg-primary/70" />
@@ -143,6 +131,47 @@ const aiMdComponents = {
   td: ({ children }) => <td className="border-b p-2 align-top tabular-nums">{children}</td>,
 }
 
+// Extract the closing stance from the analysis markdown so the UI can surface
+// it as a colored badge without re-reading the text. Matched against the
+// Overall Stance section (English keywords + common Arabic phrasings).
+function extractStance(content: string): { labelEn: string; labelAr: string; tone: "bullish" | "cautious" | "neutral" | "bearish" } | null {
+  if (!content) return null
+  const m = content.match(/^##\s*(?:Overall Stance|الموقف العام)\s*([\s\S]*)$/im)
+  const tail = (m?.[1] ?? content).slice(0, 400).toLowerCase()
+  const pick = (rules: Array<[RegExp, { labelEn: string; labelAr: string; tone: "bullish" | "cautious" | "neutral" | "bearish" }]>): { labelEn: string; labelAr: string; tone: "bullish" | "cautious" | "neutral" | "bearish" } | null => {
+    for (const [re, v] of rules) if (re.test(tail)) return v
+    return null
+  }
+  return pick([
+    [/bearish|هابط|سلبي|سلبية/, { labelEn: "Bearish", labelAr: "هابط", tone: "bearish" }],
+    [/cautiously\s*positive|cautious|صعود بحذر|إيجابي بحذر|بحذر/, { labelEn: "Cautiously Positive", labelAr: "إيجابي بحذر", tone: "cautious" }],
+    [/bullish|صاعد|إيجابي(?!\s*بحذر)/, { labelEn: "Bullish", labelAr: "صاعد", tone: "bullish" }],
+    [/neutral|محايد/, { labelEn: "Neutral", labelAr: "محايد", tone: "neutral" }],
+  ])
+}
+
+const STANCE_STYLE = {
+  bullish: "border-success/40 bg-success/10 text-success",
+  cautious: "border-warning/40 bg-warning/10 text-warning",
+  neutral: "border-border bg-muted/60 text-muted-foreground",
+  bearish: "border-destructive/40 bg-destructive/10 text-destructive",
+} as const
+
+function StanceBadge({ stance }: { stance: NonNullable<ReturnType<typeof extractStance>> }) {
+  const { lang } = useI18n()
+  const Icon = stance.tone === "bullish" ? TrendingUp : stance.tone === "bearish" ? TrendingDown : stance.tone === "cautious" ? TrendingUp : Minus
+  const cls = STANCE_STYLE[stance.tone]
+  const title = lang === "ar"
+    ? { bullish: "الموقف العام: صاعد", cautious: "الموقف العام: إيجابي بحذر", neutral: "الموقف العام: محايد", bearish: "الموقف العام: هابط" }[stance.tone]
+    : { bullish: "Overall stance: Bullish", cautious: "Overall stance: Cautiously positive", neutral: "Overall stance: Neutral", bearish: "Overall stance: Bearish" }[stance.tone]
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${cls}`} title={title}>
+      <Icon className="h-3 w-3" aria-hidden />
+      {lang === "ar" ? stance.labelAr : stance.labelEn}
+    </span>
+  )
+}
+
 export function CompanyDetail({
   companyId,
   onBack,
@@ -153,7 +182,6 @@ export function CompanyDetail({
   onOpenScanner?: (ruleId: string) => void
 }) {
   const { t, lang, pick } = useI18n()
-  const ar = lang === "ar"
   const { toast } = useToast()
   const [sub, setSub] = useState<SubTab>("overview")
   const [basisOverride, setBasisOverride] = useState<string | null>(null)
@@ -169,11 +197,7 @@ export function CompanyDetail({
   const availableBases = finAvail?.availableStatementTypes ?? []
   const effectiveBasis = basisOverride ?? finAvail?.statementType ?? null
   const availablePeriodViews = finAvail?.availablePeriodViews ?? []
-  // Annual is the comparable basis the research order needs: when the company
-  // files an annual statement, the financial sections open on the latest full
-  // year. The interim view stays one click away and is always labelled.
-  const defaultPeriodView = availablePeriodViews.includes("annual") ? "annual" : finAvail?.periodView ?? null
-  const effectivePeriodView = periodViewOverride ?? defaultPeriodView
+  const effectivePeriodView = periodViewOverride ?? finAvail?.periodView ?? null
 
   if (isError) return <ErrorState onRetry={() => refetch()} />
   if (isLoading || !data) {
@@ -187,8 +211,6 @@ export function CompanyDetail({
   }
 
   const c = data.company
-  const secondaryName = ar ? c.nameEn : c.nameAr
-  const matchedCount = data.matchedPresets.length
 
   return (
     <div className="space-y-5">
@@ -197,27 +219,37 @@ export function CompanyDetail({
         {t("common.back")}
       </Button>
 
-      {/* header — identity, reporting period and price provenance first */}
-      <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-card p-5 sm:p-6">
-        <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0">
+      {/* header */}
+      <div className="page-glow relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-primary/8 via-primary/4 to-transparent p-5 sm:p-6">
+        <div className="relative flex flex-col md:flex-row md:items-start justify-between gap-4">
+          <div>
             <div className="flex flex-wrap items-center gap-2">
               <span
                 aria-hidden
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-sm font-bold tracking-wide text-primary"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/25 bg-gradient-to-br from-primary/15 to-primary/5 text-sm font-bold tracking-wide text-primary"
               >
                 {c.ticker.slice(0, 4)}
               </span>
               <h1 className="text-2xl font-bold tracking-tight">{c.ticker}</h1>
               {c.isDemoData ? <DemoBadge /> : null}
-              <ListingStatusChip status={c.listingStatus} ar={ar} />
+              <StatusChip status={c.listingStatus} />
+              {c.counts.values > 0 ? (
+                <Badge
+                  variant="outline"
+                  className="border-success/40 bg-success/10 text-[10px] text-success-foreground"
+                  title={t("co.aiGrounded")}
+                >
+                  <ShieldCheck className="me-1 h-3 w-3" aria-hidden />
+                  {t("co.trustBadge")}
+                </Badge>
+              ) : null}
               <StarButton companyId={c.id} ticker={c.ticker} className="border border-border/60" />
               <a
                 href={`/compare?ids=${c.id}`}
-                title={ar ? "مقارنة هذه الشركة" : "Compare this company"}
+                title={lang === "ar" ? "مقارنة هذه الشركة" : "Compare this company"}
                 className="inline-flex h-7 items-center gap-1 rounded-lg border border-border/60 px-2 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
               >
-                <Scale className="h-3.5 w-3.5" aria-hidden />
+                <Scale className="h-3.5 w-3.5" />
                 {t("co.compare")}
               </a>
               <button
@@ -227,143 +259,152 @@ export function CompanyDetail({
                     await navigator.clipboard.writeText(window.location.href)
                     toast({ title: t("co.copied") })
                   } catch {
-                    // clipboard unavailable — keep silent, the link is still in the address bar
+                    // fallback
                   }
                 }}
                 title={t("co.shareLink")}
                 className="inline-flex h-7 items-center gap-1 rounded-lg border border-border/60 px-2 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
               >
-                <Copy className="h-3.5 w-3.5" aria-hidden />
+                <Copy className="h-3.5 w-3.5" />
                 {t("co.shareLink")}
               </button>
               <a
                 href={`/company/${c.id}/report`}
-                title={ar ? "تقرير استثماري جاهز للطباعة أو PDF" : "Print-ready investor report"}
+                title={lang === "ar" ? "تقرير استثماري جاهز للطباعة/PDF" : "Print-ready investor report"}
                 className="inline-flex h-7 items-center gap-1 rounded-lg border border-border/60 px-2 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
               >
-                <FileText className="h-3.5 w-3.5" aria-hidden />
-                {ar ? "تقرير للطباعة" : "Printable report"}
+                <FileText className="h-3.5 w-3.5" />
+                {lang === "ar" ? "تقرير" : "Report"}
               </a>
             </div>
             <p className="mt-1.5 text-sm font-medium">{pick(c.nameEn, c.nameAr)}</p>
-            {secondaryName && secondaryName !== "—" ? (
-              <p className="text-xs text-muted-foreground" dir={ar ? "ltr" : "auto"}>{secondaryName}</p>
-            ) : null}
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              <Badge variant="secondary" className="text-[10px]">{sectorLabel(c.sector, lang)}</Badge>
+            <p className="text-xs text-muted-foreground">{lang === "ar" ? c.nameAr : c.nameEn}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+              <Badge variant="secondary" className="text-[10px]">{c.sector}</Badge>
               {c.industry ? <span>{c.industry}</span> : null}
               {c.sharesOutstanding ? (
-                <span className="tabular num">
-                  · {t("co.shares")}: {c.sharesOutstanding >= 1e9 ? `${(c.sharesOutstanding / 1e9).toFixed(2)}B` : c.sharesOutstanding >= 1e6 ? `${Math.round(c.sharesOutstanding / 1e6)}M` : c.sharesOutstanding.toLocaleString()}
-                </span>
+                <span className="tabular num">· {t("co.shares")}: {c.sharesOutstanding >= 1e9 ? (c.sharesOutstanding / 1e9).toFixed(2) + "B" : c.sharesOutstanding >= 1e6 ? Math.round(c.sharesOutstanding / 1e6) + "M" : c.sharesOutstanding.toLocaleString()}</span>
               ) : null}
-              <span className="tabular num">· {ar ? `${c.counts.reports ?? 0} إفصاحًا` : `${c.counts.reports ?? 0} filings`}</span>
-              <span className="tabular num">· {ar ? `${c.counts.values ?? 0} قيمة موثقة` : `${c.counts.values ?? 0} verified values`}</span>
+              {data.dataAsOf ? (
+                (() => {
+                  const monthsOld = (Date.now() - new Date(data.dataAsOf!.periodEnd).getTime()) / (1000 * 60 * 60 * 24 * 30.4)
+                  const stale = monthsOld > 15
+                  return (
+                    <span
+                      className="tabular-nums"
+                      title={lang === "ar" ? "أحدث فترة موثقة لهذه الشركة" : "Latest verified filing period for this company"}
+                    >
+                      · <span className={stale ? "font-medium text-warning-foreground" : ""}>
+                        {lang === "ar" ? `البيانات حتى ${data.dataAsOf.periodLabel}` : `Data as of ${data.dataAsOf.periodLabel}`}
+                      </span>
+                      {stale ? " ⚠" : ""}
+                    </span>
+                  )
+                })()
+              ) : null}
             </div>
-            {/* the trust layer: source, reporting period, last-updated — or an honest "unavailable" */}
-            <div className="mt-3 flex flex-col gap-1.5 rounded-xl border border-border/60 bg-muted/30 px-3 py-2">
-              <SourceLine
-                source={ar ? "الإفصاح المالي المنشور" : "Published financial filing"}
-                period={data.dataAsOf?.periodLabel ?? null}
-                asOf={data.dataAsOf?.periodEnd ?? null}
-              />
-              {data.dataAsOf ? <FreshnessBadge asOf={data.dataAsOf.periodEnd} /> : null}
-              <div className="flex flex-wrap items-center gap-1.5">
-                <DataStateBadge state="calculated" />
-                {data.marketPrice ? <DataStateBadge state="delayed" /> : null}
-                {matchedCount > 0 ? (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground">
-                    <ScanSearch className="h-3 w-3 text-primary" aria-hidden />
-                    {ar ? `يطابق ${matchedCount} ماسحًا محفوظًا` : `Matches ${matchedCount} saved screens`}
-                    {!isPremium ? <Lock className="h-2.5 w-2.5 text-warning" aria-hidden /> : null}
-                  </span>
-                ) : null}
-              </div>
-            </div>
+            {pick(c.descriptionEn, c.descriptionAr) !== "—" ? (
+              <p className="mt-2 max-w-2xl text-xs text-muted-foreground leading-relaxed">{pick(c.descriptionEn, c.descriptionAr)}</p>
+            ) : null}
           </div>
 
-          {/* last recorded price — delayed feed, stated plainly */}
-          <div className="w-full shrink-0 rounded-xl border border-border/60 bg-muted/30 p-3.5 md:w-56">
-            {data.marketPrice ? (
-              <>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  {ar ? "آخر سعر مسجّل" : "Last recorded price"}
-                </p>
-                <p className="num mt-1 text-2xl font-bold leading-none">
-                  {formatMoney(data.marketPrice.price, lang, { decimals: 2 })}
-                </p>
-                <MarketDataLine
-                  asOf={data.marketPrice.asOf}
-                  delayMinutes={15}
-                  source={data.marketPrice.sourceName}
-                  className="mt-2"
-                />
-              </>
+          {/* scanner matches — premium only (free users see a locked teaser) */}
+          <div className="min-w-0 md:max-w-xs">
+            <p className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-muted-foreground">
+              <ScanSearch className="h-3.5 w-3.5 text-primary" />
+              {t("co.matchedScanners")}
+              {!isPremium && data.matchedPresets.length > 0 ? (
+                <Lock className="h-3 w-3 text-amber-500" aria-hidden />
+              ) : null}
+            </p>
+            {!isPremium ? (
+              data.matchedPresets.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">{t("common.noData")}</p>
+              ) : (
+                <a href="/premium" className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-700 transition-colors duration-150 hover:bg-amber-500/10 dark:text-amber-400">
+                  <Lock className="h-3 w-3 shrink-0" aria-hidden />
+                  <span>{lang === "ar" ? `تمت مطابقة ${data.matchedPresets.length} ماسح — متاح لمشتركي Premium` : `${data.matchedPresets.length} scanner matches — Premium only`}</span>
+                </a>
+              )
+            ) : data.matchedPresets.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic">{t("common.noData")}</p>
             ) : (
-              <>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  {ar ? "السعر" : "Price"}
-                </p>
-                <p className="mt-1 text-sm font-medium text-muted-foreground">
-                  {ar ? "لا توجد نقطة سعر مسجّلة لهذه الشركة" : "No price point recorded for this company"}
-                </p>
-                <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground/80">
-                  {ar
-                    ? "بدون نقطة سعر لا يمكن حساب المضاعفات (P/E وP/B) أو القيمة السوقية."
-                    : "Without a price point, P/E, P/B and market cap cannot be shown."}
-                </p>
-              </>
+              <div className="flex flex-wrap gap-1.5">
+                {data.matchedPresets.map((m) => (
+                  <Badge
+                    key={`${m.presetKey}-${m.basis}`}
+                    variant="outline"
+                    className="cursor-pointer border-primary/40 bg-primary/5 text-primary hover:bg-primary/15 transition-colors duration-150 text-[10px]"
+                    onClick={() => onOpenScannerByPresetKey(m.presetKey, onOpenScanner)}
+                    title={m.basis === "LATEST_TTM" ? t("sc.basisTtm") : m.basis === "LATEST_QUARTERLY" ? t("sc.basisQuarterly") : t("sc.basisAnnual")}
+                  >
+                    {pick(m.name, m.nameAr)} · {m.basis === "LATEST_TTM" ? "TTM" : m.basis === "LATEST_QUARTERLY" ? "Q" : "FY"}
+                  </Badge>
+                ))}
+              </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* data controls — these change the financial sections and the statements table */}
       {availableBases.length > 1 || availablePeriodViews.length > 1 ? (
-        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-xl border border-border/60 bg-card px-4 py-3">
-          <p className="max-w-md text-[11px] leading-relaxed text-muted-foreground">
-            {ar
-              ? "أساس القائمة وعرض الفترة يطبقان على الأقسام المالية وعلى جدول القوائم."
-              : "Statement basis and period view apply to the financial sections and the statements table."}
-          </p>
-          <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-2">
-            {availableBases.length > 1 ? (
-              <StatementBasisToggle available={availableBases} value={effectiveBasis} onSelect={setBasisOverride} />
-            ) : null}
-            {availablePeriodViews.length > 1 ? (
-              <PeriodViewToggle available={availablePeriodViews} value={effectivePeriodView} onSelect={setPeriodViewOverride} />
-            ) : null}
-          </div>
+        <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-2">
+          {availableBases.length > 1 ? (
+            <StatementBasisToggle available={availableBases} value={effectiveBasis} onSelect={setBasisOverride} />
+          ) : null}
+          {availablePeriodViews.length > 1 ? (
+            <PeriodViewToggle available={availablePeriodViews} value={effectivePeriodView} onSelect={setPeriodViewOverride} />
+          ) : null}
         </div>
       ) : null}
 
       <Tabs value={sub} onValueChange={(v) => setSub(v as SubTab)}>
-        <TabsList className="h-auto w-full flex-nowrap justify-start overflow-x-auto rounded-xl bg-muted/60 p-1">
-          <TabsTrigger value="overview" className="gap-1.5"><BarChart3 className="h-3.5 w-3.5" aria-hidden />{ar ? "نظرة عامة" : "Overview"}</TabsTrigger>
-          <TabsTrigger value="statements" className="gap-1.5"><Table2 className="h-3.5 w-3.5" aria-hidden />{t("co.statements")}</TabsTrigger>
-          <TabsTrigger value="peers" className="gap-1.5"><Users className="h-3.5 w-3.5" aria-hidden />{ar ? "الأقران والمقارنة" : "Peers & comparison"}</TabsTrigger>
-          <TabsTrigger value="ai" className="gap-1.5"><Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden />{ar ? "قراءة المحلل" : "Analyst note"}</TabsTrigger>
+        <TabsList className="w-full justify-start overflow-x-auto h-auto flex-wrap sm:flex-nowrap rounded-xl bg-muted/60 p-1 backdrop-blur-sm">
+          <TabsTrigger value="overview" className="gap-1.5"><BarChart3 className="h-3.5 w-3.5" />{t("co.keyMetrics")}</TabsTrigger>
+          <TabsTrigger value="technical" className="gap-1.5"><Activity className="h-3.5 w-3.5" />{t("co.techTab")}</TabsTrigger>
+          <TabsTrigger value="statements" className="gap-1.5"><Table2 className="h-3.5 w-3.5" />{t("co.statements")}</TabsTrigger>
+          <TabsTrigger value="health" className="gap-1.5"><HeartPulse className="h-3.5 w-3.5 text-destructive" />{t("co.health")}</TabsTrigger>
+          <TabsTrigger value="events" className="gap-1.5"><Flame className="h-3.5 w-3.5" />{t("co.events")} ({c.counts.events}) {!isPremium ? <Lock className="h-3 w-3 text-amber-500" aria-hidden /> : null}</TabsTrigger>
+          <TabsTrigger value="peers" className="gap-1.5"><Users className="h-3.5 w-3.5" />{t("peers.tab")}</TabsTrigger>
+          <TabsTrigger value="dividends" className="gap-1.5"><CalendarDays className="h-3.5 w-3.5" />{t("co.dividends")}</TabsTrigger>
+          <TabsTrigger value="documents" className="gap-1.5"><FileText className="h-3.5 w-3.5 text-info" />{t("co.filings")} ({c.counts.reports ?? 0})</TabsTrigger>
+          <TabsTrigger value="ai" className="gap-1.5"><Sparkles className="h-3.5 w-3.5 text-primary" />{t("co.aiAnalysis")}</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="mt-4">
-          <OverviewTab
-            companyId={companyId}
-            company={c}
-            dataAsOf={data.dataAsOf ?? null}
-            marketPrice={data.marketPrice}
-            isPremium={isPremium}
-            basis={effectiveBasis}
-            periodView={effectivePeriodView}
-            matchedPresets={data.matchedPresets}
-            onOpenScanner={onOpenScanner}
-            onOpenTab={(tab) => setSub(tab)}
-          />
+        <TabsContent value="overview" className="mt-4 space-y-4">
+          <PriceChart companyId={companyId} ticker={c.ticker} />
+          <Card className="border-border/60 p-0">
+            <CardContent className="p-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h3 className="text-sm font-bold">{lang === "ar" ? "الملخص الفني" : "Technical Summary"}</h3>
+                <span className="text-[10px] text-muted-foreground/70">TradingView</span>
+              </div>
+              <TradingViewTechnicalGauge ticker={c.ticker} />
+            </CardContent>
+          </Card>
+          <OverviewTab companyId={companyId} basis={basisOverride} />
+          <QaBox companyId={companyId} />
+        </TabsContent>
+        <TabsContent value="technical" className="mt-4">
+          <TechnicalTab companyId={companyId} />
         </TabsContent>
         <TabsContent value="statements" className="mt-4">
-          <StatementsTab companyId={companyId} ticker={c.ticker} basis={effectiveBasis} periodView={effectivePeriodView} />
+          <StatementsTab companyId={companyId} ticker={c.ticker} basis={basisOverride} periodView={effectivePeriodView} />
+        </TabsContent>
+        <TabsContent value="health" className="mt-4">
+          <HealthTab companyId={companyId} />
+        </TabsContent>
+        <TabsContent value="events" className="mt-4">
+          <EventsTab companyId={companyId} />
         </TabsContent>
         <TabsContent value="peers" className="mt-4">
           <PeersTab companyId={companyId} />
+        </TabsContent>
+        <TabsContent value="dividends" className="mt-4">
+          <CompanyDividendsTab companyId={companyId} />
+        </TabsContent>
+        <TabsContent value="documents" className="mt-4">
+          <DocumentsTable companyId={companyId} />
         </TabsContent>
         <TabsContent value="ai" className="mt-4">
           <AiAnalysisTab companyId={companyId} />
@@ -512,40 +553,15 @@ function NoFinancialsEmpty({ bare = false }: { bare?: boolean }) {
 
 /* ---------------- Overview tab ---------------- */
 
-interface OverviewTabProps {
-  companyId: string
-  company: CompanyDetailData["company"]
-  dataAsOf: CompanyDetailData["dataAsOf"]
-  marketPrice: CompanyDetailData["marketPrice"]
-  isPremium: boolean
-  basis: string | null
-  periodView: string | null
-  matchedPresets: CompanyDetailData["matchedPresets"]
-  onOpenScanner?: (ruleId: string) => void
-  onOpenTab: (tab: SubTab) => void
-}
-
-function OverviewTab({
-  companyId,
-  company,
-  dataAsOf,
-  marketPrice,
-  isPremium,
-  basis,
-  periodView,
-  matchedPresets,
-  onOpenScanner,
-  onOpenTab,
-}: OverviewTabProps) {
+function OverviewTab({ companyId, basis }: { companyId: string; basis: string | null }) {
   const { t, lang } = useI18n()
-  const ar = lang === "ar"
   const { data: metrics, isLoading } = useQuery({
-    queryKey: ["metrics", companyId, basis ?? "auto", periodView ?? "auto"],
-    queryFn: () => api.metrics(companyId, basis ?? undefined, periodView ?? undefined),
+    queryKey: ["metrics", companyId, basis ?? "auto"],
+    queryFn: () => api.metrics(companyId, basis ?? undefined),
   })
 
   if (isLoading || !metrics) return <Skeleton className="h-64 rounded-xl" />
-  if (metrics.periods.length === 0 && metrics.rows.length === 0) return <NoFinancialsEmpty bare />
+  if (metrics.periods.length === 0 && metrics.rows.length === 0) return <NoFinancialsEmpty />
 
   const sortedPeriods = [...metrics.periods].sort((a, b) => a.key.localeCompare(b.key))
   const annualPeriods = sortedPeriods.filter((p) => p.periodType === "ANNUAL")
@@ -558,12 +574,12 @@ function OverviewTab({
   const getCell = (code: string) => (latest ? metrics.rows.find((r) => r.code === code)?.cells[latest.key] : undefined)
 
   const cards: { code: string; label: string; fmt: (v: number) => string; invert?: boolean }[] = [
-    { code: "revenue", label: t("co.revenue"), fmt: (v) => formatMoney(v, lang) },
-    { code: "net_profit", label: t("co.netProfit"), fmt: (v) => formatMoney(v, lang), invert: true },
+    { code: "revenue", label: t("co.revenue"), fmt: (v) => formatEgp(v) },
+    { code: "net_profit", label: t("co.netProfit"), fmt: (v) => formatEgp(v), invert: true },
     { code: "roe", label: t("co.roe"), fmt: (v) => formatPercent(v) },
-    { code: "total_assets", label: t("co.assets"), fmt: (v) => formatMoney(v, lang) },
+    { code: "total_assets", label: t("co.assets"), fmt: (v) => formatEgp(v) },
     { code: "debt_to_equity", label: t("co.debtToEquity"), fmt: (v) => formatRatio(v) },
-    { code: "eps", label: "EPS", fmt: (v) => `${lang === "ar" ? "ج.م" : "EGP"} ${v.toFixed(2)}` },
+    { code: "eps", label: "EPS", fmt: (v) => `EGP ${v.toFixed(2)}` },
   ]
 
   // trend chart data (revenue & net profit over annual periods, or quarterly when no annual exist)
@@ -758,42 +774,39 @@ function TrendChart({ data }: { data: { label: string; revenue: number | null; p
         )}
       </div>
 
-      {/* Scrollable chart container — prevents horizontal page overflow at 360–390px. */}
-      <div className="overflow-x-auto pb-2" dir="ltr">
-        <div className="flex items-end gap-3 sm:gap-6 px-2 pt-2 pb-1 border-b border-border/40 min-w-max">
-          {data.map((d, i) => (
-            <div
-              key={d.label}
-              onMouseEnter={() => setHoverIdx(i)}
-              onMouseLeave={() => setHoverIdx(null)}
-              className="flex flex-1 flex-col items-center gap-2 cursor-pointer group shrink-0"
-            >
-              <div className="flex h-40 w-full max-w-16 items-end justify-center gap-1.5 sm:gap-2">
-                <div className="relative flex h-full w-5 sm:w-7 items-end">
-                  <div
-                    className="w-full rounded-t-md bg-primary/70 transition-all duration-300 ease-out group-hover:bg-primary shadow-xs"
-                    style={{ height: `${Math.max(4, ((d.revenue ?? 0) / max) * 100)}%` }}
-                    title={`Revenue: ${formatEgp(d.revenue)}`}
-                  />
-                </div>
-                <div className="relative flex h-full w-5 sm:w-7 items-end">
-                  <div
-                    className={`w-full rounded-t-md transition-all duration-300 ease-out shadow-xs ${
-                      (d.profit ?? 0) < 0
-                        ? "bg-destructive group-hover:bg-destructive/90"
-                        : "bg-success group-hover:bg-success/90"
-                    }`}
-                    style={{ height: `${Math.max(4, (Math.abs(d.profit ?? 0) / max) * 100)}%` }}
-                    title={`Net profit: ${formatEgp(d.profit)}`}
-                  />
-                </div>
+      <div className="flex items-end gap-3 sm:gap-6 px-2 pt-2 pb-1 border-b border-border/40">
+        {data.map((d, i) => (
+          <div
+            key={d.label}
+            onMouseEnter={() => setHoverIdx(i)}
+            onMouseLeave={() => setHoverIdx(null)}
+            className="flex flex-1 flex-col items-center gap-2 cursor-pointer group"
+          >
+            <div className="flex h-40 w-full max-w-16 items-end justify-center gap-1.5 sm:gap-2">
+              <div className="relative flex h-full w-5 sm:w-7 items-end">
+                <div
+                  className="w-full rounded-t-md bg-primary/70 transition-all duration-300 ease-out group-hover:bg-primary shadow-xs"
+                  style={{ height: `${Math.max(4, ((d.revenue ?? 0) / max) * 100)}%` }}
+                  title={`Revenue: ${formatEgp(d.revenue)}`}
+                />
               </div>
-              <span className={`text-[11px] font-semibold transition-colors ${hoverIdx === i ? "text-primary" : "text-muted-foreground"}`}>
-                {d.label}
-              </span>
+              <div className="relative flex h-full w-5 sm:w-7 items-end">
+                <div
+                  className={`w-full rounded-t-md transition-all duration-300 ease-out shadow-xs ${
+                    (d.profit ?? 0) < 0
+                      ? "bg-destructive group-hover:bg-destructive/90"
+                      : "bg-success group-hover:bg-success/90"
+                  }`}
+                  style={{ height: `${Math.max(4, (Math.abs(d.profit ?? 0) / max) * 100)}%` }}
+                  title={`Net profit: ${formatEgp(d.profit)}`}
+                />
+              </div>
             </div>
-          ))}
-        </div>
+            <span className={`text-[11px] font-semibold transition-colors ${hoverIdx === i ? "text-primary" : "text-muted-foreground"}`}>
+              {d.label}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -1694,40 +1707,190 @@ function DocumentsTable({ companyId }: { companyId: string }) {
 
 /* ---------------- AI analysis tab ---------------- */
 
-<<<<<<< HEAD
-=======
-function AiLoadingPanel({ status }: { status?: string }) {
+const AI_STAGES = [
+  { icon: FileText, key: "co.aiStage1", atMs: 0 },
+  { icon: ChartBar, key: "co.aiStage2", atMs: 12_000 },
+  { icon: Users, key: "co.aiStage3", atMs: 26_000 },
+  { icon: ShieldCheck, key: "co.aiStage4", atMs: 42_000 },
+  { icon: Sparkles, key: "co.aiStage5", atMs: 58_000 },
+] as const
+
+const AI_TIPS: Array<{ en: string; ar: string }> = [
+  {
+    en: "Tip: earnings without cash flow behind them deserve a second look — check the operating cash line.",
+    ar: "نصيحة: الأرباح بلا تدفق نقدي وراءها تستحق نظرة ثانية — راجع بند التدفق النقدي التشغيلي.",
+  },
+  {
+    en: "Tip: compare the P/E with the sector median, not with the whole market.",
+    ar: "نصيحة: قارن مضاعف الربحية بوسيط القطاع، لا بالسوق كلها.",
+  },
+  {
+    en: "Tip: a falling price with rising volume tells a different story than falling volume.",
+    ar: "نصيحة: سعر هابط بحجم تداول مرتفع يحكي قصة مختلفة عن سعر هابط بحجم ضعيف.",
+  },
+  {
+    en: "Tip: debt is not evil — the question is whether operating profit covers the interest.",
+    ar: "نصيحة: الدين ليس شراً بذاته — السؤال هل الربح التشغيلي يغطي الفوائد؟",
+  },
+  {
+    en: "Tip: dividends paid from borrowed money are a red flag, not generosity.",
+    ar: "نصيحة: توزيعات تدفع من اقتراض جديد علامة تحذير، ليست كرماً.",
+  },
+  {
+    en: "Tip: support and resistance are zones, not exact prices — trade the zone.",
+    ar: "نصيحة: الدعم والمقاومة مناطق وليست أسعاراً دقيقة — تعامل مع المنطقة كلها.",
+  },
+]
+
+/** Engaging generation loader: staged progress, elapsed time, rotating tips.
+ *  Deliberately says nothing about queues or shared caching — the user sees
+ *  only what the analysis is doing for THEM, and gets a retry escape hatch. */
+function AiLoadingPanel({
+  status,
+  startedAt,
+  pollTimeoutMs,
+  onRetry,
+}: {
+  status?: string
+  startedAt: number
+  pollTimeoutMs: number
+  onRetry: () => void
+}) {
   const { t, lang } = useI18n()
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const elapsedMs = Math.max(0, Date.now() - startedAt)
   const processing = status === "processing"
+  let activeIdx = 0
+  for (let i = 0; i < AI_STAGES.length; i++) {
+    if (elapsedMs >= AI_STAGES[i].atMs) activeIdx = i
+  }
+  const pct = Math.min(95, Math.round((elapsedMs / 75_000) * 100))
+  const tip = AI_TIPS[Math.floor(elapsedMs / 6_000) % AI_TIPS.length]
+  const slow = elapsedMs > 100_000
+  const timedOut = elapsedMs > pollTimeoutMs
+
+  if (timedOut) {
+    return (
+      <Card className="p-0">
+        <CardContent className="flex flex-col items-center justify-center gap-4 p-10 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-warning/10">
+            <AlertTriangle className="h-6 w-6 text-warning-foreground" aria-hidden />
+          </div>
+          <p className="text-sm font-semibold">{lang === "ar" ? "التوليد تأخر أكثر من المعتاد" : "Generation is taking unusually long"}</p>
+          <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
+            {lang === "ar"
+              ? "توقفنا عن الانتظار تلقائياً. اضغط إعادة المحاولة وسيستأنف التقرير من حيث توقف — محاولاتك السابقة لا تُهدر."
+              : "We stopped waiting automatically. Press retry and the report resumes where it left off — your previous attempts are not wasted."}
+          </p>
+          <Button size="sm" onClick={onRetry} className="gap-1.5">
+            <RefreshCw className="h-4 w-4" aria-hidden />
+            {lang === "ar" ? "إعادة المحاولة الآن" : "Retry now"}
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
-    <Card className="p-0">
-      <CardContent className="flex flex-col items-center justify-center gap-4 p-10 text-center">
+    <Card className="p-0 overflow-hidden">
+      <CardContent className="flex flex-col items-center gap-5 p-8 sm:p-10 text-center">
         <div className="relative flex h-16 w-16 items-center justify-center">
           <span className="absolute inset-0 rounded-full bg-primary/15 animate-ping" aria-hidden />
           <span className="absolute inset-2 rounded-full bg-primary/10 animate-pulse" aria-hidden />
           <Sparkles className="relative h-7 w-7 text-primary" aria-hidden />
         </div>
-        <p className="text-sm font-semibold">{processing ? t("co.aiLoading") : t("co.aiQueued")}</p>
-        <div className="flex items-center gap-1.5" aria-hidden>
-          {[0, 1, 2].map((i) => (
-            <span key={i} className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
-          ))}
+        <div className="space-y-1">
+          <p className="text-sm font-semibold">{processing ? t("co.aiLoading") : t("co.aiQueued")}</p>
+          <p className="max-w-md text-xs leading-relaxed text-muted-foreground">
+            {lang === "ar"
+              ? "نبني تقريراً خبيراً من الأرقام الموثقة للشركة — يستغرق عادة أقل من دقيقة."
+              : "We are building an expert report from the company's verified figures — usually under a minute."}
+          </p>
         </div>
-        <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
-          {lang === "ar"
-            ? "نجهّز التحليل من القوائم المتحقق منها ومؤشرات السوق — عادةً يستغرق ذلك أقل من دقيقة."
-            : "We're preparing the analysis from verified filings and market indicators — this usually takes under a minute."}
+
+        {/* progress bar */}
+        <div className="w-full max-w-sm">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-1000 ease-linear"
+              style={{ width: `${pct}%` }}
+              role="progressbar"
+              aria-valuenow={pct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            />
+          </div>
+          <div className="mt-1.5 flex items-center justify-between text-[10px] tabular text-muted-foreground" dir="ltr">
+            <span>{pct}%</span>
+            <span>{Math.floor(elapsedMs / 1000)}s</span>
+          </div>
+        </div>
+
+        {/* stages */}
+        <ol className="w-full max-w-sm space-y-1.5 text-start">
+          {AI_STAGES.map((s, i) => {
+            const Icon = s.icon
+            const done = i < activeIdx
+            const active = i === activeIdx
+            return (
+              <li
+                key={s.key}
+                className={`flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors ${
+                  active ? "bg-primary/10 text-foreground" : done ? "text-muted-foreground" : "text-muted-foreground/50"
+                }`}
+                aria-current={active ? "step" : undefined}
+              >
+                {done ? (
+                  <Check className="h-3.5 w-3.5 shrink-0 text-success" aria-hidden />
+                ) : (
+                  <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? "animate-pulse text-primary" : ""}`} aria-hidden />
+                )}
+                <span className={active ? "font-medium" : ""}>{t(s.key as DictKey)}</span>
+                {active ? (
+                  <span className="ms-auto flex items-center gap-0.5" aria-hidden>
+                    {[0, 1, 2].map((d) => (
+                      <span key={d} className="h-1 w-1 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: `${d * 150}ms` }} />
+                    ))}
+                  </span>
+                ) : null}
+              </li>
+            )
+          })}
+        </ol>
+
+        {/* rotating investor tip */}
+        <p className="max-w-md text-[11px] italic leading-relaxed text-muted-foreground/80 min-h-[2.5em]">
+          {lang === "ar" ? tip.ar : tip.en}
         </p>
+
+        {slow ? (
+          <div className="flex w-full max-w-sm flex-col items-center gap-2 rounded-xl border border-warning/30 bg-warning/5 px-4 py-3">
+            <p className="text-[11px] text-warning-foreground">
+              {lang === "ar" ? "التوليد أطول من المعتاد قليلاً — يمكنك المتابعة بالانتظار أو إعادة المحاولة فوراً." : "Taking a bit longer than usual — keep waiting or retry immediately."}
+            </p>
+            <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={onRetry}>
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+              {lang === "ar" ? "إعادة المحاولة الآن" : "Retry now"}
+            </Button>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   )
 }
 
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
 function AiAnalysisTab({ companyId }: { companyId: string }) {
   const { t, lang } = useI18n()
   const queryClient = useQueryClient()
   const [jobRef, setJobRef] = useState<string | null>(null)
+  const [genStartedAt, setGenStartedAt] = useState<number | null>(null)
+  // Give up waiting (UI-side) after 8 minutes: polling stops and the loader
+  // switches to a retry card. The server job itself may still complete later.
+  const GENERATION_POLL_TIMEOUT_MS = 480_000
   const { data: subData } = useQuery({ queryKey: ["my-subscription"], queryFn: () => api.subscription() })
   const isPremium = !!subData?.isPremium
   const usage = subData?.smartAnalysisUsage
@@ -1740,6 +1903,15 @@ function AiAnalysisTab({ companyId }: { companyId: string }) {
     queryFn: () => api.aiAnalysis(companyId, lang),
   })
 
+  // Adopt an in-flight generation left by a previous page load (reload mid-
+  // generation) — but only when there is no completed report to show instead.
+  useEffect(() => {
+    if (!jobRef && data?.generation?.jobRef && !data.analysis) {
+      setJobRef(data.generation.jobRef)
+      setGenStartedAt((prev) => prev ?? Date.now())
+    }
+  }, [data, jobRef])
+
   // Generation is a BACKGROUND JOB: POST returns 202 + jobRef immediately.
   // While a job exists we poll the lightweight status endpoint; the moment it
   // reports a completed report we invalidate and the full report renders.
@@ -1747,11 +1919,14 @@ function AiAnalysisTab({ companyId }: { companyId: string }) {
     queryKey: ["ai-analysis-status", companyId, lang, jobRef],
     queryFn: () => api.aiAnalysisStatus(companyId, lang, jobRef),
     enabled: !!jobRef,
+    // stop polling the moment the report is ready, the job exhausted, or the
+    // user-side wait budget ran out (the loader then offers a retry button)
     refetchInterval: (query) => {
       const d = query.state.data as AiAnalysisStatusData | undefined
       if (!d) return 5000
       if (d.status === "ready") return false
       if (d.status === "failed" && (d.attempts ?? 0) >= 3) return false
+      if (genStartedAt && Date.now() - genStartedAt > GENERATION_POLL_TIMEOUT_MS) return false
       return 5000
     },
     refetchIntervalInBackground: false,
@@ -1761,6 +1936,8 @@ function AiAnalysisTab({ companyId }: { companyId: string }) {
   const statusExhausted = statusQuery.data?.status === "failed" && (statusQuery.data.attempts ?? 0) >= 3
   const statusFailed = statusQuery.data?.status === "failed"
   useEffect(() => {
+    // state derivation happens in render below; this effect only refreshes
+    // the surrounding server state once a report becomes ready.
     if (statusReady || statusExhausted) {
       queryClient.invalidateQueries({ queryKey: ["ai-analysis", companyId, lang] })
       queryClient.invalidateQueries({ queryKey: ["my-subscription"] })
@@ -1769,11 +1946,19 @@ function AiAnalysisTab({ companyId }: { companyId: string }) {
 
   const generate = useMutation({
     mutationFn: () => api.generateAiAnalysis(companyId, lang),
+    // optimistic: the POST window itself runs the generation inline (up to
+    // ~45s) — show the staged loader the moment the user clicks instead of
+    // leaving them staring at the stale/empty tab.
+    onMutate: () => {
+      setGenStartedAt(Date.now())
+    },
     onSuccess: (res) => {
       if (res.status === "generating" && res.jobRef) {
         setJobRef(res.jobRef)
+        setGenStartedAt(Date.now())
         statusQuery.refetch()
       } else {
+        // served from cache — the analysis arrived inline
         queryClient.invalidateQueries({ queryKey: ["ai-analysis", companyId, lang] })
       }
       queryClient.invalidateQueries({ queryKey: ["my-subscription"] })
@@ -1785,6 +1970,7 @@ function AiAnalysisTab({ companyId }: { companyId: string }) {
     onSuccess: (res) => {
       if (res.status === "generating" && res.jobRef) {
         setJobRef(res.jobRef)
+        setGenStartedAt(Date.now())
         statusQuery.refetch()
       } else {
         queryClient.invalidateQueries({ queryKey: ["ai-analysis", companyId, lang] })
@@ -1797,12 +1983,23 @@ function AiAnalysisTab({ companyId }: { companyId: string }) {
   const jobFailed = statusFailed && statusExhausted && !polledReport
   const usageLimited = !!err && (err.status === 429 || /USAGE_LIMIT_EXCEEDED/i.test(err.message))
   const premiumErr = !!err && /PREMIUM_REQUIRED/i.test(err.message)
-  const generating = !!jobRef && !statusReady && !statusExhausted
+  const generating = (!!jobRef && !statusReady && !statusExhausted) || generate.isPending || refresh.isPending
   const analysis = (polledReport ?? data?.analysis ?? null) as AiAnalysisData["analysis"]
-  const completeness = analysis?.completeness ?? null
-
+  const stance = analysis ? extractStance(analysis.content ?? "") : null
   if (isLoading) return <Skeleton className="h-72 rounded-xl" />
-  if (generating) return <Skeleton className="h-72 rounded-xl" />
+  if (generating)
+    return (
+      <AiLoadingPanel
+        status={statusQuery.data?.status ?? "queued"}
+        startedAt={genStartedAt ?? Date.now()}
+        pollTimeoutMs={GENERATION_POLL_TIMEOUT_MS}
+        onRetry={() => {
+          // POST re-claims the abandoned job server-side and continues it.
+          setGenStartedAt(Date.now())
+          generate.mutate()
+        }}
+      />
+    )
 
   if (usageLimited) {
     return (
@@ -1821,6 +2018,8 @@ function AiAnalysisTab({ companyId }: { companyId: string }) {
       </div>
     )
   }
+
+  const completeness = analysis?.completeness ?? null
 
   return (
     <div className="space-y-3">
@@ -1875,13 +2074,66 @@ function AiAnalysisTab({ companyId }: { companyId: string }) {
 
       {analysis ? (
         <>
-          {/* Professional AI Report Renderer */}
-          <AiReportRenderer analysis={analysis} lang={lang} />
-
-          {/* Professional Follow-up Q&A */}
-          <AiQaBox companyId={companyId} companyName={analysis.company?.nameEn ?? undefined} />
-
-          {/* Professional Follow-up Chat */}
+          <Card className="p-0">
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-3">
+              <CardTitle className="flex flex-wrap items-center gap-2 text-sm">
+                <Sparkles className="h-4 w-4 text-primary" aria-hidden />
+                {t("co.aiAnalysis")}
+                {analysis.model ? <Badge variant="secondary" className="font-mono text-[10px]">{analysis.model}</Badge> : null}
+                <span className="text-[11px] font-normal text-muted-foreground">{fmt(analysis.completedAt ?? analysis.createdAt)}</span>
+                <Badge variant="outline" className="font-mono text-[9px]" title={analysis.reportKey ?? analysis.dataHash}>
+                  {(analysis.reportKey ?? analysis.dataHash).slice(0, 10)}
+                </Badge>
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                {stance ? <StanceBadge stance={stance} /> : null}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs"
+                  disabled={refresh.isPending || generating}
+                  onClick={() => (isPremium ? refresh.mutate() : generate.mutate())}
+                  title={isPremium ? undefined : lang === "ar" ? "إعادة التوليد الفوري متاحة للبريميوم — الزر يعيد الطلب من الكاش" : "Instant refresh is premium — the button re-requests from cache"}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+                  {isPremium ? (lang === "ar" ? "تحديث البريميوم" : "Premium refresh") : t("co.aiRegenerate")}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {analysis.degraded ? (
+                <Alert className="mb-4 border-warning/40 bg-warning/5">
+                  <AlertTriangle className="h-4 w-4 text-warning" aria-hidden />
+                  <AlertDescription className="text-xs">{t("co.aiDegraded")}</AlertDescription>
+                </Alert>
+              ) : null}
+              {analysis.lang && analysis.lang !== lang ? (
+                <Alert className="mb-4">
+                  <Languages className="h-4 w-4" aria-hidden />
+                  <AlertDescription className="text-xs">
+                    {lang === "ar"
+                      ? "التحليل المخزّن مكتوب بلغة تانية — اضغط «إعادة التوليد» عشان يُكتب بالعربي من نفس البيانات."
+                      : "The stored analysis was generated in another language — press Regenerate to rewrite it in your language from the same data."}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              {completeness?.limitations?.length ? (
+                <Alert className="mb-4">
+                  <Info className="h-4 w-4" aria-hidden />
+                  <AlertDescription className="text-xs">{completeness.limitations.join(" • ")}</AlertDescription>
+                </Alert>
+              ) : null}
+              <div dir={lang === "ar" ? "rtl" : "ltr"}>
+                <ReactMarkdown components={aiMdComponents}>{analysis.content}</ReactMarkdown>
+              </div>
+            </CardContent>
+            <div className="border-t px-6 py-3">
+              <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" aria-hidden />
+                {t("co.aiGrounded")}
+              </p>
+            </div>
+          </Card>
           <AiAnalystChat companyId={companyId} />
         </>
       ) : (
@@ -1904,5 +2156,128 @@ function AiAnalysisTab({ companyId }: { companyId: string }) {
 
 /* ---------------- Ask-the-analyst chat (grounded follow-up Q&A) ---------------- */
 
+function AiAnalystChat({ companyId }: { companyId: string }) {
+  const { t, lang } = useI18n()
+  const [messages, setMessages] = useState<AiChatMessage[]>([])
+  const [input, setInput] = useState("")
+  const [chatUsed, setChatUsed] = useState<{ used: number; limit: number } | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
+  const send = useMutation({
+    mutationFn: (history: AiChatMessage[]) => api.aiAnalysisChat(companyId, history, lang),
+    onSuccess: (data) => {
+      setMessages((prev) => [...prev, { role: "assistant", content: data.reply }])
+      if (data.usage) setChatUsed(data.usage)
+    },
+  })
 
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
+  }, [messages.length, send.isPending])
+
+  const submit = () => {
+    const text = input.trim()
+    if (!text || send.isPending) return
+    const next: AiChatMessage[] = [...messages, { role: "user", content: text }]
+    setMessages(next)
+    setInput("")
+    send.mutate(next)
+  }
+
+  const chatErr = send.error as (Error & { status?: number; body?: { message?: string } }) | null
+  const quotaHit = !!chatErr && (chatErr.status === 429 || /QUOTA_EXCEEDED|RATE_LIMITED/i.test(chatErr.message))
+
+  return (
+    <Card className="p-0">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Sparkles className="h-4 w-4 text-primary" aria-hidden />
+          {t("co.aiAskTitle")}
+          <span className="text-[11px] font-normal text-muted-foreground">{t("co.aiAskSub")}</span>
+        </CardTitle>
+        {chatUsed ? (
+          <Badge variant="outline" className="text-[10px]">
+            {t("co.aiAskChatLimit")}: {chatUsed.used}/{chatUsed.limit}
+          </Badge>
+        ) : null}
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {messages.length === 0 ? (
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Info className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            {t("co.aiAskEmpty")}
+          </p>
+        ) : (
+          <div ref={scrollRef} className="max-h-96 space-y-3 overflow-y-auto pe-1">
+            {messages.map((m, i) => (
+              <div key={i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
+                <div
+                  dir="auto"
+                  className={
+                    m.role === "user"
+                      ? "max-w-[85%] rounded-xl bg-primary px-3.5 py-2 text-xs leading-relaxed text-primary-foreground"
+                      : "max-w-[92%] rounded-xl bg-muted px-3.5 py-2"
+                  }
+                >
+                  {m.role === "assistant" ? (
+                    <div dir={lang === "ar" ? "rtl" : "ltr"} className="text-xs leading-relaxed [&_ul]:list-disc [&_ul]:ps-4 [&_ol]:list-decimal [&_ol]:ps-4 [&_code]:rounded [&_code]:bg-background [&_code]:px-1 [&_code]:text-[11px] [&_strong]:font-semibold">
+                      <ReactMarkdown components={mdComponents}>{m.content}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-wrap">{m.content}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+            {send.isPending ? (
+              <div className="flex justify-start">
+                <div className="flex items-center gap-1.5 rounded-xl bg-muted px-3.5 py-2.5" aria-hidden>
+                  {[0, 1, 2].map((i) => (
+                    <span key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60" style={{ animationDelay: `${i * 150}ms` }} />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {chatErr ? (
+          <Alert variant={quotaHit ? "default" : "destructive"}>
+            <AlertTriangle className="h-4 w-4" aria-hidden />
+            <AlertDescription className="text-xs">
+              {chatErr.body?.message || chatErr.message}
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        <form
+          className="flex items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            submit()
+          }}
+        >
+          <Input
+            dir="auto"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={t("co.aiAskPlaceholder")}
+            className="h-9 flex-1 text-xs"
+            maxLength={1500}
+            disabled={send.isPending}
+          />
+          <Button type="submit" size="sm" className="h-9 gap-1.5 px-3" disabled={send.isPending || !input.trim()}>
+            <Sparkles className="h-3.5 w-3.5" aria-hidden />
+            {t("co.aiAskSend")}
+          </Button>
+        </form>
+      </CardContent>
+      <div className="border-t px-6 py-3">
+        <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
+          <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" aria-hidden />
+          {t("co.aiGrounded")}
+        </p>
+      </div>
+    </Card>
+  )
+}

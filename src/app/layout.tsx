@@ -28,11 +28,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   applicationName: siteConfig.name,
   title: {
-<<<<<<< HEAD
-    default: "EGXANO — Egyptian stock market research",
-=======
     default: "EGXANO — Egyptian Exchange Research & Analysis",
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
     template: "%s · EGXANO",
   },
   description: siteConfig.description,
@@ -49,8 +45,6 @@ export const metadata: Metadata = {
     "القوائم المالية",
     "التحليل المالي",
     "ترتيب الشركات",
-    "EGXANO",
-    "إيجيكسّانو",
   ],
   authors: [{ name: siteConfig.name, url: siteConfig.url }],
   creator: siteConfig.name,
@@ -58,29 +52,25 @@ export const metadata: Metadata = {
   category: "finance",
   formatDetection: { telephone: false, email: false, address: false },
   openGraph: {
-    title: "EGXANO — Egyptian stock market research",
+    title: siteConfig.name,
     description: siteConfig.description,
     type: "website",
     locale: "en_US",
     alternateLocale: "ar_EG",
-    siteName: "EGXANO",
+    siteName: siteConfig.name,
     url: "/",
     images: [
       {
         url: siteConfig.ogImage,
         width: 1200,
         height: 630,
-<<<<<<< HEAD
-        alt: "EGXANO — Egyptian stock market research",
-=======
         alt: "EGXANO — independent Egyptian Exchange research",
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "EGXANO",
+    title: siteConfig.name,
     description: siteConfig.description,
     images: [siteConfig.ogImage],
   },
@@ -111,8 +101,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F7F8F6" },
-    { media: "(prefers-color-scheme: dark)", color: "#060906" },
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b1220" },
   ],
 };
 
