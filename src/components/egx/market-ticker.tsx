@@ -100,8 +100,11 @@ export function MarketTicker() {
   const { data } = useQuery({
     queryKey: ["market-ticker"],
     queryFn: () => fetch("/api/v1/market/ticker?fresh=true").then((r) => (r.ok ? (r.json() as Promise<TickerData>) : null)),
-    refetchInterval: 30_000,
-    staleTime: 15_000,
+    // Egress diet: 90s poll — the EGX feed behind this strip is 15-minute
+    // delayed and price rows update once per trading day; 30s polling by
+    // every open tab produced no user-visible change while hammering the API.
+    refetchInterval: 90_000,
+    staleTime: 60_000,
   })
 
   const handleRefresh = async () => {

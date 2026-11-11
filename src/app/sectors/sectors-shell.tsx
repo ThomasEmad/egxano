@@ -28,6 +28,11 @@ interface SectorAgg {
   periodLabel: string | null
   periodType: string | null
   fiscalYear: number | null
+  /** Equal-weighted 1-day price change (%, finviz-style map). */
+  dayChangePct?: number | null
+  advancing?: number
+  declining?: number
+  unchanged?: number
 }
 
 interface SectorsPageShellProps {
@@ -78,21 +83,25 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
   const sectorData = sectors.map((s) => {
     const count = counts.get(s) ?? 0
     const agg = aggMap.get(s)
-    // Median, not mean: one company with near-zero equity (ROE > 1000%) must
-    // not set the sector's headline number. The API ships both; the card uses
-    // the robust one.
-    const roe = agg?.medianRoe ?? null
+    // The map colors sectors by the equal-weighted 1-day price change of
+    // their members (finviz-style). Fundamental medians (ROE, P/E, P/B)
+    // stay in the details list below, where they are correctly labeled.
+    const dayChange = agg?.dayChangePct ?? null
     return {
       sector: s,
       label: sectorLabel(s, lang),
       count,
-      change: roe !== null ? parseFloat(roe.toFixed(1)) : 0,
-      hasRealData: roe !== null,
+      change: dayChange !== null ? parseFloat(dayChange.toFixed(2)) : 0,
+      hasRealData: dayChange !== null,
+      medianRoe: agg?.medianRoe,
       medianPe: agg?.medianPe,
       medianPb: agg?.medianPb,
       totalMarketCap: agg?.totalMarketCap,
       totalRevenue: agg?.totalRevenue,
       totalNetProfit: agg?.totalNetProfit,
+      advancing: agg?.advancing,
+      declining: agg?.declining,
+      unchanged: agg?.unchanged,
     }
   })
 
@@ -150,7 +159,7 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
             <CardHeader className="pb-4 px-5">
               <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground">
                 <Activity className="h-3.5 w-3.5 text-primary" />
-                {ar ? "خريطة القطاعات حسب الحجم ووسيط ROE" : "Sector map by size and median ROE"}
+                {ar ? "خريطة القطاعات حسب الحجم والحركة السعرية اليومية" : "Sector map by size and daily price change"}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
@@ -159,11 +168,11 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
                 <div className="flex flex-wrap items-center gap-4 mb-4 text-xs">
                   <div className="flex items-center gap-1.5">
                     <span className="w-3 h-3 rounded bg-positive" />
-                    <span className="text-muted-foreground">{ar ? "ROE إيجابي" : "Positive ROE"}</span>
+                    <span className="text-muted-foreground">{ar ? "ارتفاع اليوم" : "Up today"}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="w-3 h-3 rounded bg-negative" />
-                    <span className="text-muted-foreground">{ar ? "ROE سلبي" : "Negative ROE"}</span>
+                    <span className="text-muted-foreground">{ar ? "انخفاض اليوم" : "Down today"}</span>
                   </div>
                   <div className="flex items-center gap-1.5 ms-auto">
                     <span className="w-3 h-3 rounded bg-muted/30" />
@@ -176,7 +185,7 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
                   {sectorData.map((s) => {
                     const cellSize = Math.max(60, (s.count / maxCount) * 200)
                     const positive = s.change >= 0
-                    const intensity = s.hasRealData ? Math.min(Math.abs(s.change) / 30, 1) : 0
+                    const intensity = s.hasRealData ? Math.min(Math.abs(s.change) / 3, 1) : 0
                     const bgColor = s.hasRealData
                       ? positive
                         ? `color-mix(in oklab, var(--spec-positive) ${Math.round(intensity * 30)}%, transparent)`

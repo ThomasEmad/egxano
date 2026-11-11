@@ -289,7 +289,7 @@ function PresetScanners({
 
 function RunHistory() {
   const { t, lang } = useI18n()
-  const { data } = useQuery({ queryKey: ["scan-history"], queryFn: api.scanHistory, refetchInterval: 30_000 })
+  const { data } = useQuery({ queryKey: ["scan-history"], queryFn: api.scanHistory, refetchInterval: 60_000 })
   const runs = data?.runs ?? []
   if (runs.length === 0) return null
 

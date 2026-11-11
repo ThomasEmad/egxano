@@ -36,7 +36,7 @@ export async function generateMetadata({ params }: { params: Promise<{ sector: s
       },
     },
     openGraph: {
-      title: `${sector} companies — Meza`,
+      title: `${sector} companies — EGXANO`,
       description,
       type: "website",
       locale: "en_US",

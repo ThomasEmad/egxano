@@ -138,16 +138,16 @@ export default function LandingClient() {
               <h1 className="text-3xl sm:text-5xl md:text-7xl font-extrabold tracking-tight text-balance leading-[1.1]">
                 {ar ? (
                   <>
-                    اكتشف فرص البورصة <br />
+                    افهم السهم <br />
                     <span className="bg-gradient-to-r from-primary to-teal-500 bg-clip-text text-transparent">
-                      بأرقام حقيقية من القوائم المنشورة
+                      قبل ما تقرر.
                     </span>
                   </>
                 ) : (
                   <>
-                    Discover EGX opportunities <br />
+                    Understand <br />
                     <span className="bg-gradient-to-r from-primary to-teal-500 bg-clip-text text-transparent">
-                      built on real published financials
+                      the Egyptian Market.
                     </span>
                   </>
                 )}
@@ -155,8 +155,8 @@ export default function LandingClient() {
 
               <p className="mt-6 text-base sm:text-lg text-muted-foreground leading-relaxed max-w-2xl">
                 {ar
-                  ? "ماسح ذكي لأنماط الشركات المالية: تحولات الخسارة إلى ربح، تسارع الإيرادات، خفض الديون، وتدفقات النقد — أرقام فعلية من القوائم المالية المنشورة (سنوي وربعي)، والقيم غير المنشورة تظهر «غير متاح» بدون أي تقديرات مخفية."
-                  : "Institutional-grade pattern scanner: loss-to-profit turnarounds, revenue acceleration, deleveraging, and cash flows. Real figures from published quarterly and annual statements; unreported values are shown as unavailable — never silently estimated."}
+                  ? "حلّل الشركات، قارن أداءها، واكتشف الصورة المالية والفنية لأسهم البورصة المصرية من مكان واحد — أرقام فعلية من القوائم المالية المنشورة (سنوي وربعي)، والقيم غير المنشورة تظهر «غير متاح» بدون أي تقديرات مخفية."
+                  : "Analyze companies, compare performance, and see the full financial and technical picture of Egyptian Exchange stocks in one place. Real figures from published quarterly and annual statements; unreported values are shown as unavailable — never silently estimated."}
               </p>
 
               <div className="mt-10 flex flex-wrap items-center gap-3 md:gap-4">
@@ -413,7 +413,7 @@ export default function LandingClient() {
                 {ar ? "معايير النزاهة المؤسسية" : "Institutional Integrity"}
               </Badge>
               <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                {ar ? "لماذا يعتمد المستثمرون على Meza؟" : "Engineered for Serious Financial Research"}
+                {ar ? "لماذا يعتمد المستثمرون على إيجيكسّانو؟" : "Engineered for Serious Financial Research"}
               </h2>
               <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
                 {ar ? "بنيت المنصة بأعلى معايير الدقة والشفافية لإلغاء التقديرات غير المؤكدة وتقديم أرقام يمكنك الاعتماد عليها." : "Built from first principles to eliminate hallucinations, enforce accounting identities, and deliver decision-grade data."}

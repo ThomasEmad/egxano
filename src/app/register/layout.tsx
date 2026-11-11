@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "إنشاء حساب — Meza · Create an account — Meza",
+  title: "إنشاء حساب — إيجيكسّانو · Create an account — EGXANO",
   description: "أنشئ حساباً مجانياً لمتابعة شركات البورصة المصرية وتلقي التحليلات والتقييمات. Create a free account to track EGX companies, valuations and AI analysis.",
   alternates: { canonical: "/register" },
 }

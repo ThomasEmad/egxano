@@ -1,6 +1,6 @@
-# Meza — Windows workspace
+# EGXANO — Windows workspace
 
-Next.js 16 + TypeScript + Prisma/SQLite financial-intelligence platform for Egyptian
+Next.js 16 + TypeScript + Prisma/PostgreSQL financial-intelligence platform for Egyptian
 Exchange (EGX) companies. Bilingual (EN/AR + RTL). Zero invented data: every figure
 carries source traceability, and missing data renders as "—" — never zero, never
 estimated.

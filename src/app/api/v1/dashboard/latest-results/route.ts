@@ -1,4 +1,6 @@
 import { db } from "@/lib/db"
+import { cached } from "@/lib/server-cache"
+import { publicCacheControl } from "@/lib/public-cache"
 import { isAuthoritativeValue } from "@/lib/financial/integrity-policy"
 import { isFuturePeriodEnd, latestAnnouncedPeriodEnd } from "@/lib/financial/period-validity"
 
@@ -17,7 +19,15 @@ import { isFuturePeriodEnd, latestAnnouncedPeriodEnd } from "@/lib/financial/per
 
 const TRUSTED = ["VALIDATED", "APPROVED", "EXTRACTED"]
 
+// Egress diet (2026-11-10): results change only when the pipeline ingests a
+// new filing; a 10-min SWR cache + CDN edge headers keep the 800-row probe
+// (deduped to 12) from running per request.
 export async function GET() {
+  const data = await cached("dashboard:latest-results", 10 * 60_000, buildLatestResults)
+  return Response.json(data, { headers: { "Cache-Control": publicCacheControl(600) } })
+}
+
+async function buildLatestResults(): Promise<{ results: unknown[] }> {
   const rows = await db.financialValue.findMany({
     where: {
       metricCode: "NET_PROFIT",
@@ -88,5 +98,5 @@ export async function GET() {
     if (out.length >= 12) break
   }
 
-  return Response.json({ results: out })
+  return { results: out }
 }

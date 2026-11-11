@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const where: Record<string, unknown> = {}
   if (status && STATUSES.includes(status)) where.status = status
 
-  return cachedResponse(`dividends:${queryKey(req, ["status"])}`, 3 * 60 * 1000, async () => {
+  return cachedResponse(`dividends:${queryKey(req, ["status"])}`, 6 * 60 * 60 * 1000, async () => {
     const dividends = await db.dividend.findMany({
       where,
       include: {

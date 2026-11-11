@@ -63,6 +63,10 @@ const TOP_THREE_STYLES = [
   { color: "text-warning-foreground", bg: "bg-warning/10", border: "border-warning/30", icon: <Star className="h-4 w-4 text-warning-foreground" /> },
 ]
 
+// Valuation multiples / leverage: rank #1 is the CHEAPEST (server defaults
+// these to ASC). A low multiple is not a quality medal — no podium icons.
+const LOWER_IS_BETTER = new Set(["p_e", "p_b", "liabilities_to_equity"])
+
 export default function RankingsPage() {
   const { lang, pick } = useI18n()
   const { isPremium } = useSubscriptionGate()
@@ -163,6 +167,13 @@ export default function RankingsPage() {
               {ar
                 ? "ملاحظة: ROE/ROA في أساس «أحدث بيانات» تعتمد على آخر فترة كاملة (TTM أو سنوية) — لا تُقارن أرباع غير سنوية بفترات سنوية."
                 : "Note: on the Latest basis, ROE/ROA use the latest full period (TTM or annual) — unannualised quarters are not ranked against annual figures."}
+            </p>
+          ) : null}
+          {LOWER_IS_BETTER.has(metric) ? (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {ar
+                ? "تُرتّب مضاعفات التقييم من الأقل إلى الأعلى — المضاعف المنخفض ليس تلقائياً استثماراً أفضل: الشركات ذات الأرباح السالبة أو غير المتاحة تُستبعد، والمضاعف المرتفع قد يعكس نمواً متوقعاً."
+                : "Valuation multiples are ranked lowest → highest. A low multiple is not automatically better: companies with negative or unavailable earnings are excluded, and a high multiple can reflect strong expected growth."}
             </p>
           ) : null}
         </div>
@@ -274,17 +285,17 @@ export default function RankingsPage() {
                   </thead>
                   <tbody>
                     {visible.map((r, i) => {
-                      const isTopThree = i < 3
+                      const podium = !LOWER_IS_BETTER.has(metric) && i < 3
                       const style = TOP_THREE_STYLES[i]
                       const positive = r.value >= 0
                       return (
                         <tr
                           key={r.companyId}
-                          className={`cursor-pointer border-b border-border/40 transition-colors last:border-0 ${isTopThree ? style.border : ""} hover:bg-accent/30`}
+                          className={`cursor-pointer border-b border-border/40 transition-colors last:border-0 ${podium ? style.border : ""} hover:bg-accent/30`}
                           onClick={() => router.push(`/company/${r.ticker}`)}
                         >
-                          <td className={`p-3 ${isTopThree ? "font-bold" : ""}`}>
-                            {isTopThree ? style.icon : (
+                          <td className={`p-3 ${podium ? "font-bold" : ""}`}>
+                            {podium ? style.icon : (
                               <span className={`text-xs font-bold tabular ${positive ? "text-positive" : "text-muted-foreground"}`}>
                                 {i + 1}
                               </span>
@@ -292,7 +303,7 @@ export default function RankingsPage() {
                           </td>
                           <td className="p-3">
                             <div className="flex items-center gap-2">
-                              <span className={`font-bold ${isTopThree ? "text-foreground" : "text-foreground"}`}>{r.ticker}</span>
+                              <span className="font-bold text-foreground">{r.ticker}</span>
                               <span className="hidden max-w-56 truncate text-xs text-muted-foreground sm:inline">
                                 {pick(r.nameEn, r.nameAr ?? r.nameEn)}
                               </span>
@@ -301,7 +312,7 @@ export default function RankingsPage() {
                           <td className="hidden p-3 text-xs text-muted-foreground sm:table-cell">
                             {ar ? SECTOR_AR[r.sector] ?? r.sector : r.sector}
                           </td>
-                          <td className={`p-3 text-end font-bold tabular ${isTopThree ? style.color : ""}`}>
+                          <td className={`p-3 text-end font-bold tabular ${podium ? style.color : ""}`}>
                             {fmtValue(unit, r.value)}
                           </td>
                           <td className="hidden p-3 text-end text-[11px] text-muted-foreground md:table-cell">
@@ -332,7 +343,11 @@ export default function RankingsPage() {
         ) : null}
 
         <Badge variant="outline" className="mt-4 border-success/40 text-[10px] text-success-foreground">
-          {ar ? "كل القيم من قوائم سنوية متحقق منها — أحدث سنة لكل شركة" : "All values from verified annual filings — each company's latest year"}
+          {basis === "ttm"
+            ? (ar ? "كل القيم محسوبة على آخر 12 شهراً لكل شركة" : "All values computed on each company's trailing twelve months")
+            : basis === "annual"
+              ? (ar ? "كل القيم من قوائم سنوية متحقق منها — أحدث سنة لكل شركة" : "All values from verified annual filings — each company's latest year")
+              : (ar ? "كل شركة على أحدث فترة كاملة متاحة لها — الفترة مطبوعة في كل صف" : "Each company on its latest full period — shown per row")}
         </Badge>
       </div>
     </LayoutShell>

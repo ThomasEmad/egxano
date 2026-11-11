@@ -12,8 +12,23 @@
 // from. It never mixes consolidated and standalone rows for one company, never
 // uses a null/DATA_UNAVAILABLE row, and never treats missing as zero.
 
-import type { CalcMetricRow } from "./statement-pref"
 import { preferConsolidatedRows } from "./statement-pref"
+
+/** Minimal CalculatedMetric row shape needed to pick latest values. Light
+ *  selects on the wide CalculatedMetric table (482k+ rows) return exactly
+ *  these columns — full-row fetches streamed megabytes of egress per call
+ *  (2026-11-10 egress diet). */
+export type LatestSelectionRow = {
+  companyId: string
+  code: string
+  periodKey: string
+  periodType: string
+  fiscalYear: number
+  periodLabel: string
+  value: number | null
+  valueStatus: string
+  statementType: string
+}
 
 export interface PeriodRef {
   key: string
@@ -64,11 +79,11 @@ export function periodTypeRank(periodType: string): number {
   }
 }
 
-function toRef(row: Pick<CalcMetricRow, "periodKey" | "periodLabel" | "periodType" | "fiscalYear">): PeriodRef {
+function toRef(row: Pick<LatestSelectionRow, "periodKey" | "periodLabel" | "periodType" | "fiscalYear">): PeriodRef {
   return { key: row.periodKey, label: row.periodLabel, type: row.periodType, fiscalYear: row.fiscalYear }
 }
 
-function isBetter(candidate: CalcMetricRow, current: CalcMetricRow): boolean {
+function isBetter(candidate: LatestSelectionRow, current: LatestSelectionRow): boolean {
   const a = periodOrder(candidate.periodType, candidate.fiscalYear, candidate.periodLabel)
   const b = periodOrder(current.periodType, current.fiscalYear, current.periodLabel)
   if (a !== b) return a > b
@@ -87,7 +102,7 @@ function isBetter(candidate: CalcMetricRow, current: CalcMetricRow): boolean {
  * @param codes  metric codes to select
  */
 export function selectLatestByCompany(
-  rows: CalcMetricRow[],
+  rows: readonly LatestSelectionRow[],
   codes: readonly string[],
   options: { fullPeriodCodes?: readonly string[] } = {},
 ): Map<string, CompanyLatest> {
@@ -98,7 +113,7 @@ export function selectLatestByCompany(
   // top). For these codes "latest" means the latest FULL period (TTM or annual).
   const fullPeriodCodes = new Set(options.fullPeriodCodes ?? [])
   const preferred = preferConsolidatedRows(rows)
-  const byCompany = new Map<string, CalcMetricRow[]>()
+  const byCompany = new Map<string, LatestSelectionRow[]>()
   for (const r of preferred) {
     if (!codeSet.has(r.code)) continue
     if (r.valueStatus !== "OK" || r.value === null) continue
@@ -111,7 +126,7 @@ export function selectLatestByCompany(
   for (const [companyId, list] of byCompany) {
     const values: Record<string, number | null> = {}
     const periods: Record<string, PeriodRef | null> = {}
-    let anchorRow: CalcMetricRow | null = null
+    let anchorRow: LatestSelectionRow | null = null
 
     for (const code of codes) {
       const candidates = list.filter((r) => r.code === code)

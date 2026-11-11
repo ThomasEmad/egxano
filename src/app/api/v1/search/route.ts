@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   if (q.length < 1 || q.length > 40) {
     return Response.json({ results: [] }, { headers: { "Cache-Control": "public, max-age=30" } })
   }
-  return cachedResponse(`search:${q.toLowerCase()}`, 60 * 1000, async () => ({ results: await searchCompanies(q) }))
+  return cachedResponse(`search:${q.toLowerCase()}`, 10 * 60 * 1000, async () => ({ results: await searchCompanies(q) }))
 }
 
 async function searchCompanies(q: string) {

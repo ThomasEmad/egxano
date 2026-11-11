@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     languages: { en: "/dividends", "ar-EG": "/dividends" },
   },
   openGraph: {
-    title: "EGX Dividend Calendar — Meza",
+    title: "EGX Dividend Calendar — EGXANO",
     description: "Upcoming dividend dates for Egyptian Exchange companies — announcement, eligibility, ex-date and distribution.",
     url: "/dividends",
     type: "website",

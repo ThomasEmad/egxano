@@ -5,18 +5,18 @@ import PremiumClient from "./client"
 export const metadata: Metadata = {
   title: "Premium — full EGX data, rankings and reports",
   description:
-    "Unlock the full Meza dataset: complete rankings across every sector, print-ready company reports and portfolio tools. Billing is handled manually after a request — no card is stored.",
+    "Unlock the full EGXANO dataset: complete rankings across every sector, print-ready company reports and portfolio tools. Billing is handled manually after a request — no card is stored.",
   keywords: ["EGX premium", "اشتراك البورصة المصرية", "تقارير مالية"],
     alternates: {
       canonical: "/premium",
       languages: { en: "/premium", "ar-EG": "/premium" },
     },
   openGraph: {
-    title: "Premium — Meza",
+    title: "Premium — EGXANO",
     description: "Full EGX dataset, complete rankings, print-ready reports and portfolio tools.",
     url: "/premium",
     type: "website",
-    images: [{ url: siteConfig.ogImage, width: 1200, height: 630, alt: "Meza Premium" }],
+    images: [{ url: siteConfig.ogImage, width: 1200, height: 630, alt: "EGXANO Premium" }],
   },
 }
 

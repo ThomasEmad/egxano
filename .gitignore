@@ -41,3 +41,4 @@ dev.log
 
 # local DB archive with real user data — never in git (report F08)
 prisma/prisma/dev.zip
+.neon

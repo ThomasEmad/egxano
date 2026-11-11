@@ -1,5 +1,5 @@
 // =============================================================================
-// Meza Technical Analysis Engine — deterministic indicator library
+// EGXANO Technical Analysis Engine — deterministic indicator library
 // =============================================================================
 //
 // Every function here is a PURE, server-side calculation over real OHLCV bars.

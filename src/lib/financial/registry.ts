@@ -640,3 +640,14 @@ export const SECTORS = [
   "Consumer",
   "Other",
 ] as const
+
+// Rankings default direction (rebrand audit 2026-11-11): valuation multiples
+// and leverage read naturally from lowest to highest — rank #1 must be the
+// CHEAPEST / least-leveraged company, never the most expensive. Negative or
+// unavailable earnings produce no p_e row (NOT_APPLICABLE), so ASC ordering
+// never surfaces a negative multiple as "cheapest". An explicit ?order=
+// query param still overrides the default.
+export const RANKING_LOWER_IS_BETTER = new Set(["p_e", "p_b", "liabilities_to_equity"])
+export function defaultRankingOrder(metric: string): "ASC" | "DESC" {
+  return RANKING_LOWER_IS_BETTER.has(metric) ? "ASC" : "DESC"
+}

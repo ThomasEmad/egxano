@@ -28,7 +28,11 @@ export async function GET(req: NextRequest) {
       ...(companyIds.length ? { companyId: { in: companyIds } } : {}),
       ...(eventType && EVENT_TYPE_MAP[eventType] ? { eventType } : {}),
     },
-    orderBy: { detectedAt: "desc" },
+    // Latest REPORTING periods first, then the most recent detection.
+    // Ordering by detectedAt alone floats old-period events (re-detected
+    // during later backfills) to the top of a feed the user reads as
+    // "latest events" — e.g. FY2022 rows appearing above FY2025 ones.
+    orderBy: [{ fiscalYear: "desc" }, { detectedAt: "desc" }],
     take: limit,
     include: {
       company: { select: { id: true, ticker: true, nameEn: true, nameAr: true, isDemoData: true } },

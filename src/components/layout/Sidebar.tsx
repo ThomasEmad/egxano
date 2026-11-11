@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import Link from "next/link"
+import { BrandMark } from "@/components/brand/logo"
 import {
   Activity,
   Building2,
@@ -295,13 +296,13 @@ export function Sidebar({ collapsed = false, onCollapseChange }: { collapsed?: b
       <div className="flex h-full flex-col">
         {/* Brand block */}
         <div className={`flex items-center gap-3 h-16 px-4 ${isCollapsed ? "justify-center" : ""}`}>
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <BarChart3 className="h-5 w-5" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl text-foreground">
+            <BrandMark size={32} />
           </div>
           {!isCollapsed && (
             <div className="flex flex-col leading-tight">
-              <span className="font-bold tracking-tight text-foreground">Meza</span>
-              <span className="text-[10px] text-muted-foreground tracking-tighter">Analyze • Compare • Invest</span>
+              <span className="font-extrabold tracking-[0.08em] text-foreground">EGXANO</span>
+              <span className="text-[10px] text-muted-foreground tracking-tighter">Understand the Egyptian Market</span>
             </div>
           )}
         </div>
@@ -528,7 +529,7 @@ export function Sidebar({ collapsed = false, onCollapseChange }: { collapsed?: b
 
           {/* Version label */}
           <p className="px-2 text-[10px] text-muted-foreground/60 leading-none">
-            Meza v1.0.0
+            EGXANO v0.3.0
           </p>
 
           <Button

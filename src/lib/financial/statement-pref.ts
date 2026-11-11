@@ -70,7 +70,7 @@ export function filterByPreference<T extends { statementType: string }>(rows: T[
  * array, otherwise keep its STANDALONE rows. Never mixes the two sets within
  * one company.
  */
-export function preferConsolidatedRows<T extends { statementType: string; companyId: string }>(rows: T[]): T[] {
+export function preferConsolidatedRows<T extends { statementType: string; companyId: string }>(rows: readonly T[]): T[] {
   const hasConsolidated = new Set<string>()
   for (const r of rows) if (r.statementType === "CONSOLIDATED") hasConsolidated.add(r.companyId)
   return rows.filter((r) => r.statementType === "CONSOLIDATED" || !hasConsolidated.has(r.companyId))

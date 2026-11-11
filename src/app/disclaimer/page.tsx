@@ -3,7 +3,7 @@ import DisclaimerClient from "./disclaimer-client"
 
 export const metadata: Metadata = {
   title: "Disclaimer",
-  description: "Important disclaimers about data accuracy, investment risk, and service limitations for Meza.",
+  description: "Important disclaimers about data accuracy, investment risk, and service limitations for EGXANO.",
     alternates: {
       canonical: "/disclaimer",
       languages: { en: "/disclaimer", "ar-EG": "/disclaimer" },

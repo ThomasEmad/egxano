@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
 import { CALC_METRIC_MAP } from "@/lib/financial/registry"
 import { fetchCalcMany } from "@/lib/financial/statement-pref"
+import { latestAndBaselinePerCompany } from "@/lib/market/latest-price"
 
 // GET /api/v1/watchlist?ids=a,b,c — snapshot per watched company: latest recorded
 // price + 1Y change, latest verified ANNUAL metrics. The ids come from the
@@ -47,17 +48,9 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // prices: latest + ~1y-ago for the change badge, in one query
-  const priceRows = await db.marketPrice.findMany({
-    where: { companyId: { in: ids }, asOf: { lte: new Date() } },
-    orderBy: [{ companyId: "asc" }, { asOf: "asc" }],
-    select: { companyId: true, price: true, asOf: true },
-  })
-  const pricesByCompany = new Map<string, { price: number; asOf: Date }[]>()
-  for (const p of priceRows) {
-    if (!pricesByCompany.has(p.companyId)) pricesByCompany.set(p.companyId, [])
-    pricesByCompany.get(p.companyId)!.push({ price: p.price, asOf: p.asOf })
-  }
+  // prices: latest + ≈1y-ago baseline for the change badge — two DISTINCT ON
+  // queries returning one row per company each (was the full price history).
+  const pricesByCompany = await latestAndBaselinePerCompany(ids, new Date(Date.now() - 365 * 24 * 3600 * 1000))
 
   const result: {
     id: string
@@ -73,17 +66,16 @@ export async function GET(req: NextRequest) {
     metrics: Record<string, number>
   }[] = []
   for (const c of companies) {
-    const prices = pricesByCompany.get(c.id) ?? []
+    const entry = pricesByCompany.get(c.id)
     let price: number | null = null
     let asOf: string | null = null
     let change1y: number | null = null
-    if (prices.length > 0) {
-      const last = prices[prices.length - 1]
-      price = last.price
-      asOf = last.asOf.toISOString()
-      const cutoff = Date.now() - 365 * 24 * 3600 * 1000
-      const base = [...prices].reverse().find((p) => p.asOf.getTime() <= cutoff) ?? prices[0]
-      if (base.price > 0) change1y = ((last.price - base.price) / base.price) * 100
+    if (entry) {
+      price = entry.last.price
+      asOf = entry.last.asOf.toISOString()
+      if (entry.base && entry.base.price > 0) {
+        change1y = ((entry.last.price - entry.base.price) / entry.base.price) * 100
+      }
     }
     const m = metricByCompany.get(c.id)
     result.push({

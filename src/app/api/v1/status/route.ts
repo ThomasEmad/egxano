@@ -7,7 +7,7 @@ import { cachedResponse } from "@/lib/public-cache"
 // Backs the /status trust page. 60s cache (cheap counts, no secrets).
 
 export async function GET() {
-  return cachedResponse("platform-status", 60 * 1000, async () => {
+  return cachedResponse("platform-status", 5 * 60 * 1000, async () => {
     const [companies, activeCompanies, reports, prices, latestPrice, latestReport, alerts, analyses] =
       await Promise.all([
         db.company.count(),

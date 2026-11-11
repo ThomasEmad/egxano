@@ -1,5 +1,5 @@
-import { db } from "@/lib/db"
 import { readMarketSnapshot } from "@/lib/market/snapshot"
+import { latestTwoPerCompany } from "@/lib/market/latest-price"
 import { cachedResponse } from "@/lib/public-cache"
 
 // GET /api/v1/market/breadth — today's price breadth, not a fundamental screen.
@@ -25,10 +25,13 @@ interface BreadthData {
   tradedValueCoverage: number | null
 }
 
-// 30s in-process SWR cache — breadth is hit by the dashboard on every visit;
-// at scale the DB-fallback path must not run per request.
+// 10-min SWR cache + CDN edge caching (public-cache) — breadth is hit by the
+// dashboard on every visit and by the ticker poll; prices change once per
+// trading day, so the DB-fallback path must not run per request. The fallback
+// now reads only the latest two closes per company via SQL (~550 rows) instead
+// of the whole MarketPrice table (13k+ rows).
 export async function GET() {
-  return cachedResponse("market-breadth", 30 * 1000, buildBreadth)
+  return cachedResponse("market-breadth", 10 * 60 * 1000, buildBreadth)
 }
 
 async function buildBreadth(): Promise<BreadthData> {
@@ -58,11 +61,8 @@ async function buildBreadth(): Promise<BreadthData> {
 
   // Fallback: durable price rows. There is no volume column, so traded value
   // stays null (the UI renders N/A).
-  const companies = await db.company.findMany({
-    where: { isActive: true },
-    select: { id: true, ticker: true },
-  })
-  if (companies.length === 0) {
+  const twoRows = await latestTwoPerCompany(undefined, { includeDemo: false })
+  if (twoRows.size === 0) {
     return {
       advancing: 0,
       declining: 0,
@@ -74,32 +74,14 @@ async function buildBreadth(): Promise<BreadthData> {
     } satisfies BreadthData
   }
 
-  const priceRows = await db.marketPrice.findMany({
-    where: { companyId: { in: companies.map((c) => c.id) }, isDemoData: false },
-    orderBy: [{ companyId: "asc" }, { asOf: "asc" }],
-    select: { companyId: true, price: true, asOf: true },
-  })
-
-  const byCompany = new Map<string, { price: number; ts: number }[]>()
-  for (const row of priceRows) {
-    const ts = row.asOf.getTime()
-    if (!Number.isFinite(ts)) continue
-    const list = byCompany.get(row.companyId) ?? []
-    list.push({ price: row.price, ts })
-    byCompany.set(row.companyId, list)
-  }
-
   let advancing = 0
   let declining = 0
   let unchanged = 0
   let pricedCount = 0
   let latestTs = 0
-  for (const rows of byCompany.values()) {
-    if (rows.length === 0) continue
-    const last = rows[rows.length - 1]
-    latestTs = Math.max(latestTs, last.ts)
-    if (rows.length < 2) continue
-    const prev = rows[rows.length - 2]
+  for (const { last, prev } of twoRows.values()) {
+    latestTs = Math.max(latestTs, last.asOf.getTime())
+    if (!prev) continue
     if (!(prev.price > 0) || !(last.price > 0)) continue
     const changePct = ((last.price - prev.price) / prev.price) * 100
     if (Math.abs(changePct) > 50) continue
