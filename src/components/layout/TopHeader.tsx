@@ -203,16 +203,16 @@ export function TopHeader({ className }: TopHeaderProps = {}) {
       )}
     >
       <div className="flex h-full items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        {/* Brand mark — keeps Meza visible at the very top of every page,
+        {/* Brand mark — keeps EGXANO visible at the very top of every page,
             including the dashboard where the sidebar may be hidden on mobile */}
         <Link
           href="/"
           className="flex shrink-0 items-center gap-2"
-          aria-label="Meza — Home"
+          aria-label="EGXANO — Home"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.svg" alt="" className="h-7 w-7 rounded-md" width={28} height={28} />
-          <span className="hidden text-sm font-bold tracking-tight text-foreground sm:inline">Meza</span>
+          <span className="hidden text-sm font-bold tracking-tight text-foreground sm:inline">EGXANO</span>
         </Link>
 
         {/* Market ticker — the signature trading-platform strip. Fixed width

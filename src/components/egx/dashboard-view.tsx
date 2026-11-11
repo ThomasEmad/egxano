@@ -185,9 +185,9 @@ export function DashboardView({
         <div className="mb-4 flex items-center justify-between gap-3 border-b border-border/40 pb-4">
           <div className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.svg" alt="Meza" className="h-9 w-9 rounded-lg" width={36} height={36} />
+            <img src="/logo.svg" alt="EGXANO" className="h-9 w-9 rounded-lg" width={36} height={36} />
             <div className="flex flex-col leading-tight">
-              <span className="text-sm font-bold tracking-tight text-foreground">Meza</span>
+              <span className="text-sm font-bold tracking-tight text-foreground">EGXANO</span>
               <span className="text-[10px] text-muted-foreground">{ar ? "تحليل بيانات البورصة المصرية" : "EGX market intelligence"}</span>
             </div>
           </div>

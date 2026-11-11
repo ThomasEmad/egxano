@@ -1,4 +1,4 @@
-// Meza — brand constants and the metric glossary used by the UI.
+// EGXANO — brand constants and the metric glossary used by the UI.
 //
 // Everything here must stay truthful to what the product does. Copy that
 // promises profits, accuracy beyond the published filings, or "live" prices
@@ -7,8 +7,8 @@
 import { formatEgp } from "@/lib/financial/units"
 
 export const BRAND = {
-  name: "Meza",
-  nameAr: "ميزة",
+  name: "EGXANO",
+  nameAr: "إيجيكسّانو",
   taglineAr: "افهم السهم قبل ما تقرر.",
   taglineEn: "Understand the stock before you decide.",
   supportAr:
