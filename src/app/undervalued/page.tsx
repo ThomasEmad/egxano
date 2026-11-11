@@ -18,7 +18,11 @@ export const metadata: Metadata = {
     languages: { en: "/undervalued", "ar-EG": "/undervalued" },
   },
   openGraph: {
+<<<<<<< HEAD
     title: "Valuation screen — Meza",
+=======
+    title: "Undervalued EGX stocks — EGXANO",
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
     description: "EGX companies meeting explicit, stated valuation criteria — with the criteria shown per company.",
     url: "/undervalued",
     type: "website",

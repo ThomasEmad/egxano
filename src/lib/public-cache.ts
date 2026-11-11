@@ -11,7 +11,13 @@ import { cached } from "@/lib/server-cache"
 
 export function publicCacheControl(ttlSeconds: number): string {
   const swr = Math.max(ttlSeconds * 5, 300)
-  return `public, max-age=${ttlSeconds}, stale-while-revalidate=${swr}`
+  // s-maxage lets the Vercel edge CDN serve repeat requests WITHOUT hitting a
+  // serverless function (and therefore the database) — with 10k visitors this
+  // collapses per-endpoint origin traffic to a handful of fetches per TTL.
+  // The browser max-age stays short so a visitor's back-navigation still
+  // revalidates quickly.
+  const browserMaxAge = Math.min(ttlSeconds, 60)
+  return `public, max-age=${browserMaxAge}, s-maxage=${ttlSeconds}, stale-while-revalidate=${swr}`
 }
 
 export async function cachedResponse(

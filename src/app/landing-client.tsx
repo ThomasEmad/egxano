@@ -163,16 +163,22 @@ export default function LandingClient() {
                 {ar ? (
                   <>
                     افهم السهم <br />
+<<<<<<< HEAD
                     <span className="relative inline-block">
                       قبل ما تقرر.
                       <span
                         className="absolute inset-x-0 -bottom-1 h-2 -skew-x-6 bg-accent/70"
                         aria-hidden="true"
                       />
+=======
+                    <span className="bg-gradient-to-r from-primary to-teal-500 bg-clip-text text-transparent">
+                      قبل ما تقرر.
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
                     </span>
                   </>
                 ) : (
                   <>
+<<<<<<< HEAD
                     Understand the stock <br />
                     <span className="relative inline-block">
                       before you decide.
@@ -180,13 +186,25 @@ export default function LandingClient() {
                         className="absolute inset-x-0 -bottom-1 h-2 -skew-x-6 bg-accent/70"
                         aria-hidden="true"
                       />
+=======
+                    Understand <br />
+                    <span className="bg-gradient-to-r from-primary to-teal-500 bg-clip-text text-transparent">
+                      the Egyptian Market.
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
                     </span>
                   </>
                 )}
               </h1>
 
+<<<<<<< HEAD
               <p className="mt-6 max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
                 {ar ? BRAND.supportAr : BRAND.supportEn}
+=======
+              <p className="mt-6 text-base sm:text-lg text-muted-foreground leading-relaxed max-w-2xl">
+                {ar
+                  ? "حلّل الشركات، قارن أداءها، واكتشف الصورة المالية والفنية لأسهم البورصة المصرية من مكان واحد — أرقام فعلية من القوائم المالية المنشورة (سنوي وربعي)، والقيم غير المنشورة تظهر «غير متاح» بدون أي تقديرات مخفية."
+                  : "Analyze companies, compare performance, and see the full financial and technical picture of Egyptian Exchange stocks in one place. Real figures from published quarterly and annual statements; unreported values are shown as unavailable — never silently estimated."}
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
               </p>
 
               <div className="mt-7 max-w-xl">
@@ -519,9 +537,134 @@ export default function LandingClient() {
                   </ul>
                 </div>
               </div>
+<<<<<<< HEAD
               <div className="border-t border-border bg-surface-secondary px-6 py-3">
                 <p className="flex items-start gap-2 text-[10px] leading-relaxed text-muted-foreground">
                   <ShieldCheck className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+=======
+              <Link href="/dashboard#/companies">
+                <Button variant="outline" size="sm" className="gap-1 text-xs">
+                  {ar ? "استعراض جميع الشركات" : "View all companies"}
+                  <ArrowRight className="h-3.5 w-3.5 rtl-flip" />
+                </Button>
+              </Link>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {featuredLoading ? (
+                Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="h-[176px] animate-pulse rounded-2xl border border-border/60 bg-muted/30" />
+                ))
+              ) : featuredError || featured.length === 0 ? (
+                <div className="col-span-full rounded-2xl border border-border/60 bg-card p-6 text-sm text-muted-foreground">
+                  {ar ? "تعذر تحميل بيانات الشركات الحية الآن." : "Live company data is temporarily unavailable."}{" "}
+                  <Link href="/dashboard#/companies" className="text-primary hover:underline">
+                    {ar ? "استعراض القائمة الكاملة" : "Browse the full list"}
+                  </Link>
+                </div>
+              ) : (
+                featured.map((c) => {
+                  const change = c.marketPrice?.changePct ?? null
+                  const positive = (change ?? 0) >= 0
+                  const latestFy =
+                    c.snapshot?.net_profit?.fiscalYear ??
+                    c.snapshot?.revenue?.fiscalYear ??
+                    null
+                  return (
+                    <Link
+                      key={c.ticker}
+                      href={`/company/${c.ticker}`}
+                      className="group rounded-2xl border border-border/60 bg-card p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:border-primary/50"
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="flex h-9 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
+                            {c.ticker}
+                          </span>
+                          <div className="min-w-0">
+                            <div className="truncate text-xs font-bold group-hover:text-primary transition-colors">
+                              {ar ? (c.nameAr ?? c.nameEn) : c.nameEn}
+                            </div>
+                            <div className="truncate text-[10px] text-muted-foreground">
+                              {sectorLabel(c.sector, lang)}
+                            </div>
+                          </div>
+                        </div>
+                        <Badge variant="secondary" className="shrink-0 text-[10px] font-semibold">
+                          {c.marketPrice ? "EGP" : "—"}
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 rounded-xl border border-border/40 bg-muted/20 p-2.5">
+                        <div>
+                          <div className="text-[10px] text-muted-foreground">{ar ? "السعر" : "Price"}</div>
+                          <div className="text-sm font-bold tabular">
+                            {c.marketPrice ? `${c.marketPrice.price.toFixed(2)}` : "—"}
+                          </div>
+                        </div>
+                        <div className="text-end">
+                          <div className="text-[10px] text-muted-foreground">{ar ? "التغير اليومي" : "1D change"}</div>
+                          <div className={`text-sm font-bold tabular ${positive ? "text-positive" : "text-negative"}`}>
+                            {change === null ? "—" : `${positive ? "+" : ""}${change.toFixed(2)}%`}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground pt-3 border-t border-border/40">
+                        <span className="flex items-center gap-1">
+                          <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                          {latestFy ? `${ar ? "آخر سنة مالية" : "Latest FY"} ${latestFy}` : (ar ? "بيانات متحققة" : "Verified data")}
+                        </span>
+                        <span className="flex items-center gap-0.5 text-primary font-medium group-hover:translate-x-0.5 rtl-flip transition-transform">
+                          {ar ? "فتح الملف" : "Inspect"}
+                          <ArrowUpRight className="h-3 w-3" />
+                        </span>
+                      </div>
+                      <div className="mt-1.5 text-[10px] text-muted-foreground">
+                        {ar ? "القيمة السوقية: " : "Market cap: "}
+                        {c.marketCap ? formatEgp(c.marketCap) : "—"}
+                      </div>
+                    </Link>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* 4 Pillars of Institutional Trust */}
+        <section className="py-16 md:py-24 border-b border-border/50">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="text-center max-w-2xl mx-auto mb-16">
+              <Badge variant="outline" className="mb-3 border-primary/30 text-primary">
+                {ar ? "معايير النزاهة المؤسسية" : "Institutional Integrity"}
+              </Badge>
+              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                {ar ? "لماذا يعتمد المستثمرون على إيجيكسّانو؟" : "Engineered for Serious Financial Research"}
+              </h2>
+              <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+                {ar ? "بنيت المنصة بأعلى معايير الدقة والشفافية لإلغاء التقديرات غير المؤكدة وتقديم أرقام يمكنك الاعتماد عليها." : "Built from first principles to eliminate hallucinations, enforce accounting identities, and deliver decision-grade data."}
+              </p>
+            </div>
+
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              <Card className="border-border/60 bg-card p-6 rounded-2xl transition-all hover:shadow-md">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary mb-4">
+                  <ScanSearch className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-bold tracking-tight">{ar ? "ماسح أنماط مالي" : "Deterministic Scanner"}</h3>
+                <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
+                  {ar ? "قواعد منطقية صريحة تفحص تحولات الأرباح، الرفع المالي، وجودة التدفق النقدي مع تفسير مفصل لكل شرط مطابق." : "Explicit Boolean logic testing profit transitions, debt changes, and cash quality with step-by-step condition auditing."}
+                </p>
+              </Card>
+
+              <Card className="border-border/60 bg-card p-6 rounded-2xl transition-all hover:shadow-md">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mb-4">
+                  <ShieldCheck className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-bold tracking-tight">{ar ? "أرقام فعلية بدون تعويض" : "Real Figures, No Filler"}</h3>
+                <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
                   {ar
                     ? "المؤشرات الفنية محسوبة من أسعار فعلية، والتحليل المالي من القوائم المنشورة — وكل قسم بيقول مصدره."
                     : "Technical indicators are computed from actual prices; financial analysis comes from published statements — and every section states its source."}

@@ -113,6 +113,7 @@ export default function TermsClient() {
       ]
 
   return (
+<<<<<<< HEAD
     <LayoutShell chrome="marketing">
       <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
         <h1 className="text-2xl font-semibold tracking-tight">{ar ? "شروط الاستخدام" : "Terms of Service"}</h1>
@@ -121,6 +122,22 @@ export default function TermsClient() {
           {ar
             ? "باختصار: Meza أداة بحث مش وسيط، البيانات من إفصاحات منشورة وأسعار متأخرة، وPremium تفعيل يدوي لمرة واحدة 30 يوماً بدون تجديد تلقائي."
             : "In short: Meza is a research tool, not a broker; data comes from published filings and delayed prices; Premium is a one-off 30-day manual activation with no auto-renewal."}
+=======
+    <div className="mx-auto max-w-3xl space-y-6 py-8">
+      <h1 className="text-2xl font-bold">Terms of Service</h1>
+      <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
+        <p>
+          By accessing or using EGXANO, you agree to these terms. If you do not agree, do not use the service.
+        </p>
+        <p>
+          The service is provided &quot;as is&quot; without warranties of any kind. We may update or discontinue features at any time without notice.
+        </p>
+        <p>
+          You are responsible for safeguarding your account credentials and for all activity under your account.
+        </p>
+        <p>
+          Paid subscriptions are billed in advance and are non-refundable except where required by law. Cancellation stops renewal; you retain access until the end of the paid period.
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
         </p>
 
         <div className="mt-6 space-y-5">

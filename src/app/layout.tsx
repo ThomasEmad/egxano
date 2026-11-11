@@ -28,7 +28,11 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   applicationName: siteConfig.name,
   title: {
+<<<<<<< HEAD
     default: "EGXANO — Egyptian stock market research",
+=======
+    default: "EGXANO — Egyptian Exchange Research & Analysis",
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
     template: "%s · EGXANO",
   },
   description: siteConfig.description,
@@ -66,7 +70,11 @@ export const metadata: Metadata = {
         url: siteConfig.ogImage,
         width: 1200,
         height: 630,
+<<<<<<< HEAD
         alt: "EGXANO — Egyptian stock market research",
+=======
+        alt: "EGXANO — independent Egyptian Exchange research",
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
       },
     ],
   },
@@ -91,8 +99,11 @@ export const metadata: Metadata = {
   // Canonical URLs are set per page. A global canonical would point every
   // route at "/" and de-index the whole site.
   icons: {
-    icon: [{ url: "/logo.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/logo.svg" }],
+    icon: [
+      { url: "/favicon.ico", sizes: "32x32" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png" }],
   },
 };
 

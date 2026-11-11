@@ -1694,6 +1694,36 @@ function DocumentsTable({ companyId }: { companyId: string }) {
 
 /* ---------------- AI analysis tab ---------------- */
 
+<<<<<<< HEAD
+=======
+function AiLoadingPanel({ status }: { status?: string }) {
+  const { t, lang } = useI18n()
+  const processing = status === "processing"
+  return (
+    <Card className="p-0">
+      <CardContent className="flex flex-col items-center justify-center gap-4 p-10 text-center">
+        <div className="relative flex h-16 w-16 items-center justify-center">
+          <span className="absolute inset-0 rounded-full bg-primary/15 animate-ping" aria-hidden />
+          <span className="absolute inset-2 rounded-full bg-primary/10 animate-pulse" aria-hidden />
+          <Sparkles className="relative h-7 w-7 text-primary" aria-hidden />
+        </div>
+        <p className="text-sm font-semibold">{processing ? t("co.aiLoading") : t("co.aiQueued")}</p>
+        <div className="flex items-center gap-1.5" aria-hidden>
+          {[0, 1, 2].map((i) => (
+            <span key={i} className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+          ))}
+        </div>
+        <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
+          {lang === "ar"
+            ? "نجهّز التحليل من القوائم المتحقق منها ومؤشرات السوق — عادةً يستغرق ذلك أقل من دقيقة."
+            : "We're preparing the analysis from verified filings and market indicators — this usually takes under a minute."}
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
 function AiAnalysisTab({ companyId }: { companyId: string }) {
   const { t, lang } = useI18n()
   const queryClient = useQueryClient()

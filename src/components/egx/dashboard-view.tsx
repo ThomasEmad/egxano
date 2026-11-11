@@ -109,8 +109,8 @@ export function DashboardView({
   const { data: breadth } = useQuery({
     queryKey: ["market-breadth"],
     queryFn: () => fetch("/api/v1/market/breadth").then((r) => (r.ok ? (r.json() as Promise<BreadthData>) : null)),
-    staleTime: 60_000,
-    refetchInterval: 300_000,
+    staleTime: 300_000,
+    refetchInterval: 600_000,
   })
 
   const isPremium = !!subData?.isPremium
@@ -119,17 +119,19 @@ export function DashboardView({
 
   const { data: watchPrices } = useQuery({
     queryKey: ["watch-prices", watchIds.join(",")],
-    queryFn: () => fetch(`/api/v1/market/ticker?fresh=true`).then((r) => (r.ok ? (r.json() as Promise<{ movers?: { ticker: string; price: number; changePct: number }[] }>) : { movers: [] })),
+    // Egress diet: no ?fresh bypass (it defeated every cache layer per poll);
+    // 5-min poll — prices change once per trading day.
+    queryFn: () => fetch(`/api/v1/market/ticker`).then((r) => (r.ok ? (r.json() as Promise<{ movers?: { ticker: string; price: number; changePct: number }[] }>) : { movers: [] })),
     enabled: watchIds.length > 0,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 120_000,
+    refetchInterval: 300_000,
   })
 
   const alertsQuery = useQuery({
     queryKey: ["watch-alerts", watchIds.join(",")],
     queryFn: () => api.eventsFeed(watchIds, 8),
     enabled: watchIds.length > 0 && isPremium,
-    refetchInterval: 60_000,
+    refetchInterval: 300_000,
   })
 
   if (isLoading) {
@@ -139,14 +141,14 @@ export function DashboardView({
           <Skeleton className="h-full w-full rounded-[20px]" />
         </section>
         <div className="grid gap-6 lg:grid-cols-12">
-          <div className="lg:col-span-4"><Skeleton className="h-[240px] rounded-[20px]" /></div>
-          <div className="lg:col-span-4"><Skeleton className="h-[240px] rounded-[20px]" /></div>
-          <div className="lg:col-span-4"><Skeleton className="h-[240px] rounded-[20px]" /></div>
+          <div className="lg:col-span-4 min-w-0"><Skeleton className="h-[240px] rounded-[20px]" /></div>
+          <div className="lg:col-span-4 min-w-0"><Skeleton className="h-[240px] rounded-[20px]" /></div>
+          <div className="lg:col-span-4 min-w-0"><Skeleton className="h-[240px] rounded-[20px]" /></div>
         </div>
         <div className="grid gap-6 lg:grid-cols-12">
-          <div className="lg:col-span-4"><Skeleton className="h-[200px] rounded-[20px]" /></div>
-          <div className="lg:col-span-4"><Skeleton className="h-[200px] rounded-[20px]" /></div>
-          <div className="lg:col-span-4"><Skeleton className="h-[200px] rounded-[20px]" /></div>
+          <div className="lg:col-span-4 min-w-0"><Skeleton className="h-[200px] rounded-[20px]" /></div>
+          <div className="lg:col-span-4 min-w-0"><Skeleton className="h-[200px] rounded-[20px]" /></div>
+          <div className="lg:col-span-4 min-w-0"><Skeleton className="h-[200px] rounded-[20px]" /></div>
         </div>
       </div>
     )
@@ -340,7 +342,7 @@ function SectorPerformancePanel({
     .sort((a, b) => (b.dayChangePct ?? -Infinity) - (a.dayChangePct ?? -Infinity))
 
   return (
-    <div className="lg:col-span-4">
+    <div className="lg:col-span-4 min-w-0">
       <Card className="border-border/60 p-0">
         <CardHeader className="pb-3 px-5">
           <div className="flex items-center justify-between gap-2">
@@ -430,7 +432,7 @@ function MarketSummaryPanel({ breadth, ar }: { breadth: BreadthData | null | und
   ]
 
   return (
-    <div className="lg:col-span-4">
+    <div className="lg:col-span-4 min-w-0">
       <Card className="border-border/60 p-0">
         <CardHeader className="pb-3 px-5">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -475,7 +477,7 @@ function Egx30ChartPanel({
   const { data, isLoading } = useQuery({
     queryKey: ["market-ticker"],
     queryFn: () =>
-      fetch("/api/v1/market/ticker?fresh=true").then((r) =>
+      fetch("/api/v1/market/ticker").then((r) =>
         r.ok
           ? (r.json() as Promise<{
               indices: { name: string; level: number; changePct: number }[]
@@ -484,8 +486,8 @@ function Egx30ChartPanel({
             }>)
           : null,
       ),
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 120_000,
+    refetchInterval: 300_000,
   })
 
   const egx30 = data?.indices?.find((i) => i.name === "EGX30")
@@ -495,7 +497,7 @@ function Egx30ChartPanel({
     value.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   return (
-    <div className="lg:col-span-4">
+    <div className="lg:col-span-4 min-w-0">
       <Card className="border-border/60 p-0">
         <CardHeader className="pb-3 px-5">
           <div className="flex items-center justify-between gap-2">
@@ -583,7 +585,7 @@ function EventsPanel({
   const { pick } = useI18n()
   const router = useRouter()
   return (
-    <div className="lg:col-span-4">
+    <div className="lg:col-span-4 min-w-0">
       <Card className="border-border/60 p-0">
         <CardHeader className="pb-3 px-5">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -648,7 +650,7 @@ function WatchlistPanel({
   const priceMap = new Map(watchPrices.map((p) => [p.ticker, p]))
 
   return (
-    <div className="lg:col-span-4">
+    <div className="lg:col-span-4 min-w-0">
       <Card className="border-border/60 p-0">
         <CardHeader className="pb-3 px-5 flex items-center justify-between">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -712,7 +714,7 @@ function OpportunitiesPanel({
   const results = valuation?.results ?? []
 
   return (
-    <div className="lg:col-span-4">
+    <div className="lg:col-span-4 min-w-0">
       <Card className="border-border/60 p-0">
         <CardContent className="p-0">
           <div className="flex h-[200px] flex-col overflow-hidden rounded-[20px] border border-border/60 bg-card p-5 sm:p-6">

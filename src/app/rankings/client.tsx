@@ -98,6 +98,10 @@ function readUrlState(): { metric: string; sector: string | null; basis: Basis; 
   return { metric, sector, basis, year }
 }
 
+// Valuation multiples / leverage: rank #1 is the CHEAPEST (server defaults
+// these to ASC). A low multiple is not a quality medal — no podium icons.
+const LOWER_IS_BETTER = new Set(["p_e", "p_b", "liabilities_to_equity"])
+
 export default function RankingsPage() {
   const { lang, pick } = useI18n()
   const { isPremium } = useSubscriptionGate()
@@ -319,6 +323,17 @@ export default function RankingsPage() {
                 : "On the latest basis, ROE/ROA use the latest full period (TTM or annual) — unannualised quarters are not ranked against annual figures."}
             </p>
           ) : null}
+<<<<<<< HEAD
+=======
+          {LOWER_IS_BETTER.has(metric) ? (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {ar
+                ? "تُرتّب مضاعفات التقييم من الأقل إلى الأعلى — المضاعف المنخفض ليس تلقائياً استثماراً أفضل: الشركات ذات الأرباح السالبة أو غير المتاحة تُستبعد، والمضاعف المرتفع قد يعكس نمواً متوقعاً."
+                : "Valuation multiples are ranked lowest → highest. A low multiple is not automatically better: companies with negative or unavailable earnings are excluded, and a high multiple can reflect strong expected growth."}
+            </p>
+          ) : null}
+        </div>
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
 
           {/* Metric chips */}
           <div className="flex flex-wrap gap-1.5">
@@ -468,6 +483,7 @@ export default function RankingsPage() {
             <p className="text-[11px] text-muted-foreground">{ar ? "اختر شركة أخرى للمقارنة." : "Select one more company to compare."}</p>
           ) : null}
 
+<<<<<<< HEAD
           {!isPremium && hiddenCount > 0 ? (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gold/30 bg-gold/5 p-3">
               <p className="flex items-center gap-2 text-xs text-warning">
@@ -479,6 +495,76 @@ export default function RankingsPage() {
               </Button>
             </div>
           ) : null}
+=======
+        {/* Rankings table */}
+        <Card className="border-border/60 overflow-hidden">
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="space-y-2 p-4">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 rounded-lg" />
+                ))}
+              </div>
+            ) : !data || data.results.length === 0 ? (
+              <p className="p-8 text-center text-sm text-muted-foreground">{ar ? "لا بيانات متاحة لهذا المؤشر في هذا النطاق بعد." : "No data for this metric in this scope yet."}</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border/40 bg-card/50 text-[10px] uppercase tracking-wider text-muted-foreground">
+                      <th className="p-3 text-start font-medium w-10">#</th>
+                      <th className="p-3 text-start font-medium">{ar ? "الشركة" : "Company"}</th>
+                      <th className="hidden p-3 text-start font-medium sm:table-cell">{ar ? "القطاع" : "Sector"}</th>
+                      <th className="p-3 text-end font-medium">{metricLabel}</th>
+                      <th className="hidden p-3 text-end font-medium md:table-cell">{ar ? "الفترة" : "Period"}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visible.map((r, i) => {
+                      const podium = !LOWER_IS_BETTER.has(metric) && i < 3
+                      const style = TOP_THREE_STYLES[i]
+                      const positive = r.value >= 0
+                      return (
+                        <tr
+                          key={r.companyId}
+                          className={`cursor-pointer border-b border-border/40 transition-colors last:border-0 ${podium ? style.border : ""} hover:bg-accent/30`}
+                          onClick={() => router.push(`/company/${r.ticker}`)}
+                        >
+                          <td className={`p-3 ${podium ? "font-bold" : ""}`}>
+                            {podium ? style.icon : (
+                              <span className={`text-xs font-bold tabular ${positive ? "text-positive" : "text-muted-foreground"}`}>
+                                {i + 1}
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-foreground">{r.ticker}</span>
+                              <span className="hidden max-w-56 truncate text-xs text-muted-foreground sm:inline">
+                                {pick(r.nameEn, r.nameAr ?? r.nameEn)}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="hidden p-3 text-xs text-muted-foreground sm:table-cell">
+                            {ar ? SECTOR_AR[r.sector] ?? r.sector : r.sector}
+                          </td>
+                          <td className={`p-3 text-end font-bold tabular ${podium ? style.color : ""}`}>
+                            {fmtValue(unit, r.value)}
+                          </td>
+                          <td className="hidden p-3 text-end text-[11px] text-muted-foreground md:table-cell">
+                            {r.periodLabel}
+                            {r.stale ? <span className="ms-1 text-warning-foreground" title={ar ? "أقدم من أحدث فترة بالسوق بأكثر من أربعة أرباع" : "More than four quarters behind the market's freshest period"}>*</span> : null}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
 
           {/* Provenance — computed from the active basis, never a fixed claim */}
           <div className="space-y-1">
@@ -489,8 +575,21 @@ export default function RankingsPage() {
                 : `Source: ${TRUST.sourceFiling.en} · basis: ${basisLabel} · period: ${periodClaim}. A rank is not a recommendation.`}
             </p>
           </div>
+<<<<<<< HEAD
         </div>
       </TooltipProvider>
+=======
+        ) : null}
+
+        <Badge variant="outline" className="mt-4 border-success/40 text-[10px] text-success-foreground">
+          {basis === "ttm"
+            ? (ar ? "كل القيم محسوبة على آخر 12 شهراً لكل شركة" : "All values computed on each company's trailing twelve months")
+            : basis === "annual"
+              ? (ar ? "كل القيم من قوائم سنوية متحقق منها — أحدث سنة لكل شركة" : "All values from verified annual filings — each company's latest year")
+              : (ar ? "كل شركة على أحدث فترة كاملة متاحة لها — الفترة مطبوعة في كل صف" : "Each company on its latest full period — shown per row")}
+        </Badge>
+      </div>
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
     </LayoutShell>
   )
 }

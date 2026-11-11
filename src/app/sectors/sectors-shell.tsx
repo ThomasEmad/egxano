@@ -38,6 +38,11 @@ interface SectorAgg {
   periodLabel: string | null
   periodType: string | null
   fiscalYear: number | null
+  /** Equal-weighted 1-day price change (%, finviz-style map). */
+  dayChangePct?: number | null
+  advancing?: number
+  declining?: number
+  unchanged?: number
 }
 
 interface SectorsPageShellProps {
@@ -88,6 +93,7 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
 
   const aggMap = new Map((sectorAggs?.sectors ?? []).map((s) => [s.sector, s]))
 
+<<<<<<< HEAD
   const rows = useMemo(() => {
     const built = sectors.map((s) => {
       const agg = aggMap.get(s)
@@ -105,6 +111,30 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
     })
     if (sort === "roe") {
       return [...built].sort((a, b) => (b.roe ?? -Infinity) - (a.roe ?? -Infinity))
+=======
+  const sectorData = sectors.map((s) => {
+    const count = counts.get(s) ?? 0
+    const agg = aggMap.get(s)
+    // The map colors sectors by the equal-weighted 1-day price change of
+    // their members (finviz-style). Fundamental medians (ROE, P/E, P/B)
+    // stay in the details list below, where they are correctly labeled.
+    const dayChange = agg?.dayChangePct ?? null
+    return {
+      sector: s,
+      label: sectorLabel(s, lang),
+      count,
+      change: dayChange !== null ? parseFloat(dayChange.toFixed(2)) : 0,
+      hasRealData: dayChange !== null,
+      medianRoe: agg?.medianRoe,
+      medianPe: agg?.medianPe,
+      medianPb: agg?.medianPb,
+      totalMarketCap: agg?.totalMarketCap,
+      totalRevenue: agg?.totalRevenue,
+      totalNetProfit: agg?.totalNetProfit,
+      advancing: agg?.advancing,
+      declining: agg?.declining,
+      unchanged: agg?.unchanged,
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
     }
     return built
   }, [sectors, aggMap, counts, lang, sort])
@@ -179,6 +209,7 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
           </div>
         </header>
 
+<<<<<<< HEAD
         <Card className="overflow-hidden border-border/60">
           {sectorError ? (
             <div className="flex flex-col items-center gap-2 border-b border-destructive/20 bg-destructive/5 p-3 text-center text-xs">
@@ -218,6 +249,46 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
                   {rows.map((r) => {
                     const negative = r.roe !== null && r.roe < 0
                     const width = r.roe === null ? 0 : Math.max(2, (Math.abs(r.roe) / maxAbsRoe) * 100)
+=======
+        {/* Sector Heatmap / Treemap */}
+        <section aria-label={ar ? "خريطة القطاعات" : "Sector map"} className="mb-8">
+          <Card className="border-border/60 overflow-hidden">
+            <CardHeader className="pb-4 px-5">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground">
+                <Activity className="h-3.5 w-3.5 text-primary" />
+                {ar ? "خريطة القطاعات حسب الحجم والحركة السعرية اليومية" : "Sector map by size and daily price change"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="p-5">
+                {/* Legend */}
+                <div className="flex flex-wrap items-center gap-4 mb-4 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded bg-positive" />
+                    <span className="text-muted-foreground">{ar ? "ارتفاع اليوم" : "Up today"}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded bg-negative" />
+                    <span className="text-muted-foreground">{ar ? "انخفاض اليوم" : "Down today"}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 ms-auto">
+                    <span className="w-3 h-3 rounded bg-muted/30" />
+                    <span className="text-muted-foreground">{ar ? "لا توجد بيانات" : "No data"}</span>
+                  </div>
+                </div>
+
+                {/* Treemap grid */}
+                <div className="grid gap-2 lg:grid-cols-4">
+                  {sectorData.map((s) => {
+                    const cellSize = Math.max(60, (s.count / maxCount) * 200)
+                    const positive = s.change >= 0
+                    const intensity = s.hasRealData ? Math.min(Math.abs(s.change) / 3, 1) : 0
+                    const bgColor = s.hasRealData
+                      ? positive
+                        ? `color-mix(in oklab, var(--spec-positive) ${Math.round(intensity * 30)}%, transparent)`
+                        : `color-mix(in oklab, var(--spec-negative) ${Math.round(intensity * 30)}%, transparent)`
+                      : "transparent"
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
                     return (
                       <tr key={r.sector} className="transition-colors hover:bg-accent/30">
                         <th scope="row" className="p-3 text-start">

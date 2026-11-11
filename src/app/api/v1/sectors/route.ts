@@ -3,6 +3,7 @@ import { db } from "@/lib/db"
 import { periodOrder, selectLatestByCompany, type PeriodRef } from "@/lib/financial/latest-period"
 import { moverMap, getFreshMarketSnapshot } from "@/lib/market/snapshot"
 import { cached } from "@/lib/server-cache"
+import { publicCacheControl } from "@/lib/public-cache"
 
 interface SectorAgg {
   sector: string
@@ -71,9 +72,11 @@ export async function GET(req: NextRequest) {
   // Aggregating every active company's latest metrics is a heavy full-table
   // computation (~6s cold). Sector aggregates move only when the pipeline
   // recomputes or a market snapshot refreshes — serve from the stale-while-
-  // revalidate cache and refresh in the background.
-  const payload = await cached(`sectors:${basis}:${year ?? "auto"}`, 5 * 60_000, () => computeSectorAggregates(basis, year))
-  return Response.json(payload)
+  // revalidate cache (6h: data changes once per trading day; the pipeline
+  // invalidates the process cache on recompute) and refresh in the background.
+  // The response is CDN-edge-cacheable so most requests never reach a lambda.
+  const payload = await cached(`sectors:${basis}:${year ?? "auto"}`, 6 * 60 * 60_000, () => computeSectorAggregates(basis, year))
+  return Response.json(payload, { headers: { "Cache-Control": publicCacheControl(1800) } })
 }
 
 async function computeSectorAggregates(basis: "latest" | "annual" | "ttm", year: number | null = null) {
@@ -95,6 +98,20 @@ async function computeSectorAggregates(basis: "latest" | "annual" | "ttm", year:
       code: { in: [...codes] },
       valueStatus: "OK",
       value: { not: null },
+    },
+    // Egress diet (2026-11-10): only the columns the latest-period selection
+    // consumes. Full-row fetches (statusDetail/formula/sourcePeriods/…) pulled
+    // ~10MB per cold build for the same aggregates.
+    select: {
+      companyId: true,
+      code: true,
+      periodKey: true,
+      periodType: true,
+      fiscalYear: true,
+      periodLabel: true,
+      value: true,
+      valueStatus: true,
+      statementType: true,
     },
   })
 

@@ -6,6 +6,7 @@
 // Mobile (<sm) keeps its own top bar + bottom navigation.
 
 import Link from "next/link"
+import { BrandMark } from "@/components/brand/logo"
 import { usePathname } from "next/navigation"
 import {
   Bell,
@@ -95,9 +96,21 @@ export function AppSidebar() {
       <Link
         href="/"
         className="flex h-16 shrink-0 items-center gap-2.5 border-b border-border/60 px-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        aria-label="Meza — Home"
+        aria-label="EGXANO — Home"
       >
+<<<<<<< HEAD
         <EGXANOWordmark lang={lang} size={32} />
+=======
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-foreground shadow-sm">
+          <BrandMark size={28} />
+        </div>
+        <div className="flex flex-col leading-tight">
+          <span className="font-extrabold tracking-[0.08em] text-foreground">EGXANO</span>
+          <span className="text-[10px] text-muted-foreground">
+            {ar ? "تحليل بيانات البورصة المصرية" : "EGX market intelligence"}
+          </span>
+        </div>
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
       </Link>
 
       {/* Navigation */}
@@ -146,7 +159,12 @@ export function AppSidebar() {
 
       {/* Footer */}
       <div className="shrink-0 border-t border-border/40 px-4 py-3">
+<<<<<<< HEAD
         <p className="text-[10px] leading-tight text-muted-foreground">
+=======
+        <p className="text-[10px] leading-none text-muted-foreground/70">EGXANO v0.3.0</p>
+        <p className="mt-1.5 text-[10px] leading-tight text-muted-foreground/50">
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
           {ar
             ? "أسعار متأخرة 15 دقيقة — ليست نصيحة استثمارية."
             : "Prices delayed 15 min — not investment advice."}

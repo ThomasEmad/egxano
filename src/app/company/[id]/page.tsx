@@ -81,7 +81,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
       languages: { en: canonical, "ar-EG": canonical },
     },
     openGraph: {
-      title: `${company.ticker} — ${company.nameEn} | Meza`,
+      title: `${company.ticker} — ${company.nameEn} | EGXANO`,
       description,
       type: "website",
       locale: "en_US",
@@ -115,7 +115,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
         identifier: company.isin
           ? { "@type": "PropertyValue", propertyID: "ISIN", value: company.isin }
           : undefined,
-        description: `${company.ticker} — ${company.nameEn}, Egyptian Exchange (${company.sector}). Published quarterly and annual financials, metrics and events on Meza.`,
+        description: `${company.ticker} — ${company.nameEn}, Egyptian Exchange (${company.sector}). Published quarterly and annual financials, metrics and events on EGXANO.`,
         url: canonical,
         mainEntityOfPage: canonical,
       }
@@ -145,7 +145,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
                 name: `${company.ticker} — ${company.nameEn}`,
                 tickerSymbol: company.ticker,
                 isin: company.isin,
-                description: `${company.ticker} — ${company.nameEn}, Egyptian Exchange (${company.sector}). Published quarterly and annual financials, metrics and events on Meza.`,
+                description: `${company.ticker} — ${company.nameEn}, Egyptian Exchange (${company.sector}). Published quarterly and annual financials, metrics and events on EGXANO.`,
                 url: canonical,
                 potentialAction: {
                   "@type": "SearchAction",

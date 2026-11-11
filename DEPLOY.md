@@ -1,4 +1,4 @@
-# دليل الـ Deploy — Meza
+# دليل الـ Deploy — EGXANO
 
 النشر الإنتاجي لتطبيق Next.js 16 (standalone) + Prisma/SQLite. كل الأوامر على Ubuntu 22.04/24.04 كمثال.
 

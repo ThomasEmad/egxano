@@ -79,11 +79,13 @@ async function derivedRatios(companyId: string, fiscalYear: number): Promise<Met
   return derivedRatiosFromValues(vals)
 }
 
-// SWR-cached per company (15 min; invalidated on pipeline recompute): the
-// snowflake endpoint and the AI answer engine both call this — a cache hit
-// turns both into ~0ms DB work.
+// SWR-cached per company (6h — fundamentals change once per trading day;
+// invalidated on pipeline recompute): the snowflake endpoint and the AI answer
+// engine both call this — a cache hit turns both into ~0ms DB work. The old
+// 15-min window re-ran the 6-query peer/metric gather ~96x per day per
+// company per serverless instance.
 export function gatherCompanyAnalytics(companyId: string): Promise<GatheredAnalytics | null> {
-  return cached(`analytics:${companyId}`, 15 * 60_000, () => gatherCompanyAnalyticsUncached(companyId))
+  return cached(`analytics:${companyId}`, 6 * 60 * 60_000, () => gatherCompanyAnalyticsUncached(companyId))
 }
 
 async function gatherCompanyAnalyticsUncached(companyId: string): Promise<GatheredAnalytics | null> {

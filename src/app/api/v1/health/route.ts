@@ -37,7 +37,7 @@ export async function GET() {
     return Response.json(
       {
         ok: true,
-        service: "meza",
+        service: "egxano",
         database: "connected",
         dbLatencyMs: dbMs,
         companies,

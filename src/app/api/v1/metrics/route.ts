@@ -6,7 +6,7 @@ import { cachedResponse } from "@/lib/public-cache"
 // Static registry content — cached in-process (1h) so scanner-builder traffic
 // never touches the registry module at scale.
 export async function GET() {
-  return cachedResponse("metrics-registry", 60 * 60 * 1000, async () => ({
+  return cachedResponse("metrics-registry", 24 * 60 * 60 * 1000, async () => ({
     rawMetrics: RAW_METRICS,
     calculatedMetrics: CALC_METRICS.filter((m) => m.kind !== "market"),
     marketMetrics: CALC_METRICS.filter((m) => m.kind === "market"),

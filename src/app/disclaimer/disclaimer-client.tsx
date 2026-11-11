@@ -110,6 +110,7 @@ export default function DisclaimerClient() {
           </div>
         </div>
 
+<<<<<<< HEAD
         <div className="mt-6 space-y-5">
           {sections.map((s) => (
             <section key={s.h} className="space-y-1.5">
@@ -118,6 +119,35 @@ export default function DisclaimerClient() {
             </section>
           ))}
         </div>
+=======
+      <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
+        <p>
+          {lang === "ar"
+            ? "إيجيكسّانو يقدم بيانات مالية ومؤشرات تحليلية لأغراض معلوماتية فقط. لا يعتبر أي من المحتوى الموجود على هذا الموقع نصيحة استثمارية أو عرضاً أو طلباً لشراء أو بيع أي أوراق مالية."
+            : "EGXANO provides financial data and analytical indicators for informational purposes only. Nothing on this site constitutes investment advice, or an offer or solicitation to buy or sell any securities."}
+        </p>
+        <p>
+          {lang === "ar"
+            ? "البيانات المالية مستمدة من مصادر عامة وقد تحتوي على أخطاء أو تأخير أو نقص. نحن لا نضمن دقة أو اكتمال أو ملاءمة أي من البيانات أو التحليلات."
+            : "Financial data is sourced from public disclosures and may contain errors, delays, or omissions. We do not guarantee the accuracy, completeness, or suitability of any data or analysis."}
+        </p>
+        <p>
+          {lang === "ar"
+            ? "المستخدم هو المسول الوحيد عن قراراته الاستثمارية. استشر مستشاراً مالياً مرخصاً قبل اتخاذ أي قرار استثماري."
+            : "Users are solely responsible for their investment decisions. Consult a licensed financial advisor before making any investment decision."}
+        </p>
+        <p>
+          {lang === "ar"
+            ? "قد تحتوي الحسابات المحسوبة (مثل نسبة السعر إلى الأرباح، العائد على Equity) على افتراضات وقد لا تعكس القيم الفعلية بدقة."
+            : "Calculated metrics (such as P/E, ROE, market cap) involve assumptions and may not precisely reflect actual values."}
+        </p>
+        <p>
+          {lang === "ar"
+            ? "لا نتحمل أي مسؤولية عن أي خسائر قد تنتج عن استخدام هذا الموقع أو الاعتماد على محتواه."
+            : "We are not liable for any losses arising from the use of this site or reliance on its content."}
+        </p>
+      </div>
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
 
         <div className="mt-8 rounded-xl border border-border/70 p-4 text-xs leading-relaxed text-muted-foreground">
           <p>

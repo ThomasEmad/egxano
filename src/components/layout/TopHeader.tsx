@@ -116,7 +116,7 @@ export function TopHeader({ className }: TopHeaderProps = {}) {
           })
         : Promise.resolve(null),
     enabled: mounted,
-    staleTime: 60_000,
+    staleTime: 300_000,
     retry: false,
   })
   const { data: subscription } = useQuery({
@@ -124,7 +124,7 @@ export function TopHeader({ className }: TopHeaderProps = {}) {
     queryFn: () =>
       fetch("/api/v1/subscription/me", { headers: { "x-session-token": token ?? "" } }).then((r) => (r.ok ? r.json() : null)),
     enabled: mounted && !!token,
-    staleTime: 60_000,
+    staleTime: 300_000,
     retry: false,
   })
 
@@ -142,7 +142,7 @@ export function TopHeader({ className }: TopHeaderProps = {}) {
       return { companies: json.companies ?? [] }
     },
     enabled: debouncedQuery.length >= 2,
-    staleTime: 30_000,
+    staleTime: 120_000,
     retry: false,
   })
 

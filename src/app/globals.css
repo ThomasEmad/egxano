@@ -70,11 +70,22 @@
 :root {
   --radius: 0.75rem;
 
+<<<<<<< HEAD
   /* Light Theme — institutional paper + graphite + acid-lime accent.
      Lime is an ACCENT here, not a text color: #A3E635 on white is 1.4:1.
      Interactive text/actions use lime-700 (#4D7C0F, 4.8:1 on paper). */
   --background: #F7F8F6;
   --foreground: #0B0F0D;
+=======
+  /* EGXANO brand accent — WCAG-aware lime split:
+     light surfaces use the deep accessible lime (5.49:1 on white),
+     dark surfaces use the brighter acid lime (13.3:1 on graphite). */
+  --brand-accent: #52731B;
+
+  /* Light Theme - Clean Professional */
+  --background: #F9FAF8;
+  --foreground: #0C1210;
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
 
   --card: #FFFFFF;
   --card-foreground: #0B0F0D;
@@ -158,11 +169,18 @@
 }
 
 .dark {
+<<<<<<< HEAD
   /* Dark Theme — graphite + acid lime (the signature Meza state).
      Lime is legible on graphite (13:1), so it is both the accent and the
      action color here. */
   --background: #060906;
   --foreground: #F5F8F3;
+=======
+  /* Dark Theme - Premium Graphite + Acid Lime */
+  --brand-accent: #A3E635;
+  --background: #050807;
+  --foreground: #F8FAF7;
+>>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
 
   --card: #0B100D;
   --card-foreground: #F5F8F3;
@@ -275,6 +293,12 @@
     @apply font-semibold tracking-tight;
     line-height: 1.2;
   }
+}
+
+/* Financial numerals — tabular figures for aligned tables & KPIs */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
 /* Modern Scrollbars */
