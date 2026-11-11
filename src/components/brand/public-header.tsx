@@ -51,7 +51,7 @@ export function PublicHeader() {
         <Link
           href="/"
           className="flex items-center rounded-lg transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label={ar ? "Meza — الرئيسية" : "Meza — Home"}
+          aria-label={ar ? "EGXANO — الرئيسية" : "EGXANO — Home"}
         >
           <EGXANOWordmark lang={lang} size={30} />
         </Link>

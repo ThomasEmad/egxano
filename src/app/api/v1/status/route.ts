@@ -17,7 +17,7 @@ export async function GET() {
         db.marketPrice.findFirst({ orderBy: { asOf: "desc" }, select: { asOf: true } }),
         db.financialReport.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
         db.priceAlert.count({ where: { active: true } }),
-        db.aiAnalysis.count(),
+        db.aiAnalysisReport.count({ where: { status: "COMPLETED" } }),
       ])
 
     const snapshot = await getFreshMarketSnapshot()

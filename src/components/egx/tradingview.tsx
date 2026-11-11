@@ -7,7 +7,7 @@
 // Both widgets report a `failed` state when the iframe never mounts (CSP
 // blocking, script blocked, no network). A failed widget must never leave a
 // large blank card on the page: the caller renders an honest fallback with a
-// link to TradingView and a note that Meza's calculated indicators do not
+// link to TradingView and a note that EGXANO's calculated indicators do not
 // depend on it.
 
 import { useEffect, useRef, useState } from "react"
@@ -105,8 +105,8 @@ function WidgetFallback({
       </a>
       <p className="max-w-xs text-[10px] leading-relaxed text-muted-foreground">
         {ar
-          ? "المؤشرات المحسوبة في Meza لا تعتمد على هذه الأداة — هي مصدر خارجي للعرض فقط."
-          : "Meza's calculated figures do not depend on this widget — it is an external display only."}
+          ? "المؤشرات المحسوبة في EGXANO لا تعتمد على هذه الأداة — هي مصدر خارجي للعرض فقط."
+          : "EGXANO's calculated figures do not depend on this widget — it is an external display only."}
       </p>
     </div>
   )
@@ -124,7 +124,7 @@ export function TradingViewChart({
   const dark = resolvedTheme === "dark"
   // The widget's own locale is kept to English: EGX symbols are not covered in
   // the Arabic widget locale (it renders an empty canvas), and the widget chrome
-  // is third-party UI, not Meza copy.
+  // is third-party UI, not EGXANO copy.
   const { containerRef, failed } = useTradingViewWidget("advanced-chart", {
     autosize: true,
     symbol: `EGX:${ticker}`,

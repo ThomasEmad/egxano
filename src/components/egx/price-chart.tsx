@@ -4,7 +4,7 @@
 // each point is a real stored price with its source), so gaps are real gaps.
 //
 // The TradingView view is an external display: it is labelled as third-party and
-// delayed, and it is never the source of a calculated Meza figure. In Arabic the
+// delayed, and it is never the source of a calculated EGXANO figure. In Arabic the
 // snapshot view is the default, because the EGX TradingView symbol is not
 // rendered by the widget's Arabic locale and users would otherwise see an empty
 // frame on the first screen.
@@ -108,7 +108,7 @@ export function PriceChart({
           !showTv ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/60 disabled:opacity-40 disabled:hover:bg-transparent"
         }`}
       >
-        {ar ? "لقطات Meza" : "Meza snapshots"}
+        {ar ? "لقطات EGXANO" : "EGXANO snapshots"}
       </button>
     </div>
   )
@@ -132,8 +132,8 @@ export function PriceChart({
           <TradingViewChart ticker={ticker!} height={Math.max(height + 160, 420)} />
           <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
             {ar
-              ? "الشارت من مصدر خارجي (TradingView). الأرقام المحسوبة في Meza لا تأتي من هذا الشارت."
-              : "Chart by a third party (TradingView). Meza's calculated figures are not sourced from this chart."}
+              ? "الشارت من مصدر خارجي (TradingView). الأرقام المحسوبة في EGXANO لا تأتي من هذا الشارت."
+              : "Chart by a third party (TradingView). EGXANO's calculated figures are not sourced from this chart."}
           </p>
         </CardContent>
       </Card>

@@ -28,9 +28,10 @@ ANALYST FRAMEWORK — reason through all of it and weave the findings into prose
 3. Balance sheet & liquidity: leverage, interest coverage, working capital, dilution.
 4. Valuation: P/E, P/B, P/S, EV/EBITDA, dividend yield versus sector context; state plainly when no price or multiple exists.
 5. Technical structure: trend direction and moving-average alignment; momentum (RSI/MACD/Stochastic) and whether it confirms or diverges from the fundamental picture; volume behavior; volatility regime; support and resistance as ZONES with distances — never as certainties.
-6. Conflicts: when fundamentals and technicals disagree, surface the tension explicitly and weigh the evidence — do not average the two views into a vague sentence.
-7. Risks first: red flags, deteriorating signals, anomalies — quantify them.
-8. For banks: regulatory capital (CET1/Tier1/total vs Basel III floors) and NPLs are the primary solvency lens, not corporate leverage ratios.
+6. Market psychology — read it from the DATA, never invent it: OBV and volume trends as accumulation vs distribution evidence; volume spikes as attention events; extended moves near Bollinger/52-week extremes as chase risk; RSI extremes as crowd sentiment; sparse or thin volume as illiquidity risk for position sizing. Name the crowd behavior the numbers support and label what you cannot infer as unknown — no fabricated narratives about "institutions" or "smart money" the data cannot prove.
+7. Conflicts: when fundamentals and technicals disagree, surface the tension explicitly and weigh the evidence — do not average the two views into a vague sentence.
+8. Risks first: red flags, deteriorating signals, anomalies — quantify them.
+9. For banks: regulatory capital (CET1/Tier1/total vs Basel III floors) and NPLs are the primary solvency lens, not corporate leverage ratios.
 
 STRICT RULES:
 (1) Use ONLY numbers present in the provided JSON — never invent, estimate, or extrapolate any figure.
@@ -55,6 +56,8 @@ OUTPUT — clean markdown in the requested language, exactly these section headi
 (trend and moving-average alignment first, then momentum reading, then volume behavior, then support/resistance zones with distances, then volatility; state data limitations when indicator history is short; describe what the market is pricing versus what the fundamentals show)
 ## Combined View
 (where fundamentals and technicals agree; where they conflict and what would resolve the conflict — the tension itself, stated plainly, is often the most valuable paragraph; strengths and weaknesses on both sides)
+## Trader & Investor Lens
+(two distinct readings. The SHORT-TERM TRADER paragraph: what an active trader is watching right now — the nearest support/resistance zones with distances, momentum state and its inflection points, volume character (expansion/dry-up), volatility (ATR as the realistic move size), and the specific price behavior that would confirm or end the current setup — descriptive monitoring, never instructions. The LONG-TERM INVESTOR paragraph: what a multi-year holder cares about — earnings durability, balance-sheet headroom, dividend coverage, valuation versus sector, and which fundamental developments would change the thesis. Then one short paragraph of MARKET PSYCHOLOGY grounded strictly in the provided volume/momentum data — accumulation/distribution tendencies, chase risk at extremes, illiquidity concerns; say "unknown" when the data cannot infer it.)
 ## Key Risks & Red Flags
 (2-5 tight bullets, each quantified)
 ## What Would Invalidate This Analysis
@@ -71,6 +74,7 @@ export const AR_INSTRUCTION =
   "## التحليل المالي\n(جودة الأرباح، النمو، الميزانية، التدفقات، التقييم مقابل القطاع — ذكر فترة كل رقم، وبيان الآلية وراء كل حركة، ووضع كل رقم في سياقه بالمقارنة)\n" +
   "## التحليل الفني\n(الاتجاه ورصيف المتوسطات أولًا، ثم الزخم، ثم سلوك التداول، ثم مناطق الدعم والمقاومة بمسافاتها، ثم التقلب؛ واذكر حدود البيانات حين يكون التاريخ قصيراً؛ وصف ما يسعّره السوق مقابل ما تُظهره الأساسيات)\n" +
   "## الرؤية المدمجة\n(حيث تتفق الأساسيات والفنية، وحيث تتعارض وما الذي يحسم التعارض — التعارض نفسه إن وُجد فقرة قيّمة تُقال بصراحة)\n" +
+  "## عدسة المضارب والمستثمر\n(قراءتان مختلفتان. فقرة المضارب قصير المدى: ما يراقبه المتداول النشط الآن — أقرب مناطق الدعم والمقاومة بمسافاتها، حالة الزخم ونقاط انعكاسه، طبيعة التداول توسع أو جفاف، التقلب (ATR كحجم حركة واقعي)، وسلوك السعر الذي يؤكد الإعداد الحالي أو ينهيه — وصف للمراقبة وليس توصيات. فقرة المستثمر طويل المدى: ما يهم حامل السنوات — متانة الأرباح، هامش الأمان في الميزانية، تغطية التوزيعات، التقييم مقابل القطاع، والتطورات الأساسية التي تغير الأطروحة. ثم فقرة قصيرة عن سيكولوجية السوق مستندة حصراً إلى بيانات الحجم/الزخم المتاحة — ميول التجميع أو التوزيع، مخاطر مطاردة القمم عند التمدد، مخاوف سيولة القلة؛ وقل «غير معروف» حين لا تستطيع البيانات الاستنتاج.)\n" +
   "## المخاطر الجوهرية والعلامات الحمراء\n(من نقطتين إلى خمس نقاط مركزة ومكمّاة، كل نقطة برقمها)\n" +
   "## ما الذي يُبطل هذا التحليل\n(من شرطين إلى أربعة شروط ملموسة وقابلة للرصد)\n" +
   "## نقاط المراقبة\n(من نقطتين إلى أربع: التقرير القادم، قرارات التوزيع، المستويات الفنية)\n" +
@@ -80,12 +84,12 @@ export const AR_INSTRUCTION =
 export const EN_INSTRUCTION =
   "\n\nWrite the report in English with exactly the sections specified in the system prompt. Use only data figures with period labels, and analyze like a seasoned professional investor — not a news summarizer."
 
-/** Compact length budget for dense expert reports. 0 = uncapped. 700 words
- * leaves room for the mechanism chains and framed comparisons the craft rules
- * demand, without stretching the worker budgets. */
+/** Compact length budget for dense expert reports. 0 = uncapped. 1000 words
+ * leaves room for the mechanism chains, the trader/investor lens and the
+ * framed comparisons the craft rules demand, without stretching the worker budgets. */
 export const MAX_WORDS = (() => {
   const n = Number(process.env.AI_REPORT_MAX_WORDS || "")
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 700
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1000
 })()
 
 export const LENGTH_BUDGET =

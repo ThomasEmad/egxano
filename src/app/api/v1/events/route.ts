@@ -23,8 +23,13 @@ export async function GET(req: NextRequest) {
     .filter(Boolean)
     .slice(0, 100)
 
+  // Freshness: the feed is "what happened lately" — events detected on periods
+  // from the last two fiscal years only. detectedAt being recent does not make
+  // a 2022 filing event news.
+  const FRESH_FY = new Date().getFullYear() - 1
   const events = await db.financialEvent.findMany({
     where: {
+      fiscalYear: { gte: FRESH_FY },
       ...(companyIds.length ? { companyId: { in: companyIds } } : {}),
       ...(eventType && EVENT_TYPE_MAP[eventType] ? { eventType } : {}),
     },

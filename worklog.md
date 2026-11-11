@@ -716,6 +716,36 @@ Work Log:
 - **التحقق:** local chunked E2E: 3 دفعات (120→240→276) و2,206 مشكلة = مطابق للوضع الكامل بالظبط؛ ثم على الإنتاج: **التشغيل اليومي كمّل في 2:15 دقيقة — 276 شركة، 2,206 مشكلة، والسلسلة الخلفية اشتغلت (AI worker + تجديد سوق: 253 سعر + 4 مؤشرات)** ✅. أساس المشاكل المفتوحة الآن من تشغيل واحد (2,206، صفر تكرار).
 - أدوات التحقق: `scripts/review-status-check.ts` (أرقام المراجعة من الإنتاج) + `scripts/test-chunked-audit.ts` (محاكاة سلوك الـ cron). إضافة `vite` كـ devDependency صريح (بقعت optional peer بعد تحديث الـ lockfile وكسرت vitest).
 
+---
+
+## 2026-11-09 (Cairo) — UX disaster-fix batch + Technical tab + price treemap + prompt@5
+
+**User reports fixed** (6 catastrophic + 6 new demands): leaked backend sentence in AI tab; "stuck in generation queue forever"; scans showed no results / not in sidebar / bad frontend; sector heatmap colored by ROE instead of price change; dashboard never updated (auto or manual); 2022 events shown as news; non-AI analysis useless technically; no loading skeletons; no logo on dashboard; rankings not reachable.
+
+**Root causes**
+1. `AiAnalysisJob` stuck PENDING: only the POST inline window (~46s) generates on Hobby (no scheduled worker; `/api/v1/cron/ai-worker` existed but Hobby blocks extra crons; status route never re-kicked despite its comment).
+2. `PresetScanners` kept only the matched COUNT, never rendered matched companies; PREMIUM_REQUIRED 403 died silently (handle() puts the human message first — code lives in err.body).
+3. `/api/v1/sectors` already shipped dayChangePct; the client colored by medianRoe anyway.
+4. Events queries had no fiscal-year floor (detectedAt recency ≠ event recency).
+5. `/status` counted the legacy `aiAnalysis` model, not `aiAnalysisReport` COMPLETED.
+6. `/undervalued` had a syntax error (`const inUpside, setMinUpside]`) — route dead.
+7. Dashboard had no user-facing refresh; snapshot only auto-refreshes >20min stale inside the session window.
+
+**Changes** (commits 098a852, premium-gate fix, optimistic-loader)
+- AI tab: staged loader (5 stages, progress %, elapsed, rotating investor tips, slow-note + retry at 100s, 8-min poll cap retry card), optimistic on click; internal queue wording removed from user copy; new i18n keys co.aiStage1..5; «في قائمة التوليد…»→«بدأنا التحليل…».
+- status route: polls donate after() (~20s) to PENDING/expired-lease jobs → queue drains within polls.
+- NEW Technical tab: GET /api/v1/companies/[id]/technical (10m cache) over buildTechnicalBundle (SMA/RSI/MACD/Stoch/ATR/Bollinger/relVol/OBV/S-R zones/52w) + technical-tab.tsx (perf strip 1D..1Y, verdict strip, signal cards, trend/momentum/levels/volatility, limitations).
+- prompt@5: market-psychology framework point (volume-grounded, "unknown" when not inferable) + required section "Trader & Investor Lens" / «عدسة المضارب والمستثمر» (trader monitoring + long-term investor + psychology); validator sections updated; MAX_WORDS→1000; top-25×ar/en prewarm re-run (prompt@5 keys invalidate old artifacts by design).
+- Sectors: GET /api/v1/market/treemap + sector-treemap.tsx squarified finviz heatmap (area=market cap, color=day change, sector groups, adv/dec, asOf badge); sector cards recolored by dayChangePct.
+- Dashboard: brand row (logo.svg + wordmark) + "تحديث الآن" → POST /api/v1/market/sync (public, IP-limited 5/10m, library refresh → Setting+MarketPrice+cache clear) + full invalidation; brand mark in TopHeader.
+- Events: dashboard + /api/v1/events filtered fiscalYear >= Y-1.
+- Scans: preset results render sorted matched companies (ResultRow); premium 403 → PremiumGate; sidebar gains Scans + Rankings (hash-aware active).
+- loading.tsx skeletons for 11 routes + PageSkeleton; /status count fixed; /undervalued repaired; redirects /companies/:ticker→/company/:ticker, /signin→/login, /signup→/register.
+
+**Verified live**: status counts real COMPLETED reports; sync pulled 247 fresh prices (asOf 17:15→20:27 UTC); treemap 247 tiles; COMI technical 400 sessions RSI 55.9; browser: dashboard logo+refresh, finviz treemap rendering, full Technical tab, staged loader on generate, PremiumGate on scans, sidebar entries, redirects 307. Queue drained (20 prompt@5 completed via worker rounds; rest enqueue lazily / nightly).
+
+**Follow-ups**: prompt@5 artifacts regenerate lazily per visit; ai-worker stays unscheduled (recovery = poll kicks + audit-chained nightly drain); treemap micro-tiles skipped (<0.4 units).
+
 ## 2026-11-10 — حظر الطوارئ: تجاوز حد Egress على Supabase (تقليم Egress ~90%)
 - **التشخيص بالقياس لا بالتخمين** (`scripts/db-egress-audit.mjs`): `tup_returned = 409,774,929 صف` في 7 أيام (~58M صف/يوم) — القاعدة بتُعاد قراءتها بالكامل عشرات المرات يوميًا. الأحجام: CalculatedMetric **482,809 صف** (121MB بيانات)، FinancialValue 150k، PriceBar 97k، MarketPrice 13k.
 - **الأسباب الجذرية (كانت بتسحب جداول كاملة لاستخراج قيمة واحدة):**

@@ -22,10 +22,7 @@ const contentSecurityPolicy = [
   "img-src 'self' data: blob: https:",
   "connect-src 'self' https://www.google-analytics.com https://*.tradingview.com wss://*.tradingview.com",
   // TradingView widgets render inside iframes hosted on these origins.
-  // `www.tradingview-widget.com` hosts the technical-analysis widget; it must
-  // be allowed explicitly (a bare `tradingview-widget.com` does not cover the
-  // www subdomain in CSP frame-src).
-  "frame-src https://s3.tradingview.com https://s.tradingview.com https://www.tradingview.com https://tradingview-widget.com https://www.tradingview-widget.com https://*.tradingview-widget.com",
+  "frame-src https://s3.tradingview.com https://s.tradingview.com https://www.tradingview.com https://tradingview-widget.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -92,6 +89,10 @@ const nextConfig: NextConfig = {
     return [
       { source: "/scanners", destination: "/dashboard", permanent: false },
       { source: "/data-quality", destination: "/admin/data-quality", permanent: false },
+      // legacy URL shapes seen in the wild: company detail + auth pages
+      { source: "/companies/:ticker", destination: "/company/:ticker", permanent: false },
+      { source: "/signin", destination: "/login", permanent: false },
+      { source: "/signup", destination: "/register", permanent: false },
     ];
   },
   allowedDevOrigins: [

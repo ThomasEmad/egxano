@@ -42,3 +42,10 @@ dev.log
 # local DB archive with real user data — never in git (report F08)
 prisma/prisma/dev.zip
 .neon
+# agent workspace state (never commit)
+.mimosa/
+.initial_snapshot.json
+err.txt
+out.txt
+diff.err
+dev.pid

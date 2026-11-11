@@ -120,6 +120,7 @@ export const RATE_LIMITS = {
   "scanner-run": { key: "scanner-run", max: 20, windowMs: 10 * 60 * 1000 },
   "scanner-create": { key: "scanner-create", max: 10, windowMs: 60 * 60 * 1000 },
   "market-refresh": { key: "market-refresh", max: 4, windowMs: 10 * 60 * 1000 },
+  "market-sync": { key: "market-sync", max: 5, windowMs: 10 * 60 * 1000 },
   "ai-analysis": { key: "ai-analysis", max: 10, windowMs: 10 * 60 * 1000 },
   "ai-chat": { key: "ai-chat", max: 30, windowMs: 10 * 60 * 1000 },
   "report-upload": { key: "report-upload", max: 10, windowMs: 60 * 60 * 1000 },

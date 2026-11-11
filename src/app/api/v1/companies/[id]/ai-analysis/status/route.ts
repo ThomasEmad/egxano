@@ -1,13 +1,18 @@
 import { NextRequest } from "next/server"
+import { after } from "next/server"
 import { db } from "@/lib/db"
 import { requireAuth, unauthorizedResponse } from "@/lib/access"
 import { cachedRead } from "@/lib/hot-read"
+import { processJob, MAX_ATTEMPTS } from "@/lib/ai/jobs/worker"
 
 // GET /api/v1/companies/[id]/ai-analysis/status?lang=ar|en&jobRef=<id>
 // Lightweight generation-status poll. Returns the latest job for the company
 // + language; when a completed report exists for the job's identity it is
-// returned immediately. A stale PENDING job (lease expired) is re-kicked via
-// after() — the poll path is also the recovery path.
+// returned immediately. A stale PENDING / expired-lease job is RE-KICKED via
+// after() — the poll path is also the recovery path: the polling window
+// donates ~20s of its own execution budget to the queue, so a job that lost
+// its inline worker finishes within a few polls instead of waiting for the
+// nightly audit-chained drain (which could be many hours away).
 
 export const maxDuration = 30
 
@@ -71,6 +76,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           data: { status: "PENDING", leasedBy: null, leaseUntil: null },
         })
         .catch(() => {})
+    }
+
+    // ---------- USER-DRIVEN RECOVERY (fixes "stuck in the queue forever") ----------
+    // A PENDING job whose backoff lease has elapsed (or an expired lease just
+    // released above) has NO live worker on serverless: the inline POST window
+    // ended and the nightly drain may be hours away. This poll invocation
+    // donates its after() window (~20s) to the job. Conditional claims make
+    // concurrent donations safe; the 3s status cache bounds kick frequency.
+    if (job && job.attempts < MAX_ATTEMPTS && (!job.leaseUntil || job.leaseUntil.getTime() <= Date.now())) {
+      const kickId = job.id
+      after(async () => {
+        try {
+          await processJob(kickId, { budgetMs: 20_000 })
+        } catch (e) {
+          console.error("status-path worker kick failed:", e instanceof Error ? e.message.slice(0, 200) : e)
+        }
+      })
     }
 
     return Response.json(
