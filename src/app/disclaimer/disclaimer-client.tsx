@@ -15,7 +15,7 @@ export default function DisclaimerClient() {
     ? [
         {
           h: "1. الغرض",
-          p: "Meza أداة بحث ومعلومات للبورصة المصرية. المحتوى على الموقع — بما فيه القوائم المالية والنسب والترتيب والتحليلات والتعليقات — لأغراض معلوماتية فقط. لا يعتبر أي جزء منه نصيحة استثمارية، ولا عرضاً أو طلباً لشراء أو بيع أي أوراق مالية.",
+          p: "EGXANO أداة بحث ومعلومات للبورصة المصرية. المحتوى على الموقع — بما فيه القوائم المالية والنسب والترتيب والتحليلات والتعليقات — لأغراض معلوماتية فقط. لا يعتبر أي جزء منه نصيحة استثمارية، ولا عرضاً أو طلباً لشراء أو بيع أي أوراق مالية.",
         },
         {
           h: "2. المصادر",
@@ -39,7 +39,7 @@ export default function DisclaimerClient() {
         },
         {
           h: "7. مفيش توصيات",
-          p: "Meza مش بيصدر توصيات شراء أو بيع، ومش بيحدد أهدافاً سعرية بصفة توصية. أي إشارة فنية أو تقييم معروض هو وصف للبيانات وقت حسابها، مش دعوة لتنفيذ صفقة.",
+          p: "EGXANO مش بيصدر توصيات شراء أو بيع، ومش بيحدد أهدافاً سعرية بصفة توصية. أي إشارة فنية أو تقييم معروض هو وصف للبيانات وقت حسابها، مش دعوة لتنفيذ صفقة.",
         },
         {
           h: "8. مسؤولية القرار",
@@ -51,13 +51,13 @@ export default function DisclaimerClient() {
         },
         {
           h: "10. الاستقلال",
-          p: "Meza منصة مستقلة وغير تابعة للبورصة المصرية أو أي وسيط أو شركة مُصدِرة، ولا تمثلها.",
+          p: "EGXANO منصة مستقلة وغير تابعة للبورصة المصرية أو أي وسيط أو شركة مُصدِرة، ولا تمثلها.",
         },
       ]
     : [
         {
           h: "1. Purpose",
-          p: "Meza is a research and information tool for the Egyptian stock market. Everything on the site — financial statements, ratios, rankings, analyses and commentary — is informational only. Nothing here is investment advice, or an offer or solicitation to buy or sell any security.",
+          p: "EGXANO is a research and information tool for the Egyptian stock market. Everything on the site — financial statements, ratios, rankings, analyses and commentary — is informational only. Nothing here is investment advice, or an offer or solicitation to buy or sell any security.",
         },
         {
           h: "2. Sources",
@@ -69,7 +69,7 @@ export default function DisclaimerClient() {
         },
         {
           h: "4. Calculated vs reported",
-          p: "The platform shows values as reported in filings and values calculated by Meza (such as P/E and ROE). Calculated values use published formulas and may differ from another provider's if the formula or period differs. The difference is explained on the company page.",
+          p: "The platform shows values as reported in filings and values calculated by EGXANO (such as P/E and ROE). Calculated values use published formulas and may differ from another provider's if the formula or period differs. The difference is explained on the company page.",
         },
         {
           h: "5. Unavailable values",
@@ -81,7 +81,7 @@ export default function DisclaimerClient() {
         },
         {
           h: "7. No recommendations",
-          p: "Meza does not issue buy or sell recommendations and does not publish price targets as recommendations. Any technical signal or valuation shown describes the data at the time it was calculated; it is not a call to trade.",
+          p: "EGXANO does not issue buy or sell recommendations and does not publish price targets as recommendations. Any technical signal or valuation shown describes the data at the time it was calculated; it is not a call to trade.",
         },
         {
           h: "8. Responsibility for decisions",
@@ -93,7 +93,7 @@ export default function DisclaimerClient() {
         },
         {
           h: "10. Independence",
-          p: "Meza is independent and is not affiliated with, or acting on behalf of, the Egyptian Exchange, any broker or any issuer.",
+          p: "EGXANO is independent and is not affiliated with, or acting on behalf of, the Egyptian Exchange, any broker or any issuer.",
         },
       ]
 
@@ -110,7 +110,6 @@ export default function DisclaimerClient() {
           </div>
         </div>
 
-<<<<<<< HEAD
         <div className="mt-6 space-y-5">
           {sections.map((s) => (
             <section key={s.h} className="space-y-1.5">
@@ -119,35 +118,6 @@ export default function DisclaimerClient() {
             </section>
           ))}
         </div>
-=======
-      <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
-        <p>
-          {lang === "ar"
-            ? "إيجيكسّانو يقدم بيانات مالية ومؤشرات تحليلية لأغراض معلوماتية فقط. لا يعتبر أي من المحتوى الموجود على هذا الموقع نصيحة استثمارية أو عرضاً أو طلباً لشراء أو بيع أي أوراق مالية."
-            : "EGXANO provides financial data and analytical indicators for informational purposes only. Nothing on this site constitutes investment advice, or an offer or solicitation to buy or sell any securities."}
-        </p>
-        <p>
-          {lang === "ar"
-            ? "البيانات المالية مستمدة من مصادر عامة وقد تحتوي على أخطاء أو تأخير أو نقص. نحن لا نضمن دقة أو اكتمال أو ملاءمة أي من البيانات أو التحليلات."
-            : "Financial data is sourced from public disclosures and may contain errors, delays, or omissions. We do not guarantee the accuracy, completeness, or suitability of any data or analysis."}
-        </p>
-        <p>
-          {lang === "ar"
-            ? "المستخدم هو المسول الوحيد عن قراراته الاستثمارية. استشر مستشاراً مالياً مرخصاً قبل اتخاذ أي قرار استثماري."
-            : "Users are solely responsible for their investment decisions. Consult a licensed financial advisor before making any investment decision."}
-        </p>
-        <p>
-          {lang === "ar"
-            ? "قد تحتوي الحسابات المحسوبة (مثل نسبة السعر إلى الأرباح، العائد على Equity) على افتراضات وقد لا تعكس القيم الفعلية بدقة."
-            : "Calculated metrics (such as P/E, ROE, market cap) involve assumptions and may not precisely reflect actual values."}
-        </p>
-        <p>
-          {lang === "ar"
-            ? "لا نتحمل أي مسؤولية عن أي خسائر قد تنتج عن استخدام هذا الموقع أو الاعتماد على محتواه."
-            : "We are not liable for any losses arising from the use of this site or reliance on its content."}
-        </p>
-      </div>
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
 
         <div className="mt-8 rounded-xl border border-border/70 p-4 text-xs leading-relaxed text-muted-foreground">
           <p>
@@ -157,7 +127,7 @@ export default function DisclaimerClient() {
           </p>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-[11px]">
             <Link href="/about" className="font-medium text-primary underline-offset-2 hover:underline">
-              {ar ? "من نحن" : "About Meza"}
+              {ar ? "من نحن" : "About EGXANO"}
             </Link>
             <Link href="/status" className="font-medium text-primary underline-offset-2 hover:underline">
               {ar ? "حالة المنصة وحداثة البيانات" : "Platform status and data freshness"}

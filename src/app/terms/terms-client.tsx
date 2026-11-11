@@ -14,11 +14,11 @@ export default function TermsClient() {
     ? [
         {
           h: "1. قبول الشروط",
-          p: "باستخدامك Meza أو إنشاء حساب، أنت توافق على الشروط دي. لو مش موافق، ما تستخدمش الخدمة. الشروط بتنطبق على التصفح والبحث وأي حساب بتفتحه.",
+          p: "باستخدامك EGXANO أو إنشاء حساب، أنت توافق على الشروط دي. لو مش موافق، ما تستخدمش الخدمة. الشروط بتنطبق على التصفح والبحث وأي حساب بتفتحه.",
         },
         {
           h: "2. الخدمة",
-          p: "Meza منصة بحث ومعلومات للبورصة المصرية: قوائم مالية منشورة، نسب محسوبة، مقارنات، ترتيب، سياق فني، وأدوات بحث. Meza مش وسيط ولا منصة تنفيذ أوامر، ومفيش حسابات تداول أو تحويل أموال للبورصة من خلالها.",
+          p: "EGXANO منصة بحث ومعلومات للبورصة المصرية: قوائم مالية منشورة، نسب محسوبة، مقارنات، ترتيب، سياق فني، وأدوات بحث. EGXANO مش وسيط ولا منصة تنفيذ أوامر، ومفيش حسابات تداول أو تحويل أموال للبورصة من خلالها.",
         },
         {
           h: "3. الحساب",
@@ -64,11 +64,11 @@ export default function TermsClient() {
     : [
         {
           h: "1. Acceptance",
-          p: "By using Meza or creating an account you agree to these terms. If you do not agree, do not use the service. The terms apply to browsing, research and any account you open.",
+          p: "By using EGXANO or creating an account you agree to these terms. If you do not agree, do not use the service. The terms apply to browsing, research and any account you open.",
         },
         {
           h: "2. The service",
-          p: "Meza is an Egyptian stock market research and information platform: published financial statements, calculated ratios, comparisons, rankings, technical context and research tools. Meza is not a broker or an execution venue, and there are no trading accounts or exchange money transfers through it.",
+          p: "EGXANO is an Egyptian stock market research and information platform: published financial statements, calculated ratios, comparisons, rankings, technical context and research tools. EGXANO is not a broker or an execution venue, and there are no trading accounts or exchange money transfers through it.",
         },
         {
           h: "3. Accounts",
@@ -113,31 +113,14 @@ export default function TermsClient() {
       ]
 
   return (
-<<<<<<< HEAD
     <LayoutShell chrome="marketing">
       <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
         <h1 className="text-2xl font-semibold tracking-tight">{ar ? "شروط الاستخدام" : "Terms of Service"}</h1>
         <p className="mt-1 text-xs text-muted-foreground">{updated}</p>
         <p className="mt-4 rounded-xl border border-border/70 bg-muted/20 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
           {ar
-            ? "باختصار: Meza أداة بحث مش وسيط، البيانات من إفصاحات منشورة وأسعار متأخرة، وPremium تفعيل يدوي لمرة واحدة 30 يوماً بدون تجديد تلقائي."
-            : "In short: Meza is a research tool, not a broker; data comes from published filings and delayed prices; Premium is a one-off 30-day manual activation with no auto-renewal."}
-=======
-    <div className="mx-auto max-w-3xl space-y-6 py-8">
-      <h1 className="text-2xl font-bold">Terms of Service</h1>
-      <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
-        <p>
-          By accessing or using EGXANO, you agree to these terms. If you do not agree, do not use the service.
-        </p>
-        <p>
-          The service is provided &quot;as is&quot; without warranties of any kind. We may update or discontinue features at any time without notice.
-        </p>
-        <p>
-          You are responsible for safeguarding your account credentials and for all activity under your account.
-        </p>
-        <p>
-          Paid subscriptions are billed in advance and are non-refundable except where required by law. Cancellation stops renewal; you retain access until the end of the paid period.
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
+            ? "باختصار: EGXANO أداة بحث مش وسيط، البيانات من إفصاحات منشورة وأسعار متأخرة، وPremium تفعيل يدوي لمرة واحدة 30 يوماً بدون تجديد تلقائي."
+            : "In short: EGXANO is a research tool, not a broker; data comes from published filings and delayed prices; Premium is a one-off 30-day manual activation with no auto-renewal."}
         </p>
 
         <div className="mt-6 space-y-5">
@@ -161,7 +144,7 @@ export default function TermsClient() {
               {ar ? "الاشتراك" : "Premium"}
             </Link>
             <Link href="/about" className="font-medium text-primary underline-offset-2 hover:underline">
-              {ar ? "من نحن" : "About Meza"}
+              {ar ? "من نحن" : "About EGXANO"}
             </Link>
             <Link href="/status" className="font-medium text-primary underline-offset-2 hover:underline">
               {ar ? "حالة المنصة" : "Platform status"}

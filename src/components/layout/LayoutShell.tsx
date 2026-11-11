@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
-import { BrandMark } from "@/components/brand/logo"
 import { TopHeader } from "./TopHeader"
 import { MobileBottomNav } from "./MobileBottomNav"
 import { MobileNavDrawer } from "./MobileNavDrawer"
@@ -72,14 +71,8 @@ export function LayoutShell({
             Compare, Portfolio and Premium). */}
         <div className="sm:hidden flex h-14 items-center gap-2 px-3 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <MobileNavDrawer />
-<<<<<<< HEAD
           <a href="/" className="flex-1 flex items-center justify-center">
             <EGXANOWordmark lang={lang} size={26} subtitle={false} />
-=======
-          <a href="/" className="flex-1 flex items-center justify-center gap-1.5">
-            <BrandMark size={22} />
-            <span className="font-extrabold tracking-[0.08em] text-foreground text-sm">EGXANO</span>
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
           </a>
           {/* spacer keeps the brand centered against the 9-wide hamburger */}
           <span className="w-9 shrink-0" aria-hidden="true" />

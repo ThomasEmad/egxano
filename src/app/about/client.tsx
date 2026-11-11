@@ -39,7 +39,6 @@ export default function AboutPage() {
   const asOf = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString(ar ? "ar-EG-u-nu-latn" : "en-GB", { hour: "2-digit", minute: "2-digit" }) : null
 
   return (
-<<<<<<< HEAD
     <LayoutShell chrome="marketing">
       <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
         <SectionHeading
@@ -55,35 +54,9 @@ export default function AboutPage() {
         <p className="mt-5 rounded-xl border border-primary/25 bg-primary/[0.04] px-4 py-3 text-sm leading-relaxed text-foreground">
           <span className="font-semibold">{ar ? "استقلال المنصة. " : "Independence. "}</span>
           {ar
-            ? "Meza منصة مستقلة: مش تابعة للبورصة المصرية ولا لأي وسيط أو شركة مُصدِرة، ومش بنقدّم توصيات شراء أو بيع."
-            : "Meza is independent: we are not affiliated with the Egyptian Exchange, any broker or any issuer, and we do not issue buy or sell recommendations."}
+            ? "EGXANO منصة مستقلة: مش تابعة للبورصة المصرية ولا لأي وسيط أو شركة مُصدِرة، ومش بنقدّم توصيات شراء أو بيع."
+            : "EGXANO is independent: we are not affiliated with the Egyptian Exchange, any broker or any issuer, and we do not issue buy or sell recommendations."}
         </p>
-=======
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/95 backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Gauge className="h-4 w-4" />
-            </span>
-            <span className="text-sm font-bold">EGXANO</span>
-          </Link>
-          <Link href="/dashboard">
-            <Button variant="ghost" size="sm" className="h-8 text-xs">
-              {ar ? "لوحة التحكم" : "Dashboard"}
-            </Button>
-          </Link>
-        </div>
-      </header>
-
-      <main id="main-content" className="mx-auto w-full max-w-5xl flex-1 space-y-6 p-4 sm:p-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{ar ? "من نحن" : "About"}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {ar ? "منصة إيجيكسّانو" : "EGXANO platform"}
-          </p>
-        </div>
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
 
         <section className="mt-10" aria-label={ar ? "كيف نتعامل مع البيانات" : "How we handle data"}>
           <SectionHeading
@@ -127,7 +100,7 @@ export default function AboutPage() {
                 t: ar ? "أدوات بحث، مش وسيط" : "Research tools, not a broker",
                 d: ar
                   ? "مفيش تنفيذ أوامر أو حسابات تداول داخل المنصة — الأدوات للفهم والمراجعة قبل القرار."
-                  : "There is no order execution or trading account inside Meza — the tools are for understanding and reviewing before a decision.",
+                  : "There is no order execution or trading account inside EGXANO — the tools are for understanding and reviewing before a decision.",
               },
             ].map((item) => (
               <div key={item.t} className="rounded-xl border border-border/70 bg-card p-4">

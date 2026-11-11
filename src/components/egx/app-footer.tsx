@@ -1,10 +1,6 @@
 "use client"
 
 import Link from "next/link"
-<<<<<<< HEAD
-=======
-import { BrandMark } from "@/components/brand/logo"
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
 import { useI18n } from "@/lib/i18n"
 import { EGXANOWordmark } from "@/components/brand/brand-mark"
 import { BRAND } from "@/lib/brand"
@@ -39,7 +35,6 @@ export function AppFooter() {
   const year = new Date().getFullYear()
 
   return (
-<<<<<<< HEAD
     <footer className="mt-auto border-t border-border bg-surface-secondary">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
@@ -51,18 +46,6 @@ export function AppFooter() {
             <p className="mt-3 max-w-sm text-[11px] leading-relaxed text-muted-foreground/80">
               {ar ? BRAND.trustLineAr : BRAND.trustLineEn}
             </p>
-=======
-    <footer className="mt-auto border-t border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/95">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-          <div className="flex items-center gap-2">
-            <BrandMark size={26} />
-            <span className="font-extrabold tracking-[0.08em] text-foreground">EGXANO</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>{ar ? "حقوق الطبع والنشر" : "©"}</span>
-            <span>{new Date().getFullYear()} EGXANO</span>
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
           </div>
 
           <FooterColumn

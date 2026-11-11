@@ -28,11 +28,7 @@ const faq = [
 
 export const metadata: Metadata = {
   title: {
-<<<<<<< HEAD
     absolute: "EGXANO — Egyptian stock market research",
-=======
-    absolute: "EGXANO — Egyptian Exchange Research & Analysis",
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
   },
   description:
     "EGXANO — Egyptian stock market research: published financial statements, calculated ratios, fair company comparisons and technical context for EGX-listed companies — in Arabic and English. Every figure keeps its source and reporting period.",
@@ -57,11 +53,7 @@ export const metadata: Metadata = {
     languages: { en: "/", "ar-EG": "/" },
   },
   openGraph: {
-<<<<<<< HEAD
     title: "EGXANO — Egyptian stock market research",
-=======
-    title: "EGXANO — Egyptian Exchange Research & Analysis",
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
     description:
       "Understand Egyptian companies before you decide: published statements, calculated ratios, fair comparisons and technical context, with the source and period of every figure.",
     type: "website",
@@ -69,19 +61,11 @@ export const metadata: Metadata = {
     alternateLocale: "ar_EG",
     siteName: "EGXANO",
     url: "/",
-<<<<<<< HEAD
     images: [{ url: siteConfig.ogImage, width: 1200, height: 630, alt: "EGXANO — Egyptian stock market research" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "EGXANO — Egyptian stock market research",
-=======
-    images: [{ url: siteConfig.ogImage, width: 1200, height: 630, alt: "EGXANO" }],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "EGXANO",
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
     description:
       "Understand Egyptian companies before you decide: statements, ratios, comparisons and technical context — with sources.",
     images: [siteConfig.ogImage],
@@ -98,7 +82,10 @@ export default function HomePage() {
           mainEntity: faq.map((item) => ({
             "@type": "Question",
             name: item.q,
-            acceptedAnswer: { "@type": "Answer", text: item.a },
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: item.a,
+            },
           })),
         }}
       />

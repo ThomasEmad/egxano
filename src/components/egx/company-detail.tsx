@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -1694,8 +1694,6 @@ function DocumentsTable({ companyId }: { companyId: string }) {
 
 /* ---------------- AI analysis tab ---------------- */
 
-<<<<<<< HEAD
-=======
 function AiLoadingPanel({ status }: { status?: string }) {
   const { t, lang } = useI18n()
   const processing = status === "processing"
@@ -1723,7 +1721,6 @@ function AiLoadingPanel({ status }: { status?: string }) {
   )
 }
 
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
 function AiAnalysisTab({ companyId }: { companyId: string }) {
   const { t, lang } = useI18n()
   const queryClient = useQueryClient()

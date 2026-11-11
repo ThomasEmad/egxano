@@ -28,11 +28,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   applicationName: siteConfig.name,
   title: {
-<<<<<<< HEAD
     default: "EGXANO — Egyptian stock market research",
-=======
-    default: "EGXANO — Egyptian Exchange Research & Analysis",
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
     template: "%s · EGXANO",
   },
   description: siteConfig.description,
@@ -70,11 +66,7 @@ export const metadata: Metadata = {
         url: siteConfig.ogImage,
         width: 1200,
         height: 630,
-<<<<<<< HEAD
         alt: "EGXANO — Egyptian stock market research",
-=======
-        alt: "EGXANO — independent Egyptian Exchange research",
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
       },
     ],
   },
@@ -98,48 +90,37 @@ export const metadata: Metadata = {
   },
   // Canonical URLs are set per page. A global canonical would point every
   // route at "/" and de-index the whole site.
-  icons: {
-    icon: [
-      { url: "/favicon.ico", sizes: "32x32" },
-      { url: "/icon.svg", type: "image/svg+xml" },
-    ],
-    apple: [{ url: "/apple-touch-icon.png" }],
-  },
-};
+}
 
 export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#F7F8F6" },
     { media: "(prefers-color-scheme: dark)", color: "#060906" },
   ],
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" dir="ltr" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} ${plexArabic.variable} antialiased bg-background text-foreground`}
-        style={{ fontFamily: "var(--font-geist-sans), var(--font-arabic), ui-sans-serif, system-ui, sans-serif" }}
-      >
-        <a
-          href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:text-primary-foreground"
-        >
-          Skip to content — تجاوز إلى المحتوى
-        </a>
-        <Providers>{children}</Providers>
+    <html lang="ar" dir="rtl" className={`${geistSans.variable} ${geistMono.variable} ${plexArabic.variable}`}>
+      <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <link rel="manifest" href="/manifest.ts" />
+        <OrganizationSchema data={organizationSchema} />
+        <WebSiteSchema data={webSiteSchema} />
+      </head>
+      <body className="bg-background text-foreground antialiased">
+        <Providers>
+          {children}
+          <Toaster />
+        </Providers>
         <ServiceWorkerRegistration />
-        <Toaster />
-        <OrganizationSchema />
-        <WebSiteSchema />
         <Analytics />
       </body>
     </html>
-  );
+  )
 }

@@ -13,7 +13,6 @@
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
-import { BrandMark } from "@/components/brand/logo"
 import { usePathname } from "next/navigation"
 import { Menu, X } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
@@ -72,7 +71,6 @@ export function MobileNavDrawer() {
         <Menu className="h-5 w-5" aria-hidden="true" />
       </button>
 
-<<<<<<< HEAD
       {open && mounted
         ? createPortal(
             <div
@@ -83,37 +81,6 @@ export function MobileNavDrawer() {
               className="fixed inset-0 z-[60] sm:hidden"
             >
               {/* backdrop */}
-=======
-      {open && (
-        <div
-          id="mobile-nav-drawer"
-          role="dialog"
-          aria-modal="true"
-          aria-label={ar ? "التنقل الرئيسي" : "Main navigation"}
-          className="fixed inset-0 z-[60] sm:hidden"
-        >
-          {/* backdrop */}
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            aria-label={ar ? "إغلاق القائمة" : "Close menu"}
-            className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
-          />
-
-          {/* panel — slides from the inline start, same side as the desktop sidebar */}
-          <div className="absolute inset-y-0 start-0 flex w-72 max-w-[85vw] flex-col border-e border-border/60 bg-sidebar shadow-xl">
-            {/* Brand + close */}
-            <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-border/60 px-4">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-foreground shadow-sm">
-                <BrandMark size={28} />
-              </div>
-              <div className="flex flex-1 flex-col leading-tight">
-                <span className="font-extrabold tracking-[0.08em] text-foreground">EGXANO</span>
-                <span className="text-[10px] text-muted-foreground">
-                  {ar ? "تحليل بيانات البورصة المصرية" : "EGX market intelligence"}
-                </span>
-              </div>
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -131,6 +98,7 @@ export function MobileNavDrawer() {
                   <button
                     type="button"
                     onClick={() => setOpen(false)}
+                    aria-label={ar ? "إغلاق القائمة" : "Close menu"}
                     className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     aria-label={ar ? "إغلاق القائمة" : "Close menu"}
                     autoFocus
@@ -139,7 +107,6 @@ export function MobileNavDrawer() {
                   </button>
                 </div>
 
-<<<<<<< HEAD
                 {/* Navigation — same sections/markup as AppSidebar */}
                 <nav className="flex-1 overflow-y-auto px-3 py-4">
                   <div className="space-y-5">
@@ -204,20 +171,6 @@ export function MobileNavDrawer() {
             document.body,
           )
         : null}
-=======
-            {/* Footer */}
-            <div className="shrink-0 border-t border-border/40 px-4 py-3">
-              <p className="text-[10px] leading-none text-muted-foreground/70">EGXANO v0.3.0</p>
-              <p className="mt-1.5 text-[10px] leading-tight text-muted-foreground/50">
-                {ar
-                  ? "أسعار متأخرة 15 دقيقة — ليست نصيحة استثمارية"
-                  : "Prices delayed 15 min — not investment advice"}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
->>>>>>> b110dc6d46bae06b6754fc83151c5421ad4d72a3
     </>
   )
 }
