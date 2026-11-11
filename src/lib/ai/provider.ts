@@ -77,17 +77,17 @@
 
 const DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 const DEFAULT_MODEL = "gemini-3.8-flash"
-const DEFAULT_TIMEOUT_MS = 90_000
+const DEFAULT_TIMEOUT_MS = 120_000
 const ATTEMPT_GAP_MS = 2_000
 const DEFAULT_MAX_TOKENS = 8_192
 // v4: the anonymous tier answers an occupied per-IP slot with HTTP 200 + a
 // JSON error body (never SSE). The slot frees when the other request
 // finishes, so WAIT a slice of the unused budget and re-run the attempt.
 const PATIENT_RETRY_MAX = 4
-const PATIENT_RETRY_WAIT_MS = 12_000
-const PATIENT_RETRY_MIN_REMAINING_MS = 20_000
+const PATIENT_RETRY_WAIT_MS = 15_000
+const PATIENT_RETRY_MIN_REMAINING_MS = 25_000
 /** Budgets below this leave no room for a meaningful retry plan. */
-const MIN_MULTI_ATTEMPT_BUDGET_MS = 36_000
+const MIN_MULTI_ATTEMPT_BUDGET_MS = 50_000
 /** Auth/permission errors tied to ONE key — that key dies, the request continues. */
 const KEY_FATAL_ERROR_RE = /^AI API error (401|403):/
 
@@ -380,12 +380,13 @@ interface ApiAttempt {
 
 /**
  * Attempt plan inside the caller's budget over the model CHAIN: the primary
- * keeps ~58% of the budget (a real grounded generation needs room) and every
- * following chain model gets ~11% (fast slots that catch transient 4xx/5xx
- * and short answers; with 4 configured models all of them get a shot inside a
- * 100s analysis budget). The 2s gaps are accounted for, so the plan always
- * fits inside budgetMs; a final clamp shrinks attempts (never below 8s for
- * retries, 10s for the primary) if rounding pushes the plan over budget.
+ * keeps ~65% of the budget (reasoning models need thinking time + streaming
+ * time for grounded reports), and every following chain model gets ~12%
+ * (fast slots that catch transient 4xx/5xx and short answers). With 4
+ * configured models all of them get a shot inside a 120s analysis budget.
+ * The 2s gaps are accounted for, so the plan always fits inside budgetMs;
+ * a final clamp shrinks attempts (never below 10s for retries, 15s for the
+ * primary) if rounding pushes the plan over budget.
  */
 function buildAttemptPlan(budgetMs: number, chain: string[]): ApiAttempt[] {
   let models = chain.filter(Boolean)
@@ -395,9 +396,9 @@ function buildAttemptPlan(budgetMs: number, chain: string[]): ApiAttempt[] {
     return [{ model: models[0], timeoutMs: budgetMs }]
   }
 
-  const retryMs = Math.max(8_000, Math.round(budgetMs * 0.11))
+  const retryMs = Math.max(10_000, Math.round(budgetMs * 0.12))
   const plan: ApiAttempt[] = [
-    { model: models[0], timeoutMs: Math.max(10_000, Math.round(budgetMs * 0.58)) },
+    { model: models[0], timeoutMs: Math.max(15_000, Math.round(budgetMs * 0.65)) },
   ]
   for (let i = 1; i < models.length; i++) plan.push({ model: models[i], timeoutMs: retryMs })
 
@@ -406,12 +407,12 @@ function buildAttemptPlan(budgetMs: number, chain: string[]): ApiAttempt[] {
   const used = plan.reduce((sum, a) => sum + a.timeoutMs, 0) + ATTEMPT_GAP_MS * (plan.length - 1)
   let overflow = used - budgetMs
   for (let i = plan.length - 1; i >= 1 && overflow > 0; i--) {
-    const cut = Math.min(overflow, Math.max(0, plan[i].timeoutMs - 8_000))
+    const cut = Math.min(overflow, Math.max(0, plan[i].timeoutMs - 10_000))
     plan[i].timeoutMs -= cut
     overflow -= cut
   }
   if (overflow > 0) {
-    plan[0].timeoutMs = Math.max(10_000, plan[0].timeoutMs - overflow)
+    plan[0].timeoutMs = Math.max(15_000, plan[0].timeoutMs - overflow)
   }
   return plan
 }

@@ -29,7 +29,16 @@ const SUGGESTIONS_GLOBAL_AR = ["أفضل شركات البنوك حسب ROE؟", 
 const SUGGESTIONS_COMPANY_EN = ["Is the company profitable?", "How is it valued?", "Latest events?", "Health score?"]
 const SUGGESTIONS_GLOBAL_EN = ["Best banks by ROE?", "Top food companies by margin?", "Best companies by ROA?", "Analyze ABUK"]
 
-export function QaBox({ companyId, compact = false }: { companyId?: string; compact?: boolean }) {
+export function QaBox({
+  companyId,
+  companyName,
+  compact = false,
+}: {
+  companyId?: string
+  /** Display name used to scope the heading to one company ("Ask about COMI"). */
+  companyName?: string
+  compact?: boolean
+}) {
   const { lang } = useI18n()
   const qc = useQueryClient()
   const [question, setQuestion] = useState("")
@@ -38,6 +47,14 @@ export function QaBox({ companyId, compact = false }: { companyId?: string; comp
   const ar = lang === "ar"
 
   const suggestions = companyId ? (ar ? SUGGESTIONS_COMPANY_AR : SUGGESTIONS_COMPANY_EN) : ar ? SUGGESTIONS_GLOBAL_AR : SUGGESTIONS_GLOBAL_EN
+  const scopeName = companyName ?? (ar ? "الشركة" : "this company")
+  const title = companyId
+    ? ar
+      ? `اسأل عن ${scopeName} — إجابات من الأرقام الموثقة`
+      : `Ask about ${scopeName} — answers from the verified figures`
+    : ar
+      ? "اسأل عن السوق — إجابات من الأرقام الموثقة"
+      : "Ask the market — answers from the verified figures"
 
   async function ask(q: string) {
     const text = q.trim()
@@ -81,14 +98,16 @@ export function QaBox({ companyId, compact = false }: { companyId?: string; comp
   return (
     <div className={`rounded-2xl border border-border/60 bg-card ${compact ? "p-4" : "p-5"}`}>
       <div className="mb-3 flex items-center gap-2.5">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <MessageCircleQuestion className="h-4 w-4" />
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <MessageCircleQuestion className="h-4 w-4" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-semibold leading-tight">{ar ? "اسأل عن السوق — إجابات من بيانات متحقق منها" : "Ask the market — answers from verified data"}</h2>
+          <h2 className="text-sm font-semibold leading-tight">{title}</h2>
           <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
-            <ShieldCheck className="h-3 w-3 text-emerald-500" />
-            {ar ? "إجابات دقيقة من بيانات موثقة — بدون توصيات" : "Accurate answers from verified data — no advice"}
+            <ShieldCheck className="h-3 w-3 shrink-0 text-success" aria-hidden />
+            {ar
+              ? "إجابات من الإفصاحات المنشورة — الأرقام المستخدمة تظهر تحت كل إجابة. ليست توصية."
+              : "Answers from published filings — the figures used appear under each answer. Not advice."}
           </p>
         </div>
       </div>
@@ -101,14 +120,23 @@ export function QaBox({ companyId, compact = false }: { companyId?: string; comp
         className="flex gap-2"
       >
         <Input
+          dir="auto"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder={ar ? "اكتب سؤالك… مثال: هل الشركة مربحة؟ أو: أفضل شركات البنوك حسب ROE؟" : "Ask… e.g. Is it profitable? Or: best banks by ROE?"}
+          placeholder={
+            companyId
+              ? ar
+                ? "اكتب سؤالك عن الشركة… مثال: هل الشركة مربحة؟"
+                : "Ask about this company… e.g. Is it profitable?"
+              : ar
+                ? "اكتب سؤالك… مثال: هل الشركة مربحة؟"
+                : "Ask… e.g. Is it profitable?"
+          }
           className="h-9 text-sm"
           maxLength={300}
         />
-        <Button type="submit" size="sm" className="h-9 px-3" disabled={busy || question.trim().length < 3}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4 rtl-flip" />}
+        <Button type="submit" size="sm" className="h-9 px-3" disabled={busy || question.trim().length < 3} aria-label={ar ? "أرسل السؤال" : "Send question"}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4 rtl-flip" aria-hidden />}
         </Button>
       </form>
 
@@ -116,6 +144,7 @@ export function QaBox({ companyId, compact = false }: { companyId?: string; comp
         {suggestions.map((s) => (
           <button
             key={s}
+            type="button"
             onClick={() => ask(s)}
             disabled={busy}
             className="rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors duration-150 hover:bg-primary/10 hover:text-primary disabled:opacity-50"
@@ -129,11 +158,14 @@ export function QaBox({ companyId, compact = false }: { companyId?: string; comp
         <div className="mt-4 space-y-3">
           {turns.map((t, i) => (
             <div key={i} className="space-y-2">
-              <p className="text-xs font-semibold text-foreground/80">← {t.q}</p>
+              <p className="flex items-start gap-1 text-xs font-semibold text-foreground/80">
+                <span aria-hidden>{ar ? "→" : "←"}</span>
+                <span dir="auto">{t.q}</span>
+              </p>
               {t.error ? (
-                <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-600 dark:text-red-400">{t.error}</div>
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">{t.error}</div>
               ) : (
-                <div className="rounded-xl border border-border/60 bg-muted/20 p-3 text-xs leading-relaxed text-foreground/90">
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3 text-xs leading-relaxed text-foreground/90" dir="auto">
                   {renderAnswer(t.a)}
                   {t.figures.length > 0 ? (
                     <div className="mt-2.5 grid gap-1.5 sm:grid-cols-2">

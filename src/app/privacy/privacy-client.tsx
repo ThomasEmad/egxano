@@ -12,7 +12,7 @@ export default function PrivacyClient() {
     ? [
         {
           h: "1. من نحن",
-          p: "Meza منصة مستقلة لتحليل بيانات البورصة المصرية. نحن المتحكم في البيانات الشخصية التي تُجمع عبر الموقع. للتواصل بشأن الخصوصية: privacy@meza-ashy.vercel.app.",
+          p: "Meza منصة مستقلة لتحليل بيانات البورصة المصرية. نحن المتحكم في البيانات الشخصية التي تُجمع عبر الموقع. للتواصل بشأن الخصوصية: قناة التواصل المنشورة في صفحة «من نحن». (عنوان بريد خصوصية مخصص هيتنشر أول ما يتوفر.)",
         },
         {
           h: "2. البيانات التي نجمعها",
@@ -36,7 +36,7 @@ export default function PrivacyClient() {
         },
         {
           h: "7. حقوقك",
-          p: "لك الحق في الوصول إلى بياناتك وتصحيحها وحذفها وتقييد معالجتها والاعتراض عليها ونقلها حيث ينطبق القانون. أرسل طلبك إلى privacy@meza-ashy.vercel.app وسنرد خلال المدة القانونية. يمكنك أيضاً تقديم شكوى إلى الجهة المختصة.",
+          p: "لك الحق في الوصول إلى بياناتك وتصحيحها وحذفها وتقييد معالجتها والاعتراض عليها ونقلها حيث ينطبق القانون. أرسل طلبك من خلال قناة التواصل المنشورة في صفحة «من نحن» وسنرد خلال المدة القانونية. يمكنك أيضاً تقديم شكوى إلى الجهة المختصة.",
         },
         {
           h: "8. ملفات تعريف الارتباط",
@@ -62,7 +62,7 @@ export default function PrivacyClient() {
     : [
         {
           h: "1. Who we are",
-          p: "Meza is an independent Egyptian Exchange financial-analysis platform. We are the controller of personal data collected through the site. Privacy contact: privacy@meza-ashy.vercel.app.",
+          p: "Meza is an independent Egyptian Exchange financial-analysis platform. We are the controller of personal data collected through the site. Privacy contact: use the contact channel published on the About page. (A dedicated privacy address will be published when available.)",
         },
         {
           h: "2. Data we collect",
@@ -86,7 +86,7 @@ export default function PrivacyClient() {
         },
         {
           h: "7. Your rights",
-          p: "You may access, correct, delete, restrict or object to processing, and request portability where applicable. Send requests to privacy@meza-ashy.vercel.app; we respond within the legal period. You may also complain to the competent authority.",
+          p: "You may access, correct, delete, restrict or object to processing, and request portability where applicable. Send requests through the contact channel published on the About page; we respond within the legal period. You may also complain to the competent authority.",
         },
         {
           h: "8. Cookies",
@@ -111,7 +111,7 @@ export default function PrivacyClient() {
       ]
 
   return (
-    <LayoutShell>
+    <LayoutShell chrome="marketing">
       <div className="mx-auto w-full max-w-3xl space-y-6">
         <div>
           <h1 className="text-2xl font-bold">{ar ? "سياسة الخصوصية" : "Privacy Policy"}</h1>

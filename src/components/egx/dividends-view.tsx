@@ -4,12 +4,21 @@ import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { CalendarDays, CalendarRange } from "lucide-react"
 import { Card } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/lib/client/api"
 import { useI18n } from "@/lib/i18n"
-import { StatusChip } from "./shared"
 
 const STATUSES = ["ANNOUNCED", "UPCOMING", "ELIGIBLE", "PAID", "EXPIRED", "CANCELLED"]
+
+const STATUS_LABEL: Record<string, { en: string; ar: string }> = {
+  ANNOUNCED: { en: "Announced", ar: "معلنة" },
+  UPCOMING: { en: "Upcoming", ar: "قادمة" },
+  ELIGIBLE: { en: "Eligible", ar: "مستحقة" },
+  PAID: { en: "Paid", ar: "مصروفة" },
+  EXPIRED: { en: "Expired", ar: "منتهية" },
+  CANCELLED: { en: "Cancelled", ar: "ملغاة" },
+}
 
 const STATUS_DOT: Record<string, string> = {
   ANNOUNCED: "bg-info",
@@ -18,6 +27,11 @@ const STATUS_DOT: Record<string, string> = {
   PAID: "bg-success",
   EXPIRED: "bg-muted-foreground",
   CANCELLED: "bg-destructive",
+}
+
+function statusLabel(status: string, ar: boolean): string {
+  const entry = STATUS_LABEL[status]
+  return entry ? (ar ? entry.ar : entry.en) : status.replaceAll("_", " ")
 }
 
 export function DividendsView({ onOpenCompany }: { onOpenCompany: (id: string) => void }) {
@@ -85,7 +99,9 @@ export function DividendsView({ onOpenCompany }: { onOpenCompany: (id: string) =
   const groups = new Map<string, typeof dividends>()
   for (const d of dividends) {
     const date = d.announcementDate || d.distributionDate
-    const key = date ? new Date(date).toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "—"
+    const key = date
+      ? new Date(date).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-GB", { month: "long", year: "numeric" })
+      : "—"
     if (!groups.has(key)) groups.set(key, [])
     groups.get(key)!.push(d)
   }
@@ -113,7 +129,7 @@ export function DividendsView({ onOpenCompany }: { onOpenCompany: (id: string) =
                 status === s ? "bg-primary text-primary-foreground shadow-sm shadow-primary/15" : "bg-muted/60 text-muted-foreground hover:bg-accent/50 hover:text-foreground"
               }`}
             >
-              {s === "active" ? (lang === "ar" ? "قادمة/معلنة" : "Active") : s === "all" ? (lang === "ar" ? "الكل" : "All") : s.replaceAll("_", " ")}
+              {s === "active" ? (lang === "ar" ? "قادمة/معلنة" : "Active") : s === "all" ? (lang === "ar" ? "الكل" : "All") : statusLabel(s, lang === "ar")}
             </button>
           ))}
         </div>
@@ -131,7 +147,7 @@ export function DividendsView({ onOpenCompany }: { onOpenCompany: (id: string) =
             {["ANNOUNCED", "ELIGIBLE", "PAID", "CANCELLED"].map((s) => (
               <span key={s} className="inline-flex items-center gap-1">
                 <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[s] ?? "bg-slate-400"}`} aria-hidden />
-                {s.toLowerCase()}
+                {statusLabel(s, lang === "ar")}
               </span>
             ))}
           </div>
@@ -183,7 +199,7 @@ export function DividendsView({ onOpenCompany }: { onOpenCompany: (id: string) =
                         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[item.status] ?? "bg-slate-400"}`} aria-hidden />
                         <span className="font-bold">{item.ticker}</span>
                         <span className="tabular text-muted-foreground">{item.day}</span>
-                        {item.dps !== null ? <span className="ms-auto tabular text-muted-foreground">{item.dps}</span> : null}
+                        {item.dps !== null ? <span className="ms-auto tabular text-muted-foreground">{item.dps.toFixed(2)}</span> : null}
                       </button>
                     ))
                   )}
@@ -235,12 +251,15 @@ export function DividendsView({ onOpenCompany }: { onOpenCompany: (id: string) =
                       </div>
                     ) : null}
                     <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground sm:grid-cols-4">
-                      <DateCell label={t("dv.announcement")} iso={d.announcementDate} />
-                      <DateCell label={t("dv.eligibility")} iso={d.eligibilityDate} />
-                      <DateCell label={t("dv.exDate")} iso={d.exDividendDate} />
-                      <DateCell label={t("dv.distribution")} iso={d.distributionDate} />
+                      <DateCell label={t("dv.announcement")} iso={d.announcementDate} lang={lang} />
+                      <DateCell label={t("dv.eligibility")} iso={d.eligibilityDate} lang={lang} />
+                      <DateCell label={t("dv.exDate")} iso={d.exDividendDate} lang={lang} />
+                      <DateCell label={t("dv.distribution")} iso={d.distributionDate} lang={lang} />
                     </div>
-                    <StatusChip status={d.status} />
+                    <Badge variant="outline" className="shrink-0 whitespace-nowrap text-[10px]">
+                      <span className={`me-1 h-1.5 w-1.5 rounded-full ${STATUS_DOT[d.status] ?? "bg-slate-400"}`} aria-hidden />
+                      {statusLabel(d.status, lang === "ar")}
+                    </Badge>
                   </button>
                 ))}
               </div>
@@ -253,21 +272,21 @@ export function DividendsView({ onOpenCompany }: { onOpenCompany: (id: string) =
   )
 }
 
-function DateCell({ label, iso }: { label: string; iso: string | null }) {
+function DateCell({ label, iso, lang }: { label: string; iso: string | null; lang: "en" | "ar" }) {
   const { t } = useI18n()
   return (
     <div>
       <dt className="text-[9px] uppercase tracking-wide">{label}</dt>
-      <dd className={`tabular ${iso ? "font-medium text-foreground" : "italic text-slate-400"}`}>
-        {iso ? fmtDate(iso) : t("dv.notAnnounced")}
+      <dd className={`tabular ${iso ? "font-medium text-foreground" : "italic text-muted-foreground/70"}`}>
+        {iso ? fmtDate(iso, lang) : t("dv.notAnnounced")}
       </dd>
     </div>
   )
 }
 
-function fmtDate(iso: string): string {
+function fmtDate(iso: string, lang: "en" | "ar"): string {
   try {
-    return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+    return new Date(iso).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "short", year: "numeric" })
   } catch {
     return iso
   }

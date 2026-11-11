@@ -27,11 +27,14 @@ import { invalidateServerCache } from "@/lib/server-cache"
  * invocation's maxDuration, so every kick path passes an EXPLICIT budget that
  * fits its window (POST after() ≈ 45s, health cron 60s → 50s, manual worker
  * 300s). The lease is sized so a live worker never outlives it.
+ * 
+ * For AI analysis reports: grounded prompts are ~40KB+, reasoning models need
+ * 5-15s thinking + 20-40s streaming. We need ≥60s for the primary attempt.
  */
-export const JOB_LEASE_MS = 90_000
+export const JOB_LEASE_MS = 120_000
 export const DEFAULT_WORKER_BUDGET_MS = Math.min(
-  Math.max(Number(process.env.AI_WORKER_BUDGET_MS || "") || 42_000, 20_000),
-  80_000
+  Math.max(Number(process.env.AI_WORKER_BUDGET_MS || "") || 65_000, 45_000),
+  120_000
 )
 /**
  * 5 attempts: 1×45s (POST after) + up to 3×24s (poll donations) + 50s

@@ -5,6 +5,7 @@
 // a holding without any recorded price shows cost only, with a notice).
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Briefcase, Loader2, Plus, Trash2, TrendingDown, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -12,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { LayoutShell } from "@/components/layout/LayoutShell"
+import { EmptyState } from "@/components/brand/empty-state"
 import { authHeaders, getUserToken } from "@/lib/client/api"
 import { useSubscriptionGate } from "@/lib/client/subscription-gate"
 import { useI18n } from "@/lib/i18n"
@@ -57,8 +59,9 @@ export default function PortfolioPage() {
   // Auth gate: resolve sign-in state after mount so server and client first
   // render agree; anonymous users never hit the API (no guaranteed 401).
   const [authState, setAuthState] = useState<"unknown" | "in" | "out">("unknown")
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setAuthState(getUserToken() ? "in" : "out"), [])
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["portfolio", authState],
     queryFn: () =>
       fetch("/api/v1/portfolio", { headers: authHeaders() }).then((r) => {
@@ -87,17 +90,58 @@ export default function PortfolioPage() {
               {ar ? "محفظتي" : "My Portfolio"}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {ar ? "مراكزك مُقيّمة بأسعار مسجّلة — بدون تقديرات. سجّل دخولك أولًا لإضافة مراكز." : "Positions valued at recorded prices — never estimates. Sign in to add positions."}
+              {ar ? "مراكزك مُقيّمة بأسعار مسجّلة — بدون تقديرات." : "Positions valued at recorded prices — never estimates."}
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/80">
+              {ar
+                ? "القيم مبنية على الكميات ومتوسطات التكلفة اللي بتدخلها، ومقيّمة بأسعار مسجّلة (متأخرة 15 دقيقة) — مش بيانات من وسيط."
+                : "Values use the quantities and average costs you enter, priced from recorded market snapshots (15-minute delayed) — not broker data."}
             </p>
           </div>
           <AddHolding ar={ar} isPremium={isPremium} count={totals?.count ?? 0} disabled={!data && !error} />
         </div>
 
-        {error || authState === "out" ? (
-          <Card className="border-amber-500/30 bg-amber-500/5">
-            <CardContent className="p-5 text-sm text-amber-700 dark:text-amber-400">
-              {ar ? "محتاج تسجل دخول عشان تشوف محفظتك — " : "Sign in to view your portfolio — "}
-              <a href="/login" className="font-semibold underline">{ar ? "صفحة الدخول" : "sign in"}</a>
+        {authState === "out" ? (
+          <Card className="border-warning/30 bg-warning/5">
+            <CardContent className="flex flex-col items-start gap-3 p-5 text-sm">
+              <p className="text-warning-foreground dark:text-warning">
+                {ar ? "سجّل الدخول عشان تشوف محفظتك وتحفظ مراكزك." : "Sign in to view your portfolio and save positions."}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button asChild size="sm">
+                  <Link href="/login?next=/portfolio">{ar ? "تسجيل الدخول" : "Sign in"}</Link>
+                </Button>
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/register?next=/portfolio">{ar ? "إنشاء حساب مجاني" : "Create a free account"}</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : error ? (
+          <Card className="border-destructive/30 bg-destructive/5">
+            <CardContent className="flex flex-col items-start gap-2 p-5">
+              <p className="text-sm font-medium text-destructive">
+                {error instanceof Error && error.message === "AUTH"
+                  ? ar
+                    ? "انتهت الجلسة — سجّل الدخول تاني."
+                    : "Your session expired — sign in again."
+                  : ar
+                    ? "تعذّر تحميل محفظتك"
+                    : "Couldn't load your portfolio"}
+              </p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {ar ? "مفيش أي بيانات اتغيرت. جرّب تاني بعد شوية." : "No data was changed. Please try again in a moment."}
+              </p>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button size="sm" variant="outline" onClick={() => refetch()}>
+                  {ar ? "إعادة المحاولة" : "Try again"}
+                </Button>
+                {error instanceof Error && error.message === "AUTH" ? (
+                  <Button asChild size="sm">
+                    <Link href="/login?next=/portfolio">{ar ? "تسجيل الدخول" : "Sign in"}</Link>
+                  </Button>
+                ) : null}
+              </div>
             </CardContent>
           </Card>
         ) : isLoading ? (
@@ -107,13 +151,15 @@ export default function PortfolioPage() {
             ))}
           </div>
         ) : !data || data.holdings.length === 0 ? (
-          <Card className="border-border/60">
-            <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
-              <Briefcase className="h-8 w-8 text-muted-foreground/40" />
-              <p className="text-sm font-medium">{ar ? "محفظتك فاضية — ضيف أول مركز من زر «مركز جديد»" : "No positions yet — add your first one with “New position”"}</p>
-              <p className="text-xs text-muted-foreground">{ar ? "كل مركز بيتقيّم فورًا بآخر سعر مسجّل" : "Each position is valued instantly at the latest recorded price"}</p>
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={Briefcase}
+            title={ar ? "محفظتك فاضية" : "Your portfolio is empty"}
+            description={
+              ar
+                ? "ضيف أول مركز من زر «مركز جديد». كل مركز بيتقيّم بآخر سعر مسجّل، ولو مفيش سعر مسجّل بيظهر بتكلفته."
+                : "Add your first position with the “New position” button. Each position is valued at the latest recorded price; without a recorded price it is shown at cost."
+            }
+          />
         ) : (
           <div className="space-y-5">
             {/* totals */}
@@ -303,8 +349,18 @@ function AddHolding({ ar, isPremium, count, disabled }: { ar: boolean; isPremium
         <div className="absolute end-0 top-full z-40 mt-2 w-80 rounded-xl border border-border/60 bg-card p-4 shadow-lg shadow-black/10">
           {limitReached && !picked ? (
             <div className="space-y-2 text-xs">
-              <p className="font-medium text-amber-700 dark:text-amber-400">{ar ? "وصلت حد الخطة المجانية (مركزين)" : "Free plan limit reached (2 positions)"}</p>
-              <a href="/premium" className="inline-flex items-center gap-1 font-semibold text-primary hover:underline">{ar ? "ترقية لبريميوم — بلا حدود ←" : "Upgrade to Premium — unlimited →"}</a>
+              <p className="font-medium text-warning dark:text-warning">{ar ? "الخطة المجانية: مركزين" : "Free plan: 2 positions"}</p>
+              <p className="leading-relaxed text-muted-foreground">
+                {ar
+                  ? "Premium بيرفع الحد — التفعيل يدوي بعد مراجعة الدفع، بدون تجديد تلقائي."
+                  : "Premium removes the limit — activation is manual after payment review, with no auto-renewal."}
+              </p>
+              <Link
+                href="/premium#how-activation-works"
+                className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
+              >
+                {ar ? "اعرف اللي في Premium" : "See what Premium includes"}
+              </Link>
             </div>
           ) : !picked ? (
             <>
@@ -342,7 +398,11 @@ function AddHolding({ ar, isPremium, count, disabled }: { ar: boolean; isPremium
               <Button className="w-full" size="sm" disabled={quantity === "" || quantity === "0" || avgCost === "" || avgCost === "0" || add.isPending} onClick={() => add.mutate()}>
                 {add.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : ar ? "حفظ المركز" : "Save position"}
               </Button>
-              {!isPremium ? <p className="text-[10px] text-muted-foreground">{ar ? `الخطة المجانية: مركزين (${count}/2)` : `Free plan: 2 positions (${count}/2)`}</p> : null}
+              {!isPremium ? (
+                <p className="text-[10px] leading-relaxed text-muted-foreground">
+                  {ar ? `الخطة المجانية: مركزين (${count}/2) — Premium بيرفع الحد بتفعيل يدوي.` : `Free plan: 2 positions (${count}/2) — Premium removes the limit with manual activation.`}
+                </p>
+              ) : null}
             </div>
           )}
         </div>

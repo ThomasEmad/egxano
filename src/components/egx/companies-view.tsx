@@ -1,31 +1,34 @@
 "use client"
 
+// /dashboard#/companies — legacy company tab kept working. The canonical
+// directory is /companies; this tab focuses on a compact table for quick
+// switching inside the dashboard. Columns match their headers, each figure
+// shows its period, and sorting controls were removed because they only sorted
+// the 25 rows of the current page (misleading as a global sort).
+
 import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { ArrowRight, Building2, Search, Star, ChevronUp, ChevronDown, Scale } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { ArrowRight, Building2, ChevronLeft, ChevronRight, Search, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { api } from "@/lib/client/api"
+import { api, type CompanyListItem } from "@/lib/client/api"
 import { useWatchlist } from "@/lib/client/watchlist"
 import { useI18n } from "@/lib/i18n"
 import { formatEgp, formatPercent } from "@/lib/financial/units"
-import { SECTORS, sectorLabel } from "@/lib/sectors"
+import { SECTORS, SECTOR_AR, sectorLabel } from "@/lib/sectors"
 import { DemoBadge, StarButton } from "./shared"
 
 export function CompaniesView({ onOpenCompany }: { onOpenCompany: (id: string) => void }) {
-  const { t, lang, pick } = useI18n()
+  const { lang, pick } = useI18n()
   const ar = lang === "ar"
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [sector, setSector] = useState<string>("all")
   const [page, setPage] = useState(1)
   const [watchlistOnly, setWatchlistOnly] = useState(false)
-  const [sortBy, setSortBy] = useState<"ticker" | "name" | "revenue" | "net_profit" | "roe">("ticker")
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
   const watchItems = useWatchlist((s) => s.items)
 
   useEffect(() => {
@@ -38,76 +41,74 @@ export function CompaniesView({ onOpenCompany }: { onOpenCompany: (id: string) =
 
   const watchIds = useMemo(() => [...new Set(watchItems.map((i) => i.id))], [watchItems])
   const watchKey = watchIds.join(",")
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["companies", debouncedSearch, sector, page, watchlistOnly, watchKey],
-    queryFn: () => api.companies({
-      search: debouncedSearch,
-      sector: sector === "all" ? undefined : sector,
-      page,
-      pageSize: 25,
-      ids: watchlistOnly ? watchIds : undefined,
-    }),
+    queryFn: () =>
+      api.companies({
+        search: debouncedSearch,
+        sector: sector === "all" ? undefined : sector,
+        page,
+        pageSize: 25,
+        ids: watchlistOnly ? watchIds : undefined,
+      }),
     enabled: !watchlistOnly || watchIds.length > 0,
   })
 
-  const sectors = SECTORS
-
-  const sortedCompanies = useMemo(() => {
-    if (!data?.companies) return []
-    return [...data.companies].sort((a, b) => {
-      const aVal = a.snapshot[sortBy]?.value ?? 0
-      const bVal = b.snapshot[sortBy]?.value ?? 0
-      if (sortDir === "asc") return aVal - bVal
-      return bVal - aVal
-    })
-  }, [data, sortBy, sortDir])
+  const companies = data?.companies ?? []
 
   return (
-    <div className="space-y-5">
-      {/* Header: title + search/filter bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="space-y-4">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">{t("nav.companies")}</h1>
-          <p className="text-sm text-muted-foreground">
-            {ar ? "دليل مالي للشركات المدرجة في البورصة المصرية مع جدولة وفرز متقدم" : "Financial directory of EGX-listed companies with advanced sorting and filtering"}
+          <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-foreground">
+            <Building2 className="h-5 w-5 text-primary" aria-hidden="true" />
+            {ar ? "الشركات" : "Companies"}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {ar
+              ? "قائمة سريعة للتنقل داخل لوحة القيادة. الدليل الكامل مع فلاتر أكثر في صفحة الشركات."
+              : "A quick switcher inside the dashboard. The full directory with more filters is on the Companies page."}
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-72">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input
-              className="pl-9 h-9 w-full"
-              placeholder={t("co.searchPlaceholder")}
+              className="h-9 w-full ps-9"
+              placeholder={ar ? "ابحث بالاسم أو الرمز…" : "Search by name or ticker…"}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              aria-label={t("common.search")}
+              aria-label={ar ? "البحث في الشركات" : "Search companies"}
             />
           </div>
           <Select value={sector} onValueChange={(v) => { setSector(v); setPage(1) }}>
-            <SelectTrigger className="w-full sm:w-56 h-9" aria-label={t("co.sector")}>
+            <SelectTrigger className="h-9 w-full sm:w-48" aria-label={ar ? "القطاع" : "Sector"}>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("co.allSectors")}</SelectItem>
-              {sectors.map((s) => (
+            <SelectContent className="max-h-72">
+              <SelectItem value="all">{ar ? "كل القطاعات" : "All sectors"}</SelectItem>
+              {SECTORS.filter((s) => s !== "Other").map((s) => (
                 <SelectItem key={s} value={s}>
-                  {sectorLabel(s, lang)}
+                  {ar ? SECTOR_AR[s] ?? s : s}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <button
+            type="button"
             onClick={() => {
               setWatchlistOnly((v) => !v)
               setPage(1)
             }}
-            className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-all duration-150 ${
-              watchlistOnly ? "border-warning/60 bg-warning/10 text-warning-foreground" : "border-border/70 text-muted-foreground hover:text-foreground hover:border-primary/30"
+            className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${
+              watchlistOnly
+                ? "border-warning/60 bg-warning/10 text-warning"
+                : "border-border/70 text-muted-foreground hover:border-primary/30 hover:text-foreground"
             }`}
             aria-pressed={watchlistOnly}
           >
-            <Star className={`h-3.5 w-3.5 ${watchlistOnly ? "fill-warning-foreground text-warning-foreground" : ""}`} />
-            {t("watchlist.only")}
+            <Star className={`h-3.5 w-3.5 ${watchlistOnly ? "fill-warning" : ""}`} aria-hidden="true" />
+            {ar ? "قائمة المتابعة فقط" : "Watchlist only"}
             {watchItems.length > 0 ? <span className="tabular">({watchItems.length})</span> : null}
           </button>
         </div>
@@ -116,153 +117,127 @@ export function CompaniesView({ onOpenCompany }: { onOpenCompany: (id: string) =
       {isLoading ? (
         <div className="grid gap-4 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-56 rounded-xl" />
+            <Skeleton key={i} className="h-48 rounded-xl" />
           ))}
         </div>
-      ) : !data || data.companies.length === 0 ? (
-        <Card className="flex h-64 flex-col items-center justify-center gap-3 p-8 text-center text-sm text-muted-foreground border-border/60">
+      ) : isError ? (
+        <Card className="border-destructive/30 bg-destructive/5 p-6 text-center">
+          <p className="text-sm font-medium text-destructive">{ar ? "تعذّر تحميل الشركات" : "Could not load the companies"}</p>
+          <Button variant="outline" size="sm" className="mt-2 h-7 text-xs" onClick={() => refetch()}>
+            {ar ? "إعادة المحاولة" : "Retry"}
+          </Button>
+        </Card>
+      ) : !data || companies.length === 0 ? (
+        <Card className="flex h-56 flex-col items-center justify-center gap-3 border-border/60 p-8 text-center text-sm text-muted-foreground">
           {watchlistOnly && watchItems.length === 0 ? (
             <>
-              <Star className="h-6 w-6 text-warning-foreground/60" />
-              {t("watchlist.empty")}
+              <Star className="h-6 w-6 text-warning/60" aria-hidden="true" />
+              {ar ? "ميّز الشركات بنجمة لبناء قائمة المتابعة." : "Star companies to build your watchlist."}
             </>
           ) : (
-            t("common.noData")
+            ar ? "لا توجد شركات مطابقة." : "No companies match."
           )}
         </Card>
       ) : (
         <>
-          <p className="text-xs text-muted-foreground tabular">
-            {data.total} {lang === "ar" ? "شركة" : "companies"} · {t("common.page")} {data.page} {t("common.of")} {data.totalPages}
+          <p className="tabular text-xs text-muted-foreground">
+            {data.total} {ar ? "شركة" : "companies"} · {ar ? "صفحة" : "page"} {data.page} {ar ? "من" : "of"} {data.totalPages}
           </p>
 
-          {/* Rich sortable data table */}
-          <Card className="border-border/60 overflow-hidden">
+          <Card className="overflow-hidden border-border/60">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm caption-bottom">
+              <table className="w-full text-sm">
+                <caption className="sr-only">
+                  {ar ? "شركات البورصة المصرية مع الإيرادات وصافي الربح والعائد على حقوق الملكية والقيمة السوقية" : "EGX companies with revenue, net profit, ROE and market cap"}
+                </caption>
                 <thead>
-                  <tr className="border-b border-border/40 bg-card/50 text-[10px] uppercase tracking-wider text-muted-foreground">
-                    <th className="p-3 text-start font-medium w-12">
-                      <button
-                        onClick={() => { setSortBy("ticker"); setSortDir(sortBy === "ticker" && sortDir === "asc" ? "desc" : "asc") }}
-                        className="flex items-center gap-1 text-foreground hover:text-primary transition-colors"
-                      >
-                        {ar ? "الرمز" : "Ticker"}
-                        {sortBy === "ticker" ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}
-                      </button>
-                    </th>
-                    <th className="p-3 text-start font-medium">
-                      <button
-                        onClick={() => { setSortBy("name"); setSortDir(sortBy === "name" && sortDir === "asc" ? "desc" : "asc") }}
-                        className="flex items-center gap-1 text-foreground hover:text-primary transition-colors"
-                      >
-                        {ar ? "اسم الشركة" : "Company"}
-                        {sortBy === "name" ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}
-                      </button>
-                    </th>
-                    <th className="p-3 text-start font-medium hidden sm:table-cell">{ar ? "القطاع" : "Sector"}</th>
-                    <th className="p-3 text-end font-medium">
-                      <button
-                        onClick={() => { setSortBy("revenue"); setSortDir(sortBy === "revenue" && sortDir === "asc" ? "desc" : "asc") }}
-                        className="flex items-end gap-1 text-foreground hover:text-primary transition-colors"
-                      >
-                        {t("co.revenue")}
-                        {sortBy === "revenue" ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}
-                      </button>
-                    </th>
-                    <th className="p-3 text-end font-medium">
-                      <button
-                        onClick={() => { setSortBy("net_profit"); setSortDir(sortBy === "net_profit" && sortDir === "asc" ? "desc" : "asc") }}
-                        className="flex items-end gap-1 text-foreground hover:text-primary transition-colors"
-                      >
-                        {t("co.netProfit")}
-                        {sortBy === "net_profit" ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}
-                      </button>
-                    </th>
-                    <th className="p-3 text-end font-medium">
-                      <button
-                        onClick={() => { setSortBy("roe"); setSortDir(sortBy === "roe" && sortDir === "asc" ? "desc" : "asc") }}
-                        className="flex items-end gap-1 text-foreground hover:text-primary transition-colors"
-                      >
-                        {t("co.roe")}
-                        {sortBy === "roe" ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}
-                      </button>
-                    </th>
-                    <th className="p-3 text-end font-medium hidden lg:table-cell">{ar ? "القيمة السوقية" : "Market Cap"}</th>
-                    <th className="p-3 text-center font-medium w-16">{ar ? "إجراءات" : "Actions"}</th>
+                  <tr className="border-b border-border/40 bg-muted/30 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <th scope="col" className="p-3 text-start font-medium">{ar ? "الشركة" : "Company"}</th>
+                    <th scope="col" className="hidden p-3 text-start font-medium sm:table-cell">{ar ? "القطاع" : "Sector"}</th>
+                    <th scope="col" className="p-3 text-end font-medium">{ar ? "الإيرادات" : "Revenue"}</th>
+                    <th scope="col" className="p-3 text-end font-medium">{ar ? "صافي الربح" : "Net profit"}</th>
+                    <th scope="col" className="p-3 text-end font-medium">{ar ? "ROE" : "ROE"}</th>
+                    <th scope="col" className="hidden p-3 text-end font-medium lg:table-cell">{ar ? "القيمة السوقية" : "Market cap"}</th>
+                    <th scope="col" className="w-20 p-3 text-center font-medium"><span className="sr-only">{ar ? "إجراءات" : "Actions"}</span></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedCompanies.map((c) => {
-                    const revenue = c.snapshot.revenue
-                    const netProfit = c.snapshot.net_profit
-                    const roe = c.snapshot.roe
-                    const positive = (netProfit?.value ?? 0) >= 0
-                    return (
-                      <tr
-                        key={c.id}
-                        onClick={() => onOpenCompany(c.id)}
-                        className="border-b border-border/40 bg-card hover:bg-accent/30 transition-colors cursor-pointer group"
-                      >
-                        <td className="p-3">
-                          <div className="flex items-center gap-2">
-                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                              <Building2 className="h-3.5 w-3.5" />
-                            </span>
-                            <div className="min-w-0">
-                              <div className="text-sm font-bold">{c.ticker}</div>
+                  {companies.map((c: CompanyListItem) => (
+                    <tr
+                      key={c.id}
+                      onClick={() => onOpenCompany(c.id)}
+                      className="group cursor-pointer border-b border-border/40 bg-card transition-colors last:border-0 hover:bg-accent/30"
+                    >
+                      <td className="p-3">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
+                          </span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-bold">{c.ticker}</span>
                               {c.isDemoData ? <DemoBadge small /> : null}
-                              <p className="truncate text-xs text-muted-foreground">{pick(c.nameEn, c.nameAr)}</p>
                             </div>
+                            <p className="truncate text-xs text-muted-foreground">{pick(c.nameEn, c.nameAr)}</p>
                           </div>
-                        </td>
-                        <td className="p-3 hidden sm:table-cell">
-                          <span className="text-xs text-muted-foreground">{sectorLabel(c.sector, lang)}</span>
-                          {c.industry ? <span className="block text-[10px] text-muted-foreground/70">{c.industry}</span> : null}
-                        </td>
-                        <td className="p-3 text-end tabular">
-                          {revenue ? formatEgp(revenue.value) : "—"}
-                          {revenue ? <span className="block text-[9px] font-normal text-muted-foreground/80">{revenue.periodLabel}</span> : null}
-                        </td>
-                        <td className="p-3 text-end tabular">
-                          <span className={`font-semibold tabular ${positive ? "text-positive" : "text-negative"}`}>
-                            {netProfit ? formatEgp(netProfit.value) : "—"}
-                          </span>
-                          {netProfit ? <span className="block text-[9px] font-normal text-muted-foreground/80">{netProfit.periodLabel}</span> : null}
-                        </td>
-                        <td className="p-3 text-end tabular">
-                          <span className={`font-semibold tabular ${(roe?.value ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>
-                            {roe ? formatPercent(roe.value) : "—"}
-                          </span>
-                          {roe ? <span className="block text-[9px] font-normal text-muted-foreground/80">{roe.periodLabel}</span> : null}
-                        </td>
-                        <td className="p-3 text-end tabular hidden lg:table-cell">
-                          <span className="text-xs text-muted-foreground">—</span>
-                        </td>
-                        <td className="p-3 text-center">
+                        </div>
+                      </td>
+                      <td className="hidden p-3 sm:table-cell">
+                        <span className="text-xs text-muted-foreground">{sectorLabel(c.sector, lang)}</span>
+                        {c.industry ? <span className="block text-[10px] text-muted-foreground/70">{c.industry}</span> : null}
+                      </td>
+                      <td className="p-3 text-end tabular">
+                        {c.snapshot.revenue?.value != null ? formatEgp(c.snapshot.revenue.value) : "—"}
+                        {c.snapshot.revenue?.periodLabel ? (
+                          <span className="block text-[9px] font-normal text-muted-foreground/80">{c.snapshot.revenue.periodLabel}</span>
+                        ) : null}
+                      </td>
+                      <td className="p-3 text-end tabular">
+                        <span className={`font-semibold ${(c.snapshot.net_profit?.value ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>
+                          {c.snapshot.net_profit?.value != null ? formatEgp(c.snapshot.net_profit.value) : "—"}
+                        </span>
+                        {c.snapshot.net_profit?.periodLabel ? (
+                          <span className="block text-[9px] font-normal text-muted-foreground/80">{c.snapshot.net_profit.periodLabel}</span>
+                        ) : null}
+                      </td>
+                      <td className="p-3 text-end tabular">
+                        <span className={`font-semibold ${(c.snapshot.roe?.value ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>
+                          {c.snapshot.roe?.value != null ? formatPercent(c.snapshot.roe.value) : "—"}
+                        </span>
+                        {c.snapshot.roe?.periodLabel ? (
+                          <span className="block text-[9px] font-normal text-muted-foreground/80">{c.snapshot.roe.periodLabel}</span>
+                        ) : null}
+                      </td>
+                      <td className="hidden p-3 text-end tabular lg:table-cell">
+                        <span className="text-xs text-muted-foreground">{c.marketCap != null ? formatEgp(c.marketCap) : "—"}</span>
+                      </td>
+                      <td className="p-3 text-center">
+                        <span className="inline-flex items-center gap-1">
                           <StarButton companyId={c.id} ticker={c.ticker} />
-                          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-primary rtl-flip transition-colors" />
-                        </td>
-                      </tr>
-                    )
-                  })}
+                          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 transition-colors group-hover:text-primary rtl-flip" aria-hidden="true" />
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
             {data.totalPages > 1 ? (
-              <div className="border-t border-border/60 px-5 py-3 flex items-center justify-between">
+              <div className="flex items-center justify-between border-t border-border/60 px-5 py-3">
                 <div className="text-xs text-muted-foreground">
-                  {data.total} {lang === "ar" ? "شركة" : "companies"}
+                  {data.total} {ar ? "شركة" : "companies"}
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="border-border/70 h-8 px-2">
-                    ‹
+                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="h-8 gap-0.5 border-border/70 px-2">
+                    {ar ? <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />}
+                    <span className="sr-only">{ar ? "السابق" : "Previous"}</span>
                   </Button>
-                  <span className="text-xs text-muted-foreground tabular num">
+                  <span className="tabular text-xs text-muted-foreground">
                     {page} / {data.totalPages}
                   </span>
-                  <Button variant="outline" size="sm" disabled={page >= data.totalPages} onClick={() => setPage((p) => p + 1)} className="border-border/70 h-8 px-2">
-                    ›
+                  <Button variant="outline" size="sm" disabled={page >= data.totalPages} onClick={() => setPage((p) => p + 1)} className="h-8 gap-0.5 border-border/70 px-2">
+                    {ar ? <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />}
+                    <span className="sr-only">{ar ? "التالي" : "Next"}</span>
                   </Button>
                 </div>
               </div>

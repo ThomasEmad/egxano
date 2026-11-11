@@ -6,19 +6,40 @@ import { BreadcrumbSchema } from "@/components/seo/structured-data"
 import CompanyPageClient from "./client"
 
 async function findCompany(key: string) {
-  return db.company.findFirst({
-    where: { OR: [{ id: key }, { ticker: key.toUpperCase() }, { isin: key.toUpperCase() }] },
-    select: {
-      id: true,
-      ticker: true,
-      nameEn: true,
-      nameAr: true,
-      sector: true,
-      isin: true,
-      industry: true,
-      isActive: true,
-    },
-  })
+  try {
+    return await db.company.findFirst({
+      where: { OR: [{ id: key }, { ticker: key.toUpperCase() }, { isin: key.toUpperCase() }] },
+      select: {
+        id: true,
+        ticker: true,
+        nameEn: true,
+        nameAr: true,
+        sector: true,
+        isin: true,
+        industry: true,
+        isActive: true,
+      },
+    })
+  } catch {
+    // A database outage must not turn a company page into a 500: the client
+    // renders an honest error/empty state and can retry. Metadata falls back
+    // to the requested key.
+    return null
+  }
+}
+
+async function countVerifiedValues(companyId: string): Promise<number> {
+  try {
+    return await db.financialValue.count({
+      where: {
+        companyId,
+        validationStatus: "VALID",
+        report: { deletedAt: null, processingStatus: { in: ["VALIDATED", "APPROVED", "EXTRACTED"] } },
+      },
+    })
+  } catch {
+    return 0
+  }
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -40,13 +61,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const canonical = `/company/${company.ticker}`
   // A profile with no trusted financial value is a thin page: keep it
   // crawlable for discovery but do not ask Google to index it yet.
-  const validValues = await db.financialValue.count({
-    where: {
-      companyId: company.id,
-      validationStatus: "VALID",
-      report: { deletedAt: null, processingStatus: { in: ["VALIDATED", "APPROVED", "EXTRACTED"] } },
-    },
-  })
+  const validValues = await countVerifiedValues(company.id)
   const hasData = validValues > 0
 
   return {

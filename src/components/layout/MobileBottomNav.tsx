@@ -2,15 +2,17 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Activity, Building2, ScanSearch, CalendarDays, ShieldCheck } from "lucide-react"
+import { Activity, Building2, Scale, ScanSearch, ShieldCheck } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 
+// The phone's primary research loop: home → companies → screener → compare →
+// watchlist. Sectors, dividends and portfolio stay reachable from the drawer.
 const MOBILE_NAV: { href: string; label: string; labelAr: string; icon: React.ReactNode }[] = [
   { href: "/", label: "Home", labelAr: "الرئيسية", icon: <Activity className="h-5 w-5" /> },
   { href: "/companies", label: "Companies", labelAr: "الشركات", icon: <Building2 className="h-5 w-5" /> },
-  { href: "/sectors", label: "Sectors", labelAr: "القطاعات", icon: <ScanSearch className="h-5 w-5" /> },
-  { href: "/dividends", label: "Dividends", labelAr: "التوزيعات", icon: <CalendarDays className="h-5 w-5" /> },
-  { href: "/watchlist", label: "Watchlist", labelAr: "قائمة المتابعة", icon: <ShieldCheck className="h-5 w-5" /> },
+  { href: "/dashboard", label: "Screener", labelAr: "الماسح", icon: <ScanSearch className="h-5 w-5" /> },
+  { href: "/compare", label: "Compare", labelAr: "المقارنة", icon: <Scale className="h-5 w-5" /> },
+  { href: "/watchlist", label: "Watchlist", labelAr: "المتابعة", icon: <ShieldCheck className="h-5 w-5" /> },
 ]
 
 export function MobileBottomNav() {

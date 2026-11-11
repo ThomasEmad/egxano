@@ -38,7 +38,7 @@ import type {
   PeriodSnapshot,
 } from "@/lib/financial/analysis/types"
 
-export const AI_SNAPSHOT_MAX_PERIODS = 8
+export const AI_SNAPSHOT_MAX_PERIODS = 5
 export const AI_SNAPSHOT_MAX_EVENTS = 8
 /** Model label persisted when the deterministic fallback served instead of the LLM */
 export const RULE_BASED_MODEL = "rule-based@1"

@@ -10,7 +10,7 @@ export const revalidate = 3600
 export const metadata: Metadata = {
   title: "EGX Sectors — Companies by Egyptian Exchange Sector",
   description:
-    "Browse Egyptian Exchange companies by sector: banks, real estate, industrial, telecom, healthcare, food and more. Audited financial data and company profiles in Arabic and English.",
+    "Browse Egyptian Exchange companies by sector: banks, real estate, industrial, telecom, healthcare, food and more. Median ROE, revenue and net profit from published filings, with each sector's fiscal period shown — in Arabic and English.",
   keywords: ["EGX sectors", "Egyptian Exchange sectors", "قطاعات البورصة المصرية", "أسهم قطاع البنوك", "أسهم العقارات"],
   alternates: {
     canonical: "/sectors",
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "EGX Sectors — Companies by Egyptian Exchange Sector",
-    description: "Browse Egyptian Exchange companies by sector with audited financial data.",
+    description: "Browse Egyptian Exchange sectors with medians computed from published filings.",
     url: "/sectors",
     type: "website",
     images: [{ url: siteConfig.ogImage, width: 1200, height: 630, alt: "EGX sectors" }],

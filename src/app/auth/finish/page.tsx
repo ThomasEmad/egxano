@@ -1,9 +1,12 @@
-"use client"
+﻿"use client"
 
 import { Suspense, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Loader2 } from "lucide-react"
+import { LayoutShell } from "@/components/layout/LayoutShell"
+import { EGXANOWordmark } from "@/components/brand/brand-mark"
+import { useI18n } from "@/lib/i18n"
 import { setUserToken } from "@/lib/client/api"
 import { useWatchlist } from "@/lib/client/watchlist"
 
@@ -13,7 +16,7 @@ import { useWatchlist } from "@/lib/client/watchlist"
 // touches server logs. This page takes the fragment, stores it the same way
 // password login does (x-session-token in localStorage), verifies it with
 // /auth/me, then bounces to ?next. Errors arrive as ?error=<code> and are
-// shown bilingually.
+// shown in the visitor's current language.
 //
 // Watchlist merge: a guest who starred companies before signing in keeps
 // them — the localStorage watchlist is preserved as-is; DB sync (when
@@ -36,9 +39,18 @@ const ERRORS: Record<string, { ar: string; en: string }> = {
   invalid_token: { ar: "الجلسة غير صالحة — ابدأ من جديد.", en: "The session is invalid — please start again." },
 }
 
+/** Only same-site absolute paths survive; anything else falls back to home. */
+function sanitizeNext(raw: string | null): string {
+  if (!raw) return "/"
+  if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\")) return "/"
+  return raw
+}
+
 function FinishInner() {
   const router = useRouter()
   const search = useSearchParams()
+  const { lang } = useI18n()
+  const ar = lang === "ar"
   const [msg, setMsg] = useState<{ ar: string; en: string } | null>(null)
   const ran = useRef(false)
 
@@ -47,9 +59,10 @@ function FinishInner() {
     ran.current = true
 
     const error = search.get("error")
-    const next = search.get("next") || "/"
+    const next = sanitizeNext(search.get("next"))
 
     if (error) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMsg(ERRORS[error] ?? { ar: "تعذّر تسجيل الدخول.", en: "Sign-in failed." })
       return
     }
@@ -83,24 +96,27 @@ function FinishInner() {
     <div className="flex min-h-[70vh] flex-col items-center justify-center gap-4 px-4 text-center">
       {msg ? (
         <>
-          <p className="max-w-sm rounded-lg border border-red-500/40 bg-red-500/8 px-4 py-3 text-sm text-red-600 dark:text-red-400" role="alert">
-            <span dir="auto">{msg.ar}</span>
-            <br />
-            {msg.en}
+          <EGXANOWordmark lang={lang} size={36} />
+          <p
+            role="alert"
+            className="mt-2 max-w-sm rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm leading-relaxed text-destructive"
+          >
+            {ar ? msg.ar : msg.en}
           </p>
-          <Link href="/login" className="text-sm font-semibold text-primary hover:underline">
-            <span dir="auto">العودة لتسجيل الدخول</span>
-            <span className="mx-1" aria-hidden>·</span>
-            Back to sign in
-          </Link>
+          <div className="flex flex-col items-center gap-2">
+            <Link href="/login" className="text-sm font-semibold text-primary underline-offset-2 hover:underline">
+              {ar ? "العودة لتسجيل الدخول" : "Back to sign in"}
+            </Link>
+            <Link href="/" className="text-[11px] text-muted-foreground underline-offset-2 hover:underline">
+              {ar ? "العودة للرئيسية" : "Back to home"}
+            </Link>
+          </div>
         </>
       ) : (
         <>
           <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden />
-          <p className="text-sm text-muted-foreground">
-            <span dir="auto">جارٍ إكمال تسجيل الدخول…</span>
-            <span className="mx-1" aria-hidden>·</span>
-            Completing sign-in…
+          <p className="text-sm text-muted-foreground" role="status">
+            {ar ? "جارٍ إكمال تسجيل الدخول…" : "Completing sign-in…"}
           </p>
         </>
       )}
@@ -110,8 +126,17 @@ function FinishInner() {
 
 export default function AuthFinishPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-[70vh] items-center justify-center" />}>
-      <FinishInner />
-    </Suspense>
+    <LayoutShell chrome="marketing">
+      <Suspense
+        fallback={
+          <div className="flex min-h-[70vh] items-center justify-center" aria-busy="true" aria-live="polite">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden />
+          </div>
+        }
+      >
+        <FinishInner />
+      </Suspense>
+    </LayoutShell>
   )
 }
+

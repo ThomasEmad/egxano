@@ -1,10 +1,10 @@
 export const siteConfig = {
-  name: "Meza",
+  name: "EGXANO",
   description:
-    "Independent financial data for Egyptian Exchange companies — statements, metrics, sector rankings and valuations in Arabic and English.",
-  url: process.env.NEXT_PUBLIC_SITE_URL || "https://meza-ashy.vercel.app",
+    "EGXANO — Egyptian stock market research: published financial statements, calculated ratios, technical context and company comparisons for EGX-listed companies — in Arabic and English. Understand the market before you decide.",
+  url: process.env.NEXT_PUBLIC_SITE_URL || "https://egxano.vercel.app",
   ogImage: "/og-image.png",
-  twitterHandle: "@meza",
+  twitterHandle: "@egxano",
   links: {
     homepage: "/",
     companies: "/companies",

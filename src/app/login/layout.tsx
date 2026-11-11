@@ -1,8 +1,8 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "تسجيل الدخول — Meza · Sign in to Meza",
-  description: "ادخل إلى حسابك لمتابعة قائمة المتابعة والمحفظة والتنبيهات وتحليلات الذكاء الاصطناعي لشركات البورصة المصرية. Sign in to your account to use watchlists, portfolio tracking, alerts and AI company analysis.",
+  title: "Sign in",
+  description: "Sign in to sync your watchlist, portfolio and price targets. Browsing and company research stay free without an account.",
   alternates: { canonical: "/login" },
 }
 

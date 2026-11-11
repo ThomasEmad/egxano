@@ -80,12 +80,12 @@ export const AR_INSTRUCTION =
 export const EN_INSTRUCTION =
   "\n\nWrite the report in English with exactly the sections specified in the system prompt. Use only data figures with period labels, and analyze like a seasoned professional investor — not a news summarizer."
 
-/** Compact length budget for dense expert reports. 0 = uncapped. 900 words
+/** Compact length budget for dense expert reports. 0 = uncapped. 700 words
  * leaves room for the mechanism chains and framed comparisons the craft rules
  * demand, without stretching the worker budgets. */
 export const MAX_WORDS = (() => {
   const n = Number(process.env.AI_REPORT_MAX_WORDS || "")
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 900
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 700
 })()
 
 export const LENGTH_BUDGET =

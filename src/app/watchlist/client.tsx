@@ -5,7 +5,7 @@
 // The list itself is a client preference (zustand, device-local).
 
 import { useMemo } from "react"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import { Star, Trash2, TrendingDown, TrendingUp } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -13,7 +13,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { LayoutShell } from "@/components/layout/LayoutShell"
+import { EmptyState } from "@/components/brand/empty-state"
+import { MarketDataLine } from "@/components/brand/data-trust"
 import { SECTOR_AR } from "@/lib/sectors"
+import { TRUST } from "@/lib/brand"
 import { useWatchlist } from "@/lib/client/watchlist"
 import { useI18n } from "@/lib/i18n"
 
@@ -50,7 +53,6 @@ function fmt(unit: string, v: number | undefined | null): string {
 }
 
 export default function WatchlistPage() {
-  const router = useRouter()
   const { lang } = useI18n()
   const ar = lang === "ar"
   const items = useWatchlist((s) => s.items)
@@ -83,6 +85,8 @@ export default function WatchlistPage() {
 
   const defs = data?.metricDefs ?? []
   const get = (c: WatchCompany, code: string) => fmt(defs.find((d) => d.code === code)?.unit ?? "RATIO", c.metrics[code])
+  const latestAsOf =
+    data?.companies?.map((c) => c.priceAsOf).filter((v): v is string => Boolean(v)).sort().at(-1) ?? null
 
   return (
     <LayoutShell>
@@ -94,21 +98,36 @@ export default function WatchlistPage() {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {ar
-              ? "الشركات اللي متابعهها بملخص سريع من أحدث بيانات متحقق منها — القائمة محفوظة على جهازك."
-              : "Your starred companies with a quick data snapshot — saved on this device."}
+              ? "الشركات اللي بتتابعها مع أحدث أرقام مسجّلة. محفوظة على الجهاز وبتتزامن مع حسابك لما تسجّل الدخول."
+              : "Companies you follow, with their latest recorded figures. Saved on this device and synced to your account when you sign in."}
           </p>
+          {ids.length > 0 ? (
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+              <span>
+                <span className="font-medium text-foreground">{ar ? TRUST.source.ar : TRUST.source.en}:</span>{" "}
+                {ar ? TRUST.sourceFiling.ar : TRUST.sourceFiling.en}
+              </span>
+              <MarketDataLine asOf={latestAsOf} source={ar ? "أسعار مسجّلة" : "recorded prices"} />
+              <span>{ar ? "القيم غير المتاحة تظهر «—» ولا تُقدَّر." : "Unavailable values show “—” and are never estimated."}</span>
+            </div>
+          ) : null}
         </div>
 
         {ids.length === 0 ? (
-          <Card className="border-border/60">
-            <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
-              <Star className="h-8 w-8 text-muted-foreground/40" />
-              <p className="text-sm font-medium">{ar ? "مفيش شركات في القائمة — دوس النجمة على أي شركة لتتابعها هنا" : "No companies yet — tap the star on any company to follow it here"}</p>
-              <Button size="sm" variant="outline" onClick={() => router.push("/dashboard")}>
-                {ar ? "استكشف الشركات" : "Explore companies"}
+          <EmptyState
+            icon={Star}
+            title={ar ? "مفيش شركات في القائمة بعد" : "No companies yet"}
+            description={
+              ar
+                ? "دوس النجمة على أي شركة عشان تتابعها هنا. القائمة بتتحفظ على جهازك، وبتتزامن مع حسابك لما تسجّل الدخول."
+                : "Tap the star on any company to follow it here. The list is saved on your device and synced to your account when you sign in."
+            }
+            action={
+              <Button size="sm" asChild>
+                <Link href="/companies">{ar ? "تصفح الشركات" : "Browse companies"}</Link>
               </Button>
-            </CardContent>
-          </Card>
+            }
+          />
         ) : isLoading ? (
           <div className="space-y-2">
             {ids.slice(0, 6).map((id) => (
@@ -192,7 +211,9 @@ export default function WatchlistPage() {
 
         {ids.length > 0 && data && data.companies.length < ids.length ? (
           <p className="mt-3 text-xs text-muted-foreground italic">
-            {ar ? `${ids.length - data.companies.length} من شركات القائمة غير موجودة في قاعدة البيانات الحالية` : `${ids.length - data.companies.length} watched id(s) not found in the current database`}
+            {ar
+              ? `${ids.length - data.companies.length} شركة في قائمتك لسه مش مغطاة — هتظهر أول ما تتوفر بياناتها المالية.`
+              : `${ids.length - data.companies.length} company in your list isn't covered yet — it will appear as soon as financial data is available.`}
           </p>
         ) : null}
       </div>

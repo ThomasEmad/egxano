@@ -2,14 +2,14 @@ import type { MetadataRoute } from "next"
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Meza",
-    short_name: "Meza",
+    name: "EGXANO — Egyptian stock market research",
+    short_name: "EGXANO",
     description:
-      "Financial data, ratios, sector rankings and valuations for Egyptian Exchange companies.",
+      "EGXANO — Egyptian stock market research: published financial statements, calculated ratios, technical context and company comparisons for EGX-listed companies — in Arabic and English. Understand the market before you decide.",
     start_url: "/",
     display: "standalone",
-    background_color: "#ffffff",
-    theme_color: "#0b1220",
+    background_color: "#F7F8F6",
+    theme_color: "#060906",
     // Arabic-first product: the install UI and standalone window should
     // reflect the primary RTL locale (pages flip dir client-side).
     lang: "ar-EG",

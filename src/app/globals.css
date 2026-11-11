@@ -49,6 +49,12 @@
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
   --color-gold: var(--gold);
+  /* Brand constants + financial semantics (never mix the two roles) */
+  --color-brand-lime: var(--brand-lime);
+  --color-brand-ink: var(--brand-ink);
+  --color-market-up: var(--positive);
+  --color-market-down: var(--negative);
+  --color-market-flat: var(--neutral);
   --color-surface: var(--surface);
   --color-surface-elevated: var(--surface-elevated);
   --color-surface-secondary: var(--surface-secondary);
@@ -64,73 +70,80 @@
 :root {
   --radius: 0.75rem;
 
-  /* Light Theme - Clean Professional */
-  --background: #F9FAF8;
-  --foreground: #0C1210;
+  /* Light Theme — institutional paper + graphite + acid-lime accent.
+     Lime is an ACCENT here, not a text color: #A3E635 on white is 1.4:1.
+     Interactive text/actions use lime-700 (#4D7C0F, 4.8:1 on paper). */
+  --background: #F7F8F6;
+  --foreground: #0B0F0D;
 
   --card: #FFFFFF;
-  --card-foreground: #0C1210;
+  --card-foreground: #0B0F0D;
 
   --popover: #FFFFFF;
-  --popover-foreground: #0C1210;
+  --popover-foreground: #0B0F0D;
 
-  --primary: #A3E635;
-  --primary-foreground: #0A0F0B;
+  --primary: #4D7C0F;
+  --primary-foreground: #FFFFFF;
 
-  --secondary: #F1F4F0;
+  --secondary: #EEF1EB;
   --secondary-foreground: #1A241F;
 
-  --muted: #F4F7F2;
-  --muted-foreground: #5A6B5F;
+  --muted: #F1F4EE;
+  --muted-foreground: #56655C;
 
+  /* Acid lime — brand accent surfaces/highlights only (dark foreground). */
   --accent: #A3E635;
   --accent-foreground: #0A0F0B;
 
-  --destructive: #DC2626;
+  /* Constant brand constants — identical in both themes. */
+  --brand-lime: #A3E635;
+  --brand-ink: #0B0F0D;
+
+  --destructive: #B91C1C;
   --destructive-foreground: #FFFFFF;
 
-  --success: #16A34A;
+  --success: #15803D;
   --success-foreground: #FFFFFF;
 
-  --warning: #EA580C;
+  --warning: #B45309;
   --warning-foreground: #FFFFFF;
 
-  --info: #2563EB;
+  --info: #1D4ED8;
   --info-foreground: #FFFFFF;
 
-  --border: #E5EDE0;
-  --input: #E5EDE0;
-  --ring: #A3E635;
+  --border: #E1E7DB;
+  --input: #DCE3D6;
+  --ring: #4D7C0F;
 
-  --chart-1: #A3E635;
-  --chart-2: #22C55E;
-  --chart-3: #10B981;
-  --chart-4: #F59E0B;
-  --chart-5: #F97316;
+  --chart-1: #4D7C0F;
+  --chart-2: #0F766E;
+  --chart-3: #B45309;
+  --chart-4: #4338CA;
+  --chart-5: #9F1239;
 
   /* Sidebar */
   --sidebar: #FFFFFF;
-  --sidebar-foreground: #0C1210;
-  --sidebar-primary: #A3E635;
-  --sidebar-primary-foreground: #0A0F0B;
-  --sidebar-accent: #F4F7F2;
+  --sidebar-foreground: #0B0F0D;
+  --sidebar-primary: #4D7C0F;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #F1F4EE;
   --sidebar-accent-foreground: #1A241F;
-  --sidebar-border: #E5EDE0;
-  --sidebar-ring: #A3E635;
+  --sidebar-border: #E1E7DB;
+  --sidebar-ring: #4D7C0F;
 
   /* Header */
-  --header-bg: rgba(255, 255, 255, 0.85);
+  --header-bg: rgba(247, 248, 246, 0.85);
 
   /* Surfaces */
   --surface: #FFFFFF;
   --surface-elevated: #FFFFFF;
-  --surface-secondary: #F9FAF8;
-  --surface-tertiary: #F4F7F2;
+  --surface-secondary: #F7F8F6;
+  --surface-tertiary: #F1F4EE;
 
-  /* Status */
-  --positive: #16A34A;
-  --negative: #DC2626;
-  --neutral: #6B7280;
+  /* Status — financial semantics are independent from the brand accent */
+  --positive: #15803D;
+  --negative: #B91C1C;
+  --neutral: #64748B;
 
   /* Gold (rank medals, premium accents) — readable on white */
   --gold: #B45309;
@@ -145,76 +158,81 @@
 }
 
 .dark {
-  /* Dark Theme - Premium Graphite + Acid Lime */
-  --background: #050807;
-  --foreground: #F8FAF7;
+  /* Dark Theme — graphite + acid lime (the signature Meza state).
+     Lime is legible on graphite (13:1), so it is both the accent and the
+     action color here. */
+  --background: #060906;
+  --foreground: #F5F8F3;
 
-  --card: #0A0F0D;
-  --card-foreground: #F8FAF7;
+  --card: #0B100D;
+  --card-foreground: #F5F8F3;
 
-  --popover: #0A0F0D;
-  --popover-foreground: #F8FAF7;
+  --popover: #0B100D;
+  --popover-foreground: #F5F8F3;
 
   --primary: #A3E635;
   --primary-foreground: #050807;
 
-  --secondary: #111A15;
-  --secondary-foreground: #F8FAF7;
+  --secondary: #121A14;
+  --secondary-foreground: #F5F8F3;
 
-  --muted: #151F19;
-  --muted-foreground: #8B9B8F;
+  --muted: #141D17;
+  --muted-foreground: #9AA79C;
 
   --accent: #A3E635;
   --accent-foreground: #050807;
 
-  --destructive: #EF4444;
-  --destructive-foreground: #FFFFFF;
+  --brand-lime: #A3E635;
+  --brand-ink: #0B0F0D;
 
-  --success: #22C55E;
-  --success-foreground: #050807;
+  --destructive: #F87171;
+  --destructive-foreground: #1A0707;
 
-  --warning: #F59E0B;
-  --warning-foreground: #050807;
+  --success: #34D399;
+  --success-foreground: #04231A;
 
-  --info: #60A5FA;
-  --info-foreground: #FFFFFF;
+  --warning: #FBBF24;
+  --warning-foreground: #241A02;
 
-  --border: #1F2A24;
-  --input: #1F2A24;
+  --info: #93C5FD;
+  --info-foreground: #061426;
+
+  --border: #202B23;
+  --input: #263229;
   --ring: #A3E635;
 
   --chart-1: #A3E635;
-  --chart-2: #22C55E;
-  --chart-3: #10B981;
-  --chart-4: #F59E0B;
-  --chart-5: #F97316;
+  --chart-2: #2DD4BF;
+  --chart-3: #FBBF24;
+  --chart-4: #A5B4FC;
+  --chart-5: #FB7185;
 
   /* Sidebar */
-  --sidebar: #070B09;
-  --sidebar-foreground: #F8FAF7;
+  --sidebar: #070B08;
+  --sidebar-foreground: #F5F8F3;
   --sidebar-primary: #A3E635;
   --sidebar-primary-foreground: #050807;
-  --sidebar-accent: #111A15;
-  --sidebar-accent-foreground: #F8FAF7;
-  --sidebar-border: #1F2A24;
+  --sidebar-accent: #121A14;
+  --sidebar-accent-foreground: #F5F8F3;
+  --sidebar-border: #202B23;
   --sidebar-ring: #A3E635;
 
   /* Header */
-  --header-bg: rgba(7, 11, 9, 0.85);
+  --header-bg: rgba(7, 11, 8, 0.85);
 
   /* Surfaces */
-  --surface: #0A0F0D;
-  --surface-elevated: #111A15;
-  --surface-secondary: #070B09;
-  --surface-tertiary: #151F19;
+  --surface: #0B100D;
+  --surface-elevated: #121A14;
+  --surface-secondary: #070B08;
+  --surface-tertiary: #141D17;
 
-  /* Status */
-  --positive: #22C55E;
-  --negative: #EF4444;
-  --neutral: #6B7280;
+  /* Status — financial semantics are independent from the brand accent */
+  --positive: #34D399;
+  --negative: #F87171;
+  --neutral: #94A3B8;
 
   /* Gold (rank medals, premium accents) — brighter on dark graphite */
-  --gold: #EAB308;
+  --gold: #FBBF24;
 
   /* Shadows */
   --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.3);
@@ -389,6 +407,62 @@
   }
   to {
     transform: translate3d(-50%, 0, 0);
+  }
+}
+
+/* ---- Brand utilities -------------------------------------------------- */
+/* These classes were referenced across the app but never defined, so the
+   financial numbers were not tabular and RTL arrows never mirrored. */
+@layer utilities {
+  .tabular,
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  .num {
+    letter-spacing: -0.01em;
+  }
+
+  /* Mirror directional icons (arrows, chevrons) in Arabic RTL layouts. */
+  [dir="rtl"] .rtl-flip {
+    transform: scaleX(-1);
+  }
+
+  /* Small, letter-spaced label above a heading — the brand's editorial voice. */
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+
+  /* Small caps-like label for data fields in tables and metrics. */
+  .data-label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+
+  /* Primary CTA emphasis (legacy class, now with a real definition). */
+  .btn-primary {
+    font-weight: 600;
+  }
+
+  /* Quiet, purposeful background grid — used sparingly on marketing surfaces. */
+  .brand-grid {
+    background-image:
+      linear-gradient(to right, color-mix(in oklab, var(--border) 55%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklab, var(--border) 55%, transparent) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  /* A single hairline that reads as a data-rule, not decoration. */
+  .data-rule {
+    border-top: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
   }
 }
 

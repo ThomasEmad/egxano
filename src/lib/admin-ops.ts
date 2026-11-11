@@ -10,6 +10,10 @@
 //
 // The journal lives in reports/admin-ops-journal.json so run history survives
 // server restarts; liveness of a pid is re-checked with process.kill(pid, 0).
+//
+// This module MUST run in Node.js runtime (not Edge) because it uses
+// Node.js filesystem APIs and child_process.spawn.
+export const runtime = 'nodejs'
 
 import { spawn } from "node:child_process"
 import { mkdirSync, readFileSync, writeFileSync, existsSync, openSync } from "node:fs"
@@ -236,11 +240,13 @@ export function startJob(key: string): { ok: true; entry: JournalEntry } | { ok:
     mkdirSync(LOG_DIR, { recursive: true })
     id = `${key}-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}`
     logFile = path.join(LOG_DIR, `${id}.log`)
-    fd = openSync(logFile, "a")
+    // @ts-ignore - dynamic filesystem access is intentional for admin ops
+    fd = openSync(/* turbopackIgnore: true */ logFile, "a")
   } catch {
     return { ok: false, error: "Admin ops require a writable server filesystem (not available on serverless hosting)" }
   }
-  const child = spawn(process.execPath, [path.join(ROOT, job.script), ...job.args], {
+  // @ts-ignore - dynamic spawn is intentional for admin job execution
+  const child = spawn(process.execPath, [/* turbopackIgnore: true */ path.join(ROOT, job.script), ...job.args], {
     cwd: ROOT,
     stdio: ["ignore", fd, fd],
     env: { ...process.env },

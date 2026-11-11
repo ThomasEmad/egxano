@@ -1,11 +1,15 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useI18n } from "@/lib/i18n"
 
 // Social sign-in buttons (Google / Facebook), rendered only for providers
 // configured on the server. Fetched once per mount from /auth/oauth/providers
 // (cacheable) so adding credentials requires zero code changes: set the env
 // vars and the buttons appear.
+//
+// `next` is forwarded to the start route, which constrains it to same-site
+// paths and carries it through the signed OAuth state to /auth/finish.
 
 function GoogleMark() {
   return (
@@ -32,6 +36,8 @@ interface Providers {
 }
 
 export function OAuthButtons({ next }: { next?: string }) {
+  const { lang } = useI18n()
+  const ar = lang === "ar"
   const [providers, setProviders] = useState<Providers | null>(null)
 
   useEffect(() => {
@@ -58,7 +64,7 @@ export function OAuthButtons({ next }: { next?: string }) {
       <div className="relative py-1 text-center" aria-hidden>
         <div className="absolute inset-x-0 top-1/2 h-px bg-border" />
         <span className="relative bg-card px-2 text-[10px] uppercase tracking-wider text-muted-foreground">
-          <span dir="auto">أو تابع عبر</span> · or continue with
+          {ar ? "أو تابع عبر" : "or continue with"}
         </span>
       </div>
       {providers.google ? (
@@ -67,8 +73,7 @@ export function OAuthButtons({ next }: { next?: string }) {
           className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-border bg-card text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
         >
           <GoogleMark />
-          <span dir="auto">متابعة بحساب Google</span>
-          <span aria-hidden>·</span> Google
+          <span>{ar ? "المتابعة بحساب Google" : "Continue with Google"}</span>
         </a>
       ) : null}
       {providers.facebook ? (
@@ -77,10 +82,14 @@ export function OAuthButtons({ next }: { next?: string }) {
           className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#1877F2] text-sm font-medium text-white transition-opacity hover:opacity-90"
         >
           <FacebookMark />
-          <span dir="auto">متابعة بحساب Facebook</span>
-          <span aria-hidden>·</span> Facebook
+          <span>{ar ? "المتابعة بحساب Facebook" : "Continue with Facebook"}</span>
         </a>
       ) : null}
+      <p className="pt-1 text-center text-[10px] leading-relaxed text-muted-foreground/80">
+        {ar
+          ? "بنستلم اسمك وبريدك من المزوّد فقط، ومش بننشر أي حاجة."
+          : "We receive your name and email from the provider — nothing is posted."}
+      </p>
     </div>
   )
 }

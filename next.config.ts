@@ -22,7 +22,10 @@ const contentSecurityPolicy = [
   "img-src 'self' data: blob: https:",
   "connect-src 'self' https://www.google-analytics.com https://*.tradingview.com wss://*.tradingview.com",
   // TradingView widgets render inside iframes hosted on these origins.
-  "frame-src https://s3.tradingview.com https://s.tradingview.com https://www.tradingview.com https://tradingview-widget.com",
+  // `www.tradingview-widget.com` hosts the technical-analysis widget; it must
+  // be allowed explicitly (a bare `tradingview-widget.com` does not cover the
+  // www subdomain in CSP frame-src).
+  "frame-src https://s3.tradingview.com https://s.tradingview.com https://www.tradingview.com https://tradingview-widget.com https://www.tradingview-widget.com https://*.tradingview-widget.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

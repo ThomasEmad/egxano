@@ -96,6 +96,7 @@ function Carousel({
   React.useEffect(() => {
     if (!api) return
     // Notify the consumer of the initial selection, then subscribe to changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     onSelect(api)
     api.on("reInit", onSelect)
     api.on("select", onSelect)

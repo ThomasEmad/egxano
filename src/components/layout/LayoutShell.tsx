@@ -7,6 +7,9 @@ import { MobileBottomNav } from "./MobileBottomNav"
 import { MobileNavDrawer } from "./MobileNavDrawer"
 import { AppSidebar } from "./AppSidebar"
 import { AppFooter } from "@/components/egx/app-footer"
+import { PublicHeader } from "@/components/brand/public-header"
+import { EGXANOWordmark } from "@/components/brand/brand-mark"
+import { useI18n } from "@/lib/i18n"
 
 interface LayoutShellProps {
   children: React.ReactNode
@@ -15,9 +18,18 @@ interface LayoutShellProps {
       full-bleed layout (landing, privacy). The mobile bottom-nav clearance
       is still applied. */
   flush?: boolean
+  /** "app" = product shell with sidebar; "marketing" = public brand chrome
+      with a top navigation bar (homepage, public brand pages). */
+  chrome?: "app" | "marketing"
 }
 
-export function LayoutShell({ children, showMobileNav = true, flush = false }: LayoutShellProps) {
+export function LayoutShell({
+  children,
+  showMobileNav = true,
+  flush = false,
+  chrome = "app",
+}: LayoutShellProps) {
+  const { lang } = useI18n()
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
@@ -26,6 +38,18 @@ export function LayoutShell({ children, showMobileNav = true, flush = false }: L
     window.addEventListener("resize", check)
     return () => window.removeEventListener("resize", check)
   }, [])
+
+  if (chrome === "marketing") {
+    return (
+      <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
+        <PublicHeader />
+        <main id="main-content" className={cn("min-h-[60vh]", flush ? "pb-16" : "pb-10")}>
+          {children}
+        </main>
+        <AppFooter />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
@@ -48,7 +72,7 @@ export function LayoutShell({ children, showMobileNav = true, flush = false }: L
         <div className="sm:hidden flex h-14 items-center gap-2 px-3 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <MobileNavDrawer />
           <a href="/" className="flex-1 flex items-center justify-center">
-            <span className="font-bold tracking-tight text-foreground text-sm">Meza</span>
+            <EGXANOWordmark lang={lang} size={26} subtitle={false} />
           </a>
           {/* spacer keeps the brand centered against the 9-wide hamburger */}
           <span className="w-9 shrink-0" aria-hidden="true" />

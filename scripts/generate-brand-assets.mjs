@@ -1,5 +1,5 @@
 // Generates the static brand assets referenced by SEO metadata:
-//   public/logo.png      — 512×512 raster of logo.svg (schema.org logo)
+//   public/logo.png      — 512×512 raster of logo.svg (schema.org logo / PWA)
 //   public/og-image.png  — 1200×630 Open Graph / Twitter card image
 //
 // Run: node scripts/generate-brand-assets.mjs
@@ -13,49 +13,49 @@ const publicDir = path.join(root, "public")
 
 const logoSvg = await readFile(path.join(publicDir, "logo.svg"))
 
-// 512×512 logo on a solid brand tile so the mark stays legible on light and
-// dark social surfaces.
-const logoPng = await sharp(logoSvg, { density: 384 })
-  .resize(512, 512, { fit: "contain", background: { r: 45, g: 45, b: 45, alpha: 1 } })
-  .png()
-  .toBuffer()
+const logoPng = await sharp(logoSvg, { density: 384 }).resize(512, 512).png().toBuffer()
 await writeFile(path.join(publicDir, "logo.png"), logoPng)
 
+// A social card built from the same visual language as the product:
+// graphite surface, acid-lime accent, the mark, and the brand's actual
+// promise (no invented figures, no profit claims).
 const ogSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#0b1220"/>
-      <stop offset="60%" stop-color="#101b2f"/>
-      <stop offset="100%" stop-color="#0d2a24"/>
-    </linearGradient>
-    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#34d399"/>
-      <stop offset="100%" stop-color="#22d3ee"/>
-    </linearGradient>
-  </defs>
-  <rect width="1200" height="630" fill="url(#bg)"/>
-  <circle cx="1060" cy="120" r="220" fill="#34d399" opacity="0.08"/>
-  <circle cx="1120" cy="560" r="260" fill="#22d3ee" opacity="0.07"/>
-  <rect x="72" y="86" width="96" height="96" rx="20" fill="#2d2d2d" stroke="#ffffff" stroke-opacity="0.18"/>
-  <text x="120" y="150" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="700"
-        fill="#ffffff" text-anchor="middle">Z</text>
-  <text x="196" y="132" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="600"
-        fill="#9fb3c8" letter-spacing="3">EGX · EGYPTIAN EXCHANGE</text>
-  <text x="196" y="180" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="700"
-        fill="#ffffff">Financial Scanner</text>
-  <text x="72" y="300" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="700"
-        fill="#ffffff">Source-traceable financial data</text>
-  <text x="72" y="352" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="700"
-        fill="url(#accent)">for Egyptian stocks.</text>
-  <text x="72" y="422" font-family="Arial, Helvetica, sans-serif" font-size="28"
-        fill="#cbd5e1">Statements · Ratios · Sector rankings · Data-quality provenance</text>
-  <g font-family="Arial, Helvetica, sans-serif" font-size="24" fill="#94a3b8">
-    <text x="72" y="540">Arabic + English</text>
-    <text x="300" y="540">Latest verified period per metric</text>
-    <text x="700" y="540">meza-ashy.vercel.app</text>
+  <rect width="1200" height="630" fill="#0B0F0D"/>
+
+  <!-- quiet data grid -->
+  <g stroke="#A3E635" stroke-opacity="0.05" stroke-width="1">
+    ${Array.from({ length: 14 }, (_, i) => `<line x1="${60 + i * 80}" y1="0" x2="${60 + i * 80}" y2="630"/>`).join("")}
+    ${Array.from({ length: 7 }, (_, i) => `<line x1="0" y1="${60 + i * 80}" x2="1200" y2="${60 + i * 80}"/>`).join("")}
   </g>
-  <rect x="72" y="470" width="1056" height="2" fill="#ffffff" opacity="0.12"/>
+
+  <!-- brand mark -->
+  <rect x="72" y="64" width="88" height="88" rx="20" fill="#0B0F0D" stroke="#A3E635" stroke-opacity="0.35" stroke-width="2"/>
+  <path d="M94 132V86L116 113L138 86V132" fill="none" stroke="#A3E635" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="142" cy="78" r="6" fill="#A3E635"/>
+
+  <text x="184" y="104" font-family="Segoe UI, Tahoma, Arial, sans-serif" font-size="30" font-weight="700" fill="#F5F8F3">Meza</text>
+  <text x="184" y="134" font-family="Segoe UI, Tahoma, Arial, sans-serif" font-size="15" font-weight="600" fill="#9AA79C" letter-spacing="3">EGYPTIAN STOCK MARKET RESEARCH</text>
+
+  <!-- headline (Arabic first, as in the product) -->
+  <text x="72" y="278" font-family="Segoe UI, Tahoma, Arial, sans-serif" font-size="66" font-weight="700" fill="#F5F8F3">افهم السهم قبل ما تقرر.</text>
+  <text x="72" y="352" font-family="Segoe UI, Tahoma, Arial, sans-serif" font-size="34" font-weight="600" fill="#A3E635">Understand the stock before you decide.</text>
+
+  <text x="72" y="430" font-family="Segoe UI, Tahoma, Arial, sans-serif" font-size="22" fill="#C9D3CB">القوائم المالية · النسب المحسوبة · المقارنة · السياق الفني</text>
+  <text x="72" y="466" font-family="Segoe UI, Tahoma, Arial, sans-serif" font-size="20" fill="#9AA79C">Published filings · calculated ratios · fair comparison · technical context</text>
+
+  <!-- trust rules -->
+  <rect x="72" y="512" width="1056" height="1" fill="#F5F8F3" fill-opacity="0.14"/>
+  <text x="72" y="552" font-family="Segoe UI, Tahoma, Arial, sans-serif" font-size="18" fill="#9AA79C">بيانات من الإفصاحات المنشورة · غير المتاح يظهر «—» · أسعار متأخرة 15 دقيقة</text>
+  <text x="1128" y="552" font-family="Segoe UI, Tahoma, Arial, sans-serif" font-size="18" fill="#A3E635" text-anchor="end">meza-ashy.vercel.app</text>
+
+  <!-- abstract brand bars (decorative, not data) -->
+  <g fill="#A3E635">
+    <rect x="1000" y="214" width="26" height="72" rx="4" fill-opacity="0.22"/>
+    <rect x="1038" y="190" width="26" height="96" rx="4" fill-opacity="0.4"/>
+    <rect x="1076" y="160" width="26" height="126" rx="4" fill-opacity="0.7"/>
+    <rect x="1114" y="128" width="26" height="158" rx="4" fill-opacity="1"/>
+  </g>
 </svg>`
 
 const ogPng = await sharp(Buffer.from(ogSvg)).png().toBuffer()

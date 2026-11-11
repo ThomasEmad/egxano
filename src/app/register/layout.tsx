@@ -1,8 +1,8 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "إنشاء حساب — Meza · Create an account — Meza",
-  description: "أنشئ حساباً مجانياً لمتابعة شركات البورصة المصرية وتلقي التحليلات والتقييمات. Create a free account to track EGX companies, valuations and AI analysis.",
+  title: "Create a free account",
+  description: "Create a free Meza account to save a watchlist, portfolio and price targets. No card required. Premium is optional and activated manually.",
   alternates: { canonical: "/register" },
 }
 

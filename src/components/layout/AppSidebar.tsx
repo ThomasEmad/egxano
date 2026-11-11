@@ -8,18 +8,22 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
-  Activity,
+  Bell,
   Briefcase,
   Building2,
   CalendarDays,
   Crown,
+  Gem,
+  Info,
   LayoutDashboard,
   Scale,
-  Shield,
   ShieldCheck,
+  Layers,
+  Trophy,
 } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
+import { EGXANOWordmark } from "@/components/brand/brand-mark"
 
 export interface NavItem {
   href: string
@@ -37,31 +41,36 @@ export interface NavSection {
 
 // Single source of truth for navigation — shared with the mobile drawer
 // (MobileNavDrawer), which mirrors these sections below the sm breakpoint.
+// Grouped by the research loop, not by feature type: research → monitor.
 export const SECTIONS: NavSection[] = [
   {
-    label: "Platform",
-    labelAr: "المنصة",
+    label: "Research",
+    labelAr: "البحث",
     items: [
-      { href: "/dashboard", label: "Dashboard", labelAr: "لوحة القيادة", icon: LayoutDashboard },
+      { href: "/dashboard", label: "Research home", labelAr: "لوحة البحث", icon: LayoutDashboard },
       { href: "/companies", label: "Companies", labelAr: "الشركات", icon: Building2 },
-      { href: "/sectors", label: "Sectors", labelAr: "القطاعات", icon: Shield },
       { href: "/compare", label: "Compare", labelAr: "المقارنة", icon: Scale },
+      { href: "/rankings", label: "Rankings", labelAr: "الترتيب", icon: Trophy },
+      { href: "/undervalued", label: "Valuation screen", labelAr: "فحص التقييم", icon: Gem },
+      { href: "/sectors", label: "Sectors", labelAr: "القطاعات", icon: Layers },
     ],
   },
   {
-    label: "My space",
-    labelAr: "مساحتي",
+    label: "Monitor",
+    labelAr: "المتابعة",
     items: [
+      { href: "/watchlist", label: "Watchlist", labelAr: "قائمة المتابعة", icon: ShieldCheck },
       { href: "/portfolio", label: "Portfolio", labelAr: "المحفظة", icon: Briefcase },
       { href: "/dividends", label: "Dividends", labelAr: "التوزيعات", icon: CalendarDays },
-      { href: "/watchlist", label: "Watchlist", labelAr: "قائمة المتابعة", icon: ShieldCheck },
+      { href: "/alerts", label: "Alerts", labelAr: "التنبيهات", icon: Bell },
     ],
   },
   {
-    label: "Trust & plans",
-    labelAr: "الثقة والباقات",
+    label: "Plans & about",
+    labelAr: "الباقات وعن EGXANO",
     items: [
       { href: "/premium", label: "Premium", labelAr: "بريميوم", icon: Crown },
+      { href: "/about", label: "About EGXANO", labelAr: "عن EGXANO", icon: Info },
     ],
   },
 ]
@@ -88,15 +97,7 @@ export function AppSidebar() {
         className="flex h-16 shrink-0 items-center gap-2.5 border-b border-border/60 px-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label="Meza — Home"
       >
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-          <Activity className="h-4.5 w-4.5" />
-        </div>
-        <div className="flex flex-col leading-tight">
-          <span className="font-bold tracking-tight text-foreground">Meza</span>
-          <span className="text-[10px] text-muted-foreground">
-            {ar ? "تحليل بيانات البورصة المصرية" : "EGX market intelligence"}
-          </span>
-        </div>
+        <EGXANOWordmark lang={lang} size={32} />
       </Link>
 
       {/* Navigation */}
@@ -145,12 +146,17 @@ export function AppSidebar() {
 
       {/* Footer */}
       <div className="shrink-0 border-t border-border/40 px-4 py-3">
-        <p className="text-[10px] leading-none text-muted-foreground/70">Meza v0.3.0</p>
-        <p className="mt-1.5 text-[10px] leading-tight text-muted-foreground/50">
+        <p className="text-[10px] leading-tight text-muted-foreground">
           {ar
-            ? "أسعار متأخرة 15 دقيقة — ليست نصيحة استثمارية"
-            : "Prices delayed 15 min — not investment advice"}
+            ? "أسعار متأخرة 15 دقيقة — ليست نصيحة استثمارية."
+            : "Prices delayed 15 min — not investment advice."}
         </p>
+        <Link
+          href="/status"
+          className="mt-1.5 inline-block text-[10px] font-medium text-muted-foreground/80 underline-offset-2 hover:text-foreground hover:underline"
+        >
+          {ar ? "حالة البيانات والحداثة" : "Data status & freshness"}
+        </Link>
       </div>
     </aside>
   )

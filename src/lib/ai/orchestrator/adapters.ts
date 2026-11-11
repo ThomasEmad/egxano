@@ -282,7 +282,7 @@ const MAX_CONCURRENCY = Math.max(1, Number(process.env.AI_MAX_CONCURRENCY || "")
 let active = 0
 const waiters: (() => void)[] = []
 
-export async function withGenerationSlot<T>(fn: () => Promise<T>, timeoutMs = 30_000): Promise<T> {
+export async function withGenerationSlot<T>(fn: () => Promise<T>, timeoutMs = 90_000): Promise<T> {
   if (active >= MAX_CONCURRENCY) {
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {

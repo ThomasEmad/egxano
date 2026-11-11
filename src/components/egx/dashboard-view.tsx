@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MarketDataLine } from "@/components/brand/data-trust"
 import { api, getUserToken, type DashboardData } from "@/lib/client/api"
 import { useWatchlist } from "@/lib/client/watchlist"
 import { useI18n, type DictKey } from "@/lib/i18n"
@@ -184,8 +185,8 @@ export function DashboardView({
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {ar
-                ? "كل رقم من إفصاحات موثقة — اكتشف الفرص بالماسحات أو تابع القطاعات والقيم."
-                : "Every figure from verified filings — screen opportunities, follow sectors and valuations."}
+                ? "أسعار السوق متأخرة 15 دقيقة، والأرقام المالية من الإفصاحات المنشورة — والقيم غير المتاحة تظهر «—»."
+                : "Market prices are delayed 15 minutes. Financial figures come from published filings — unavailable values show «—»."}
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Button onClick={() => onViewChange("scanners")} size="sm" className="gap-2">
@@ -224,11 +225,16 @@ export function DashboardView({
               <p className="mt-1 text-lg font-bold tabular">{data.stats.companies.toLocaleString()}</p>
               <p className="text-[10px] text-muted-foreground">{ar ? "شركة مدرجة" : "listed"}</p>
             </div>
-            {/* Financial data points (from published statements) */}
+            {/* Prices available — a real coverage figure, not a vanity count */}
             <div className="rounded-xl border border-border/60 bg-background/60 px-3.5 py-3 min-w-[104px]">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{t("dash.validatedValues")}</p>
-              <p className="mt-1 text-lg font-bold tabular">{data.stats.validValues.toLocaleString()}</p>
-              <p className="text-[10px] text-muted-foreground">{ar ? "من القوائم المنشورة" : "from published filings"}</p>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {ar ? "أسعار متاحة" : "Prices available"}
+              </p>
+              <p className="mt-1 text-lg font-bold tabular">
+                {breadth?.pricedCount != null ? breadth.pricedCount.toLocaleString() : "—"}
+                <span className="text-xs font-normal text-muted-foreground"> / {data.stats.companies.toLocaleString()}</span>
+              </p>
+              <p className="text-[10px] text-muted-foreground">{ar ? "من الشركات المدرجة لديها سعر اليوم" : "listed companies with a price today"}</p>
             </div>
           </div>
         </div>
@@ -250,7 +256,7 @@ export function DashboardView({
         <MarketSummaryPanel breadth={breadth} ar={ar} />
 
         {/* Panel C — EGX30 Chart (No Synthetic Data) */}
-        <Egx30ChartPanel isPremium={isPremium} ar={ar} onViewChange={onViewChange} router={router} />
+        <Egx30ChartPanel ar={ar} router={router} />
       </div>
 
       {/* ===== SECONDARY ROW ===== */}
@@ -267,40 +273,26 @@ export function DashboardView({
           router={router}
         />
 
-        {/* Panel F — Opportunities Under Radar (Real Valuation Data) */}
-        <OpportunitiesPanel
-          valuation={valuation}
-          isPremium={isPremium}
-          ar={ar}
-          onOpenCompany={onOpenCompany}
-          router={router}
-          onViewChange={onViewChange}
-        />
+        {/* Panel F — Valuation screen entry (real criteria, no promises) */}
+        <OpportunitiesPanel valuation={valuation} ar={ar} onOpenCompany={onOpenCompany} router={router} />
       </div>
 
-      {/* ===== BOTTOM STRIP ===== */}
+      {/* ===== BOTTOM STRIP — research shortcuts, no dead controls ===== */}
       <section className="rounded-[20px] border border-border/60 bg-card p-5 sm:p-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex w-full flex-1 items-center gap-3 sm:flex-nowrap">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted/40 text-muted-foreground">
-              <Activity className="h-4 w-4" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <input
-                type="search"
-                placeholder={ar ? "اسأل عن السوق…" : "Ask about the market…"}
-                className="w-full px-3 py-1.5 text-sm rounded-xl border border-input bg-background/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
-              />
-              <Button size="sm" className="ml-2 h-9 px-3 text-xs font-semibold">
-                {ar ? "إرسال" : "Send"}
-              </Button>
-            </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-sm font-semibold text-foreground">{ar ? "أكمل من هنا" : "Continue from here"}</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {ar
+                ? "كل مسار يفتح شاشة بحث كاملة — بدون وعود، وبالمصدر والفترة مع كل رقم."
+                : "Each path opens a full research screen — no promises, with source and period on every figure."}
+            </p>
           </div>
-          <div className="flex w-full flex-1 justify-end sm:justify-start gap-2 sm:ml-auto">
+          <div className="flex w-full flex-1 flex-wrap justify-end gap-2">
             {[
               { label: ar ? "الشركات" : "Companies", href: "/companies", icon: <Building2 className="h-4 w-4" /> },
               { label: ar ? "القطاعات" : "Sectors", href: "/sectors", icon: <ScanSearch className="h-4 w-4" /> },
-              { label: ar ? "ماسح مخصص" : "Custom Scanner", href: "/dashboard#/custom", icon: <Scale className="h-4 w-4" /> },
+              { label: ar ? "الماسح" : "Screener", href: "/dashboard#/scanners", icon: <Scale className="h-4 w-4" /> },
               { label: ar ? "مقارنة" : "Compare", href: "/compare", icon: <Sparkles className="h-4 w-4" /> },
             ].map((item) => (
               <Link
@@ -321,24 +313,6 @@ export function DashboardView({
           </div>
         </div>
       </section>
-    </div>
-  )
-}
-
-/* ===== Index Card ===== */
-function IndexCard({ label, change, value }: { label: string; change: string; value: string }) {
-  const positive = !change.startsWith("-")
-  return (
-    <div className="rounded-xl border border-border/50 bg-card/80 px-3 py-2.5 backdrop-blur-sm">
-      <div className="flex items-center justify-between">
-        <div>
-          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
-          <span className="text-xs font-bold tabular text-foreground">{value}</span>
-        </div>
-        <span className={`text-xs font-bold tabular ${positive ? "text-positive" : "text-negative"}`}>
-          {change}
-        </span>
-      </div>
     </div>
   )
 }
@@ -427,7 +401,7 @@ function SectorPerformancePanel({
             )}
           </div>
           <p className="px-4 pb-3 text-[10px] text-muted-foreground">
-            {ar ? "تغير السعر المرجّح بالتساوي · متأخر 15 دقيقة" : "Equal-weighted price change · 15-min delayed"}
+            {ar ? "تغير السعر المرجّح بالتساوي من أحدث لقطة سوق مسجلة" : "Equal-weighted price change from the latest recorded market snapshot"}
           </p>
         </CardContent>
       </Card>
@@ -477,12 +451,12 @@ function MarketSummaryPanel({ breadth, ar }: { breadth: BreadthData | null | und
             ))}
           </div>
           {asOf && (
-            <div className="px-4 pb-1 text-[10px] text-muted-foreground text-right">
-              {ar ? "آخر تحديث: " : "Updated: "}{new Date(asOf).toLocaleString(ar ? "ar-EG" : "en-GB")}
+            <div className="px-4 pb-1">
+              <MarketDataLine asOf={asOf} delayMinutes={null} />
             </div>
           )}
           <div className="px-4 pb-3 text-[10px] text-muted-foreground">
-            {ar ? "اتساع السوق حسب تغير السعر · متأخر 15 دقيقة" : "Price breadth · 15-min delayed"}
+            {ar ? "اتساع السوق حسب تغير السعر في أحدث لقطة مسجلة" : "Price breadth from the latest recorded snapshot"}
           </div>
         </CardContent>
       </Card>
@@ -495,9 +469,7 @@ function Egx30ChartPanel({
   ar,
   router,
 }: {
-  isPremium: boolean
   ar: boolean
-  onViewChange: (v: ViewKey) => void
   router: ReturnType<typeof useRouter>
 }) {
   const { data, isLoading } = useQuery({
@@ -532,7 +504,13 @@ function Egx30ChartPanel({
               {ar ? "مؤشر EGX30" : "EGX30 Index"}
             </CardTitle>
             <span className="rounded-full border border-border/60 bg-muted/30 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-              {ar ? "متأخر 15 دقيقة" : "15m delayed"}
+              {data?.delayMinutes != null
+                ? ar
+                  ? `متأخر ${data.delayMinutes} دقيقة`
+                  : `Delayed ${data.delayMinutes} min`
+                : ar
+                  ? "بيانات متأخرة"
+                  : "Delayed data"}
             </span>
           </div>
         </CardHeader>
@@ -575,15 +553,10 @@ function Egx30ChartPanel({
 
             <p className="text-[10px] leading-relaxed text-muted-foreground">
               {ar
-                ? "المستوى الحالي من مصدر عام متأخر 15 دقيقة. الرسم البياني التاريخي للمؤشر يتطلب تغذية بيانات مرخصة."
-                : "Latest level from a 15-minute-delayed public source. Historical index charts require a licensed data feed."}
+                ? "المستوى الحالي من مصدر عام متأخر. الرسم البياني التاريخي للمؤشر يتطلب تغذية بيانات مرخصة."
+                : "Latest level from a delayed public source. Historical index charts require a licensed data feed."}
             </p>
-            {data?.pricesAsOf ? (
-              <p className="text-[10px] text-muted-foreground">
-                {ar ? "آخر تحديث: " : "Updated: "}
-                {new Date(data.pricesAsOf).toLocaleString(ar ? "ar-EG" : "en-GB")}
-              </p>
-            ) : null}
+            <MarketDataLine asOf={data?.pricesAsOf ?? null} delayMinutes={data?.delayMinutes ?? null} source="market-ticker" />
 
             <Button variant="outline" size="sm" className="w-full" onClick={() => router.push("/sectors")}>
               {ar ? "استعرض أداء القطاعات" : "Explore sector performance"}
@@ -608,6 +581,7 @@ function EventsPanel({
   onOpenCompany: (id: string) => void
 }) {
   const { pick } = useI18n()
+  const router = useRouter()
   return (
     <div className="lg:col-span-4">
       <Card className="border-border/60 p-0">
@@ -645,9 +619,9 @@ function EventsPanel({
           ) : (
             <div className="flex flex-col items-center justify-center gap-2 py-8 text-center text-xs text-muted-foreground">
               <Lock className="h-5 w-5 text-warning-foreground" aria-hidden />
-              <p>{ar ? "الأحداث متاحة لمشتركي بريميوم فقط" : "Events available for Premium subscribers only"}</p>
-              <Button size="sm" variant="link" className="h-auto gap-1 text-xs" onClick={() => {}}>
-                {ar ? "ترقية" : "Upgrade"}
+              <p>{ar ? "الأحداث المالية ضمن خطة بريميوم" : "Financial events are part of Premium"}</p>
+              <Button size="sm" variant="link" className="h-auto gap-1 text-xs" onClick={() => router.push("/premium")}>
+                {ar ? "اعرف ما تشمله بريميوم" : "See what Premium covers"}
               </Button>
             </div>
           )}
@@ -692,8 +666,7 @@ function WatchlistPanel({
             <div className="space-y-1 p-3">
               {watchItems.slice(0, 5).map((w) => {
                 const priceInfo = priceMap.get(w.ticker)
-                const change = priceInfo?.changePct ?? 0
-                const positive = change >= 0
+                const change = priceInfo?.changePct ?? null
                 return (
                   <button
                     key={w.id}
@@ -701,9 +674,13 @@ function WatchlistPanel({
                     className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-card p-2.5 text-start transition-colors hover:bg-accent/30"
                   >
                     <span className="text-sm font-bold">{w.ticker}</span>
-                    <span className={`text-xs font-bold tabular ${positive ? "text-positive" : "text-negative"}`}>
-                      <span dir="ltr">{change >= 0 ? "+" : ""}{change.toFixed(2)}%</span>
-                    </span>
+                    {change === null ? (
+                      <span className="text-[10px] text-muted-foreground">{ar ? "لا يوجد سعر مسجل" : "no recorded price"}</span>
+                    ) : (
+                      <span className={`text-xs font-bold tabular ${change >= 0 ? "text-positive" : "text-negative"}`}>
+                        <span dir="ltr">{change >= 0 ? "+" : ""}{change.toFixed(2)}%</span>
+                      </span>
+                    )}
                   </button>
                 )
               })}
@@ -720,21 +697,17 @@ function WatchlistPanel({
   )
 }
 
-/* ===== Panel F — Opportunities Under Radar (Real Valuation Data) ===== */
+/* ===== Panel F — Valuation screen entry ===== */
 function OpportunitiesPanel({
   valuation,
-  isPremium,
   ar,
   onOpenCompany,
   router,
-  onViewChange,
 }: {
   valuation: { results: Array<{ companyId: string; ticker: string; name: string; sector: string; pe: number | null; discountPct: number | null }> } | null | undefined
-  isPremium: boolean
   ar: boolean
   onOpenCompany: (id: string) => void
   router: any
-  onViewChange: (v: ViewKey) => void
 }) {
   const results = valuation?.results ?? []
 
@@ -742,55 +715,40 @@ function OpportunitiesPanel({
     <div className="lg:col-span-4">
       <Card className="border-border/60 p-0">
         <CardContent className="p-0">
-          <div className="relative overflow-hidden rounded-[20px] border border-primary/30 bg-gradient-to-br from-primary/10 via-surface to-transparent p-5 sm:p-6 h-[200px] flex flex-col">
-            <div className="absolute top-0 right-0 z-0 w-32 h-32 rounded-full bg-primary/20 blur-[60px] -mt-8 -mr-8" />
-            <div className="relative z-10 flex flex-col h-full">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/20 text-primary">
-                  <Sparkles className="h-3.5 w-3.5" />
-                </div>
-                <h3 className="text-sm font-semibold text-foreground">{ar ? "فرص تحت الرادار" : "Opportunities Under Radar"}</h3>
+          <div className="flex h-[200px] flex-col overflow-hidden rounded-[20px] border border-border/60 bg-card p-5 sm:p-6">
+            <div className="flex items-center gap-2">
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
               </div>
-              {results.length > 0 ? (
-                <>
-                  <p className="text-xs text-text-secondary leading-relaxed mb-3 flex-1">
-                    {ar ? "شركات تفي بمعايير التقييم — اضغط للتفاصيل" : "Companies meeting valuation criteria — tap for details"}
-                  </p>
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {results.slice(0, 3).map((r) => (
-                      <button
-                        key={r.companyId}
-                        onClick={() => onOpenCompany(r.companyId)}
-                        className="flex items-center gap-1.5 rounded-lg border border-border/60 bg-card px-2 py-1 text-xs transition-colors hover:bg-accent/30"
-                      >
-                        <span className="font-bold">{r.ticker}</span>
-                        {r.discountPct !== null && (
-                          <span className="text-positive" dir="ltr">{r.discountPct >= 0 ? "+" : ""}{r.discountPct.toFixed(1)}%</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  <Button
-                    onClick={() => onViewChange("scanners")}
-                    className="mt-auto w-fit px-4 py-2 text-xs font-bold shadow-sm shadow-primary/20"
-                  >
-                    {ar ? "استكشف الآن" : "Explore Now"}
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <p className="text-xs text-text-secondary leading-relaxed mb-4 flex-1">
-                    {ar ? "اكتشف شركات واعدة من خلال أدوات التحليل المتقدمة والماسحات المخصصة." : "Discover promising companies through advanced analysis tools and custom scanners."}
-                  </p>
-                  <Button
-                    onClick={() => onViewChange("scanners")}
-                    className="mt-auto w-fit px-4 py-2 text-xs font-bold shadow-sm shadow-primary/20"
-                  >
-                    {ar ? "استكشف الآن" : "Explore Now"}
-                  </Button>
-                </>
-              )}
+              <h3 className="text-sm font-semibold text-foreground">
+                {ar ? "فحص التقييم — أحدث النتائج" : "Valuation screen — latest candidates"}
+              </h3>
             </div>
+            <p className="mt-2 flex-1 text-xs leading-relaxed text-muted-foreground">
+              {results.length > 0
+                ? ar
+                  ? "شركات تحققت فيها معايير تقييم معلنة. القائمة ليست توصية، والفجوة ليست سعرًا مستهدفًا."
+                  : "Companies whose figures met stated valuation criteria. Not a recommendation; the gap is not a price target."
+                : ar
+                  ? "لا توجد نتائج حالية. المعايير المستخدمة معروضة كاملة في صفحة فحص التقييم."
+                  : "No current results. The criteria used are shown in full on the valuation screen."}
+            </p>
+            {results.length > 0 ? (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {results.slice(0, 3).map((r) => (
+                  <button
+                    key={r.companyId}
+                    onClick={() => onOpenCompany(r.companyId)}
+                    className="flex items-center gap-1.5 rounded-lg border border-border/60 bg-background px-2 py-1 text-xs transition-colors hover:bg-accent/30"
+                  >
+                    <span className="font-bold">{r.ticker}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <Button onClick={() => router.push("/undervalued")} className="mt-auto w-fit px-3 py-2 text-xs font-semibold">
+              {ar ? "افتح فحص التقييم" : "Open valuation screen"}
+            </Button>
           </div>
         </CardContent>
       </Card>
