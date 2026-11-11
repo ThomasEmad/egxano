@@ -110,8 +110,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="icon" href="/icon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <link rel="manifest" href="/manifest.ts" />
-        <OrganizationSchema data={organizationSchema} />
-        <WebSiteSchema data={webSiteSchema} />
+        <OrganizationSchema />
+        <WebSiteSchema />
       </head>
       <body className="bg-background text-foreground antialiased">
         <Providers>
