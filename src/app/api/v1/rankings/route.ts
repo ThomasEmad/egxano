@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { cachedResponse } from "@/lib/public-cache"
 import { cached } from "@/lib/server-cache"
 import { db } from "@/lib/db"
-import { CALC_METRIC_MAP } from "@/lib/financial/registry"
+import { CALC_METRIC_MAP, defaultRankingOrder } from "@/lib/financial/registry"
 import {
   isStalePeriod,
   periodOrder,
@@ -56,11 +56,19 @@ interface RankRow {
 // that one cached row-set instead of re-pulling the table, and the response
 // carries CDN edge-cache headers (public-cache) so most requests never reach
 // a lambda at all.
+// Valuation multiples and leverage ratios rank "lower is better": rank #1
+// must be the CHEAPEST / least-leveraged company. Defaulting these to DESC
+// put the most expensive stock on the #1 podium of a list users read as a
+// quality ranking. Rule + regression test live in financial/registry.
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
   const metric = url.searchParams.get("metric") ?? "roe"
   const sector = url.searchParams.get("sector")?.trim() || ""
-  const order = url.searchParams.get("order") === "asc" ? "ASC" : "DESC"
+  const orderParam = url.searchParams.get("order")
+  const order: "ASC" | "DESC" =
+    orderParam === "asc" ? "ASC"
+    : orderParam === "desc" ? "DESC"
+    : defaultRankingOrder(metric)
   const rawBasis = url.searchParams.get("basis")
   const basis: "latest" | "annual" | "ttm" = rawBasis === "annual" || rawBasis === "ttm" ? rawBasis : "latest"
   const rawYear = url.searchParams.get("year")

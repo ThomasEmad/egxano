@@ -1720,8 +1720,8 @@ function AiLoadingPanel({ status }: { status?: string }) {
         </div>
         <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
           {lang === "ar"
-            ? "التقرير يُولَّد في الخلفية من البيانات الموثقة فقط — يمكنك ترك الصفحة والعودة لاحقاً؛ جميع المستخدمين يشاركون نفس التقرير."
-            : "The report is being generated in the background from verified data only — you can leave and come back; all users share the same report."}
+            ? "نجهّز التحليل من القوائم المتحقق منها ومؤشرات السوق — عادةً يستغرق ذلك أقل من دقيقة."
+            : "We're preparing the analysis from verified filings and market indicators — this usually takes under a minute."}
         </p>
       </CardContent>
     </Card>
