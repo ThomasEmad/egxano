@@ -66,8 +66,8 @@ async function buildLatestResults(): Promise<{ results: unknown[] }> {
   })
 
   // dedupe: first (newest, preferred statement type) authoritative row per company.
-  // Group the authoritative rows per company first (periodEnd desc — the query
-  // order), so the change-vs-prior-period calc below can reuse the same rows.
+  // Authoritative rows are also grouped per company (periodEnd desc) to back
+  // the change-vs-prior-period calc below.
   const seen = new Set<string>()
   type ResultRow = {
     id: string; companyId: string; ticker: string; name: string; nameEn: string
@@ -76,20 +76,28 @@ async function buildLatestResults(): Promise<{ results: unknown[] }> {
     asOf: Date; statementType: string; netProfit: number
     change: number | null; reportUrl: string
   }
-  const out: ResultRow[] = []
-  const perCompany = new Map<string, typeof rows>()
-  for (const v of rows) {
-    if (isFuturePeriodEnd(v.report.periodEnd)) continue
-    if (!isAuthoritativeValue({
+  // minimal shape the change calc needs (the two queries below select different
+  // report fields, so group them normalized)
+  type CalcRow = { value: number; periodEnd: Date; statementType: string }
+  const perCompany = new Map<string, CalcRow[]>()
+  const isAuthoritative = (v: {
+    normalizedValue: number; originalLabel: string | null; validationNotes: string | null
+  }) =>
+    isAuthoritativeValue({
       metricCode: "NET_PROFIT",
       normalizedValue: v.normalizedValue,
       validationStatus: "VALID",
       validationNotes: v.validationNotes,
       originalLabel: v.originalLabel,
-    })) continue
+    })
+  const out: ResultRow[] = []
+  for (const v of rows) {
+    if (isFuturePeriodEnd(v.report.periodEnd)) continue
+    if (!isAuthoritative(v)) continue
     const list = perCompany.get(v.companyId)
-    if (list) list.push(v)
-    else perCompany.set(v.companyId, [v])
+    const calc = { value: v.normalizedValue, periodEnd: v.report.periodEnd, statementType: v.report.statementType }
+    if (list) list.push(calc)
+    else perCompany.set(v.companyId, [calc])
     if (seen.has(v.companyId)) continue
     seen.add(v.companyId)
     out.push({
@@ -112,23 +120,64 @@ async function buildLatestResults(): Promise<{ results: unknown[] }> {
     if (out.length >= 12) break
   }
 
-  // change vs prior announced period, computed from the same authoritative row
-  // set (no extra query). Only meaningful when the prior net profit is a
-  // positive base — a % change against a loss base is misleading, so null.
+  // The 800-row market-wide window rarely reaches a company's previous period
+  // (the newest market-wide periods dominate the take), so fetch the NET_PROFIT
+  // history of just the selected companies — a tiny, targeted second query.
+  const ids = out.map((r) => r.companyId)
+  if (ids.length) {
+    const history = await db.financialValue.findMany({
+      where: {
+        metricCode: "NET_PROFIT",
+        validationStatus: "VALID",
+        subPeriod: "CURRENT",
+        companyId: { in: ids },
+        report: {
+          processingStatus: { in: TRUSTED },
+          deletedAt: null,
+          periodEnd: { lte: latestAnnouncedPeriodEnd() },
+        },
+      },
+      orderBy: [
+        { report: { periodEnd: "desc" } },
+        { report: { statementType: "asc" } },
+        { report: { createdAt: "desc" } },
+      ],
+      select: {
+        normalizedValue: true,
+        companyId: true,
+        originalLabel: true,
+        validationNotes: true,
+        report: { select: { periodEnd: true, statementType: true } },
+      },
+      take: 240,
+    })
+    for (const v of history) {
+      if (isFuturePeriodEnd(v.report.periodEnd)) continue
+      if (!isAuthoritative(v)) continue
+      const list = perCompany.get(v.companyId)
+      const calc = { value: v.normalizedValue, periodEnd: v.report.periodEnd, statementType: v.report.statementType }
+      if (list) list.push(calc)
+      else perCompany.set(v.companyId, [calc])
+    }
+  }
+
+  // change vs prior announced period. Only meaningful when the prior net
+  // profit is a positive base — a % change against a loss base is misleading,
+  // so it stays null.
   for (const row of out) {
     const list = perCompany.get(row.companyId)
     if (!list) continue
     const latestEnd = row.asOf.getTime()
     const prior = list
-      .filter((r) => r.report.periodEnd.getTime() < latestEnd)
+      .filter((r) => r.periodEnd.getTime() < latestEnd)
       .sort((a, b) => {
-        const sameA = a.report.statementType === row.statementType ? 0 : 1
-        const sameB = b.report.statementType === row.statementType ? 0 : 1
-        return sameA - sameB || b.report.periodEnd.getTime() - a.report.periodEnd.getTime()
+        const sameA = a.statementType === row.statementType ? 0 : 1
+        const sameB = b.statementType === row.statementType ? 0 : 1
+        return sameA - sameB || b.periodEnd.getTime() - a.periodEnd.getTime()
       })[0]
-    if (prior && prior.normalizedValue > 0) {
+    if (prior && prior.value > 0) {
       row.change = Math.round(
-        ((row.netProfit - prior.normalizedValue) / prior.normalizedValue) * 1000
+        ((row.netProfit - prior.value) / prior.value) * 1000
       ) / 10
     }
   }
