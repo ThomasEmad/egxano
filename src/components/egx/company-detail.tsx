@@ -1920,7 +1920,7 @@ function AiAnalysisTab({ companyId }: { companyId: string }) {
           <AiReportRenderer analysis={analysis} lang={lang} />
 
           {/* Professional Follow-up Q&A */}
-          <AiQaBox companyId={companyId} companyName={analysis.company?.nameEn ?? undefined} />
+          <AiQaBox companyId={companyId} />
 
           {/* Professional Follow-up Chat */}
           <AiAnalystChat companyId={companyId} />

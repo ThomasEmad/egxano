@@ -21,7 +21,6 @@ import { LayoutShell } from "@/components/layout/LayoutShell"
 import { useI18n } from "@/lib/i18n"
 import {
   api,
-  type CompanyDetail,
   type CompanyListItem,
   type MetricsData,
 } from "@/lib/client/api"
@@ -110,13 +109,6 @@ export default function LandingClient() {
   const { data: heroMetrics, isLoading: heroMetricsLoading } = useQuery({
     queryKey: ["home-hero-metrics", heroCompany?.id],
     queryFn: () => api.metrics(heroCompany!.id, undefined, "annual"),
-    enabled: !!heroCompany,
-    staleTime: 300_000,
-  })
-
-  const { data: heroDetail } = useQuery({
-    queryKey: ["home-hero-detail", heroCompany?.id],
-    queryFn: () => api.company(heroCompany!.id),
     enabled: !!heroCompany,
     staleTime: 300_000,
   })
@@ -241,7 +233,6 @@ export default function LandingClient() {
 
             <HeroPreview
               company={heroCompany}
-              detail={heroDetail ?? null}
               metrics={heroMetrics}
               marketAsOf={marketAsOf}
               loading={featuredLoading}
@@ -635,7 +626,7 @@ export default function LandingClient() {
         {/* ---------------------------------------------------------------- */}
         <section className="bg-surface-secondary">
           <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-24 lg:px-8 text-center">
-            <EGXANOMark lang={lang} size={48} />
+            <EGXANOMark size={48} />
             <h2 className="mt-6 text-balance text-3xl font-bold leading-tight text-foreground sm:text-4xl">
               {ar ? "افهم السهم قبل ما تقرر." : "Understand the stock before you decide."}
             </h2>
@@ -672,14 +663,12 @@ export default function LandingClient() {
 
 function HeroPreview({
   company,
-  detail,
   metrics,
   marketAsOf,
   loading,
   metricsLoading,
 }: {
   company: CompanyListItem | null
-  detail: CompanyDetail | null
   metrics: MetricsData | undefined
   marketAsOf: string | null
   loading: boolean
@@ -695,12 +684,9 @@ function HeroPreview({
       <div className="relative p-6 lg:p-8">
         <div className="flex items-start justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
-            {detail?.logoUrl && (
-              <img src={detail.logoUrl} alt="" className="h-10 w-10 rounded-lg bg-muted" />
-            )}
             <div>
               <p className="text-sm font-semibold text-foreground">{company.nameEn}</p>
-              <p className="text-[11px] text-muted-foreground">{company.ticker} · {sectorLabel(company.sector ?? "", ar)}</p>
+              <p className="text-[11px] text-muted-foreground">{company.ticker} · {sectorLabel(company.sector ?? "", ar ? "ar" : "en")}</p>
             </div>
           </div>
           {marketAsOf && (

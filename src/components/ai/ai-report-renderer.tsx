@@ -169,20 +169,20 @@ export function AiReportRenderer({
 }: {
   analysis: {
     content: string
-    completedAt?: string
-    model?: string
+    completedAt?: string | null
+    model?: string | null
     degraded?: boolean
-    stance?: string
+    stance?: string | null
     dataHash?: string
-    technicalHash?: string
-    priceAsOf?: string
-    financialAsOf?: string
+    technicalHash?: string | null
+    priceAsOf?: string | null
+    financialAsOf?: string | null
     reportKey?: string
     completeness?: {
       financialCoveragePct: number | null
       technicalCoveragePct: number | null
       limitations: string[]
-    }
+    } | null
   }
   lang?: "en" | "ar"
   className?: string

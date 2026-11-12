@@ -100,7 +100,6 @@ export function MobileNavDrawer() {
                     onClick={() => setOpen(false)}
                     aria-label={ar ? "إغلاق القائمة" : "Close menu"}
                     className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    aria-label={ar ? "إغلاق القائمة" : "Close menu"}
                     autoFocus
                   >
                     <X className="h-5 w-5" aria-hidden="true" />

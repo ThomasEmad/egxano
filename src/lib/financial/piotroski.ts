@@ -313,8 +313,18 @@ const PROCESSING_OK = ["VALIDATED", "APPROVED", "EXTRACTED"] as const
 
 type ReportLite = { id: string; fiscalYear: number; periodLabel: string; statementType: string }
 
+/** Row shape we need for picking values (reportId optional so filtered subsets fit too). */
+type MetricRow = {
+  id: string
+  reportId?: string
+  metricCode: string
+  normalizedValue: number | null
+  validationStatus: string
+  subPeriod: string | null
+}
+
 /** Deterministic value pick: no subPeriod first, VALID first, stable by id. */
-function pickValue(rows: { id: string; metricCode: string; normalizedValue: number | null; validationStatus: string; subPeriod: string | null }[], code: PiotroskiCode): number | null {
+function pickValue(rows: readonly MetricRow[], code: PiotroskiCode): number | null {
   const candidates = rows
     .filter((r) => r.metricCode === code)
     .sort((a, b) => {
@@ -332,7 +342,7 @@ function pickValue(rows: { id: string; metricCode: string; normalizedValue: numb
   return null
 }
 
-function valuesFor(rows: Parameters<typeof pickValue>[0][], codes: readonly PiotroskiCode[]): PeriodValues {
+function valuesFor(rows: readonly MetricRow[], codes: readonly PiotroskiCode[]): PeriodValues {
   const out: PeriodValues = {}
   for (const c of codes) {
     const v = pickValue(rows, c)
