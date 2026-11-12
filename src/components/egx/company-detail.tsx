@@ -10,6 +10,7 @@ import {
   CalendarDays,
   ChartBar,
   Check,
+  Clock,
   Copy,
   Download,
   ExternalLink,
@@ -1694,7 +1695,7 @@ function DocumentsTable({ companyId }: { companyId: string }) {
 
 /* ---------------- AI analysis tab ---------------- */
 
-function AiLoadingPanel({ status }: { status?: string }) {
+function AiLoadingPanel({ status, elapsedSeconds }: { status?: string; elapsedSeconds?: number }) {
   const { t, lang } = useI18n()
   const processing = status === "processing"
   return (
@@ -1711,11 +1712,27 @@ function AiLoadingPanel({ status }: { status?: string }) {
             <span key={i} className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
           ))}
         </div>
+        {elapsedSeconds && elapsedSeconds > 0 && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Clock className="h-3.5 w-3.5" aria-hidden />
+            <span className="font-mono tabular text-primary">
+              {lang === "ar" ? `مضى ${elapsedSeconds} ثانية` : `${elapsedSeconds}s elapsed`}
+            </span>
+          </div>
+        )}
         <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
           {lang === "ar"
             ? "نجهّز التحليل من القوائم المتحقق منها ومؤشرات السوق — عادةً يستغرق ذلك أقل من دقيقة."
             : "We're preparing the analysis from verified filings and market indicators — this usually takes under a minute."}
         </p>
+        <div className="mt-2 p-3 rounded-lg bg-primary/10 border border-primary/20 max-w-sm text-[11px] leading-relaxed text-primary-foreground">
+          <span className="font-semibold">{lang === "ar" ? "💡 نصيحة:" : "💡 Tip:"}</span>
+          <span className="ml-1">
+            {lang === "ar"
+              ? "الأسعار مؤجلة 15 دقيقة — لا تتخذ قراراً فورياً بناء على هذا التحليل وحده."
+              : "Prices delayed 15 min — don't make instant decisions based on this analysis alone."}
+          </span>
+        </div>
       </CardContent>
     </Card>
   )
@@ -1795,11 +1812,23 @@ function AiAnalysisTab({ companyId }: { companyId: string }) {
   const usageLimited = !!err && (err.status === 429 || /USAGE_LIMIT_EXCEEDED/i.test(err.message))
   const premiumErr = !!err && /PREMIUM_REQUIRED/i.test(err.message)
   const generating = !!jobRef && !statusReady && !statusExhausted
+
+  // Track elapsed seconds during generation
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  useEffect(() => {
+    if (!generating) {
+      setElapsedSeconds(0)
+      return
+    }
+    const interval = setInterval(() => setElapsedSeconds((s) => s + 1), 1000)
+    return () => clearInterval(interval)
+  }, [generating])
+
   const analysis = (polledReport ?? data?.analysis ?? null) as AiAnalysisData["analysis"]
   const completeness = analysis?.completeness ?? null
 
   if (isLoading) return <Skeleton className="h-72 rounded-xl" />
-  if (generating) return <Skeleton className="h-72 rounded-xl" />
+  if (generating) return <AiLoadingPanel status={statusQuery.data?.status ?? "queued"} elapsedSeconds={elapsedSeconds} />
 
   if (usageLimited) {
     return (

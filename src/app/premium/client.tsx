@@ -60,7 +60,7 @@ export default function PremiumPage() {
   const currency = typeof settings.PREMIUM_CURRENCY === "string" ? settings.PREMIUM_CURRENCY : "EGP"
   const durationDays = typeof settings.PREMIUM_DURATION_DAYS === "number" ? settings.PREMIUM_DURATION_DAYS : 30
   const phone = typeof settings.PAYMENT_PHONE === "string" ? settings.PAYMENT_PHONE : ""
-  const whatsapp = typeof settings.WHATSAPP_NUMBER === "string" ? settings.WHATSAPP_NUMBER : ""
+  const whatsapp = typeof settings.WHATSAPP_NUMBER === "string" ? settings.WHATSAPP_NUMBER : "01211566147"
   const instructions = typeof settings.PAYMENT_INSTRUCTIONS === "string" ? settings.PAYMENT_INSTRUCTIONS : ""
 
   const subscription = subStatus?.subscription
@@ -70,7 +70,7 @@ export default function PremiumPage() {
   const openWhatsApp = () => {
     const number = whatsapp.replace(/\D/g, "")
     const message = lang === "ar"
-      ? `مرحباً، أريد الاشتراك في Premium لمدة ${durationDays} يومًا.`
+      ? `مرحباً، أريد الاشتراك في Premium لمدة ${durationDays} يوماً.`
       : `Hello, I would like to subscribe to Premium for ${durationDays} days.`
     window.open(`https://wa.me/${number}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer")
   }
@@ -211,13 +211,19 @@ export default function PremiumPage() {
           <div className="rounded-lg border bg-muted/30 p-3">
             <p className="font-medium">{lang === "ar" ? "تحويل بنكي / محفظة" : "Bank transfer / wallet"}</p>
             {phone ? <p className="mt-1 tabular">{lang === "ar" ? "رقم التحويل:" : "Payment number:"} {phone}</p> : null}
-            {whatsapp ? (
+            <div className="mt-3 p-3 rounded-lg bg-green-50/50 border border-green-200/50">
+              <p className="font-medium text-green-700 flex items-center gap-2">
+                <MessageCircle className="h-4 w-4" />
+                {lang === "ar" ? "واتساب للدفع والاستفسارات" : "WhatsApp for payment & inquiries"}
+              </p>
+              <p className="mt-1 tabular text-green-800 font-mono font-semibold">01211566147</p>
               <Button size="sm" variant="outline" className="mt-3 w-full gap-2" onClick={openWhatsApp}>
                 <MessageCircle className="h-4 w-4" />
-                {lang === "ar" ? "تواصل عبر واتساب للدفع" : "Contact via WhatsApp for payment"}
+                {lang === "ar" ? "افتح واتساب مع رسالة جاهزة" : "Open WhatsApp with pre-filled message"}
               </Button>
-            ) : null}
+            </div>
           </div>
+          {phone ? <p className="mt-1 tabular text-muted-foreground">{lang === "ar" ? "رقم التحويل البنكي:" : "Bank transfer number:"} {phone}</p> : null}
           {instructions ? (
             <div className="rounded-lg border p-3">
               <p className="whitespace-pre-wrap text-muted-foreground">{instructions}</p>
