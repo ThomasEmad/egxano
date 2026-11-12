@@ -8,6 +8,7 @@ import { ArrowRight, Building2, TrendingUp, TrendingDown, Activity } from "lucid
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { LayoutShell } from "@/components/layout/LayoutShell"
+import { SectorTreemap } from "@/components/egx/sector-treemap"
 import { useI18n } from "@/lib/i18n"
 import { SECTOR_AR, sectorLabel } from "@/lib/sectors"
 
@@ -152,13 +153,18 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
           </div>
         </header>
 
-        {/* Sector Heatmap / Treemap */}
-        <section aria-label={ar ? "خريطة القطاعات" : "Sector map"} className="mb-8">
+        {/* Market heatmap (company tiles, price-change colored) */}
+        <section aria-label={ar ? "الخريطة الحرارية للسوق" : "Market heatmap"} className="mb-8">
+          <SectorTreemap />
+        </section>
+
+        {/* Sector performance cards — colored by TODAY'S price change */}
+        <section aria-label={ar ? "أداء القطاعات اليوم" : "Sector performance today"} className="mb-8">
           <Card className="border-border/60 overflow-hidden">
             <CardHeader className="pb-4 px-5">
               <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground">
                 <Activity className="h-3.5 w-3.5 text-primary" />
-                {ar ? "خريطة القطاعات حسب الحجم والحركة السعرية اليومية" : "Sector map by size and daily price change"}
+                {ar ? "أداء القطاعات اليوم (متوسط تغيّر السعر)" : "Sector performance today (avg price change)"}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
@@ -167,77 +173,76 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
                 <div className="flex flex-wrap items-center gap-4 mb-4 text-xs">
                   <div className="flex items-center gap-1.5">
                     <span className="w-3 h-3 rounded bg-positive" />
-                    <span className="text-muted-foreground">{ar ? "ارتفاع اليوم" : "Up today"}</span>
+                    <span className="text-muted-foreground">{ar ? "صاعد اليوم" : "Advancing today"}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="w-3 h-3 rounded bg-negative" />
-                    <span className="text-muted-foreground">{ar ? "انخفاض اليوم" : "Down today"}</span>
+                    <span className="text-muted-foreground">{ar ? "هابط اليوم" : "Declining today"}</span>
                   </div>
                   <div className="flex items-center gap-1.5 ms-auto">
                     <span className="w-3 h-3 rounded bg-muted/30" />
-                    <span className="text-muted-foreground">{ar ? "لا توجد بيانات" : "No data"}</span>
+                    <span className="text-muted-foreground">{ar ? "لا توجد أسعار اليوم" : "No quotes today"}</span>
                   </div>
                 </div>
 
-                {/* Treemap grid */}
+                {/* Sector cards grid */}
                 <div className="grid gap-2 lg:grid-cols-4">
                   {sectorData.map((s) => {
                     const cellSize = Math.max(60, (s.count / maxCount) * 200)
                     const positive = s.change >= 0
-                    const intensity = s.hasRealData ? Math.min(Math.abs(s.change) / 3, 1) : 0
-                    const bgColor = s.hasRealData
+                    const intensity = s.hasRealData ? Math.min(Math.abs(s.change) / 2, 1) : 0
+                    // NOTE: gradient fills go on `background`, not `backgroundColor`
+                    // (linear-gradient is not a valid background-color value).
+                    const bg = s.hasRealData
                       ? positive
-                        ? `color-mix(in oklab, var(--spec-positive) ${Math.round(intensity * 30)}%, transparent)`
-                        : `color-mix(in oklab, var(--spec-negative) ${Math.round(intensity * 30)}%, transparent)`
-                      : "transparent"
+                        ? `linear-gradient(135deg, color-mix(in oklab, var(--positive) ${Math.round(intensity * 20 + 10)}%, transparent) 0%, transparent 100%)`
+                        : `linear-gradient(135deg, color-mix(in oklab, var(--negative) ${Math.round(intensity * 20 + 10)}%, transparent) 0%, transparent 100%)`
+                      : "var(--surface)"
+                    const borderColor = s.hasRealData
+                      ? positive
+                        ? `color-mix(in oklab, var(--positive) ${Math.round(intensity * 40 + 30)}%, var(--border))`
+                        : `color-mix(in oklab, var(--negative) ${Math.round(intensity * 40 + 30)}%, var(--border))`
+                      : "var(--border)"
                     return (
-                        <Link
-                          key={s.sector}
-                          href={`/sectors/${encodeURIComponent(s.sector)}`}
-                          className="group block cursor-pointer"
+                      <Link
+                        key={s.sector}
+                        href={`/sectors/${encodeURIComponent(s.sector)}`}
+                        className="group block cursor-pointer"
+                      >
+                        <div
+                          className="rounded-xl border p-4 transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
+                          style={{
+                            background: bg,
+                            borderColor,
+                            minHeight: `${cellSize}px`,
+                          }}
                         >
-                          <div
-                            className="rounded-xl border p-4 transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
-                            style={{
-                              backgroundColor: s.hasRealData
-                                ? positive
-                                  ? `linear-gradient(135deg, color-mix(in oklab, var(--positive) ${Math.round(intensity * 20 + 10)}%, transparent) 0%, transparent 100%)`
-                                  : `linear-gradient(135deg, color-mix(in oklab, var(--negative) ${Math.round(intensity * 20 + 10)}%, transparent) 0%, transparent 100%)`
-                                : "transparent",
-                              borderColor: s.hasRealData
-                                ? positive
-                                  ? `color-mix(in oklab, var(--positive) ${Math.round(intensity * 40 + 30)}%, var(--border))`
-                                  : `color-mix(in oklab, var(--negative) ${Math.round(intensity * 40 + 30)}%, var(--border))`
-                                : "var(--border)",
-                              minHeight: `${cellSize}px`,
-                            }}
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-semibold text-foreground">{s.label}</span>
-                              <span className={`text-xs font-bold tabular flex items-center gap-1 ${s.hasRealData ? (positive ? "text-positive" : "text-negative") : "text-muted-foreground"}`}>
-                                {s.hasRealData ? (
-                                  <>
-                                    {positive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                                    {s.change > 0 ? "+" : ""}{s.change.toFixed(1)}%
-                                  </>
-                                ) : "—"}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-muted-foreground">{s.count} {ar ? "شركة" : "companies"}</span>
-                              <ArrowRight className="h-3 w-3 text-muted-foreground/50 group-hover:text-primary group-hover:translate-x-0.5 transition-all rtl-flip" aria-hidden="true" />
-                            </div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-semibold text-foreground">{s.label}</span>
+                            <span className={`text-xs font-bold tabular flex items-center gap-1 ${s.hasRealData ? (positive ? "text-positive" : "text-negative") : "text-muted-foreground"}`}>
+                              {s.hasRealData ? (
+                                <>
+                                  {positive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                                  {s.change > 0 ? "+" : ""}{s.change.toFixed(1)}%
+                                </>
+                              ) : "—"}
+                            </span>
                           </div>
-                        </Link>
-                      )
-                    })}
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-muted-foreground">{s.count} {ar ? "شركة" : "companies"}</span>
+                            <ArrowRight className="h-3 w-3 text-muted-foreground/50 group-hover:text-primary group-hover:translate-x-0.5 rtl-flip transition-all" aria-hidden="true" />
+                          </div>
+                        </div>
+                      </Link>
+                    )
+                  })}
                 </div>
               </div>
             </CardContent>
           </Card>
         </section>
 
-        {/* Sector Heatmap / Treemap */}
+        {/* Sector overview table + ROE leaders */}
         <section className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <Card className="border-border/60 overflow-hidden">

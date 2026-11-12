@@ -136,6 +136,10 @@
   --positive: #16A34A;
   --negative: #DC2626;
   --neutral: #6B7280;
+  /* Market heatmap tiles (sector-treemap) */
+  --hm-flat: #E3E8E1;
+  --hm-pos: #16A34A;
+  --hm-neg: #DC2626;
 
   /* Gold (rank medals, premium accents) — readable on white */
   --gold: #B45309;
@@ -218,6 +222,10 @@
   --positive: #22C55E;
   --negative: #EF4444;
   --neutral: #6B7280;
+  /* Market heatmap tiles (sector-treemap) */
+  --hm-flat: #2C332F;
+  --hm-pos: #22C55E;
+  --hm-neg: #EF4444;
 
   /* Gold (rank medals, premium accents) — brighter on dark graphite */
   --gold: #EAB308;
