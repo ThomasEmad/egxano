@@ -103,7 +103,7 @@ export interface TechnicalSnapshot {
 }
 
 /** Drop invalid observations — never repair or interpolate them. */
-export function sanitizeBars(raw: { ts: Date; open: number; high: number; low: number; close: number; volume: number | null }[]): Bar[] {
+export function sanitizeBars(raw: { ts: Date | string; open: number; high: number; low: number; close: number; volume: number | null }[]): Bar[] {
   const out: Bar[] = []
   for (const b of raw) {
     const { open, high, low, close, volume } = b
@@ -112,7 +112,7 @@ export function sanitizeBars(raw: { ts: Date; open: number; high: number; low: n
     if (close > high * 1.0001 || close < low * 0.9999) continue
     if (high < Math.max(open, close) * 0.9999 || low > Math.min(open, close) * 1.0001) continue
     out.push({
-      ts: b.ts.toISOString().slice(0, 10),
+      ts: (b.ts instanceof Date ? b.ts.toISOString() : String(b.ts)).slice(0, 10),
       open,
       high,
       low,
@@ -211,11 +211,23 @@ export interface TechnicalBundle {
   snapshotJson: string
 }
 
-/** Build the technical snapshot from the FRESHEST available bars: recent daily
- * bars are fetched from Yahoo on demand (in-memory cache, never stored) and
- * win over the frozen stored PriceBar rows on the same session date; stored
- * rows keep the deep history. This is what makes the analysis run on the last
- * session's price instead of a stale import. */
+/** Build the technical snapshot from the FRESHEST available bars:
+ *
+ *   1. stored PriceBar rows (deep history, frozen fallback),
+ *   2. Yahoo daily bars on demand (full OHLC, ~2y — best-effort: Yahoo
+ *      rate-limits datacenter IPs, so it may be unavailable),
+ *   3. MarketPrice day-rows from the public TradingView EGX scanner
+ *      (one row per company per UTC day, refreshed intraday by
+ *      /api/v1/cron/market + the in-session stale kick) — these carry the
+ *      LATEST session price, which is what makes the analysis run on the
+ *      last updated price instead of a stale import. Synthetic bars are
+ *      O=H=L=C (close-only): RSI/MACD/SMA are close-based; ATR/Bollinger
+ *      lose the day range for those few days and that is disclosed via the
+ *      snapshot limitations rather than hidden.
+ *
+ * Precedence per session day: scanner day-row > Yahoo bar > stored row for
+ * the most recent day; Yahoo OHLC wins for older days where it exists (real
+ * high/low beats the flat synthetic bar). Nothing new is written to the DB. */
 export async function buildTechnicalBundle(companyId: string): Promise<TechnicalBundle> {
   const raw = await db.priceBar.findMany({
     where: { companyId },
@@ -224,19 +236,66 @@ export async function buildTechnicalBundle(companyId: string): Promise<Technical
     select: { ts: true, open: true, high: true, low: true, close: true, volume: true },
   })
 
+  // Scanner day-rows: latest row per UTC day (intraday refreshes rewrite the
+  // same day bucket, so rows are naturally one-per-day, but dedupe anyway).
+  const priceRows = await db.marketPrice.findMany({
+    where: { companyId, sourceName: "TRADINGVIEW_SCANNER", isDemoData: false, price: { gt: 0 } },
+    orderBy: { asOf: "asc" },
+    select: { asOf: true, price: true },
+  })
+  let syntheticCount = 0
+  const scannerByDay = new Map<string, Bar>()
+  for (const r of priceRows) {
+    const day = r.asOf.toISOString().slice(0, 10)
+    scannerByDay.set(day, {
+      ts: day, // Bar.ts is an ISO date string (UTC midnight of the session)
+      open: r.price, high: r.price, low: r.price, close: r.price, volume: null,
+    })
+    syntheticCount++
+  }
+
+  const byDay = new Map<string, Bar>()
+  for (const b of raw) byDay.set(b.ts.toISOString().slice(0, 10), b as unknown as Bar)
+  for (const [day, bar] of scannerByDay) byDay.set(day, bar)
+
+  // Yahoo (when reachable) restores real OHLC for older days — but never
+  // overrides the most recent day, whose scanner row is authoritative.
+  const newestDay = [...byDay.keys()].sort().pop() ?? null
   const { fetchRecentBarsForCompany } = await import("./live-bars")
   const live = await fetchRecentBarsForCompany(companyId)
   if (live && live.length >= 30) {
-    const byDay = new Map<string, (typeof raw)[number]>()
-    for (const b of raw) byDay.set(b.ts.toISOString().slice(0, 10), b)
-    for (const b of live) byDay.set(b.ts.toISOString().slice(0, 10), b as (typeof raw)[number])
-    const merged = [...byDay.values()].sort((a, b) => a.ts.getTime() - b.ts.getTime()).slice(-MAX_BARS)
-    const bars = sanitizeBars(merged)
-    if (bars.length > 0) return assembleBundle(bars)
+    for (const b of live) {
+      const day = b.ts.toISOString().slice(0, 10)
+      if (day === newestDay) continue // the freshest scanner row stays authoritative
+      byDay.set(day, { ts: day, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume })
+      syntheticCount = Math.max(0, syntheticCount - 1)
+    }
   }
 
-  const bars = sanitizeBars(raw)
-  return assembleBundle(bars)
+  const merged = [...byDay.values()].sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime()).slice(-MAX_BARS)
+  const bars = sanitizeBars(merged)
+  if (bars.length > 0) {
+    const bundle = assembleBundle(bars)
+    // Honest disclosure: how many of the trailing sessions are close-only
+    // scanner bars (no intraday high/low), and whether the freshest bar is
+    // intraday data from today's scanner pull.
+    if (syntheticCount > 0) {
+      const lastBarDay = String(bars[bars.length - 1].ts).slice(0, 10)
+      const today = new Date().toISOString().slice(0, 10)
+      bundle.snapshot.limitations.push(
+        `${syntheticCount} recent session${syntheticCount === 1 ? "" : "s"} use scanner close-only bars (no intraday high/low) — range-based indicators are approximated for those days.`,
+      )
+      if (lastBarDay === today) {
+        bundle.snapshot.limitations.push(
+          `The last bar is the current session's latest scanner price (${lastBarDay}), not a final close.`,
+        )
+      }
+    }
+    return bundle
+  }
+
+  const fallback = sanitizeBars(raw)
+  return assembleBundle(fallback)
 }
 
 /** Pure assembly (also used by tests): bars must be ascending by ts. */

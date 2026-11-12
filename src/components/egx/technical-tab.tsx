@@ -228,7 +228,7 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                {ar ? "آخر إغلاق" : "Last close"}
+                {ar ? "آخر سعر مسجل" : "Last recorded price"}
               </p>
               <p className="text-2xl font-bold tabular" dir="ltr">
                 {snap.lastClose.toFixed(2)} <span className="text-sm font-medium text-muted-foreground">{snap.currency}</span>
