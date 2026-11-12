@@ -82,12 +82,12 @@ const nextConfig: NextConfig = {
   // Legacy/alias routes kept alive so old links never 404:
   // /companies is a real directory page again (the old /companies → /rankings
   // redirect is gone — it was why every "الشركات" link landed on the
-  // leaderboard). Scanners live on the dashboard.
+  // leaderboard). /scanners is now a real standalone page (2026-11-13) — the
+  // old /scanners → /dashboard redirect is gone with it.
   // /data-quality was a public page — it is now admin-only, so old public
   // links land on the admin view (non-admins bounce to the admin login).
   async redirects() {
     return [
-      { source: "/scanners", destination: "/dashboard", permanent: false },
       { source: "/data-quality", destination: "/admin/data-quality", permanent: false },
       // legacy URL shapes seen in the wild: company detail + auth pages
       { source: "/companies/:ticker", destination: "/company/:ticker", permanent: false },

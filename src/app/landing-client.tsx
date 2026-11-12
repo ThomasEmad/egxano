@@ -412,7 +412,7 @@ export default function LandingClient() {
 
             <div className="mt-8 text-center">
               <Link
-                href="/dashboard#/scanners"
+                href="/scanners"
                 className="inline-flex items-center gap-2 font-medium text-primary underline-offset-4 hover:underline"
               >
                 {ar ? "كل الماسحات المالية" : "All financial screens"}
@@ -838,7 +838,7 @@ function ScannerCard({
 }: { card: { presetKey: string | null; description: string | null }; ar: boolean }) {
   return (
     <Link
-      href={`/dashboard#/scanners/${card.presetKey ?? "unknown"}`}
+      href={`/scanners?preset=${card.presetKey ?? "unknown"}`}
       className="group flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-6 transition-colors hover:border-primary/30 hover:bg-muted/30"
     >
       <div className="flex items-start gap-3">

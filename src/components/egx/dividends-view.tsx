@@ -303,6 +303,7 @@ export function DividendsView({ onOpenCompany }: { onOpenCompany: (id: string) =
                   <tr className="border-b bg-muted/50 text-start text-xs text-muted-foreground">
                     <th className="px-4 py-3 text-start font-semibold">{ar ? "الشركة" : "Company"}</th>
                     <th className="px-4 py-3 text-start font-semibold">{t("dv.dps")}</th>
+                    <th className="px-4 py-3 text-start font-semibold">{t("dv.estYield")}</th>
                     <th className="px-4 py-3 text-start font-semibold">{t("dv.announcement")}</th>
                     <th className="px-4 py-3 text-start font-semibold">{t("dv.exDate")}</th>
                     <th className="px-4 py-3 text-start font-semibold">{t("dv.distribution")}</th>
@@ -310,7 +311,10 @@ export function DividendsView({ onOpenCompany }: { onOpenCompany: (id: string) =
                   </tr>
                 </thead>
                 <tbody>
-                  {history.slice(0, limit).map((d) => (
+                  {history.slice(0, limit).map((d) => {
+                    const price = d.company ? priceByTicker.get(d.company.ticker.toUpperCase()) ?? null : null
+                    const dy = d.dividendPerShare != null && price != null && price > 0 ? (d.dividendPerShare / price) * 100 : null
+                    return (
                     <tr
                       key={d.id}
                       onClick={() => d.company && onOpenCompany(d.company.id)}
@@ -329,12 +333,23 @@ export function DividendsView({ onOpenCompany }: { onOpenCompany: (id: string) =
                         <span dir="ltr" className="font-bold tabular-nums text-positive">{fmtDps(d.dividendPerShare)}</span>
                         <span className="ms-1 text-xs text-muted-foreground">EGP</span>
                       </td>
+                      <td className="px-4 py-3">
+                        {dy === null ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : (
+                          <span dir="ltr" className={`font-bold tabular-nums ${dy > 30 ? "text-warning" : dy >= 3 ? "text-positive" : "text-foreground"}`}>
+                            {dy.toFixed(1)}%
+                            {dy > 30 && <span className="ms-1 text-[10px] font-medium text-warning">({t("dv.yieldUnverified")})</span>}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground">{fmtDate(d.announcementDate, ar)}</td>
                       <td className="px-4 py-3 text-muted-foreground">{fmtDate(d.exDividendDate, ar)}</td>
                       <td className="px-4 py-3 text-muted-foreground">{fmtDate(d.distributionDate, ar)}</td>
                       <td className="px-4 py-3"><StatusBadge status={d.status} /></td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -362,7 +377,19 @@ export function DividendsView({ onOpenCompany }: { onOpenCompany: (id: string) =
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
                     <span>{t("dv.distribution")}: {fmtDate(d.distributionDate ?? d.exDividendDate, ar)}</span>
-                    <StatusBadge status={d.status} />
+                    <span className="flex items-center gap-2">
+                      {(() => {
+                        const price = d.company ? priceByTicker.get(d.company.ticker.toUpperCase()) ?? null : null
+                        const dy = d.dividendPerShare != null && price != null && price > 0 ? (d.dividendPerShare / price) * 100 : null
+                        if (dy === null) return null
+                        return (
+                          <span dir="ltr" className={`font-bold tabular-nums ${dy > 30 ? "text-warning" : dy >= 3 ? "text-positive" : "text-foreground"}`}>
+                            {dy.toFixed(1)}%
+                          </span>
+                        )
+                      })()}
+                      <StatusBadge status={d.status} />
+                    </span>
                   </div>
                 </button>
               ))}
