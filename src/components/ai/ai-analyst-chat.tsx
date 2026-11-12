@@ -57,8 +57,9 @@ export function AiAnalystChat({ companyId }: { companyId: string }) {
 
   const send = useMutation({
     mutationFn: (history: AiChatMessage[]) => {
-      const body = { messages: history, companyId }
-      return fetch("/api/v1/ai-analysis/chat", {
+      const body = { messages: history, lang: ar ? "ar" : "en" }
+      // The chat route is nested under the company path param: /api/v1/companies/[id]/ai-analysis/chat
+      return fetch(`/api/v1/companies/${encodeURIComponent(companyId)}/ai-analysis/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify(body),
@@ -146,6 +147,7 @@ export function AiAnalystChat({ companyId }: { companyId: string }) {
           </div>
         </div>
       )
+    }
 
     return (
       <div key={idx} className={cn("animate-in fade-in slide-in-from-bottom-2 duration-200", idx === messages.length - 1 && "last-message")}>
@@ -318,5 +320,3 @@ function formatFigureValue(fig: { value: string; unit?: string }) {
   }
   return v
 }
-
-export { AiAnalystChat }
