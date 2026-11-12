@@ -17,6 +17,7 @@ import {
   Info,
   LayoutDashboard,
   Scale,
+  ScanSearch,
   ShieldCheck,
   Layers,
   Trophy,
@@ -49,6 +50,7 @@ export const SECTIONS: NavSection[] = [
     items: [
       { href: "/dashboard", label: "Research home", labelAr: "لوحة البحث", icon: LayoutDashboard },
       { href: "/companies", label: "Companies", labelAr: "الشركات", icon: Building2 },
+      { href: "/scanners", label: "Screeners", labelAr: "الماسحات", icon: ScanSearch },
       { href: "/compare", label: "Compare", labelAr: "المقارنة", icon: Scale },
       { href: "/rankings", label: "Rankings", labelAr: "الترتيب", icon: Trophy },
       { href: "/undervalued", label: "Valuation screen", labelAr: "فحص التقييم", icon: Gem },

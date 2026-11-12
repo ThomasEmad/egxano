@@ -10,7 +10,7 @@ import { useI18n } from "@/lib/i18n"
 const MOBILE_NAV: { href: string; label: string; labelAr: string; icon: React.ReactNode }[] = [
   { href: "/", label: "Home", labelAr: "الرئيسية", icon: <Activity className="h-5 w-5" /> },
   { href: "/companies", label: "Companies", labelAr: "الشركات", icon: <Building2 className="h-5 w-5" /> },
-  { href: "/dashboard", label: "Screener", labelAr: "الماسح", icon: <ScanSearch className="h-5 w-5" /> },
+  { href: "/scanners", label: "Screeners", labelAr: "الماسحات", icon: <ScanSearch className="h-5 w-5" /> },
   { href: "/compare", label: "Compare", labelAr: "المقارنة", icon: <Scale className="h-5 w-5" /> },
   { href: "/watchlist", label: "Watchlist", labelAr: "المتابعة", icon: <ShieldCheck className="h-5 w-5" /> },
 ]
@@ -26,7 +26,7 @@ export function MobileBottomNav() {
       aria-label="Bottom navigation"
     >
       {MOBILE_NAV.map((item) => {
-        const active = pathname === item.href || (item.href === "/" && (pathname === "/" || pathname === "/dashboard"))
+        const active = pathname === item.href
         return (
           <Link
             key={item.href}
