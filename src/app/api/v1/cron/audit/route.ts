@@ -110,6 +110,17 @@ export async function GET(req: NextRequest) {
     } catch (e) {
       console.error("audit-chained market refresh failed:", e instanceof Error ? e.message.slice(0, 200) : e)
     }
+    // Chain the market-enrichment job (chunked + self-chaining): computes the
+    // true 52-week / SMA200 breadth aggregates for the intelligence snapshot.
+    // The chunk runner chains its own remaining windows via after(), so a
+    // single daily anchor is enough — no extra platform cron required.
+    let enrichment: { done: boolean; processed: number; remaining: number } | null = null
+    try {
+      const { runEnrichmentChunk } = await import("@/lib/market/intelligence/service")
+      enrichment = await runEnrichmentChunk(40)
+    } catch (e) {
+      console.error("audit-chained market-enrich failed:", e instanceof Error ? e.message.slice(0, 200) : e)
+    }
     return Response.json({
       ok: true,
       scheduledType: type,
@@ -120,6 +131,7 @@ export async function GET(req: NextRequest) {
       byCategory: last.summary?.byCategory ?? null,
       aiWorker,
       market,
+      enrichment,
     })
   } catch (error) {
     return Response.json(
