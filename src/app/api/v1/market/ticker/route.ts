@@ -3,7 +3,8 @@ import { db } from "@/lib/db"
 import { getFreshMarketSnapshot } from "@/lib/market/snapshot"
 import { latestTwoPerCompany } from "@/lib/market/latest-price"
 
-// GET /api/v1/market/ticker — index levels + top movers.
+// GET /api/v1/market/ticker — index levels + top movers (+ optional watchlist
+// quotes via ?tickers=COMI,HRHO,...).
 //
 // The snapshot comes from getFreshMarketSnapshot(): the DB `Setting` row
 // written by /api/v1/cron/market when it is newer (serverless-safe intraday
@@ -17,6 +18,11 @@ import { latestTwoPerCompany } from "@/lib/market/latest-price"
 // rows — was a full-table scan) with a ±50% cap so splits / legacy bad-scale
 // rows do not render as movers.
 //
+// `?tickers=` returns a `quotes` slice for the requested tickers straight from
+// the snapshot movers (used by the dashboard watchlist panel). Quote requests
+// bypass the shared route cache — the cached blob must never carry one user's
+// watchlist into another user's response.
+//
 // Egress (2026-11-10): the client polls this every 90s; the response is also
 // CDN-edge-cacheable (public, s-maxage=60) so 10k visitors collapse into a
 // handful of origin fetches. Prices change once per trading day.
@@ -25,12 +31,20 @@ let cache: { data: unknown; at: number } | null = null
 const TTL_MS = 60_000
 
 type SnapshotMover = { ticker: string; price: number; changePct: number }
+type Quote = { ticker: string; price: number; changePct: number }
 
 export async function GET(req: NextRequest) {
-  // Allow bypassing cache with ?fresh=true
+  // Allow bypassing cache with ?fresh=true; ?tickers= is per-user → no cache.
   const isFresh = req.nextUrl.searchParams.get("fresh") === "true"
+  const requested = (req.nextUrl.searchParams.get("tickers") ?? "")
+    .split(",")
+    .map((t) => t.trim().toUpperCase())
+    .filter(Boolean)
+    .slice(0, 60)
   const headers = { "Cache-Control": "public, max-age=30, s-maxage=60, stale-while-revalidate=600" }
-  if (!isFresh && cache && Date.now() - cache.at < TTL_MS) return Response.json(cache.data, { headers })
+  if (!isFresh && requested.length === 0 && cache && Date.now() - cache.at < TTL_MS) {
+    return Response.json(cache.data, { headers })
+  }
   try {
     // Freshest of (DB Setting row, build-time file) — validated shape.
     const parsed = await getFreshMarketSnapshot()
@@ -46,6 +60,8 @@ export async function GET(req: NextRequest) {
 
     let gainers: SnapshotMover[] = []
     let losers: SnapshotMover[] = []
+    let active: { ticker: string; price: number; changePct: number; volume?: number }[] = []
+    let quotes: Quote[] = []
     let breadth = { gainers: 0, losers: 0 }
     let pricesAsOf: string | null = snap.pricesAsOf ?? null
 
@@ -55,9 +71,26 @@ export async function GET(req: NextRequest) {
       )
       gainers = [...valid].sort((a, b) => b.changePct - a.changePct).slice(0, 8)
       losers = [...valid].sort((a, b) => a.changePct - b.changePct).slice(0, 8)
+      // Most active by share volume — only from snapshot rows that carry volume
+      // (the DB fallback rows do not, so it stays empty there).
+      active = [...valid]
+        .filter((m) => Number.isFinite((m as { volume?: number }).volume) && (m as { volume?: number }).volume! > 0)
+        .sort((a, b) => (b as { volume?: number }).volume! - (a as { volume?: number }).volume!)
+        .slice(0, 8)
+        .map((m) => ({ ticker: m.ticker, price: m.price, changePct: m.changePct, volume: (m as { volume?: number }).volume }))
       breadth = {
         gainers: valid.filter((m) => m.changePct > 0).length,
         losers: valid.filter((m) => m.changePct < 0).length,
+      }
+      if (requested.length > 0) {
+        const wanted = new Set(requested)
+        const seen = new Set<string>()
+        for (const m of valid) {
+          const tk = m.ticker.toUpperCase()
+          if (!wanted.has(tk) || seen.has(tk)) continue
+          seen.add(tk)
+          quotes.push({ ticker: m.ticker, price: m.price, changePct: m.changePct })
+        }
       }
       pricesAsOf = pricesAsOf ?? snap.asOf
     } else {
@@ -101,10 +134,12 @@ export async function GET(req: NextRequest) {
       indices: snap.indices,
       gainers,
       losers,
+      active,
+      quotes,
       breadth,
     }
-    cache = { data, at: Date.now() }
-    return Response.json(data, { headers })
+    if (requested.length === 0) cache = { data, at: Date.now() }
+    return Response.json(data, requested.length > 0 ? { headers: { "Cache-Control": "no-store" } } : { headers })
   } catch (e) {
     console.error("ticker-error", e)
     return Response.json({
@@ -115,6 +150,8 @@ export async function GET(req: NextRequest) {
       indices: [],
       gainers: [],
       losers: [],
+      active: [],
+      quotes: [],
       breadth: { gainers: 0, losers: 0 },
     }, { headers: { "Cache-Control": "no-store" } })
   }

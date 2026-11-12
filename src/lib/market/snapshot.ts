@@ -186,8 +186,52 @@ export async function getFreshMarketSnapshot(): Promise<MarketSnapshot | null> {
   }
 
   const best = newerSnapshot(dbSnap, fileSnap)
-  kickOpportunisticRefresh(best)
-  return best
+  // Two freshness paths:
+  //   • very stale (>26h — e.g. weekend gap, dead cron) INSIDE the trading
+  //     window: await one inline refresh so the first visitor of the session
+  //     reads live data instead of last week's close; shared in-flight
+  //     promise + a 5-min failure cooldown keep this bounded.
+  //   • moderately stale in-session: non-blocking kick (existing behavior) —
+  //     the next poll picks the fresh row up.
+  const fresh = await ensureFreshInline(best)
+  kickOpportunisticRefresh(fresh)
+  return fresh
+}
+
+let inlineFailAt = 0
+
+async function ensureFreshInline(snap: MarketSnapshot | null): Promise<MarketSnapshot | null> {
+  if (!snap?.pricesAsOf) return snap
+  const ageMs = Date.now() - Date.parse(snap.pricesAsOf)
+  if (Number.isNaN(ageMs) || ageMs <= VERY_STALE_MS) return snap
+  if (!isEgxRefreshWindow()) return snap // off-window: kick path covers EOD refreshes
+  if (Date.now() - inlineFailAt < KICK_COOLDOWN_MS) return snap
+  try {
+    const { refreshMarketSnapshot } = await import("./refresh")
+    const r = await refreshMarketSnapshot()
+    if (r.ok) {
+      // Re-read the DB row directly (bypass the 15s lambda cache) so this
+      // very request already serves the fresh snapshot.
+      try {
+        const row = await db.setting.findUnique({
+          where: { key: MARKET_SNAPSHOT_SETTING_KEY },
+          select: { value: true },
+        })
+        if (row?.value) {
+          const dbSnap = parseSnapshot(JSON.parse(row.value))
+          dbSnapCache = { snap: dbSnap, at: Date.now() }
+          return newerSnapshot(dbSnap, snap)
+        }
+      } catch {
+        return snap
+      }
+    } else {
+      inlineFailAt = Date.now()
+    }
+  } catch {
+    inlineFailAt = Date.now()
+  }
+  return snap
 }
 
 function kickOpportunisticRefresh(snap: MarketSnapshot | null): void {

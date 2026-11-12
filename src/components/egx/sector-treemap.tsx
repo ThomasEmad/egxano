@@ -40,7 +40,12 @@ interface Rect {
 }
 
 const CANVAS = { w: 100, h: 58 } // normalized units (rendered with % positioning)
-const CANVAS_H = 480 // px — fixed so label thresholds are stable vertically
+/** Canvas height: compact on phones so tiles stay large enough to read. */
+function canvasHeight(boxW: number): number {
+  return boxW < 560 ? 340 : 480
+}
+/** Sector header strip: finviz-style thin bar — never floats over tiles. */
+const STRIP_PX = 15
 
 /** Squarified treemap (Bruls et al.) — values descending, aspect-ratio greedy. */
 function squarify(values: number[], rect: Rect): Rect[] {
@@ -152,6 +157,7 @@ export function SectorTreemap() {
     staleTime: 60_000,
     refetchInterval: 180_000,
   })
+  const canvasH = canvasHeight(boxW)
 
   const tiles = (data?.tiles ?? []).filter((t) => t.cap !== null && t.cap > 0)
   const sectors = new Map<string, TreemapTile[]>()
@@ -231,10 +237,10 @@ export function SectorTreemap() {
               <div
                 ref={boxRef}
                 className="relative w-full overflow-hidden rounded-xl border border-border/60 bg-background/40"
-                style={{ height: CANVAS_H }}
+                style={{ height: canvasH }}
                 dir="ltr"
               >
-                <SectorLayout sectorList={sectorList} boxW={boxW} />
+                <SectorLayout sectorList={sectorList} boxW={boxW} canvasH={canvasH} />
               </div>
             </>
           )}
@@ -261,9 +267,11 @@ function capWeightedChange(list: TreemapTile[]): number | null {
 function SectorLayout({
   sectorList,
   boxW,
+  canvasH,
 }: {
   sectorList: { sector: string; list: TreemapTile[]; total: number; chg: number | null }[]
   boxW: number
+  canvasH: number
 }) {
   const { lang } = useI18n()
   const ar = lang === "ar"
@@ -275,18 +283,30 @@ function SectorLayout({
         const r = sectorRects[si]
         if (!r || r.w <= 0 || r.h <= 0) return null
         const pxW = (r.w / CANVAS.w) * boxW
-        const pxH = (r.h / CANVAS.h) * CANVAS_H
+        const pxH = (r.h / CANVAS.h) * canvasH
         // fix: inner layout computed in LOCAL sector space — global canvas coords
         // applied inside the already-offset sector box caused double-offset voids
         const innerW = Math.max(0, r.w - 0.3)
         const innerH = Math.max(0, r.h - 0.3)
         const sorted = [...sec.list].sort((a, b) => (b.cap ?? 0) - (a.cap ?? 0))
         const rects = squarify(sorted.map((t) => t.cap ?? 0), { x: 0.15, y: 0.15, w: innerW, h: innerH })
-        const showChip = pxW > 74 && pxH > 26
+        // Sector label: a dedicated thin header strip that RESERVES its own
+        // space (companies render below it — nothing is covered), or, when the
+        // sector box is too small for a strip, a hover-only chip. The strip
+        // background is tinted with the sector's own day change so it reads
+        // as data, not as an empty bar.
+        const showStrip = pxW > 64 && pxH > 44
+        const stripBg =
+          sec.chg === null
+            ? "var(--muted)"
+            : `color-mix(in oklab, ${sec.chg > 0 ? "var(--hm-pos)" : "var(--hm-neg)"} 14%, var(--card))`
+        const stripTone = sec.chg === null ? "text-muted-foreground" : sec.chg > 0 ? "text-positive" : "text-negative"
+        const secTitle = `${sectorLabel(sec.sector, lang)} · ${fmtChg(sec.chg)} · ${sec.list.length} ${ar ? "شركة" : "companies"}`
         return (
           <div
             key={sec.sector}
-            className="absolute"
+            className="group/sec absolute"
+            title={secTitle}
             style={{
               insetInlineStart: `${r.x}%`,
               top: `${(r.y / CANVAS.h) * 100}%`,
@@ -296,66 +316,79 @@ function SectorLayout({
             }}
           >
             <div className="relative h-full w-full overflow-hidden rounded-[5px] border border-border/50 bg-background/30">
-              {/* floating sector chip — compact like finviz group labels */}
-              {showChip ? (
+              {/* hover-only label for sectors too small for a strip */}
+              {!showStrip ? (
                 <div
-                  className="pointer-events-none absolute start-1 top-1 z-10 flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-0.5 text-[9px] font-bold text-foreground shadow-sm backdrop-blur-sm"
+                  className="pointer-events-none absolute start-1 top-1 z-10 flex items-center gap-1 rounded-md bg-background/90 px-1.5 py-0.5 text-[8px] font-bold text-foreground opacity-0 shadow-sm transition-opacity group-hover/sec:opacity-100"
                   dir="auto"
                 >
-                  <span className="max-w-[130px] truncate">{sectorLabel(sec.sector, lang)}</span>
+                  <span className="max-w-[110px] truncate">{sectorLabel(sec.sector, lang)}</span>
+                  <span className={`tabular ${stripTone}`} dir="ltr">{fmtChg(sec.chg)}</span>
+                </div>
+              ) : null}
+              {showStrip ? (
+                <div
+                  className="flex h-[15px] w-full items-center justify-between gap-1 px-1.5"
+                  style={{ background: stripBg }}
+                  dir="auto"
+                >
+                  <span className="truncate text-[9px] font-bold leading-none text-foreground">{sectorLabel(sec.sector, lang)}</span>
                   {sec.chg !== null ? (
-                    <span className={`tabular ${sec.chg > 0 ? "text-positive" : sec.chg < 0 ? "text-negative" : "text-muted-foreground"}`} dir="ltr">
+                    <span className={`shrink-0 text-[8.5px] font-bold leading-none tabular ${stripTone}`} dir="ltr">
                       {fmtChg(sec.chg)}
                     </span>
                   ) : null}
                 </div>
               ) : null}
-              {sorted.map((t, ti) => {
-                const tr = rects[ti]
-                if (!tr || tr.w <= 0 || tr.h <= 0) return null
-                const tPxW = (tr.w / innerW) * pxW
-                const tPxH = (tr.h / innerH) * pxH
-                const chg = t.changePct
-                // label discipline: ticker only when it truly fits at ~6.4px/char
-                const tickerFits = tPxW > t.ticker.length * 6.4 + 8 && tPxH > 22
-                const chgFits = tPxW > 44 && tPxH > 40
-                const showLabel = tickerFits || chgFits
-                const title = `${t.ticker} — ${ar && t.nameAr ? t.nameAr : t.name}${t.price !== null ? ` @ ${t.price.toFixed(2)} EGP` : ""} · ${fmtChg(chg)}`
-                return (
-                  <Link
-                    key={t.ticker}
-                    href={`/company/${encodeURIComponent(t.ticker)}`}
-                    title={title}
-                    aria-label={title}
-                    className="group absolute flex flex-col items-center justify-center gap-px overflow-hidden rounded-[3px] transition-[filter,opacity] hover:brightness-125 hover:z-20 hover:ring-1 hover:ring-foreground/30"
-                    style={{
-                      insetInlineStart: `${((tr.x - 0.15) / innerW) * 100}%`,
-                      top: `${((tr.y - 0.15) / innerH) * 100}%`,
-                      width: `${(tr.w / innerW) * 100}%`,
-                      height: `${(tr.h / innerH) * 100}%`,
-                      background: changeFill(chg),
-                      outline: "0.5px solid var(--background)",
-                    }}
-                  >
-                    {showLabel ? (
-                      <>
-                        {tickerFits ? (
-                          <span
-                            className={`max-w-full truncate px-0.5 text-[10px] font-bold leading-[1.15] ${labelTone(chg)}`}
-                          >
-                            {t.ticker}
-                          </span>
-                        ) : null}
-                        {chgFits ? (
-                          <span className={`px-0.5 text-[9.5px] font-semibold leading-[1.1] tabular ${labelTone(chg)}`} dir="ltr">
-                            {fmtChg(chg)}
-                          </span>
-                        ) : null}
-                      </>
-                    ) : null}
-                  </Link>
-                )
-              })}
+              {/* company tiles render below the reserved strip — never overlapped */}
+              <div className="absolute inset-x-0 bottom-0" style={{ top: showStrip ? STRIP_PX : 0 }}>
+                {sorted.map((t, ti) => {
+                  const tr = rects[ti]
+                  if (!tr || tr.w <= 0 || tr.h <= 0) return null
+                  const tPxW = (tr.w / innerW) * pxW
+                  const tPxH = (tr.h / innerH) * (pxH - (showStrip ? STRIP_PX : 0))
+                  const chg = t.changePct
+                  // label discipline: ticker only when it truly fits at ~6.4px/char
+                  const tickerFits = tPxW > t.ticker.length * 6.4 + 8 && tPxH > 22
+                  const chgFits = tPxW > 44 && tPxH > 40
+                  const showLabel = tickerFits || chgFits
+                  const title = `${t.ticker} — ${ar && t.nameAr ? t.nameAr : t.name}${t.price !== null ? ` @ ${t.price.toFixed(2)} EGP` : ""} · ${fmtChg(chg)}`
+                  return (
+                    <Link
+                      key={t.ticker}
+                      href={`/company/${encodeURIComponent(t.ticker)}`}
+                      title={title}
+                      aria-label={title}
+                      className="group absolute flex flex-col items-center justify-center gap-px overflow-hidden rounded-[3px] transition-[filter,opacity] hover:brightness-125 hover:z-20 hover:ring-1 hover:ring-foreground/30"
+                      style={{
+                        insetInlineStart: `${((tr.x - 0.15) / innerW) * 100}%`,
+                        top: `${((tr.y - 0.15) / innerH) * 100}%`,
+                        width: `${(tr.w / innerW) * 100}%`,
+                        height: `${(tr.h / innerH) * 100}%`,
+                        background: changeFill(chg),
+                        outline: "0.5px solid var(--background)",
+                      }}
+                    >
+                      {showLabel ? (
+                        <>
+                          {tickerFits ? (
+                            <span
+                              className={`max-w-full truncate px-0.5 text-[10px] font-bold leading-[1.15] ${labelTone(chg)}`}
+                            >
+                              {t.ticker}
+                            </span>
+                          ) : null}
+                          {chgFits ? (
+                            <span className={`px-0.5 text-[9.5px] font-semibold leading-[1.1] tabular ${labelTone(chg)}`} dir="ltr">
+                              {fmtChg(chg)}
+                            </span>
+                          ) : null}
+                        </>
+                      ) : null}
+                    </Link>
+                  )
+                })}
+              </div>
             </div>
           </div>
         )

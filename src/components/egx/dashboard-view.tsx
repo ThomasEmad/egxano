@@ -80,6 +80,31 @@ interface WatchlistItemWithPrice {
   asOf?: string
 }
 
+interface TickerIndex {
+  name: string
+  level: number
+  changePct: number
+}
+
+interface TickerMover {
+  ticker: string
+  price: number
+  changePct: number
+  volume?: number
+}
+
+/** Shape of GET /api/v1/market/ticker (indices + movers + watchlist quotes). */
+interface TickerData {
+  asOf?: string | null
+  pricesAsOf?: string | null
+  delayMinutes?: number | null
+  indices: TickerIndex[]
+  gainers?: TickerMover[]
+  losers?: TickerMover[]
+  active?: TickerMover[]
+  quotes?: TickerMover[]
+}
+
 export function DashboardView({
   onOpenScanner,
   onOpenCompany,
@@ -115,10 +140,20 @@ export function DashboardView({
     "dashboard",
     "latest-results",
     "market-breadth",
+    "market-ticker",
     "sector-aggs",
     "market-valuation",
     "watch-prices",
   ])
+
+  // One shared market query feeds the index panel, the movers board and the
+  // watchlist price map (same cache entry, one poll).
+  const { data: ticker } = useQuery({
+    queryKey: ["market-ticker"],
+    queryFn: () => fetch("/api/v1/market/ticker").then((r) => (r.ok ? (r.json() as Promise<TickerData>) : null)),
+    staleTime: 60_000,
+    refetchInterval: 300_000,
+  })
   const { data: subData } = useQuery({ queryKey: ["my-subscription"], queryFn: () => api.subscription() })
   const { data: latest } = useQuery({ queryKey: ["latest-results"], queryFn: () => api.latestResults(), staleTime: 60_000 })
   const { data: valuation } = useQuery({
@@ -146,9 +181,13 @@ export function DashboardView({
 
   const { data: watchPrices } = useQuery({
     queryKey: ["watch-prices", watchIds.join(",")],
-    // Egress diet: no ?fresh bypass (it defeated every cache layer per poll);
-    // 5-min poll — prices change once per trading day.
-    queryFn: () => fetch(`/api/v1/market/ticker`).then((r) => (r.ok ? (r.json() as Promise<{ movers?: { ticker: string; price: number; changePct: number }[] }>) : { movers: [] })),
+    // Egress diet: quotes come back inside the shared market poll — the
+    // ?tickers= slice of /api/v1/market/ticker (snapshot movers), no extra
+    // origin fetch beyond the one the index panel already pays.
+    queryFn: () =>
+      fetch(`/api/v1/market/ticker?tickers=${encodeURIComponent(watchItems.map((w) => w.ticker).join(","))}`)
+        .then((r) => (r.ok ? (r.json() as Promise<TickerData>) : null))
+        .then((d) => ({ movers: d?.quotes ?? [] })),
     enabled: watchIds.length > 0,
     staleTime: 120_000,
     refetchInterval: 300_000,
@@ -296,7 +335,13 @@ export function DashboardView({
         <MarketSummaryPanel breadth={breadth} ar={ar} />
 
         {/* Panel C — EGX30 Chart (No Synthetic Data) */}
-        <Egx30ChartPanel isPremium={isPremium} ar={ar} onViewChange={onViewChange} router={router} />
+        <Egx30ChartPanel ticker={ticker} ar={ar} onViewChange={onViewChange} router={router} />
+      </div>
+
+      {/* ===== MARKET MOVERS + UPCOMING DIVIDENDS ===== */}
+      <div className="grid gap-6 lg:grid-cols-12">
+        <MoversPanel ticker={ticker} ar={ar} router={router} />
+        <UpcomingDividendsPanel ar={ar} lang={lang} router={router} />
       </div>
 
       {/* ===== SECONDARY ROW ===== */}
@@ -324,40 +369,24 @@ export function DashboardView({
         />
       </div>
 
-      {/* ===== BOTTOM STRIP ===== */}
-      <section className="rounded-[20px] border border-border/60 bg-card p-5 sm:p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex w-full flex-1 items-center gap-3 sm:flex-nowrap">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted/40 text-muted-foreground">
-              <Activity className="h-4 w-4" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <input
-                type="search"
-                placeholder={ar ? "اسأل عن السوق…" : "Ask about the market…"}
-                className="w-full px-3 py-1.5 text-sm rounded-xl border border-input bg-background/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
-              />
-              <Button size="sm" className="ml-2 h-9 px-3 text-xs font-semibold">
-                {ar ? "إرسال" : "Send"}
-              </Button>
-            </div>
-          </div>
-          <div className="flex w-full flex-1 justify-end sm:justify-start gap-2 sm:ml-auto">
+      {/* ===== QUICK LINKS (the old "ask about the market" input had no
+           working handler — dead control removed per UX rules) ===== */}
+      <section className="rounded-[20px] border border-border/60 bg-card p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-between">
+          <span className="hidden text-xs font-medium text-muted-foreground sm:inline">
+            {ar ? "اختصارات البحث السريع" : "Quick research links"}
+          </span>
+          <div className="flex flex-wrap justify-center gap-2">
             {[
               { label: ar ? "الشركات" : "Companies", href: "/companies", icon: <Building2 className="h-4 w-4" /> },
-              { label: ar ? "القطاعات" : "Sectors", href: "/sectors", icon: <ScanSearch className="h-4 w-4" /> },
-              { label: ar ? "ماسح مخصص" : "Custom Scanner", href: "/dashboard#/custom", icon: <Scale className="h-4 w-4" /> },
-              { label: ar ? "مقارنة" : "Compare", href: "/compare", icon: <Sparkles className="h-4 w-4" /> },
+              { label: ar ? "الماسحات" : "Screeners", href: "/scanners", icon: <ScanSearch className="h-4 w-4" /> },
+              { label: ar ? "مقارنة" : "Compare", href: "/compare", icon: <Scale className="h-4 w-4" /> },
+              { label: ar ? "الترتيب" : "Rankings", href: "/rankings", icon: <Sparkles className="h-4 w-4" /> },
+              { label: ar ? "التوزيعات" : "Dividends", href: "/dividends", icon: <CalendarDays className="h-4 w-4" /> },
             ].map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={(e) => {
-                  if (item.href.startsWith("/dashboard#")) {
-                    e.preventDefault()
-                    router.push(item.href)
-                  }
-                }}
                 className="flex items-center gap-2 rounded-xl border border-border/60 bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
               >
                 {item.icon}
@@ -538,29 +567,16 @@ function MarketSummaryPanel({ breadth, ar }: { breadth: BreadthData | null | und
 
 /* ===== Panel C — EGX30 (latest level only; no synthetic history) ===== */
 function Egx30ChartPanel({
+  ticker,
   ar,
   router,
 }: {
-  isPremium: boolean
+  ticker: TickerData | null | undefined
   ar: boolean
   onViewChange: (v: ViewKey) => void
   router: ReturnType<typeof useRouter>
 }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ["market-ticker"],
-    queryFn: () =>
-      fetch("/api/v1/market/ticker").then((r) =>
-        r.ok
-          ? (r.json() as Promise<{
-              indices: { name: string; level: number; changePct: number }[]
-              pricesAsOf?: string | null
-              delayMinutes?: number | null
-            }>)
-          : null,
-      ),
-    staleTime: 120_000,
-    refetchInterval: 300_000,
-  })
+  const data = ticker
 
   const egx30 = data?.indices?.find((i) => i.name === "EGX30")
   const others = (data?.indices ?? []).filter((i) => i.name !== "EGX30").slice(0, 3)
@@ -584,7 +600,7 @@ function Egx30ChartPanel({
         </CardHeader>
         <CardContent className="p-0">
           <div className="space-y-4 p-4">
-            {isLoading ? (
+            {!data ? (
               <div className="flex h-[120px] items-center justify-center">
                 <div className="flex flex-col items-center gap-2 text-muted-foreground">
                   <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
@@ -635,6 +651,200 @@ function Egx30ChartPanel({
               {ar ? "استعرض أداء القطاعات" : "Explore sector performance"}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+/* ===== Market movers board — gainers / losers / most active (real snapshot) ===== */
+function MoversPanel({
+  ticker,
+  ar,
+  router,
+}: {
+  ticker: TickerData | null | undefined
+  ar: boolean
+  router: ReturnType<typeof useRouter>
+}) {
+  const gainers = (ticker?.gainers ?? []).slice(0, 5)
+  const losers = (ticker?.losers ?? []).slice(0, 5)
+  const active = (ticker?.active ?? []).slice(0, 5)
+  const hasVolume = active.length > 0
+
+  const cols: { title: string; icon: React.ReactNode; tone: string; rows: TickerMover[]; showVol: boolean }[] = [
+    { title: ar ? "الأعلى صعودًا" : "Top gainers", icon: <TrendingUp className="h-3.5 w-3.5" />, tone: "text-positive", rows: gainers, showVol: false },
+    { title: ar ? "الأعلى هبوطًا" : "Top losers", icon: <TrendingDown className="h-3.5 w-3.5" />, tone: "text-negative", rows: losers, showVol: false },
+    { title: ar ? "الأكثر تداولًا" : "Most active", icon: <Activity className="h-3.5 w-3.5" />, tone: "text-primary", rows: active, showVol: hasVolume },
+  ]
+
+  const fmtVol = (v?: number) => {
+    if (v == null || !Number.isFinite(v)) return null
+    if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`
+    if (v >= 1e3) return `${(v / 1e3).toFixed(0)}K`
+    return String(Math.round(v))
+  }
+
+  return (
+    <div className="lg:col-span-8 min-w-0">
+      <Card className="border-border/60 p-0 h-full">
+        <CardHeader className="pb-3 px-5">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Activity className="h-3.5 w-3.5 text-primary" />
+              {ar ? "حركة السوق اليوم" : "Today's market movers"}
+            </CardTitle>
+            <span className="rounded-full border border-border/60 bg-muted/30 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {ar ? "متأخر 15 دقيقة" : "15m delayed"}
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="grid gap-3 p-4 sm:grid-cols-3">
+            {cols.map((col) => (
+              <div key={col.title} className="min-w-0">
+                <p className={`mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide ${col.tone}`}>
+                  {col.icon}
+                  {col.title}
+                </p>
+                {col.rows.length === 0 ? (
+                  <p className="py-3 text-center text-[11px] text-muted-foreground">{ar ? "— لا بيانات —" : "— no data —"}</p>
+                ) : (
+                  <div className="space-y-1">
+                    {col.rows.map((m) => (
+                      <button
+                        key={`${col.title}-${m.ticker}`}
+                        onClick={() => router.push(`/company/${encodeURIComponent(m.ticker)}`)}
+                        className="flex w-full items-center justify-between gap-2 rounded-lg border border-border/50 bg-card px-2.5 py-2 text-start transition-colors hover:border-primary/40 hover:bg-accent/30"
+                      >
+                        <span className="min-w-0 truncate text-xs font-bold">{m.ticker}</span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          {col.showVol && fmtVol(m.volume) ? (
+                            <span className="text-[10px] tabular text-muted-foreground" dir="ltr">{fmtVol(m.volume)}</span>
+                          ) : (
+                            <span className="text-[11px] font-semibold tabular text-foreground" dir="ltr">{m.price.toFixed(2)}</span>
+                          )}
+                          <span className={`w-14 text-end text-[11px] font-bold tabular ${m.changePct >= 0 ? "text-positive" : "text-negative"}`} dir="ltr">
+                            {m.changePct >= 0 ? "+" : ""}{m.changePct.toFixed(2)}%
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          {ticker?.pricesAsOf ? (
+            <p className="px-4 pb-3 text-[10px] text-muted-foreground">
+              {ar ? "آخر تحديث: " : "Updated: "}
+              {new Date(ticker.pricesAsOf).toLocaleString(ar ? "ar-EG" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+/* ===== Upcoming dividends — the next announced distributions with dates ===== */
+const DV_UP_STATES = new Set(["ANNOUNCED", "UPCOMING", "ELIGIBLE"])
+
+function UpcomingDividendsPanel({
+  ar,
+  lang,
+  router,
+}: {
+  ar: boolean
+  lang: "en" | "ar"
+  router: ReturnType<typeof useRouter>
+}) {
+  const { pick } = useI18n()
+  const { data } = useQuery({
+    queryKey: ["dividends", "v2"],
+    queryFn: () => api.dividends(),
+    staleTime: 300_000,
+    refetchInterval: 600_000,
+  })
+
+  type Div = Awaited<ReturnType<typeof api.dividends>>["dividends"][number]
+  const effDate = (d: Div): string | null => d.exDividendDate ?? d.distributionDate ?? d.eligibilityDate ?? d.announcementDate
+  const upcoming = (data?.dividends ?? [])
+    .filter((d) => DV_UP_STATES.has(d.status))
+    .sort((a, b) => (effDate(a) ?? "9999").localeCompare(effDate(b) ?? "9999"))
+    .slice(0, 5)
+
+  const daysUntil = (iso: string | null): number | null => {
+    if (!iso) return null
+    const ms = new Date(iso).getTime() - Date.now()
+    return Number.isNaN(ms) ? null : Math.ceil(ms / 86_400_000)
+  }
+
+  return (
+    <div className="lg:col-span-4 min-w-0">
+      <Card className="border-border/60 p-0 h-full">
+        <CardHeader className="pb-3 px-5">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <CalendarDays className="h-3.5 w-3.5 text-info" />
+              {ar ? "توزيعات قادمة" : "Upcoming dividends"}
+            </CardTitle>
+            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={() => router.push("/dividends")}>
+              {ar ? "الكل" : "All"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {upcoming.length === 0 ? (
+            <p className="px-4 py-8 text-center text-xs text-muted-foreground">
+              {ar ? "مفيش توزيعات معلنة قادمة حالياً — الإفصاحات الجديدة بتظهر هنا تلقائياً." : "No announced upcoming distributions right now — new disclosures appear here automatically."}
+            </p>
+          ) : (
+            <div className="space-y-1 p-3">
+              {upcoming.map((d) => {
+                const days = daysUntil(effDate(d))
+                const near = days !== null && days > 0 && days <= 14
+                return (
+                  <button
+                    key={d.id}
+                    onClick={() => d.company && router.push(`/company/${d.company.id}`)}
+                    className="flex w-full items-center justify-between gap-2 rounded-lg border border-border/50 bg-card px-2.5 py-2 text-start transition-colors hover:border-primary/40 hover:bg-accent/30"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold">{d.company?.ticker}</span>
+                        <span className="truncate text-[10px] text-muted-foreground">{pick(d.company?.nameEn, d.company?.nameAr)}</span>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {d.distributionDate
+                          ? `${ar ? "الصرف" : "Distribution"}: ${new Date(d.distributionDate).toLocaleDateString(ar ? "ar-EG" : "en-GB", { day: "numeric", month: "short" })}`
+                          : d.exDividendDate
+                            ? `${ar ? "السابق" : "Ex-date"}: ${new Date(d.exDividendDate).toLocaleDateString(ar ? "ar-EG" : "en-GB", { day: "numeric", month: "short" })}`
+                            : (d.announcementDate ? `${ar ? "الإعلان" : "Announced"}: ${new Date(d.announcementDate).toLocaleDateString(ar ? "ar-EG" : "en-GB", { day: "numeric", month: "short" })}` : "—")}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="text-sm font-extrabold tabular text-positive" dir="ltr">
+                        {d.dividendPerShare != null && Number.isFinite(d.dividendPerShare) ? d.dividendPerShare.toFixed(2) : "—"}
+                      </span>
+                      {days !== null && days > 0 ? (
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${near ? "bg-positive/15 text-positive" : "bg-muted text-muted-foreground"}`} dir="ltr">
+                          {ar ? `${days} يوم` : `${days}d`}
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-info/15 px-2 py-0.5 text-[10px] font-bold text-info">
+                          {ar ? "جاري" : "now"}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          <p className="px-4 pb-3 text-[10px] text-muted-foreground">
+            {ar ? "من إفصاحات البورصة — التفاصيل في صفحة التوزيعات" : "From EGX disclosures — details on the dividends page"}
+          </p>
         </CardContent>
       </Card>
     </div>
