@@ -10,6 +10,7 @@ import { db } from "@/lib/db"
 import { buildAiSnapshotBundle } from "@/lib/ai/analysis-snapshot"
 import { buildExtendedMetrics, type PeriodInput } from "@/lib/financial/report-metrics"
 import { buildTechnicalBundle, TECHNICAL_VERSION, type TechnicalBundle } from "@/lib/technical/analyze"
+import { buildTechnicalBundleWithContext } from "@/lib/market/intelligence/context"
 import { parsePeriodKey } from "@/lib/financial/periods"
 import { cached, invalidateServerCache } from "@/lib/server-cache"
 import { CONFIG_VERSION, PROMPT_VERSION, REPORT_DEPTH, buildReportKey } from "./identity"
@@ -128,7 +129,7 @@ async function buildReportContextUncached(
   // ---------- Technical (deterministic, over real daily bars) ----------
   let technical: TechnicalBundle | null = null
   try {
-    technical = await buildTechnicalBundle(company.id)
+    technical = await buildTechnicalBundleWithContext(company.id)
   } catch {
     technical = null // price-bar table hiccup must not kill the report path
   }

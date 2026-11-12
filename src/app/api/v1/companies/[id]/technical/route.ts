@@ -1,5 +1,5 @@
 import { findCompanyByKey } from "@/lib/company-lookup"
-import { buildTechnicalBundle } from "@/lib/technical/analyze"
+import { buildTechnicalBundleWithContext } from "@/lib/market/intelligence/context"
 import { cached } from "@/lib/server-cache"
 
 // GET /api/v1/companies/[id]/technical — deterministic technical analysis over
@@ -16,7 +16,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!company) return Response.json({ error: "NOT_FOUND" }, { status: 404 })
 
   const payload = await cached(`technical-tab:${company.id}`, 10 * 60_000, async () => {
-    const bundle = await buildTechnicalBundle(company.id)
+    const bundle = await buildTechnicalBundleWithContext(company.id)
     return { snapshot: bundle.snapshot, hash: bundle.hash.slice(0, 16) }
   })
 

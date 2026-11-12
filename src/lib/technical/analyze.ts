@@ -25,8 +25,12 @@ import {
   volumeStats,
   type Bar,
 } from "./indicators"
+import { analyzeStructure, type StructureSnapshot } from "./structure"
+import { analyzeVsa, type VsaSnapshot } from "./vsa"
+import { analyzeZones, type ZonesSnapshot } from "./zones"
+import { scoreQuality, type QualityScore } from "./quality"
 
-export const TECHNICAL_VERSION = "technical@1"
+export const TECHNICAL_VERSION = "technical@2"
 
 /** Keep the prompt/cache JSON compact and stable: round every float to 2 decimals. */
 function roundReplacer(_key: string, value: unknown): unknown {
@@ -47,6 +51,29 @@ export interface TechSignal {
   severity?: "warning" | "info"
   text: string
   textAr: string
+}
+
+/** Market/sector context section — injected by the market-intelligence layer.
+ * Defined structurally here so the technical engine stays dependency-free. */
+export interface MarketContextSection {
+  available: boolean
+  asOf: string | null
+  marketRegime: string | null
+  marketRegimeAr: string | null
+  marketPulse: number | null
+  breadth: { advancing: number; declining: number; unchanged: number; ratio: number | null } | null
+  pctAboveSma20: number | null
+  pctAboveSma50: number | null
+  sector: {
+    name: string | null
+    dayChangePct: number | null
+    advancing: number | null
+    declining: number | null
+    turnoverSharePct: number | null
+    turnoverShareDelta5d: number | null
+  } | null
+  relVolRankPct: number | null
+  limitations: string[]
 }
 
 export interface TechnicalSnapshot {
@@ -84,6 +111,8 @@ export interface TechnicalSnapshot {
     obvSlope20: number | null
     volMa20: number | null
     relVol: number | null
+    /** length of the volume-complete suffix actually used (null = n/a) */
+    volumeWindow: number | null
   }
   volatility: {
     atr14: number | null
@@ -95,6 +124,11 @@ export interface TechnicalSnapshot {
     supports: { price: number; touches: number; distPct: number }[]
     resistances: { price: number; touches: number; distPct: number }[]
   }
+  structure: StructureSnapshot | null
+  vsa: VsaSnapshot | null
+  zones: ZonesSnapshot | null
+  context: MarketContextSection | null
+  quality: QualityScore | null
   high52w: number | null
   low52w: number | null
   fromHigh52wPct: number | null
@@ -228,7 +262,7 @@ export interface TechnicalBundle {
  * Precedence per session day: scanner day-row > Yahoo bar > stored row for
  * the most recent day; Yahoo OHLC wins for older days where it exists (real
  * high/low beats the flat synthetic bar). Nothing new is written to the DB. */
-export async function buildTechnicalBundle(companyId: string): Promise<TechnicalBundle> {
+export async function buildTechnicalBundle(companyId: string, context: MarketContextSection | null = null): Promise<TechnicalBundle> {
   const raw = await db.priceBar.findMany({
     where: { companyId },
     orderBy: { ts: "asc" },
@@ -241,7 +275,7 @@ export async function buildTechnicalBundle(companyId: string): Promise<Technical
   const priceRows = await db.marketPrice.findMany({
     where: { companyId, sourceName: "TRADINGVIEW_SCANNER", isDemoData: false, price: { gt: 0 } },
     orderBy: { asOf: "asc" },
-    select: { asOf: true, price: true },
+    select: { asOf: true, price: true, volume: true },
   })
   let syntheticCount = 0
   const scannerByDay = new Map<string, Bar>()
@@ -249,7 +283,10 @@ export async function buildTechnicalBundle(companyId: string): Promise<Technical
     const day = r.asOf.toISOString().slice(0, 10)
     scannerByDay.set(day, {
       ts: day, // Bar.ts is an ISO date string (UTC midnight of the session)
-      open: r.price, high: r.price, low: r.price, close: r.price, volume: null,
+      open: r.price, high: r.price, low: r.price, close: r.price,
+      // Real session volume from the scanner pull (post-migration); null keeps
+      // the volume-aware assembly honest instead of inventing a value.
+      volume: r.volume !== null && Number.isFinite(r.volume) && r.volume > 0 ? r.volume : null,
     })
     syntheticCount++
   }
@@ -275,7 +312,7 @@ export async function buildTechnicalBundle(companyId: string): Promise<Technical
   const merged = [...byDay.values()].sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime()).slice(-MAX_BARS)
   const bars = sanitizeBars(merged)
   if (bars.length > 0) {
-    const bundle = assembleBundle(bars)
+    const bundle = assembleBundle(bars, context)
     // Honest disclosure: how many of the trailing sessions are close-only
     // scanner bars (no intraday high/low), and whether the freshest bar is
     // intraday data from today's scanner pull.
@@ -295,11 +332,12 @@ export async function buildTechnicalBundle(companyId: string): Promise<Technical
   }
 
   const fallback = sanitizeBars(raw)
-  return assembleBundle(fallback)
+  return assembleBundle(fallback, context)
 }
 
-/** Pure assembly (also used by tests): bars must be ascending by ts. */
-export function assembleBundle(bars: Bar[]): TechnicalBundle {
+/** Pure assembly (also used by tests): bars must be ascending by ts.
+ * `context` — optional market/sector section injected by the intelligence layer. */
+export function assembleBundle(bars: Bar[], context: MarketContextSection | null = null): TechnicalBundle {
   const limitations: string[] = []
   const base: TechnicalSnapshot = {
     version: TECHNICAL_VERSION,
@@ -319,9 +357,14 @@ export function assembleBundle(bars: Bar[]): TechnicalBundle {
       cross50200: null, cross50200Age: null,
     },
     momentum: { rsi14: null, macd: { macd: null, signal: null, histogram: null }, stochastic: { k: null, d: null } },
-    volume: { obv: null, obvSlope20: null, volMa20: null, relVol: null },
+    volume: { obv: null, obvSlope20: null, volMa20: null, relVol: null, volumeWindow: null },
     volatility: { atr14: null, atrPct: null, bollinger: { upper: null, middle: null, lower: null, widthPct: null, percentB: null }, histVol20: null },
     levels: { supports: [], resistances: [] },
+    structure: null,
+    vsa: null,
+    zones: null,
+    context: null,
+    quality: null,
     high52w: null,
     low52w: null,
     fromHigh52wPct: null,
@@ -384,13 +427,30 @@ export function assembleBundle(bars: Bar[]): TechnicalBundle {
     limitations.push("RSI, MACD, Stochastic, ATR, Bollinger and historical volatility require daily sessions.")
   }
 
-  // --- Volume ---
-  const obv = onBalanceVolume(bars, 20)
-  base.volume.obv = obv.obv
-  base.volume.obvSlope20 = obv.slopeN
-  const vs = volumeStats(bars, 20)
-  base.volume.volMa20 = vs.volMa
-  base.volume.relVol = vs.relVol
+  // --- Volume (volume-aware assembly: compute over the longest volume-complete
+  // suffix of the series and DISCLOSE the window — never fabricate a baseline) ---
+  let lastNullIdx = -1
+  for (let i = bars.length - 1; i >= 0; i--) {
+    if (bars[i].volume === null) {
+      lastNullIdx = i
+      break
+    }
+  }
+  const volBars = bars.slice(lastNullIdx + 1)
+  if (volBars.length >= 10) {
+    const obv = onBalanceVolume(volBars, 20)
+    base.volume.obv = obv.obv
+    base.volume.obvSlope20 = obv.slopeN
+    const vs = volumeStats(volBars, 20)
+    base.volume.volMa20 = vs.volMa
+    base.volume.relVol = vs.relVol
+    base.volume.volumeWindow = volBars.length
+    if (volBars.length < bars.length) {
+      limitations.push(`Volume indicators computed over the last ${volBars.length} sessions (the volume-complete window) — earlier sessions lack volume.`)
+    }
+  } else {
+    limitations.push("Fewer than 10 volume-complete sessions — volume indicators are unavailable.")
+  }
 
   // --- Levels ---
   const sr = supportResistance(bars, 5, 1.5, 4)
@@ -410,12 +470,31 @@ export function assembleBundle(bars: Bar[]): TechnicalBundle {
   if (base.high52w !== null) base.fromHigh52wPct = round(((lastClose - base.high52w) / base.high52w) * 100, 2)
   if (base.low52w !== null && base.low52w > 0) base.fromLow52wPct = round(((lastClose - base.low52w) / base.low52w) * 100, 2)
 
+  // --- Market structure (swing map, BOS/CHoCH, multi-timeframe) ---
+  base.structure = analyzeStructure(bars)
+
+  // --- Price action: Volume Spread Analysis (needs the volume window) ---
+  base.vsa = volBars.length >= 32 ? analyzeVsa(bars) : { version: "vsa@1", available: false, baselineVolume: null, baselineWindow: 0, events: [], limitations: [], reason: "volume-complete window too short for VSA" }
+
+  // --- Supply & demand zones ---
+  base.zones = analyzeZones(bars)
+
+  // --- Market & sector context (injected; absent → scored as missing) ---
+  base.context = context
+
+  // --- Analytical quality score (computed LAST; reads every section) ---
+  base.quality = scoreQuality(
+    { ...base, signals: [] },
+    { contextPresent: !!context && context.available, contextComplete: !!context && context.available && !context.limitations.length },
+  )
+
   // --- Deterministic signals ---
   const stripped: Omit<TechnicalSnapshot, "signals" | "version" | "available" | "limitations"> = {
     asOf: base.asOf, sessions: base.sessions, firstSession: base.firstSession,
     lastClose: base.lastClose, currency: base.currency, sparse: base.sparse,
     perf: base.perf, trend: base.trend, momentum: base.momentum, volume: base.volume,
     volatility: base.volatility, levels: base.levels,
+    structure: base.structure, vsa: base.vsa, zones: base.zones, context: base.context, quality: base.quality,
     high52w: base.high52w, low52w: base.low52w, fromHigh52wPct: base.fromHigh52wPct, fromLow52wPct: base.fromLow52wPct,
   }
   base.signals = technicalSignals(bars, stripped)

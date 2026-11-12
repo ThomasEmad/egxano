@@ -47,6 +47,8 @@ export interface SnapshotMoverRow {
   price: number
   changePct: number
   volume?: number
+  /** scanner `market_cap_basic` when present — real market cap for weighting */
+  cap?: number
 }
 
 export interface MarketRefreshSummary {
@@ -97,8 +99,15 @@ export function buildSnapshotFromScanner(
     const price = num(d[2])
     const changePct = num(d[3])
     const volume = num(d[4])
+    const cap = num(d[6]) // market_cap_basic (added to the column list)
     if (!ticker || price === null || price <= 0 || changePct === null || Math.abs(changePct) > 50) continue
-    movers.push({ ticker, price, changePct, ...(volume !== null && volume > 0 ? { volume } : {}) })
+    movers.push({
+      ticker,
+      price,
+      changePct,
+      ...(volume !== null && volume > 0 ? { volume } : {}),
+      ...(cap !== null && cap > 0 ? { cap } : {}),
+    })
   }
 
   const indexBySymbol = new Map(indexRows.map((r) => [r.s, r.d]))
@@ -151,7 +160,7 @@ async function runRefresh(): Promise<MarketRefreshSummary> {
         options: { lang: "en" },
         markets: ["egypt"],
         symbols: { query: { types: [] }, tickers: [] },
-        columns: ["name", "description", "close", "change", "volume", "update_mode"],
+        columns: ["name", "description", "close", "change", "volume", "update_mode", "market_cap_basic", "total_shares_outstanding"],
         sort: { sortBy: "name", sortOrder: "asc" },
         range: [0, 1000],
       }),
@@ -193,6 +202,11 @@ async function runRefresh(): Promise<MarketRefreshSummary> {
           companyId,
           asOf,
           price: m.price,
+          // Liquidity columns (market-intelligence upgrade): session share
+          // volume and price × volume. Null when the scanner omits volume —
+          // never fabricated.
+          volume: m.volume ?? null,
+          valueTraded: m.volume !== undefined && m.volume > 0 ? m.volume * m.price : null,
           currency: "EGP",
           sourceName: SCANNER_SOURCE,
           isDemoData: false,
@@ -226,6 +240,15 @@ async function runRefresh(): Promise<MarketRefreshSummary> {
       invalidateServerCache()
     } catch {
       // cache module unavailable in some runtimes — reads still self-heal via TTLs
+    }
+
+    // Best-effort: rebuild the whole-market intelligence snapshot from the
+    // fresh data. Failures here never fail the price refresh itself.
+    try {
+      const { rebuildIntelligence } = await import("./intelligence/service")
+      await rebuildIntelligence()
+    } catch {
+      // intelligence rebuild is best-effort; the next refresh retries
     }
 
     return {

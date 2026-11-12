@@ -74,19 +74,44 @@ model Company {
 // timestamped observation from a data source — never inferred from financials.
 // When no price exists, market-dependent metrics stay DATA_UNAVAILABLE.
 model MarketPrice {
-  id         String   @id @default(cuid())
-  companyId  String
-  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  asOf       DateTime
-  price      Float
-  currency   String   @default("EGP")
-  sourceName String
-  isDemoData Boolean  @default(false)
-  notes      String?
-  createdAt  DateTime @default(now())
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  asOf        DateTime
+  price       Float
+  // Liquidity columns (market-intelligence upgrade, additive):
+  // session share volume from the scanner pull, and value traded (price ×
+  // volume, EGP) — both nullable: illiquid names may omit volume.
+  volume      Float?
+  valueTraded Float?
+  currency    String   @default("EGP")
+  sourceName  String
+  isDemoData  Boolean  @default(false)
+  notes       String?
+  createdAt   DateTime @default(now())
 
   @@unique([companyId, asOf])
   @@index([companyId, asOf])
+}
+
+// One row per session for the WHOLE-MARKET intelligence snapshot (breadth,
+// regime, pulse, sector rotation aggregates) — the durable history behind the
+// A/D line, regime transitions and rotation deltas. The full breakdown lives
+// in `snapshotJson` (validated on read); scalar columns exist for cheap SQL
+// ordering/range scans. Additive table — no existing data touched.
+model MarketIntelligenceDay {
+  id           String   @id @default(cuid())
+  day          DateTime @unique // session date (UTC midnight)
+  snapshotJson String // validated MarketIntelligence JSON (versioned)
+  advancing    Int // breadth counters for cheap history scans
+  declining    Int
+  unchanged    Int
+  regime       String? // classified market regime code
+  pulse        Int? // 0-100 market pulse score
+  sourceName   String
+  createdAt    DateTime @default(now())
+
+  @@index([day])
 }
 
 model FinancialReport {

@@ -33,6 +33,7 @@ import { formatEgp } from "@/lib/financial/units"
 import { DemoBadge, EventBadge } from "./shared"
 import { QaBox } from "./qa-box"
 import { LiveMarketBadge } from "./live-market-badge"
+import { MarketIntelligencePanel } from "./market-intelligence-panel"
 import { useMarketLive } from "./use-market-live"
 import { EVENT_TYPE_MAP } from "@/lib/financial/registry"
 import type { ViewKey } from "@/lib/view-keys"
@@ -144,6 +145,7 @@ export function DashboardView({
     "sector-aggs",
     "market-valuation",
     "watch-prices",
+    "market-intelligence",
   ])
 
   // One shared market query feeds the index panel, the movers board and the
@@ -318,6 +320,10 @@ export function DashboardView({
           </div>
         </div>
       </section>
+
+      {/* ===== WHOLE-MARKET INTELLIGENCE (regime, pulse, breadth, rotation,
+           anomalies, radars) — mounted above the sector / movers panels ===== */}
+      <MarketIntelligencePanel />
 
       {/* ===== ANALYTICS ROW ===== */}
       <div className="grid gap-6 lg:grid-cols-12">
