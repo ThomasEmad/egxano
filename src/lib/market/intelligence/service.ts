@@ -239,7 +239,7 @@ export interface EnrichmentCursor {
 }
 
 /** Aggregate counts over the partial per-company enrichment results. */
-function finalizeEnrichment(partial: Record<string, { above20: boolean | null; above50: boolean | null; above200: boolean | null; newHigh: boolean | null; newLow: boolean | null }>, universe: number): EnrichmentBlock {
+function finalizeEnrichment(partial: Record<string, { above20: boolean | null; above50: boolean | null; above200: boolean | null; newHigh: boolean | null; newLow: boolean | null }>, universe: number): EnrichmentBlock | null {
   let a20 = 0
   let n20 = 0
   let a50 = 0
@@ -248,6 +248,8 @@ function finalizeEnrichment(partial: Record<string, { above20: boolean | null; a
   let n200 = 0
   let nh = 0
   let nl = 0
+  let nhKnown = 0
+  let nlKnown = 0
   for (const v of Object.values(partial)) {
     if (v.above20 !== null) {
       n20++
@@ -261,16 +263,25 @@ function finalizeEnrichment(partial: Record<string, { above20: boolean | null; a
       n200++
       if (v.above200) a200++
     }
-    if (v.newHigh) nh++
-    if (v.newLow) nl++
+    if (v.newHigh !== null) {
+      nhKnown++
+      if (v.newHigh) nh++
+    }
+    if (v.newLow !== null) {
+      nlKnown++
+      if (v.newLow) nl++
+    }
   }
+  // Zero coverage (e.g. the history provider is unreachable): return null so
+  // the caller withholds the block instead of storing misleading zeros.
+  if (n20 === 0 && n50 === 0 && n200 === 0 && nhKnown === 0) return null
   return {
     asOf: new Date().toISOString(),
     pctAboveSma20: n20 ? Math.round((a20 / n20) * 1000) / 10 : null,
     pctAboveSma50: n50 ? Math.round((a50 / n50) * 1000) / 10 : null,
     pctAboveSma200: n200 ? Math.round((a200 / n200) * 1000) / 10 : null,
-    new52wHighs: nh,
-    new52wLows: nl,
+    new52wHighs: nhKnown ? nh : null,
+    new52wLows: nlKnown ? nl : null,
     universe,
   }
 }
@@ -362,11 +373,21 @@ export async function runEnrichmentChunk(limit = 40): Promise<{ done: boolean; p
   if (remaining === 0) {
     const universe = cursor.companyIds.length
     const block = finalizeEnrichment(partial, universe)
-    await db.setting.upsert({
-      where: { key: ENRICHMENT_SETTING_KEY },
-      update: { value: JSON.stringify(block), type: "json" },
-      create: { key: ENRICHMENT_SETTING_KEY, value: JSON.stringify(block), type: "json", description: "Daily enrichment: true 52w / SMA breadth computed from runtime Yahoo bars (not stored)" },
-    })
+    if (block) {
+      await db.setting.upsert({
+        where: { key: ENRICHMENT_SETTING_KEY },
+        update: { value: JSON.stringify(block), type: "json" },
+        create: { key: ENRICHMENT_SETTING_KEY, value: JSON.stringify(block), type: "json", description: "Daily enrichment: true 52w / SMA breadth computed from runtime Yahoo bars (not stored)" },
+      })
+    } else {
+      // Nothing measurable this run — drop any stale block so the UI keeps
+      // showing "enrichment not yet available" instead of stale numbers.
+      try {
+        await db.setting.delete({ where: { key: ENRICHMENT_SETTING_KEY } })
+      } catch {
+        /* already absent */
+      }
+    }
     // Clean up the working keys (best-effort — they may not exist).
     try {
       await db.setting.delete({ where: { key: ENRICH_CURSOR_KEY } })
