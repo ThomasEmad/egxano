@@ -3,8 +3,8 @@
 // /dashboard#/companies — company table with rich filtering and sorting backed
 // by the /api/v1/companies advanced mode (server-side sort/filter across the
 // whole active universe — not just the visible page). Preset chips map to the
-// classic screens investors ask for first (cheap earnings, dividend payers,
-// quality ROE, today's movers) so a new visitor gets value in one click.
+// classic screens investors ask for first (cheap earnings, quality ROE,
+// today's movers) so a new visitor gets value in one click.
 
 import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
@@ -32,14 +32,18 @@ import { formatEgp, formatPercent } from "@/lib/financial/units"
 import { SECTORS, SECTOR_AR, sectorLabel } from "@/lib/sectors"
 import { DemoBadge, StarButton } from "./shared"
 
-type SortKey = "ticker" | "marketCap" | "changePct" | "p_e" | "dividend_yield" | "roe" | "net_margin" | "name"
+// NOTE: dividend surfaces (dividend_yield sort + dyMin filter + "Dividend payers" preset)
+// are intentionally absent — the Dividend table is empty in production, so every
+// dividend_yield metric is DATA_UNAVAILABLE and the filter would always return zero
+// results. Re-add them (backend already supports dyMin/sort=dividend_yield) when
+// real dividend records are ingested.
+type SortKey = "ticker" | "marketCap" | "changePct" | "p_e" | "roe" | "net_margin" | "name"
 
 const SORT_OPTIONS: { value: SortKey; ar: string; en: string }[] = [
   { value: "ticker", ar: "الرمز (أ ب ت)", en: "Ticker (A-Z)" },
   { value: "marketCap", ar: "القيمة السوقية", en: "Market cap" },
   { value: "changePct", ar: "تغير اليوم", en: "Today's change" },
   { value: "p_e", ar: "المكرر الأرخص أولًا (P/E)", en: "Cheapest P/E first" },
-  { value: "dividend_yield", ar: "عائد التوزيعات", en: "Dividend yield" },
   { value: "roe", ar: "العائد على حقوق الملكية", en: "Return on equity" },
   { value: "net_margin", ar: "هامش صافي الربح", en: "Net margin" },
   { value: "name", ar: "الاسم", en: "Name" },
@@ -50,13 +54,11 @@ interface Filters {
   priceMax?: string
   changeMin?: string
   peMax?: string
-  dyMin?: string
   roeMin?: string
 }
 
 const PRESETS: { key: string; ar: string; en: string; patch: Partial<Filters>; sort?: SortKey }[] = [
   { key: "cheap", ar: "أرباح رخيصة", en: "Cheap earnings", patch: { peMax: "12" }, sort: "p_e" },
-  { key: "dividend", ar: "دافعي توزيعات", en: "Dividend payers", patch: { dyMin: "3" }, sort: "dividend_yield" },
   { key: "quality", ar: "جودة عالية", en: "High quality", patch: { roeMin: "12" }, sort: "roe" },
   { key: "gainers", ar: "صاعدة اليوم", en: "Up today", patch: { changeMin: "1" }, sort: "changePct" },
   { key: "losers", ar: "هابطة اليوم", en: "Down today", patch: { changeMin: "-100" }, sort: "changePct" },
@@ -97,7 +99,6 @@ export function CompaniesView({ onOpenCompany }: { onOpenCompany: (id: string) =
       priceMax: num(filters.priceMax),
       changeMin: num(filters.changeMin),
       peMax: num(filters.peMax),
-      dyMin: num(filters.dyMin),
       roeMin: num(filters.roeMin),
     }),
     [filters]
@@ -121,7 +122,6 @@ export function CompaniesView({ onOpenCompany }: { onOpenCompany: (id: string) =
         priceMax: fNums.priceMax,
         changeMin: fNums.changeMin,
         peMax: fNums.peMax,
-        dyMin: fNums.dyMin,
         roeMin: fNums.roeMin,
       }),
     enabled: !watchlistOnly || watchIds.length > 0,
@@ -162,7 +162,6 @@ export function CompaniesView({ onOpenCompany }: { onOpenCompany: (id: string) =
   if (fNums.changeMin !== undefined)
     filterChips.push(`${ar ? "تغير ≥" : "Change ≥"} ${formatPercent(fNums.changeMin)}`)
   if (fNums.peMax !== undefined) filterChips.push(`P/E ≤ ${fNums.peMax}`)
-  if (fNums.dyMin !== undefined) filterChips.push(`${ar ? "عائد ≥" : "Yield ≥"} ${formatPercent(fNums.dyMin)}`)
   if (fNums.roeMin !== undefined) filterChips.push(`ROE ≥ ${formatPercent(fNums.roeMin)}`)
 
   return (
@@ -324,10 +323,6 @@ export function CompaniesView({ onOpenCompany }: { onOpenCompany: (id: string) =
             <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
               {ar ? "مكرر الربحية ≤" : "P/E ≤"}
               <Input className="h-8" inputMode="decimal" placeholder="مثال: 10" value={filters.peMax ?? ""} onChange={(e) => { setFilters((f) => ({ ...f, peMax: e.target.value })); setPage(1) }} />
-            </label>
-            <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
-              {ar ? "عائد التوزيعات ≥ %" : "Dividend yield ≥ %"}
-              <Input className="h-8" inputMode="decimal" placeholder="مثال: 5" value={filters.dyMin ?? ""} onChange={(e) => { setFilters((f) => ({ ...f, dyMin: e.target.value })); setPage(1) }} />
             </label>
             <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
               {ar ? "ROE ≥ %" : "ROE ≥ %"}
