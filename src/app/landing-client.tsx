@@ -106,6 +106,24 @@ export default function LandingClient() {
   const featured = featuredData?.companies ?? []
   const heroCompany = featured[0] ?? null
 
+  // Real market movers (gainers / losers / most active) from the live market
+  // snapshot — the old cards sliced the top-8-by-cap list and mislabeled it.
+  const { data: marketMovers } = useQuery({
+    queryKey: ["market-ticker"],
+    queryFn: () =>
+      fetch("/api/v1/market/ticker").then((r) =>
+        r.ok
+          ? (r.json() as Promise<{
+              gainers?: { ticker: string; name?: string | null; price: number; changePct: number }[]
+              losers?: { ticker: string; name?: string | null; price: number; changePct: number }[]
+              active?: { ticker: string; name?: string | null; price: number; changePct: number; volume?: number }[]
+              pricesAsOf?: string | null
+            }>)
+          : null,
+      ),
+    staleTime: 60_000,
+  })
+
   const { data: heroMetrics, isLoading: heroMetricsLoading } = useQuery({
     queryKey: ["home-hero-metrics", heroCompany?.id],
     queryFn: () => api.metrics(heroCompany!.id, undefined, "annual"),
@@ -478,29 +496,35 @@ export default function LandingClient() {
               <MarketMoversCard
                 title={ar ? "الأعلى صعودًا" : "Biggest gainers"}
                 color="text-success"
-                items={featuredData?.companies?.slice(0, 5) ?? []}
+                items={marketMovers?.gainers?.slice(0, 5) ?? []}
                 ar={ar}
               />
               <MarketMoversCard
                 title={ar ? "الأعلى هبوطًا" : "Biggest losers"}
                 color="text-destructive"
-                items={featuredData?.companies?.slice(-5).reverse() ?? []}
+                items={marketMovers?.losers?.slice(0, 5) ?? []}
                 ar={ar}
               />
               <MarketMoversCard
-                title={ar ? "أعلى قيمة تداول" : "Highest volume"}
+                title={ar ? "الأكثر تداولًا" : "Most active"}
                 color="text-primary"
-                items={featuredData?.companies?.slice(0, 5) ?? []}
+                items={marketMovers?.active?.slice(0, 5) ?? []}
                 ar={ar}
               />
             </div>
+            {marketMovers?.pricesAsOf ? (
+              <p className="mt-4 text-center text-[11px] text-muted-foreground" dir="ltr">
+                {new Date(marketMovers.pricesAsOf).toLocaleString(ar ? "ar-EG" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                {ar ? " · متأخر 15 دقيقة" : " · 15-min delayed"}
+              </p>
+            ) : null}
 
             <div className="mt-8 text-center">
               <Link
-                href="/market"
+                href="/sectors"
                 className="inline-flex items-center gap-2 font-medium text-primary underline-offset-4 hover:underline"
               >
-                {ar ? "صفحة السوق كاملة" : "Full market page"}
+                {ar ? "الخريطة الحرارية للسوق كاملة" : "Full market heatmap"}
                 <ArrowRight className="h-4 w-4 rtl-flip" aria-hidden="true" />
               </Link>
             </div>
@@ -906,26 +930,26 @@ function MarketMoversCard({
   color,
   items,
   ar,
-}: { title: string; color: string; items: CompanyListItem[]; ar: boolean }) {
+}: { title: string; color: string; items: { ticker: string; name?: string | null; price?: number; changePct: number; volume?: number }[]; ar: boolean }) {
   return (
     <div className="rounded-xl border border-border/70 bg-card p-4">
       <h3 className="mb-3 text-sm font-semibold text-foreground">{title}</h3>
       <div className="space-y-2">
         {items.map((item) => (
           <Link
-            key={item.id}
-            href={`/company/${item.id}`}
+            key={item.ticker}
+            href={`/company/${encodeURIComponent(item.ticker)}`}
             className="flex items-center justify-between gap-3 rounded-lg bg-muted/40 p-2 transition-colors hover:bg-muted/60"
           >
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">{item.nameEn}</p>
+              <p className="text-sm font-medium text-foreground truncate">{item.name ?? item.ticker}</p>
               <p className="text-[11px] text-muted-foreground">{item.ticker}</p>
             </div>
             <div className="flex items-center gap-2 text-right">
-              <span className={`text-sm font-bold tabular ${color}`}>
-                {item.marketPrice?.changePct != null ? `${item.marketPrice.changePct >= 0 ? "+" : ""}${item.marketPrice.changePct.toFixed(2)}%` : "—"}
+              <span className={`text-sm font-bold tabular ${item.changePct >= 0 ? "text-positive" : "text-negative"}`} dir="ltr">
+                {item.changePct != null ? `${item.changePct >= 0 ? "+" : ""}${item.changePct.toFixed(2)}%` : "—"}
               </span>
-              <span className="text-[11px] text-muted-foreground">{priceText(item.marketPrice?.price)} {ar ? "ج.م" : "EGP"}</span>
+              <span className="text-[11px] text-muted-foreground">{priceText(item.price ?? null)} {ar ? "ج.م" : "EGP"}</span>
             </div>
           </Link>
         ))}

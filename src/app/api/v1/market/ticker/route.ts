@@ -126,15 +126,23 @@ export async function GET(req: NextRequest) {
     const indicesAsOf = snap.indicesAsOf ?? snap.asOf ?? null
     const clocks = [indicesAsOf, pricesAsOf].filter((v): v is string => Boolean(v)).sort()
     const asOf = clocks.length ? clocks[clocks.length - 1] : null
+    // Company names for the displayed movers (landing movers cards) — one
+    // indexed query for at most 24 tickers.
+    const displayTickers = [...new Set([...gainers, ...losers, ...active].map((m) => m.ticker.toUpperCase()))].slice(0, 24)
+    const names = displayTickers.length
+      ? await db.company.findMany({ where: { ticker: { in: displayTickers } }, select: { ticker: true, nameEn: true } })
+      : []
+    const nameOf = new Map(names.map((c) => [c.ticker.toUpperCase(), c.nameEn]))
+    const withName = (rows: typeof gainers) => rows.map((m) => ({ ...m, name: nameOf.get(m.ticker.toUpperCase()) ?? null }))
     const data = {
       asOf,
       indicesAsOf,
       pricesAsOf,
       delayMinutes: snap.delayMinutes ?? null,
       indices: snap.indices,
-      gainers,
-      losers,
-      active,
+      gainers: withName(gainers),
+      losers: withName(losers),
+      active: withName(active) as typeof active,
       quotes,
       breadth,
     }
