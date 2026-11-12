@@ -769,8 +769,15 @@ function UpcomingDividendsPanel({
 
   type Div = Awaited<ReturnType<typeof api.dividends>>["dividends"][number]
   const effDate = (d: Div): string | null => d.exDividendDate ?? d.distributionDate ?? d.eligibilityDate ?? d.announcementDate
+  // Only genuinely upcoming rows: drop stale ANNOUNCED rows whose effective
+  // date passed more than 30 days ago (disclosures that never got retracted).
+  const minIso = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)
   const upcoming = (data?.dividends ?? [])
     .filter((d) => DV_UP_STATES.has(d.status))
+    .filter((d) => {
+      const e = effDate(d)
+      return !e || e >= minIso
+    })
     .sort((a, b) => (effDate(a) ?? "9999").localeCompare(effDate(b) ?? "9999"))
     .slice(0, 5)
 

@@ -114,8 +114,15 @@ export function DividendsView({ onOpenCompany }: { onOpenCompany: (id: string) =
   const all = data?.dividends ?? []
 
   const upcoming = useMemo(() => {
+    // Only genuinely upcoming rows: stale ANNOUNCED disclosures whose date
+    // passed >30 days ago are excluded (they belong in the history filter).
+    const minIso = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)
     return all
       .filter((d) => UP_STATES.has(d.status))
+      .filter((d) => {
+        const e = effDate(d)
+        return !e || e >= minIso
+      })
       .sort((a, b) => {
         const da = effDate(a), dbb = effDate(b)
         if (!da && !dbb) return 0
