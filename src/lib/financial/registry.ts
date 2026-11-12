@@ -586,7 +586,7 @@ export const CALC_METRICS: CalculatedMetricDef[] = [
   { code: "p_b", labelEn: "Price / Book (P/B)", labelAr: "السعر إلى القيمة الدفترية", formulaVersion: "p_b@2", kind: "market", unit: "RATIO", description: "Market cap / shareholders' equity; requires a market price point and positive book value" },
   { code: "p_e", labelEn: "Price / Earnings (P/E)", labelAr: "السعر إلى الأرباح", formulaVersion: "p_e@2", kind: "market", unit: "RATIO", description: "Price / EPS of the evaluated period; NOT_APPLICABLE when earnings are negative" },
   { code: "market_cap", labelEn: "Market Capitalization", labelAr: "القيمة السوقية", formulaVersion: "market_cap@2", kind: "market", unit: "EGP", description: "Price x shares outstanding; requires a market price point" },
-  { code: "dividend_yield", labelEn: "Dividend Yield", labelAr: "عائد التوزيعات", formulaVersion: "dividend_yield@2", kind: "market", unit: "PERCENT", description: "Trailing-12-month dividends per share / price; requires a market price point" },
+  { code: "dividend_yield", labelEn: "Dividend Yield", labelAr: "عائد التوزيعات", formulaVersion: "dividend_yield@3", kind: "market", unit: "PERCENT", description: "Trailing-12-month dividends per share / price; requires a market price point. Implied yields above 30% are flagged NEEDS_REVIEW (basis/price mismatch guard)" },
 ]
 
 /** Metrics whose values must NEVER be scaled by the report unit (EPS, DPS, BVPS are EGP/share; shares are counts) */

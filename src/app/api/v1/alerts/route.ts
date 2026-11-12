@@ -3,7 +3,7 @@ import { db } from "@/lib/db"
 import { getSessionUser } from "@/lib/auth"
 import { checkEndpointRateLimit, getClientIp } from "@/lib/rate-limit"
 import { audit } from "@/lib/audit"
-import { readMarketSnapshot } from "@/lib/market/snapshot"
+import { getFreshMarketSnapshot } from "@/lib/market/snapshot"
 import { latestPricesPerCompany } from "@/lib/market/latest-price"
 
 // GET    /api/v1/alerts            — list the signed-in user's price alerts
@@ -37,7 +37,9 @@ export async function GET(req: NextRequest) {
   // lazy evaluation against the freshest recorded price
   const active = alerts.filter((a) => a.active)
   if (active.length > 0) {
-    const snapshot = readMarketSnapshot()
+    // Freshest snapshot (DB Setting + opportunistic refresh) — not the frozen
+    // build-time file, so alerts evaluate against session-fresh prices.
+    const snapshot = await getFreshMarketSnapshot()
     const moverMap = new Map<string, { price: number; asOf: string | null }>()
     for (const m of snapshot?.movers ?? []) {
       moverMap.set(m.ticker.toUpperCase(), { price: m.price, asOf: snapshot?.pricesAsOf ?? snapshot?.asOf ?? null })

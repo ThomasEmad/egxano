@@ -655,7 +655,7 @@ export async function recomputeCompany(companyId: string): Promise<RecomputeResu
     push("p_b", priceToBook(priceValue, periodShares, cur["TOTAL_EQUITY"]), [bucket.periodKey], "p_b@2")
     push("p_e", priceToEarnings(priceValue, periodShares, niOf(cur)), [bucket.periodKey], "p_e@2", ["NET_PROFIT", "NET_PROFIT_PARENT"])
     push("market_cap", marketCap(priceValue, periodShares), [bucket.periodKey], "market_cap@2")
-    push("dividend_yield", dividendYield(priceValue, dpsInfo.dps12m, dpsInfo.hasRecords), [bucket.periodKey], "dividend_yield@2")
+    push("dividend_yield", dividendYield(priceValue, dpsInfo.dps12m, dpsInfo.hasRecords), [bucket.periodKey], "dividend_yield@3")
 
     // Events are detected on filing periods only (not synthetic TTM windows) and only
     // for the preferred statement type

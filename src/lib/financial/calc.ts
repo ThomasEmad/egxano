@@ -19,6 +19,7 @@ const OK = (value: number): MetricResult => ({ status: "OK", value })
 const UNAVAILABLE = (detail: string): MetricResult => ({ status: "DATA_UNAVAILABLE", detail })
 const NOT_APPLICABLE = (detail: string): MetricResult => ({ status: "NOT_APPLICABLE", detail })
 const NOT_COMPUTABLE = (detail: string): MetricResult => ({ status: "NOT_COMPUTABLE", detail })
+const REVIEW = (value: number, detail: string): MetricResult => ({ status: "NEEDS_REVIEW", value, detail })
 
 /** Margin: part / whole x 100 */
 export function margin(part: number | undefined, whole: number | undefined): MetricResult {
@@ -168,5 +169,17 @@ export function dividendYield(
       ? UNAVAILABLE("Dividend records exist but none carries a per-share value")
       : UNAVAILABLE("No dividend records available for this company — not treated as zero")
   }
-  return OK((dps12m / price) * 100)
+  const yieldPct = (dps12m / price) * 100
+  // Rationality gate (dividend_yield@3): the TTM dividend basis and the market
+  // price can disagree structurally (split not reflected in one side, unit
+  // mismatch between the disclosure amount and the scanner price). An implied
+  // yield above 30% is implausible for EGX — flag for review instead of
+  // publishing a misleading number.
+  if (yieldPct > 30) {
+    return REVIEW(
+      yieldPct,
+      `Implied yield ${yieldPct.toFixed(1)}% is implausible — dividend basis and market price are likely inconsistent (unadjusted split or unit mismatch). Needs manual review.`
+    )
+  }
+  return OK(yieldPct)
 }

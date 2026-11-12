@@ -158,9 +158,15 @@ export function buildExtendedMetrics(
   valuation.ev_ebitda = ev !== null && ebitda !== null
     ? ok(ev / ebitda, "RATIO", "(market cap + net debt) / EBITDA", "calculated", [anchor.periodKey])
     : na("RATIO", "(market cap + net debt) / EBITDA", [anchor.periodKey], "needs price, shares, net debt and positive EBITDA")
-  valuation.dividend_yield = market.hasDividendRecords && market.dps12m !== null && price !== null
-    ? ok((market.dps12m / price) * 100, "PERCENT", "trailing-12m dividends per share / price × 100 (platform market metric)", "calculated", [anchor.periodKey])
-    : na("PERCENT", "trailing-12m dividends per share / price × 100", [anchor.periodKey], "no dividend records or no price")
+  const dyRaw = market.hasDividendRecords && market.dps12m !== null && price !== null
+    ? (market.dps12m / price) * 100
+    : null
+  valuation.dividend_yield = dyRaw === null
+    ? na("PERCENT", "trailing-12m dividends per share / price × 100", [anchor.periodKey], "no dividend records or no price")
+    : dyRaw > 30
+      // Rationality gate matching calc.dividendYield@3 — basis/price mismatch guard.
+      ? na("PERCENT", "trailing-12m dividends per share / price × 100", [anchor.periodKey], `implied yield ${dyRaw.toFixed(1)}% is implausible — dividend basis and market price are likely inconsistent; needs manual review`)
+      : ok(dyRaw, "PERCENT", "trailing-12m dividends per share / price × 100 (platform market metric)", "calculated", [anchor.periodKey])
   void annualRevenue
 
   // ---------------- Financial health ----------------

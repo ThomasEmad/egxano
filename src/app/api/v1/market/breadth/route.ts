@@ -1,4 +1,4 @@
-import { readMarketSnapshot } from "@/lib/market/snapshot"
+import { getFreshMarketSnapshot } from "@/lib/market/snapshot"
 import { latestTwoPerCompany } from "@/lib/market/latest-price"
 import { cachedResponse } from "@/lib/public-cache"
 
@@ -25,17 +25,18 @@ interface BreadthData {
   tradedValueCoverage: number | null
 }
 
-// 10-min SWR cache + CDN edge caching (public-cache) — breadth is hit by the
-// dashboard on every visit and by the ticker poll; prices change once per
-// trading day, so the DB-fallback path must not run per request. The fallback
-// now reads only the latest two closes per company via SQL (~550 rows) instead
-// of the whole MarketPrice table (13k+ rows).
+// 60s cache + CDN edge caching (public-cache) — breadth feeds the dashboard's
+// "لوحة السوق" block which must track the session (user-visible staleness was
+// caused by a 10-min cache over a frozen file snapshot). The fallback still
+// reads only the latest two closes per company via SQL (~550 rows).
 export async function GET() {
-  return cachedResponse("market-breadth", 10 * 60 * 1000, buildBreadth)
+  return cachedResponse("market-breadth", 60_000, buildBreadth)
 }
 
 async function buildBreadth(): Promise<BreadthData> {
-  const snapshot = readMarketSnapshot()
+  // DB Setting snapshot (newer-of DB vs build file) + opportunistic refresh
+  // kick when stale inside the session — NOT the frozen build-time file.
+  const snapshot = await getFreshMarketSnapshot()
 
   if (snapshot && snapshot.movers.length > 0) {
     const valid = snapshot.movers

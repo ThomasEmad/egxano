@@ -211,7 +211,11 @@ export interface TechnicalBundle {
   snapshotJson: string
 }
 
-/** Build the technical snapshot from stored PriceBar rows. */
+/** Build the technical snapshot from the FRESHEST available bars: recent daily
+ * bars are fetched from Yahoo on demand (in-memory cache, never stored) and
+ * win over the frozen stored PriceBar rows on the same session date; stored
+ * rows keep the deep history. This is what makes the analysis run on the last
+ * session's price instead of a stale import. */
 export async function buildTechnicalBundle(companyId: string): Promise<TechnicalBundle> {
   const raw = await db.priceBar.findMany({
     where: { companyId },
@@ -219,6 +223,18 @@ export async function buildTechnicalBundle(companyId: string): Promise<Technical
     take: MAX_BARS,
     select: { ts: true, open: true, high: true, low: true, close: true, volume: true },
   })
+
+  const { fetchRecentBarsForCompany } = await import("./live-bars")
+  const live = await fetchRecentBarsForCompany(companyId)
+  if (live && live.length >= 30) {
+    const byDay = new Map<string, (typeof raw)[number]>()
+    for (const b of raw) byDay.set(b.ts.toISOString().slice(0, 10), b)
+    for (const b of live) byDay.set(b.ts.toISOString().slice(0, 10), b as (typeof raw)[number])
+    const merged = [...byDay.values()].sort((a, b) => a.ts.getTime() - b.ts.getTime()).slice(-MAX_BARS)
+    const bars = sanitizeBars(merged)
+    if (bars.length > 0) return assembleBundle(bars)
+  }
+
   const bars = sanitizeBars(raw)
   return assembleBundle(bars)
 }

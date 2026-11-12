@@ -70,13 +70,12 @@ export async function GET(req: NextRequest) {
   const year = rawYear && /^\d{4}$/.test(rawYear) ? Number(rawYear) : null
 
   // Aggregating every active company's latest metrics is a heavy full-table
-  // computation (~6s cold). Sector aggregates move only when the pipeline
-  // recomputes or a market snapshot refreshes — serve from the stale-while-
-  // revalidate cache (6h: data changes once per trading day; the pipeline
-  // invalidates the process cache on recompute) and refresh in the background.
-  // The response is CDN-edge-cacheable so most requests never reach a lambda.
-  const payload = await cached(`sectors:${basis}:${year ?? "auto"}`, 6 * 60 * 60_000, () => computeSectorAggregates(basis, year))
-  return Response.json(payload, { headers: { "Cache-Control": publicCacheControl(1800) } })
+  // computation (~6s cold). Sector aggregates move with the market snapshot —
+  // serve from the stale-while-revalidate cache (15 min keeps the "day change"
+  // numbers tracking the session; the pipeline still invalidates on recompute)
+  // and refresh in the background. The response is CDN-edge-cacheable.
+  const payload = await cached(`sectors:${basis}:${year ?? "auto"}`, 15 * 60_000, () => computeSectorAggregates(basis, year))
+  return Response.json(payload, { headers: { "Cache-Control": publicCacheControl(600) } })
 }
 
 async function computeSectorAggregates(basis: "latest" | "annual" | "ttm", year: number | null = null) {

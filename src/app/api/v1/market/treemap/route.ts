@@ -1,5 +1,6 @@
 import { db } from "@/lib/db"
 import { getFreshMarketSnapshot, moverMap } from "@/lib/market/snapshot"
+import { latestTwoPerCompany } from "@/lib/market/latest-price"
 import { cached } from "@/lib/server-cache"
 
 // GET /api/v1/market/treemap — per-company tiles for the finviz-style market
@@ -39,6 +40,13 @@ export async function GET() {
     const snapshot = await getFreshMarketSnapshot()
     const movers = moverMap(snapshot)
 
+    // Fallback: when the scanner snapshot is missing or suspiciously thin
+    // (upstream outage / throttling), derive today's change from the two
+    // latest durable MarketPrice rows so the map never freezes.
+    const fallbackPrices = !snapshot || snapshot.movers.length < 50
+      ? await latestTwoPerCompany(companies.map((c) => c.id), { includeDemo: false })
+      : null
+
     // stored market_cap metric as fallback sizing for companies without shares
     const capRows = await db.calculatedMetric.findMany({
       where: { code: "market_cap", valueStatus: "OK", company: { isActive: true }, value: { gt: 0 } },
@@ -57,8 +65,16 @@ export async function GET() {
     const tiles: TreemapTile[] = []
     for (const c of companies) {
       const mover = movers.get(c.ticker.toUpperCase())
-      const price = mover?.price ?? null
-      const changePct = mover?.changePct ?? null
+      let price = mover?.price ?? null
+      let changePct = mover?.changePct ?? null
+      if (price === null && fallbackPrices) {
+        const p = fallbackPrices.get(c.id)
+        if (p?.prev && p.prev.price > 0 && p.last.price > 0) {
+          price = p.last.price
+          const ch = ((p.last.price - p.prev.price) / p.prev.price) * 100
+          changePct = Math.abs(ch) <= 50 ? ch : null
+        }
+      }
       const cap =
         price !== null && c.sharesOutstanding && c.sharesOutstanding > 0
           ? price * c.sharesOutstanding

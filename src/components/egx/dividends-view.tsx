@@ -1,15 +1,29 @@
 "use client"
-
+/**
+ * DividendsView v2 — full redesign (2026-11-12).
+ *
+ * The old layout was a 12-month calendar grid plus heavy month-grouped cards —
+ * visually noisy and hard to scan (user feedback: "عرض الجدول سيء"). This
+ * version is built around what a user actually asks:
+ *   1) «إيه التوزيعات اللي جاية؟» — upcoming distributions with a countdown and
+ *      an implied yield against the freshest price, colored semantically.
+ *   2) «التوزيعات السابقة؟» — a clean searchable history table (desktop) that
+ *      becomes stacked cards on mobile.
+ *
+ * Data: a single fetch of all dividends (API caches 6h) + one companies call
+ * for the price map (implied yield only). Semantic color contract:
+ *   info = announced · positive = near (≤14d) / cash · success = paid ·
+ *   warning = unverified yield · destructive = cancelled.
+ */
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { CalendarDays, CalendarRange } from "lucide-react"
-import { Card } from "@/components/ui/card"
+import { CalendarDays, History, Search } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/lib/client/api"
 import { useI18n } from "@/lib/i18n"
 
-const STATUSES = ["ANNOUNCED", "UPCOMING", "ELIGIBLE", "PAID", "EXPIRED", "CANCELLED"]
+const UP_STATES = new Set(["ANNOUNCED", "UPCOMING", "ELIGIBLE"])
 
 const STATUS_LABEL: Record<string, { en: string; ar: string }> = {
   ANNOUNCED: { en: "Announced", ar: "معلنة" },
@@ -20,274 +34,353 @@ const STATUS_LABEL: Record<string, { en: string; ar: string }> = {
   CANCELLED: { en: "Cancelled", ar: "ملغاة" },
 }
 
-const STATUS_DOT: Record<string, string> = {
-  ANNOUNCED: "bg-info",
-  UPCOMING: "bg-info",
-  ELIGIBLE: "bg-info",
-  PAID: "bg-success",
-  EXPIRED: "bg-muted-foreground",
-  CANCELLED: "bg-destructive",
+const STATUS_CLASS: Record<string, string> = {
+  ANNOUNCED: "bg-info/15 text-info border-info/30",
+  UPCOMING: "bg-info/15 text-info border-info/30",
+  ELIGIBLE: "bg-info/15 text-info border-info/30",
+  PAID: "bg-success/15 text-success border-success/30",
+  EXPIRED: "bg-muted text-muted-foreground border-border",
+  CANCELLED: "bg-destructive/15 text-destructive border-destructive/30",
 }
 
-function statusLabel(status: string, ar: boolean): string {
+type DividendItem = Awaited<ReturnType<typeof api.dividends>>["dividends"][number]
+
+function effDate(d: DividendItem): string | null {
+  return d.exDividendDate ?? d.distributionDate ?? d.eligibilityDate ?? d.announcementDate
+}
+
+function daysUntil(iso: string | null): number | null {
+  if (!iso) return null
+  const ms = new Date(iso).getTime() - Date.now()
+  if (Number.isNaN(ms)) return null
+  return Math.ceil(ms / 86_400_000)
+}
+
+function fmtDate(iso: string | null | undefined, ar: boolean): string {
+  if (!iso) return "—"
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return "—"
+  return d.toLocaleDateString(ar ? "ar-EG" : "en-GB", { day: "numeric", month: "short", year: "numeric" })
+}
+
+function fmtDps(n: number | null): string {
+  if (n == null || !Number.isFinite(n)) return "—"
+  if (n >= 100) return n.toFixed(0)
+  if (n >= 10) return n.toFixed(1)
+  return n.toFixed(2)
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const { lang } = useI18n()
   const entry = STATUS_LABEL[status]
-  return entry ? (ar ? entry.ar : entry.en) : status.replaceAll("_", " ")
+  return (
+    <Badge variant="outline" className={`gap-1.5 border ${STATUS_CLASS[status] ?? "border-border"}`}>
+      <span className="size-1.5 rounded-full bg-current" aria-hidden />
+      {entry ? (lang === "ar" ? entry.ar : entry.en) : status.replaceAll("_", " ")}
+    </Badge>
+  )
+}
+
+function TickerBox({ ticker, className = "" }: { ticker: string; className?: string }) {
+  return (
+    <div className={`grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-xs font-bold text-primary ${className}`} aria-hidden>
+      {ticker.slice(0, 4)}
+    </div>
+  )
 }
 
 export function DividendsView({ onOpenCompany }: { onOpenCompany: (id: string) => void }) {
   const { t, pick, lang } = useI18n()
-  const [status, setStatus] = useState<string>("active")
+  const ar = lang === "ar"
+  const [histFilter, setHistFilter] = useState<"all" | "paid" | "upcoming" | "gone">("all")
+  const [search, setSearch] = useState("")
+  const [limit, setLimit] = useState(40)
 
   const { data, isLoading } = useQuery({
-    queryKey: ["dividends", status],
-    queryFn: () => api.dividends(status === "all" ? undefined : status),
-  })
-  // calendar always shows everything (statuses filtered by dot color, not omission)
-  const { data: calData, isLoading: calLoading } = useQuery({
-    queryKey: ["dividends", "calendar"],
+    queryKey: ["dividends", "v2"],
     queryFn: () => api.dividends(),
   })
+  const { data: cos } = useQuery({
+    queryKey: ["dividends-prices"],
+    queryFn: () => api.companies({ page: 1, pageSize: 300, sort: "marketCap" }),
+    staleTime: 120_000,
+  })
 
-  const dividends = data?.dividends ?? []
-  const calDividends = calData?.dividends ?? []
+  const priceByTicker = useMemo(
+    () => new Map((cos?.companies ?? []).map((c) => [c.ticker.toUpperCase(), c.marketPrice?.price ?? null])),
+    [cos],
+  )
 
-  // Next 12 months grid (starting from the current month)
-  const months = useMemo(() => {
-    const now = new Date()
-    const list: { key: string; year: number; month: number; label: string; items: { id: string; ticker: string; companyId: string; day: number; status: string; dps: number | null }[] }[] = []
-    for (let i = 0; i < 12; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
-      list.push({
-        key: `${d.getFullYear()}-${d.getMonth()}`,
-        year: d.getFullYear(),
-        month: d.getMonth(),
-        label: d.toLocaleDateString(lang === "ar" ? "ar-EG" : "en-GB", { month: "short" }),
-        items: [],
+  const all = data?.dividends ?? []
+
+  const upcoming = useMemo(() => {
+    return all
+      .filter((d) => UP_STATES.has(d.status))
+      .sort((a, b) => {
+        const da = effDate(a), dbb = effDate(b)
+        if (!da && !dbb) return 0
+        if (!da) return 1
+        if (!dbb) return -1
+        return da.localeCompare(dbb)
       })
-    }
-    const index = new Map(list.map((m) => [m.key, m]))
-    for (const div of calDividends) {
-      const dates: { iso: string | null }[] = [
-        { iso: div.announcementDate },
-        { iso: div.eligibilityDate },
-        { iso: div.exDividendDate },
-        { iso: div.distributionDate },
-      ]
-      const seen = new Set<string>()
-      for (const { iso } of dates) {
-        if (!iso) continue
-        const d = new Date(iso)
-        const key = `${d.getFullYear()}-${d.getMonth()}`
-        const bucket = index.get(key)
-        if (!bucket || seen.has(key)) continue
-        seen.add(key)
-        bucket.items.push({
-          id: `${div.id}-${key}`,
-          ticker: div.company?.ticker ?? "—",
-          companyId: div.company?.id ?? "",
-          day: d.getDate(),
-          status: div.status,
-          dps: div.dividendPerShare,
-        })
-      }
-    }
-    for (const m of list) m.items.sort((a, b) => a.day - b.day)
-    return list
-  }, [calDividends, lang])
+      .slice(0, 12)
+  }, [all])
 
-  // group by month of announcement (or distribution fallback)
-  const groups = new Map<string, typeof dividends>()
-  for (const d of dividends) {
-    const date = d.announcementDate || d.distributionDate
-    const key = date
-      ? new Date(date).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-GB", { month: "long", year: "numeric" })
-      : "—"
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key)!.push(d)
-  }
+  const history = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return all
+      .filter((d) => {
+        if (histFilter === "paid" && d.status !== "PAID") return false
+        if (histFilter === "upcoming" && !UP_STATES.has(d.status)) return false
+        if (histFilter === "gone" && d.status !== "CANCELLED" && d.status !== "EXPIRED") return false
+        if (!q) return true
+        const name = pick(d.company?.nameEn, d.company?.nameAr) ?? ""
+        return d.company?.ticker.toLowerCase().includes(q) || name.toLowerCase().includes(q)
+      })
+      .sort((a, b) => (b.announcementDate ?? "").localeCompare(a.announcementDate ?? ""))
+  }, [all, histFilter, search, pick])
+
+  const counts = useMemo(() => {
+    let paid = 0, up = 0, gone = 0
+    const payers = new Set<string>()
+    for (const d of all) {
+      if (d.status === "PAID") { paid++; if (d.company?.ticker) payers.add(d.company.ticker) }
+      else if (UP_STATES.has(d.status)) up++
+      else if (d.status === "CANCELLED" || d.status === "EXPIRED") gone++
+    }
+    return { paid, up, gone, payers: payers.size }
+  }, [all])
+
+  const chips: { key: typeof histFilter; label: string; count: number }[] = [
+    { key: "all", label: t("dv.filterAll"), count: all.length },
+    { key: "paid", label: t("dv.paidChip"), count: counts.paid },
+    { key: "upcoming", label: t("dash.upcomingDividends"), count: counts.up },
+    { key: "gone", label: t("dv.cancelledChip"), count: counts.gone },
+  ]
+
+  const daysLabel = (n: number) =>
+    n <= 0 ? t("dv.paidSoon") : n === 1 ? t("dv.tomorrow") : t("dv.inDays").replace("{n}", String(n))
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight">
-            <CalendarDays className="h-5 w-5 text-primary" />
-            {t("nav.dividends")}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {lang === "ar"
-              ? "لا يتم استنتاج أي تواريخ غير معلنة رسمياً — تظهر كـ «لم يُعلن رسمياً»."
-              : "Unofficial dates are never inferred — they are shown as “not officially announced”."}
-          </p>
+    <div className="space-y-10">
+      {/* ============ 1) Upcoming distributions ============ */}
+      <section aria-labelledby="dv-upcoming">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="dv-upcoming" className="flex items-center gap-2 text-lg font-bold">
+            <CalendarDays className="size-5 text-info" aria-hidden />
+            {t("dv.upcoming")}
+          </h2>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="rounded-full border border-success/30 bg-success/10 px-2.5 py-1 font-semibold text-success">
+              {counts.payers} {ar ? "شركة موزعة" : "paying companies"}
+            </span>
+            <span className="rounded-full border border-info/30 bg-info/10 px-2.5 py-1 font-semibold text-info">
+              {counts.up} {ar ? "قادمة" : "upcoming"}
+            </span>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          {["active", "all", ...STATUSES].map((s) => (
+        <p className="mt-1 text-sm text-muted-foreground">{t("dv.upcomingSub")}</p>
+
+        {isLoading ? (
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
+          </div>
+        ) : upcoming.length === 0 ? (
+          <div className="mt-4 rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+            {t("dv.noUpcoming")}
+          </div>
+        ) : (
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {upcoming.map((d) => {
+              const price = d.company ? priceByTicker.get(d.company.ticker.toUpperCase()) ?? null : null
+              const dy = d.dividendPerShare != null && price != null && price > 0 ? (d.dividendPerShare / price) * 100 : null
+              const days = daysUntil(effDate(d))
+              return (
+                <button
+                  key={d.id}
+                  onClick={() => d.company && onOpenCompany(d.company.id)}
+                  className="group w-full rounded-xl border bg-card p-4 text-start transition-colors hover:border-primary/60 hover:bg-accent/30"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <TickerBox ticker={d.company?.ticker ?? "—"} />
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-bold">{pick(d.company?.nameEn, d.company?.nameAr)}</div>
+                        <div dir="ltr" className="text-xs font-semibold text-muted-foreground">{d.company?.ticker}</div>
+                      </div>
+                    </div>
+                    <StatusBadge status={d.status} />
+                  </div>
+
+                  <div className="mt-3 flex items-end justify-between gap-3">
+                    <div>
+                      <div className="text-xs text-muted-foreground">{t("dv.dps")} · {d.currency}</div>
+                      <div dir="ltr" className="text-2xl font-extrabold tabular-nums text-positive">
+                        {fmtDps(d.dividendPerShare)}
+                        <span className="ms-1 text-xs font-medium text-muted-foreground">EGP</span>
+                      </div>
+                    </div>
+                    <div className="text-end">
+                      {days !== null ? (
+                        <span className={`inline-block rounded-full px-2.5 py-1 text-xs font-bold ${days > 0 && days <= 14 ? "bg-positive/15 text-positive" : "bg-muted text-muted-foreground"}`}>
+                          {daysLabel(days)}
+                        </span>
+                      ) : (
+                        <span className="inline-block rounded-full bg-muted px-2.5 py-1 text-xs font-bold text-muted-foreground">{t("dv.paidSoon")}</span>
+                      )}
+                      <div className="mt-1 text-xs text-muted-foreground">{fmtDate(effDate(d), ar)}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                    {d.eligibilityDate && (
+                      <span className="text-muted-foreground">{t("dv.eligibility")}: <b className="font-semibold text-foreground">{fmtDate(d.eligibilityDate, ar)}</b></span>
+                    )}
+                    {d.distributionDate && (
+                      <span className="text-muted-foreground">{t("dv.distribution")}: <b className="font-semibold text-foreground">{fmtDate(d.distributionDate, ar)}</b></span>
+                    )}
+                    {dy !== null && (
+                      <span className={dy > 30 ? "text-warning" : "text-positive"}>
+                        {t("dv.estYield")}: <b className="font-bold tabular-nums">{dy.toFixed(1)}%</b>
+                        {dy > 30 && <span className="ms-1 font-medium">({t("dv.yieldUnverified")})</span>}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* ============ 2) History ============ */}
+      <section aria-labelledby="dv-history">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="dv-history" className="flex items-center gap-2 text-lg font-bold">
+            <History className="size-5 text-muted-foreground" aria-hidden />
+            {t("dv.history")}
+          </h2>
+          <div className="relative w-full max-w-xs">
+            <Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <input
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setLimit(40) }}
+              placeholder={t("dv.searchPh")}
+              className="h-10 w-full rounded-lg border bg-background ps-9 pe-3 text-sm outline-none transition-colors focus:border-primary/60"
+              aria-label={t("dv.searchPh")}
+            />
+          </div>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">{t("dv.historySub")}</p>
+
+        <div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label={t("dv.history")}>
+          {chips.map((c) => (
             <button
-              key={s}
-              onClick={() => setStatus(s)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 ${
-                status === s ? "bg-primary text-primary-foreground shadow-sm shadow-primary/15" : "bg-muted/60 text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+              key={c.key}
+              role="tab"
+              aria-selected={histFilter === c.key}
+              onClick={() => { setHistFilter(c.key); setLimit(40) }}
+              className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+                histFilter === c.key ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground"
               }`}
             >
-              {s === "active" ? (lang === "ar" ? "قادمة/معلنة" : "Active") : s === "all" ? (lang === "ar" ? "الكل" : "All") : statusLabel(s, lang === "ar")}
+              {c.label}
+              <span className={`ms-1.5 text-xs ${histFilter === c.key ? "opacity-80" : "opacity-60"}`}>{c.count}</span>
             </button>
           ))}
         </div>
-      </div>
 
-      {/* Next 12 months calendar grid */}
-      <Card className="p-0 border-border/60">
-        <div className="flex items-center gap-2.5 border-b border-border/60 p-4 pb-3">
-          <CalendarRange className="h-4 w-4 text-primary" />
-          <div>
-            <h2 className="text-sm font-semibold leading-tight">{t("dv.next12")}</h2>
-            <p className="text-[11px] text-muted-foreground">{t("dv.next12Sub")}</p>
-          </div>
-          <div className="ms-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
-            {["ANNOUNCED", "ELIGIBLE", "PAID", "CANCELLED"].map((s) => (
-              <span key={s} className="inline-flex items-center gap-1">
-                <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[s] ?? "bg-slate-400"}`} aria-hidden />
-                {statusLabel(s, lang === "ar")}
-              </span>
-            ))}
-          </div>
-        </div>
-        {calLoading ? (
-          <div className="grid grid-cols-2 gap-px bg-border/70 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <div key={i} className="bg-card p-3">
-                <Skeleton className="h-4 w-14 rounded-md" />
-                <Skeleton className="mt-2 h-8 rounded-md" />
-              </div>
-            ))}
-          </div>
-        ) : calDividends.length === 0 ? (
-          // No dividend events in the database at all — a compact, honest
-          // empty state instead of a 12-cell ghost grid.
-          <div className="flex flex-col items-center justify-center gap-1.5 p-8 text-center">
-            <CalendarRange className="h-6 w-6 text-muted-foreground/40" aria-hidden />
-            <p className="text-sm font-medium text-foreground/80">
-              {lang === "ar" ? "لا توجد توزيعات معلنة رسميًا حتى الآن" : "No officially announced dividends yet"}
-            </p>
-            <p className="max-w-md text-xs text-muted-foreground">
-              {lang === "ar"
-                ? "تظهر التوزيعات هنا فور إعلانها رسميًا من الشركات وتوثيقها من المصادر الرسمية — لا يتم استنتاج أي تاريخ."
-                : "Distributions appear here as soon as companies announce them officially and they are verified from primary sources — no dates are inferred."}
-            </p>
-          </div>
+        {isLoading ? (
+          <div className="mt-4 space-y-2">{[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12 rounded-lg" />)}</div>
+        ) : history.length === 0 ? (
+          <div className="mt-4 rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">{t("dv.noResults")}</div>
         ) : (
-          <div className="grid grid-cols-2 gap-px bg-border/70 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-            {months.map((m) => (
-              <div key={m.key} className={`min-h-24 bg-card p-3 transition-colors duration-150 ${m.items.length > 0 ? "" : "opacity-60"}`}>
-                <p className="flex items-baseline gap-1 text-[11px] font-semibold text-muted-foreground">
-                  {m.label}
-                  <span className="text-[9px] font-normal">{m.year}</span>
-                  {m.items.length > 0 ? (
-                    <span className="ms-auto rounded-full bg-primary/10 px-1.5 text-[9px] font-bold text-primary">{m.items.length}</span>
-                  ) : null}
-                </p>
-                <div className="mt-1.5 space-y-1">
-                  {m.items.length === 0 ? (
-                    <span className="text-[10px] text-muted-foreground/60">{t("dv.noEventsThisMonth")}</span>
-                  ) : (
-                    m.items.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => item.companyId && onOpenCompany(item.companyId)}
-                        className="flex w-full items-center gap-1.5 rounded-lg border border-border/60 px-1.5 py-1.5 text-start text-[10px] transition-all duration-150 hover:bg-accent/30 hover:border-primary/20"
-                      >
-                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[item.status] ?? "bg-slate-400"}`} aria-hidden />
-                        <span className="font-bold">{item.ticker}</span>
-                        <span className="tabular text-muted-foreground">{item.day}</span>
-                        {item.dps !== null ? <span className="ms-auto tabular text-muted-foreground">{item.dps.toFixed(2)}</span> : null}
-                      </button>
-                    ))
-                  )}
-                </div>
+          <>
+            {/* Desktop table */}
+            <div className="mt-4 hidden overflow-x-auto rounded-xl border md:block">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50 text-start text-xs text-muted-foreground">
+                    <th className="px-4 py-3 text-start font-semibold">{ar ? "الشركة" : "Company"}</th>
+                    <th className="px-4 py-3 text-start font-semibold">{t("dv.dps")}</th>
+                    <th className="px-4 py-3 text-start font-semibold">{t("dv.announcement")}</th>
+                    <th className="px-4 py-3 text-start font-semibold">{t("dv.exDate")}</th>
+                    <th className="px-4 py-3 text-start font-semibold">{t("dv.distribution")}</th>
+                    <th className="px-4 py-3 text-start font-semibold">{ar ? "الحالة" : "Status"}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.slice(0, limit).map((d) => (
+                    <tr
+                      key={d.id}
+                      onClick={() => d.company && onOpenCompany(d.company.id)}
+                      className="cursor-pointer border-b transition-colors last:border-0 hover:bg-accent/40"
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <TickerBox ticker={d.company?.ticker ?? "—"} className="size-8 text-[10px]" />
+                          <div className="min-w-0">
+                            <div className="max-w-[220px] truncate font-semibold">{pick(d.company?.nameEn, d.company?.nameAr)}</div>
+                            <div dir="ltr" className="text-xs text-muted-foreground">{d.company?.ticker}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span dir="ltr" className="font-bold tabular-nums text-positive">{fmtDps(d.dividendPerShare)}</span>
+                        <span className="ms-1 text-xs text-muted-foreground">EGP</span>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{fmtDate(d.announcementDate, ar)}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{fmtDate(d.exDividendDate, ar)}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{fmtDate(d.distributionDate, ar)}</td>
+                      <td className="px-4 py-3"><StatusBadge status={d.status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="mt-4 space-y-2 md:hidden">
+              {history.slice(0, limit).map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => d.company && onOpenCompany(d.company.id)}
+                  className="w-full rounded-xl border bg-card p-3.5 text-start transition-colors hover:border-primary/50"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <TickerBox ticker={d.company?.ticker ?? "—"} className="size-8 text-[10px]" />
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-bold">{pick(d.company?.nameEn, d.company?.nameAr)}</div>
+                        <div dir="ltr" className="text-xs text-muted-foreground">{d.company?.ticker}</div>
+                      </div>
+                    </div>
+                    <div dir="ltr" className="text-end">
+                      <div className="text-base font-extrabold tabular-nums text-positive">{fmtDps(d.dividendPerShare)}</div>
+                      <div className="text-[10px] text-muted-foreground">EGP</div>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>{t("dv.distribution")}: {fmtDate(d.distributionDate ?? d.exDividendDate, ar)}</span>
+                    <StatusBadge status={d.status} />
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {history.length > limit && (
+              <div className="mt-4 text-center">
+                <button
+                  onClick={() => setLimit((l) => l + 40)}
+                  className="rounded-full border px-5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+                >
+                  {t("dv.showMore")} ({history.length - limit})
+                </button>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
-      </Card>
-
-      {/* The calendar card above already owns the honest empty state when the
-          database has no dividends at all — rendering a second "No data
-          available" box beneath it read as a broken page. Only render this
-          section when there is something (or something loading) to show. */}
-      {(isLoading || calDividends.length > 0) ? (
-        isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 rounded-xl" />
-          ))}
-        </div>
-      ) : dividends.length === 0 ? (
-        <Card className="flex h-40 items-center justify-center p-6 text-center text-sm text-muted-foreground border-border/60">
-          {t("common.noData")}
-        </Card>
-      ) : (
-        <div className="space-y-6">
-          {[...groups.entries()].map(([month, items]) => (
-            <section key={month}>
-              <h2 className="mb-2 text-sm font-semibold text-muted-foreground">{month}</h2>
-              <div className="space-y-2.5">
-                {items.map((d) => (
-                  <button
-                    key={d.id}
-                    onClick={() => d.company && onOpenCompany(d.company.id)}
-                    className="flex w-full flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 rounded-xl border border-border/60 bg-card p-4 text-start transition-all duration-150 hover:bg-accent/30 hover:border-primary/20"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-bold">{d.company?.ticker}</span>
-                        <span className="truncate text-xs text-muted-foreground">{pick(d.company?.nameEn, d.company?.nameAr)}</span>
-                        {d.company?.sector ? <span className="text-[10px] text-muted-foreground">· {d.company.sector}</span> : null}
-                      </div>
-                      {d.notes ? <p className="mt-1 text-[11px] italic text-muted-foreground">{d.notes}</p> : null}
-                    </div>
-                    {d.dividendPerShare !== null ? (
-                      <div className="text-sm font-bold tabular num">
-                        {d.dividendPerShare} <span className="text-[10px] font-normal text-muted-foreground">EGP / {t("dv.dps")}</span>
-                      </div>
-                    ) : null}
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground sm:grid-cols-4">
-                      <DateCell label={t("dv.announcement")} iso={d.announcementDate} lang={lang} />
-                      <DateCell label={t("dv.eligibility")} iso={d.eligibilityDate} lang={lang} />
-                      <DateCell label={t("dv.exDate")} iso={d.exDividendDate} lang={lang} />
-                      <DateCell label={t("dv.distribution")} iso={d.distributionDate} lang={lang} />
-                    </div>
-                    <Badge variant="outline" className="shrink-0 whitespace-nowrap text-[10px]">
-                      <span className={`me-1 h-1.5 w-1.5 rounded-full ${STATUS_DOT[d.status] ?? "bg-slate-400"}`} aria-hidden />
-                      {statusLabel(d.status, lang === "ar")}
-                    </Badge>
-                  </button>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-        )
-      ) : null}
+      </section>
     </div>
   )
-}
-
-function DateCell({ label, iso, lang }: { label: string; iso: string | null; lang: "en" | "ar" }) {
-  const { t } = useI18n()
-  return (
-    <div>
-      <dt className="text-[9px] uppercase tracking-wide">{label}</dt>
-      <dd className={`tabular ${iso ? "font-medium text-foreground" : "italic text-muted-foreground/70"}`}>
-        {iso ? fmtDate(iso, lang) : t("dv.notAnnounced")}
-      </dd>
-    </div>
-  )
-}
-
-function fmtDate(iso: string, lang: "en" | "ar"): string {
-  try {
-    return new Date(iso).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "short", year: "numeric" })
-  } catch {
-    return iso
-  }
 }

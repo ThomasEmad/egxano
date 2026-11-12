@@ -49,3 +49,6 @@ err.txt
 out.txt
 diff.err
 dev.pid
+scripts/.cron_secret
+scripts/.turso_url
+download/backups/

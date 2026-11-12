@@ -19,9 +19,14 @@ import { MARKET_SNAPSHOT_SETTING_KEY } from "./refresh"
 /** How long the Setting-derived snapshot is cached in this lambda (hot paths). */
 const DB_SNAPSHOT_TTL_MS = 15_000
 /** Kick a background refresh when the best snapshot is older than this. */
-const STALE_KICK_MS = 20 * 60_000
+// In-session freshness contract (2026-11-12): users expect the market map /
+// board to track the session. The scanner snapshot is 15-min delayed by the
+// exchange feed itself, so re-pulling every ~8 minutes keeps us at the
+// source's own freshness ceiling. Cooldown 5 min prevents parallel readers
+// from stampeding TradingView.
+const STALE_KICK_MS = 8 * 60_000
 /** Per-lambda cooldown between opportunistic kicks. */
-const KICK_COOLDOWN_MS = 10 * 60_000
+const KICK_COOLDOWN_MS = 5 * 60_000
 /** Beyond this age the session-window gate is ignored (guaranteed daily EOD). */
 const VERY_STALE_MS = 26 * 3_600_000
 

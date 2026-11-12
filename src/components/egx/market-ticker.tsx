@@ -110,7 +110,7 @@ export function MarketTicker() {
   const handleRefresh = async () => {
     setIsRefreshing(true)
     try {
-      const res = await fetch("/api/v1/market/refresh", { method: "POST" })
+      const res = await fetch("/api/v1/market/sync", { method: "POST" })
       if (res.ok) {
         // Pull the fresh snapshot into the ticker immediately.
         await queryClient.invalidateQueries({ queryKey: ["market-ticker"] })

@@ -77,7 +77,7 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
   // otherwise, paused on hidden tabs, instant refetch on return. Only the
   // auto basis ("all") follows the live clock — a pinned historical year
   // doesn't change intraday.
-  const live = useMarketLive(year === "all" ? ["sector-aggs", "sector-treemap"] : [])
+  const live = useMarketLive(year === "all" ? ["sector-aggs", "market-treemap"] : [])
 
   // A pin the current basis can't satisfy resets to auto instead of showing
   // a table of dashes forever.
