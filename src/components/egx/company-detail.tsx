@@ -17,8 +17,10 @@ import {
   FileText,
   FileX2,
   Flame,
+  HeartPulse,
   Info,
   Languages,
+  LineChart,
   Lock,
   LogIn,
   Minus,
@@ -51,6 +53,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { PremiumGate } from "@/components/egx/premium-gate"
 import { HealthTab } from "@/components/egx/health-tab"
+import { TechnicalTab } from "@/components/egx/technical-tab"
+import { FScoreCard } from "@/components/egx/f-score-card"
 import { PriceChart } from "@/components/egx/price-chart"
 import { TradingViewTechnicalGauge } from "@/components/egx/tradingview"
 import { QaBox } from "@/components/egx/qa-box"
@@ -83,7 +87,7 @@ const PEER_METRICS = [
   { code: "p_b", fmt: (v: number) => formatRatio(v), betterWhen: "lower" },
 ] as const
 
-type SubTab = "overview" | "statements" | "peers" | "ai"
+type SubTab = "overview" | "statements" | "health" | "technical" | "peers" | "ai"
 
 /** The research reading order required by the brand brief. */
 const OVERVIEW_SECTIONS = [
@@ -342,6 +346,8 @@ export function CompanyDetail({
         <TabsList className="h-auto w-full flex-nowrap justify-start overflow-x-auto rounded-xl bg-muted/60 p-1">
           <TabsTrigger value="overview" className="gap-1.5"><BarChart3 className="h-3.5 w-3.5" aria-hidden />{ar ? "نظرة عامة" : "Overview"}</TabsTrigger>
           <TabsTrigger value="statements" className="gap-1.5"><Table2 className="h-3.5 w-3.5" aria-hidden />{t("co.statements")}</TabsTrigger>
+          <TabsTrigger value="health" className="gap-1.5"><HeartPulse className="h-3.5 w-3.5" aria-hidden />{ar ? "المتانة" : "Strength"}</TabsTrigger>
+          <TabsTrigger value="technical" className="gap-1.5"><LineChart className="h-3.5 w-3.5" aria-hidden />{ar ? "الفني" : "Technical"}</TabsTrigger>
           <TabsTrigger value="peers" className="gap-1.5"><Users className="h-3.5 w-3.5" aria-hidden />{ar ? "الأقران والمقارنة" : "Peers & comparison"}</TabsTrigger>
           <TabsTrigger value="ai" className="gap-1.5"><Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden />{ar ? "قراءة المحلل" : "Analyst note"}</TabsTrigger>
         </TabsList>
@@ -359,9 +365,18 @@ export function CompanyDetail({
             onOpenScanner={onOpenScanner}
             onOpenTab={(tab) => setSub(tab)}
           />
+          <div className="mt-4">
+            <FScoreCard companyId={companyId} />
+          </div>
         </TabsContent>
         <TabsContent value="statements" className="mt-4">
           <StatementsTab companyId={companyId} ticker={c.ticker} basis={effectiveBasis} periodView={effectivePeriodView} />
+        </TabsContent>
+        <TabsContent value="health" className="mt-4">
+          <HealthTab companyId={companyId} />
+        </TabsContent>
+        <TabsContent value="technical" className="mt-4">
+          <TechnicalTab companyId={companyId} />
         </TabsContent>
         <TabsContent value="peers" className="mt-4">
           <PeersTab companyId={companyId} />
