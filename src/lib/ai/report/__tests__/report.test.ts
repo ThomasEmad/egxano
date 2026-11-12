@@ -51,6 +51,9 @@ The stock is in a mixed trend: price above SMA200 but below SMA20. RSI is neutra
 ## Combined View
 Fundamentals are strong while the technical picture is neutral — the tension resolves with the next quarterly report.
 
+## Trader & Investor Lens
+Short-term trader: the last close sits 1.5% above the 62.5 support zone while RSI(14) is neutral at 54 — a daily close below 62.5 on expanded volume would end the current setup; ATR keeps the realistic one-session range near ±2%. Long-term investor: ROE of 43.9% (FY 2025) with P/E 5.5 prices structural doubt into the franchise; dividend coverage and a CET1 above 12% are the thesis keepers. Market psychology: volume has been steady rather than expanding — no chase signal is inferable from the provided data; illiquidity is not a present concern at current traded values.
+
 ## Key Risks & Red Flags
 - Earnings quality: operating cash flow at 0.9x net profit (FY 2025).
 - Concentration risk in the loan book.
@@ -92,6 +95,7 @@ describe("report validation", () => {
       .replace("## Financial Analysis", "## التحليل المالي")
       .replace("## Technical Analysis", "## التحليل الفني")
       .replace("## Combined View", "## الرؤية المدمجة")
+      .replace("## Trader & Investor Lens", "## عدسة المضارب والمستثمر")
       .replace("## Key Risks & Red Flags", "## المخاطر الجوهرية والعلامات الحمراء")
       .replace("## What Would Invalidate This Analysis", "## ما الذي يُبطل هذا التحليل")
       .replace("## Monitoring Points", "## نقاط المراقبة")

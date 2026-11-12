@@ -32,6 +32,8 @@ import { useI18n, type DictKey } from "@/lib/i18n"
 import { formatEgp } from "@/lib/financial/units"
 import { DemoBadge, EventBadge } from "./shared"
 import { QaBox } from "./qa-box"
+import { LiveMarketBadge } from "./live-market-badge"
+import { useMarketLive } from "./use-market-live"
 import { EVENT_TYPE_MAP } from "@/lib/financial/registry"
 import type { ViewKey } from "@/lib/view-keys"
 import { sectorLabel } from "@/lib/sectors"
@@ -105,6 +107,18 @@ export function DashboardView({
   })
 
   const { data, isLoading, error } = useQuery({ queryKey: ["dashboard"], queryFn: api.dashboard })
+
+  // Auto-refresh: while EGX is live the market panels revalidate every minute;
+  // outside the session they relax to every 10 minutes. Paused on hidden tabs,
+  // instant refetch on return.
+  const live = useMarketLive([
+    "dashboard",
+    "latest-results",
+    "market-breadth",
+    "sector-aggs",
+    "market-valuation",
+    "watch-prices",
+  ])
   const { data: subData } = useQuery({ queryKey: ["my-subscription"], queryFn: () => api.subscription() })
   const { data: latest } = useQuery({ queryKey: ["latest-results"], queryFn: () => api.latestResults(), staleTime: 60_000 })
   const { data: valuation } = useQuery({
@@ -203,11 +217,8 @@ export function DashboardView({
         </div>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-0.5 text-[11px] font-medium text-primary">
-                <span className="flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                {ar ? "بيانات السوق" : "Market data"}
-              </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <LiveMarketBadge ar={ar} on={[]} status={live.status} lastUpdated={live.lastUpdated} />
               {breadth?.asOf ? (
                 <span className="text-[11px] text-muted-foreground" dir="ltr">
                   {new Date(breadth.asOf).toLocaleString(ar ? "ar-EG" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
@@ -219,7 +230,7 @@ export function DashboardView({
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {ar
-                ? "كل رقم من إفصاحات موثقة — اكتشف الفرص بالماسحات أو تابع القطاعات والقيم."
+                ? "كل رقم جاي من إفصاحات رسمية موثقة — فرّغ بالماسحات و توصل للفرصة، أو تابع القطاعات و القيم لحظة بلحظة."
                 : "Every figure from verified filings — screen opportunities, follow sectors and valuations."}
             </p>
             <div className="mt-4 flex flex-wrap gap-2">

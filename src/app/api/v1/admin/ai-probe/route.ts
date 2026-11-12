@@ -1,5 +1,8 @@
 import { NextRequest } from "next/server"
 import { isAdmin } from "@/lib/admin-auth"
+import { db } from "@/lib/db"
+import { buildProviderChain } from "@/lib/ai/orchestrator/adapters"
+import { breakerSnapshot } from "@/lib/ai/orchestrator/adapters"
 
 // POST /api/v1/admin/ai-probe — provider-side connectivity diagnostics for the
 // AI chat-completions path. Admin-only. Never returns or logs the API key.
@@ -15,6 +18,54 @@ import { isAdmin } from "@/lib/admin-auth"
 //     prompts, isolating inference latency from auth/WAF.
 
 export const maxDuration = 30
+
+// GET /api/v1/admin/ai-probe — the AI health snapshot, no live calls:
+// which providers form the chain, which are configured, circuit-breaker
+// state, and 24h success/failure per provider from the usage ledger.
+// Answers "why is the AI down?" in one glance instead of guesswork.
+export async function GET(req: NextRequest) {
+  if (!(await isAdmin(req))) {
+    return Response.json({ error: "UNAUTHORIZED" }, { status: 401 })
+  }
+  const chain = buildProviderChain().map((a) => ({ id: a.id, kind: a.kind, configured: a.configured(), models: a.models() }))
+  const since = new Date(Date.now() - 24 * 3600_000)
+  let usage24h: { provider: string; ok: number; fail: number; lastErrorKind: string | null; lastErrorAt: Date | null }[] = []
+  try {
+    const rows = await db.aiProviderUsage.groupBy({
+      by: ["provider", "ok"],
+      where: { createdAt: { gte: since }, kind: { in: ["chat", "report", "probe"] } },
+      _count: { _all: true },
+      _max: { createdAt: true },
+    })
+    const merged = new Map<string, { ok: number; fail: number }>()
+    for (const r of rows) {
+      const m = merged.get(r.provider) ?? { ok: 0, fail: 0 }
+      if (r.ok) m.ok += r._count._all
+      else m.fail += r._count._all
+      merged.set(r.provider, m)
+    }
+    const lastFail = await db.aiProviderUsage.findFirst({
+      where: { createdAt: { gte: since }, ok: false },
+      orderBy: { createdAt: "desc" },
+      select: { provider: true, errorKind: true, createdAt: true },
+    })
+    usage24h = [...merged.entries()].map(([provider, m]) => ({
+      provider,
+      ok: m.ok,
+      fail: m.fail,
+      lastErrorKind: lastFail && lastFail.provider === provider ? lastFail.errorKind : null,
+      lastErrorAt: lastFail && lastFail.provider === provider ? lastFail.createdAt : null,
+    }))
+  } catch {
+    // ledger unavailable (fresh DB / migration lag) — the chain view still works
+  }
+  return Response.json({
+    chain,
+    breakers: breakerSnapshot(),
+    usage24h,
+    checkedAt: new Date().toISOString(),
+  })
+}
 
 const PROBE_TIMEOUT_MS = 22_000
 

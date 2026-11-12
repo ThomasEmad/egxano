@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { LayoutShell } from "@/components/layout/LayoutShell"
 import { SectorTreemap } from "@/components/egx/sector-treemap"
+import { LiveMarketBadge } from "@/components/egx/live-market-badge"
+import { useMarketLive } from "@/components/egx/use-market-live"
 import { useI18n } from "@/lib/i18n"
 import { SECTOR_AR, sectorLabel } from "@/lib/sectors"
 
@@ -71,6 +73,12 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
     staleTime: 120_000,
   })
 
+  // Same auto-refresh contract as the dashboard: 60s while EGX is live, 10 min
+  // otherwise, paused on hidden tabs, instant refetch on return. Only the
+  // auto basis ("all") follows the live clock — a pinned historical year
+  // doesn't change intraday.
+  const live = useMarketLive(year === "all" ? ["sector-aggs", "sector-treemap"] : [])
+
   // A pin the current basis can't satisfy resets to auto instead of showing
   // a table of dashes forever.
   useEffect(() => {
@@ -122,9 +130,14 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
         </nav>
 
         <header className="mb-6 max-w-3xl">
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl text-foreground">
-            {ar ? "قطاعات البورصة المصرية" : "EGX sectors"}
-          </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl text-foreground">
+              {ar ? "قطاعات البورصة المصرية" : "EGX sectors"}
+            </h1>
+            {year === "all" ? (
+              <LiveMarketBadge ar={ar} on={[]} status={live.status} lastUpdated={live.lastUpdated} />
+            ) : null}
+          </div>
           <p className="mt-2 text-sm text-muted-foreground max-w-2xl">
             {year !== "all"
               ? ar

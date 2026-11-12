@@ -77,6 +77,15 @@ export interface CompanyListItem {
   isDemoData: boolean
   counts: { reports: number; events: number; dividends: number }
   snapshot: Record<string, { value: number | null; status: string; periodLabel: string; fiscalYear?: number }>
+  /** advanced-sort/filter mode only — computed per company for the whole matched universe */
+  metrics?: {
+    p_e: number | null
+    dividend_yield: number | null
+    roe: number | null
+    roa: number | null
+    net_margin: number | null
+    eps: number | null
+  } | null
   marketPrice?: {
     price: number
     asOf: string | null
@@ -91,7 +100,9 @@ export interface CompaniesResponse {
   pageSize: number
   total: number
   totalPages: number
-  sort: "ticker" | "marketCap"
+  sort: string
+  dir?: "asc" | "desc"
+  appliedFilters?: Record<string, number | null>
   marketAsOf: string | null
   delayMinutes: number | null
   companies: CompanyListItem[]
@@ -441,8 +452,21 @@ export const api = {
     pageSize?: number
     ids?: string[]
     tickers?: string[]
-    sort?: "ticker" | "marketCap"
+    sort?: "ticker" | "marketCap" | "changePct" | "p_e" | "dividend_yield" | "roe" | "net_margin" | "name"
+    dir?: "asc" | "desc"
     status?: string
+    priceMin?: number
+    priceMax?: number
+    changeMin?: number
+    changeMax?: number
+    peMin?: number
+    peMax?: number
+    dyMin?: number
+    roeMin?: number
+    roeMax?: number
+    netMarginMin?: number
+    capMin?: number
+    capMax?: number
   }) => {
     const q = new URLSearchParams()
     if (params.search) q.set("search", params.search)
@@ -450,7 +474,15 @@ export const api = {
     if (params.ids) q.set("ids", params.ids.join(","))
     if (params.tickers) q.set("tickers", params.tickers.join(","))
     if (params.sort) q.set("sort", params.sort)
+    if (params.dir) q.set("dir", params.dir)
     if (params.status) q.set("status", params.status)
+    for (const k of [
+      "priceMin", "priceMax", "changeMin", "changeMax", "peMin", "peMax",
+      "dyMin", "roeMin", "roeMax", "netMarginMin", "capMin", "capMax",
+    ] as const) {
+      const v = params[k]
+      if (v !== undefined && v !== null) q.set(k, String(v))
+    }
     q.set("page", String(params.page ?? 1))
     q.set("pageSize", String(params.pageSize ?? 9))
     return fetch(`/api/v1/companies?${q}`).then((r) => handle<CompaniesResponse>(r))

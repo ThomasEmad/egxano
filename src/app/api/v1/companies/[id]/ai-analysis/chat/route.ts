@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server"
-import { chatComplete } from "@/lib/ai/provider"
+import { orchestrate, AiUnavailableError } from "@/lib/ai/orchestrator/orchestrate"
 import { db } from "@/lib/db"
 import { audit } from "@/lib/audit"
 import { requireAuth, unauthorizedResponse } from "@/lib/access"
@@ -38,10 +38,11 @@ STRICT RULES:
 STYLE: answer in the investor's language (match it; Arabic stays Arabic with Latin numerals and tickers). Same craft as your written notes: lead with the answer; bind every claim to its number with its period label; give the mechanism behind it (driver → mechanism → implication); frame figures against prior periods, sector medians or the 52-week range when the snapshot has them; phrase unprovable readings as hypotheses; prefer hedged professional wording ("the data suggests") over absolutes — and close with the caveat that matters. Direct and specific — 2-6 short paragraphs or a compact bullet list. No headers needed unless comparing several things.`
 
 const CHAT_TIMEOUT_MS = 60_000
-// The provider now orchestrates retries + fallback-model internally inside the
-// request budget, so one outer attempt is enough and the worst case can never
-// exceed maxDuration.
-const CHAT_ATTEMPTS = 1
+// One orchestrate() call walks the FULL provider chain (primary → alternate
+// providers → sandbox), per-provider circuit breakers skip chains that have
+// been failing, and the budget is split across providers (first gets ~60%)
+// so a hung provider can never eat the fallbacks' window. Worst case stays
+// inside maxDuration.
 const MAX_HISTORY_MESSAGES = 10
 const MAX_MESSAGE_CHARS = 1_500
 const MAX_ANALYSIS_CHARS = 12_000
@@ -152,30 +153,34 @@ async function postHandler(req: Request, { params }: { params: Promise<{ id: str
     .filter(Boolean)
     .join("\n")
 
-  // ---------- LLM call (provider handles retries + fallback internally) ----------
+  // ---------- LLM call (full provider chain with breakers + usage records) ----------
   let reply = ""
   let lastError = ""
-  for (let attempt = 1; attempt <= CHAT_ATTEMPTS; attempt++) {
-    try {
-      const result = await chatComplete({
-        system: CHAT_SYSTEM_PROMPT,
-        user: contextBlocks,
-        history,
-        timeoutMs: CHAT_TIMEOUT_MS,
-      })
-      reply = result.content
-      if (reply.trim()) break
-      lastError = `empty response (attempt ${attempt})`
-    } catch (e) {
-      lastError = e instanceof Error ? e.message : String(e)
-    }
+  try {
+    const result = await orchestrate({
+      system: CHAT_SYSTEM_PROMPT,
+      user: contextBlocks,
+      history,
+      timeoutMs: CHAT_TIMEOUT_MS,
+      kind: "chat",
+      companyId: company.id,
+    })
+    reply = result.content
+  } catch (e) {
+    if (e instanceof AiUnavailableError) lastError = `${e.kind}: ${e.message}`
+    else lastError = e instanceof Error ? e.message : String(e)
   }
 
   if (!reply.trim()) {
+    // Distinguish guard trips from provider failures so the honest Egyptian
+    // copy tells the user WHAT happened and what to do — no blame, one action.
+    const guardTrip = lastError.startsWith("kill_switch") || lastError.startsWith("spend_cap")
     return Response.json(
       {
-        error: "AI_FAILED",
-        message: `The analyst could not answer right now (${lastError.slice(0, 240)}). Try again. | لم يستطع المحلل الإجابة الآن — حاول مجددًا.`,
+        error: guardTrip ? "AI_PAUSED" : "AI_FAILED",
+        message: guardTrip
+          ? "المحلل وقف مؤقتًا بسبب حدود الاستخدام — مش عندك إنت، دي من عندنا — جرب تاني بعد شوية."
+          : `المحلل مش متاح في اللحظة دي (${lastError.slice(0, 160)}) — جرب تاني بعد دقيقة، ولو استمرت ابعت لنا من زرار التواصل.`,
       },
       { status: 502 }
     )

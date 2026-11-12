@@ -6,7 +6,10 @@ import { hashToken } from "@/lib/secure-compare"
 import { getClientIp } from "@/lib/rate-limit"
 
 // POST /api/v1/qa — grounded Q&A over verified DB data.
-// Quotas (honest, no fake "AI"): anonymous 3/day per IP · free user 5/day · premium 60/day.
+// Quotas (honest, no fake "AI"): anonymous 10/day per IP · free user 20/day · premium 60/day.
+// The engine is deterministic over verified DB rows (no LLM spend per answer),
+// so the generous quotas cost only DB reads; the old 3/day anonymous cap was
+// the #1 "the AI is broken" report — three questions and a 429 reads as breakage.
 //
 // Security notes:
 //   • session tokens are stored SHA-256-hashed (auth.ts) — every lookup must
@@ -17,7 +20,7 @@ import { getClientIp } from "@/lib/rate-limit"
 //     the anonymous daily quota.
 
 const RATE = new Map<string, { day: string; count: number }>()
-const LIMITS = { anonymous: 3, free: 5, premium: 60 } as const
+const LIMITS = { anonymous: 10, free: 20, premium: 60 } as const
 
 function headerToken(req: NextRequest): string | null {
   return req.headers.get("x-session-token") ?? req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null
