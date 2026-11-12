@@ -55,8 +55,6 @@ import { PremiumGate } from "@/components/egx/premium-gate"
 import { HealthTab } from "@/components/egx/health-tab"
 import { TechnicalTab } from "@/components/egx/technical-tab"
 import { FScoreCard } from "@/components/egx/f-score-card"
-import { PriceChart } from "@/components/egx/price-chart"
-import { TradingViewTechnicalGauge } from "@/components/egx/tradingview"
 import { QaBox } from "@/components/egx/qa-box"
 import { AiReportRenderer } from "@/components/ai/ai-report-renderer"
 import { AiAnalystChat } from "@/components/ai/ai-analyst-chat"
@@ -376,7 +374,7 @@ export function CompanyDetail({
           <HealthTab companyId={companyId} />
         </TabsContent>
         <TabsContent value="technical" className="mt-4">
-          <TechnicalTab companyId={companyId} />
+          <TechnicalTab companyId={companyId} ticker={c.ticker} />
         </TabsContent>
         <TabsContent value="peers" className="mt-4">
           <PeersTab companyId={companyId} />

@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/lib/client/api"
 import { useI18n } from "@/lib/i18n"
+import { TradingViewChart } from "@/components/egx/tradingview"
 
 export interface TechSnapshot {
   version: string
@@ -143,7 +144,7 @@ function RsiGauge({ rsi }: { rsi: number | null }) {
   )
 }
 
-export function TechnicalTab({ companyId }: { companyId: string }) {
+export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?: string | null }) {
   const { lang } = useI18n()
   const ar = lang === "ar"
   const { data, isLoading, isError } = useQuery({
@@ -177,14 +178,24 @@ export function TechnicalTab({ companyId }: { companyId: string }) {
 
   if (!snap.available || snap.lastClose === null) {
     return (
-      <Card className="p-6 text-center">
-        <BarChart3 className="mx-auto mb-2 h-6 w-6 text-muted-foreground/40" aria-hidden />
-        <p className="text-sm text-muted-foreground">
-          {ar
-            ? "لا يوجد تاريخ أسعار يومي مخزن لهذه الشركة بعد — التحليل الفني يظهر تلقائياً عند توفر بيانات الجلسات."
-            : "No daily price history stored for this company yet — the technical view appears automatically once sessions exist."}
-        </p>
-      </Card>
+      <div className="space-y-4">
+        {ticker ? (
+          <Card className="overflow-hidden p-0">
+            <CardContent className="p-0">
+              {/* TradingView is the single chart source (no platform price storage) */}
+              <TradingViewChart ticker={ticker} height={420} />
+            </CardContent>
+          </Card>
+        ) : null}
+        <Card className="p-6 text-center">
+          <BarChart3 className="mx-auto mb-2 h-6 w-6 text-muted-foreground/40" aria-hidden />
+          <p className="text-sm text-muted-foreground">
+            {ar
+              ? "لا يوجد تاريخ أسعار يومي مخزن لهذه الشركة بعد — المؤشرات المحسوبة تظهر تلقائياً عند توفر بيانات الجلسات. الشارت أعلاه من TradingView (عرض فقط)."
+              : "No daily price history stored for this company yet — the calculated indicators appear automatically once sessions exist. The chart above is TradingView (display only)."}
+          </p>
+        </Card>
+      </div>
     )
   }
 
@@ -200,6 +211,17 @@ export function TechnicalTab({ companyId }: { companyId: string }) {
 
   return (
     <div className="space-y-4">
+      {/* TradingView chart — the only price chart on company pages (the
+          platform stores no candle history; the widget is display-only and
+          EGXANO's own indicators are computed server-side below). */}
+      {ticker ? (
+        <Card className="overflow-hidden p-0">
+          <CardContent className="p-0">
+            <TradingViewChart ticker={ticker} height={460} />
+          </CardContent>
+        </Card>
+      ) : null}
+
       {/* Header + performance strip */}
       <Card className="p-0">
         <CardContent className="p-5">
