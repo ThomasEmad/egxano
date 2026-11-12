@@ -2,9 +2,14 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { PrismaClient } from "@prisma/client"
 import { NextRequest } from "next/server"
 
+// Same guard as auth.test.ts: these suites need a real Postgres test DB
+// (Neon test project). Skip explicitly when only the SQLite fallback is set.
+const testDbUrl = process.env.DATABASE_URL ?? ""
+const hasTestDb = testDbUrl.startsWith("postgresql://") || testDbUrl.startsWith("postgres://")
+
 const db = new PrismaClient()
 
-describe("access control", () => {
+describe.skipIf(!hasTestDb)("access control", () => {
   it("requirePremium rejects unauthenticated requests", async () => {
     const { requirePremium } = await import("@/lib/access")
     const req = new NextRequest("http://localhost/api/v1/test")
