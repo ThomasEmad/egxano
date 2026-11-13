@@ -4,10 +4,11 @@ import { db } from "@/lib/db"
 import { isAdmin, unauthorizedResponse } from "@/lib/admin-auth"
 import { audit } from "@/lib/audit"
 import { recomputeCompany } from "@/lib/financial/recompute"
+import { isMarketTier, MARKET_TIERS } from "@/lib/market/tiers"
 
 // Admin company management API
 // GET    ?action=list — list all companies with data status
-// PATCH  — update company { id, ticker?, nameEn?, nameAr?, sector? }
+// PATCH  — update company { id, ticker?, nameEn?, nameAr?, sector?, marketTier? }
 // DELETE ?ticker=XXX — hard delete company + all data
 // POST   — manual financial data entry
 
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   if (!(await isAdmin(req))) return await unauthorizedResponse()
   const body = await req.json()
-  const { id, ticker, nameEn, nameAr, sector } = body
+  const { id, ticker, nameEn, nameAr, sector, marketTier } = body
   if (!id) return Response.json({ error: "id required" }, { status: 400 })
 
   const data: Record<string, string> = {}
@@ -65,6 +66,12 @@ export async function PATCH(req: NextRequest) {
   if (nameEn) data.nameEn = nameEn
   if (nameAr !== undefined) data.nameAr = nameAr || null
   if (sector) data.sector = sector
+  if (marketTier !== undefined) {
+    if (!isMarketTier(marketTier)) {
+      return Response.json({ error: `marketTier must be one of: ${MARKET_TIERS.join(", ")}` }, { status: 400 })
+    }
+    data.marketTier = marketTier
+  }
   if (!Object.keys(data).length) return Response.json({ error: "nothing to update" }, { status: 400 })
 
   const updated = await db.company.update({ where: { id }, data })

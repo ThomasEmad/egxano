@@ -27,10 +27,11 @@
 //         technical tab.
 // =============================================================================
 
-import { macd, perfN, rsi, sma, smaSeries } from "./indicators"
+import { ema, emaSeries, macd, perfN, rsi } from "./indicators"
 import type { TechnicalSnapshot } from "./analyze"
+import { buildTradePlan, type TradePlan } from "./trade-plan"
 
-export const SIGNALS_VERSION = "tech-signals@1"
+export const SIGNALS_VERSION = "tech-signals@2"
 
 export type TechSignalType = "buy" | "hold" | "sell"
 
@@ -38,10 +39,18 @@ export type TechSignalType = "buy" | "hold" | "sell"
 export type TechStyleTag = "day" | "swing" | "trend" | "reversal"
 
 export const STYLE_TAG_META: Record<TechStyleTag, { ar: string; en: string }> = {
-  day: { ar: "يومي", en: "Day" },
-  swing: { ar: "سوينج", en: "Swing" },
-  trend: { ar: "توجهي", en: "Trend" },
-  reversal: { ar: "انعكاس", en: "Reversal" },
+  day: { ar: "صفقة يوم", en: "Day trade" },
+  swing: { ar: "صفقة أيام", en: "Days trade" },
+  trend: { ar: "صفقة أسابيع", en: "Weeks trade" },
+  reversal: { ar: "انعكاس محتمل", en: "Reversal watch" },
+}
+
+/** One-line Arabic hint per style — what the horizon actually means. */
+export const STYLE_TAG_HINT_AR: Record<TechStyleTag, string> = {
+  day: "تدخل وتخرج في نفس الجلسة",
+  swing: "صفقة من يومين لأسبوعين",
+  trend: "صفقة مع الاتجاه من أسابيع لشهور",
+  reversal: "السهم قرب قيعانه وممكن ينعكس لفوق",
 }
 
 export const SIGNAL_META: Record<TechSignalType, { ar: string; en: string }> = {
@@ -75,6 +84,9 @@ export interface TechStance {
   styleFits: StyleFit[]
   /** nearest technical invalidation level for the current stance (close-only engine: null) */
   invalidation: { side: "below" | "above"; level: number; labelAr: string; labelEn: string } | null
+  /** deterministic entry/stop/target zones derived from the signal (null when
+   *  no honest plan can be anchored — hold, or a sell with no usable resistance) */
+  tradePlan: TradePlan | null
   limitations: string[]
 }
 
@@ -108,29 +120,29 @@ const WEAK_SESSIONS = 15
 // ---------------------------------------------------------------------------
 
 const R = {
-  fullAlignmentUp: { code: "alignment_up", tone: "positive", ar: "السعر فوق SMA20 وSMA50 مع رصيف متوسطات صاعد.", en: "Price above SMA20 and SMA50 with a bullish moving-average stack." },
-  fullAlignmentDown: { code: "alignment_down", tone: "negative", ar: "السعر تحت SMA20 وSMA50 مع رصيف متوسطات هابط.", en: "Price below SMA20 and SMA50 with a bearish moving-average stack." },
-  aboveSma20: { code: "above_sma20", tone: "positive", ar: "السعر يتداول فوق متوسط 20 جلسة.", en: "Price is trading above its 20-session average." },
-  belowSma20: { code: "below_sma20", tone: "negative", ar: "السعر يتداول تحت متوسط 20 جلسة.", en: "Price is trading below its 20-session average." },
-  sma20SlopeUp: { code: "sma20_slope_up", tone: "positive", ar: "متوسط 20 جلسة مائل للصعود.", en: "The 20-session average is sloping up." },
-  sma20SlopeDown: { code: "sma20_slope_down", tone: "negative", ar: "متوسط 20 جلسة مائل للهبوط.", en: "The 20-session average is sloping down." },
-  macdBullish: { code: "macd_bullish", tone: "positive", ar: "MACD موجب مع هيستوجرام صاعد.", en: "MACD is positive with a rising histogram." },
-  macdBearish: { code: "macd_bearish", tone: "negative", ar: "MACD سالب مع هيستوجرام هابط.", en: "MACD is negative with a falling histogram." },
-  macdBullCross: { code: "macd_bull_cross", tone: "positive", ar: "تقاطع MACD فوق خط الإشارة (انعكاس مبكر محتمل).", en: "MACD crossing above its signal line (possible early reversal)." },
-  macdBearCross: { code: "macd_bear_cross", tone: "negative", ar: "تقاطع MACD تحت خط الإشارة (انعكاس مبكر محتمل).", en: "MACD crossing below its signal line (possible early reversal)." },
-  rsiNeutralUp: { code: "rsi_neutral_up", tone: "positive", ar: `RSI في منطقة الزخم الصحي (45-65) دون تشبع.`, en: "RSI sits in the healthy momentum band (45-65) without overextension." },
-  rsiOverbought: { code: "rsi_overbought", tone: "negative", ar: "RSI في التشبع الشرائي — خطر تصحيح.", en: "RSI is overbought — correction risk." },
-  rsiOversold: { code: "rsi_oversold", tone: "neutral", ar: "RSI في التشبع البيعي — مراقبة انعكاس.", en: "RSI is oversold — reversal watch." },
-  obvUp: { code: "obv_up", tone: "positive", ar: "ميول تجميع في سلوك التداول (OBV صاعد).", en: "Accumulation tendency in volume behavior (OBV rising)." },
-  obvDown: { code: "obv_down", tone: "negative", ar: "ميول توزيع في سلوك التداول (OBV هابط).", en: "Distribution tendency in volume behavior (OBV falling)." },
-  volumeConfirmUp: { code: "volume_confirm", tone: "positive", ar: "حجم التداول مؤكد للحركة الصاعدة.", en: "Volume is confirming the upward move." },
-  volumeChase: { code: "volume_chase", tone: "negative", ar: "حجم مرتفع جدًا — خطر مطاردة القمة.", en: "Volume is unusually high — chase-the-top risk." },
-  notExtended: { code: "not_extended", tone: "positive", ar: "السعر ليس ممددًا فوق متوسطه القصير.", en: "Price is not extended above its short average." },
-  extended: { code: "extended", tone: "negative", ar: "السعر ممدد بعيدًا فوق متوسط 20 جلسة — منطقة دخول سيئة.", en: "Price is stretched far above its 20-session average — poor entry zone." },
-  stableVol: { code: "stable_vol", tone: "positive", ar: "تقلب يومي منضبط.", en: "Daily volatility is contained." },
-  wildVol: { code: "wild_vol", tone: "negative", ar: "تقلب يومي مرتفع — مخاطرة سعرية كبيرة.", en: "Daily volatility is elevated — high price risk." },
-  oversoldBounce: { code: "oversold_bounce", tone: "positive", ar: "أول إغلاق صاعد بعد تشبع بيعي.", en: "First positive close after an oversold reading." },
-  atRangeTop: { code: "range_top", tone: "negative", ar: "السعر عند أعلى نطاق 60 جلسة.", en: "Price sits at the top of its 60-session range." },
+  fullAlignmentUp: { code: "alignment_up", tone: "positive", ar: "السعر فوق EMA20 وEMA50 مع رصيف متوسطات صاعدة.", en: "Price above EMA20 and EMA50 with a bullish moving-average stack." },
+  fullAlignmentDown: { code: "alignment_down", tone: "negative", ar: "السعر تحت EMA20 وEMA50 مع رصيف متوسطات هابطة.", en: "Price below EMA20 and EMA50 with a bearish moving-average stack." },
+  aboveSma20: { code: "above_sma20", tone: "positive", ar: "السعر يتداول فوق متوسط آخر 20 جلسة.", en: "Price is trading above its 20-session EMA." },
+  belowSma20: { code: "below_sma20", tone: "negative", ar: "السعر يتداول تحت متوسط آخر 20 جلسة.", en: "Price is trading below its 20-session EMA." },
+  sma20SlopeUp: { code: "sma20_slope_up", tone: "positive", ar: "متوسط آخر 20 جلسة اتجاهه صاعد.", en: "The 20-session EMA is sloping up." },
+  sma20SlopeDown: { code: "sma20_slope_down", tone: "negative", ar: "متوسط آخر 20 جلسة اتجاهه هابط.", en: "The 20-session EMA is sloping down." },
+  macdBullish: { code: "macd_bullish", tone: "positive", ar: "MACD موجب مع هيستوجرام صاعد — الزخم بيدعم الصعود.", en: "MACD is positive with a rising histogram." },
+  macdBearish: { code: "macd_bearish", tone: "negative", ar: "MACD سالب مع هيستوجرام هابط — الزخم بيدعم الهبوط.", en: "MACD is negative with a falling histogram." },
+  macdBullCross: { code: "macd_bull_cross", tone: "positive", ar: "تقاطع MACD فوق خط الإشارة — بداية انعكاس محتملة.", en: "MACD crossing above its signal line (possible early reversal)." },
+  macdBearCross: { code: "macd_bear_cross", tone: "negative", ar: "تقاطع MACD تحت خط الإشارة — بداية ضعف محتملة.", en: "MACD crossing below its signal line (possible early reversal)." },
+  rsiNeutralUp: { code: "rsi_neutral_up", tone: "positive", ar: `RSI في منطقة الزخم الصح (45-65) من غير تشبع شرائي.`, en: "RSI sits in the healthy momentum band (45-65) without overextension." },
+  rsiOverbought: { code: "rsi_overbought", tone: "negative", ar: "RSI في تشبع شرائي — في خطر تصحيح.", en: "RSI is overbought — correction risk." },
+  rsiOversold: { code: "rsi_oversold", tone: "neutral", ar: "RSI في تشبع بيعي — راقب احتمالية الانعكاس.", en: "RSI is oversold — reversal watch." },
+  obvUp: { code: "obv_up", tone: "positive", ar: "ميول تجميع في سلوك التداول — OBV صاعد.", en: "Accumulation tendency in volume behavior (OBV rising)." },
+  obvDown: { code: "obv_down", tone: "negative", ar: "ميول توزيع في سلوك التداول — OBV هابط.", en: "Distribution tendency in volume behavior (OBV falling)." },
+  volumeConfirmUp: { code: "volume_confirm", tone: "positive", ar: "حجم التداول بيدعم الحركة الصاعدة.", en: "Volume is confirming the upward move." },
+  volumeChase: { code: "volume_chase", tone: "negative", ar: "حجم تداول أعلى من المعتاد بكتير — خطر المطاردة عند القمة.", en: "Volume is unusually high — chase-the-top risk." },
+  notExtended: { code: "not_extended", tone: "positive", ar: "السعر مش ممدد بعيد فوق متوسطه القصير.", en: "Price is not extended above its short EMA." },
+  extended: { code: "extended", tone: "negative", ar: "السعر بعيد جدًا فوق متوسط 20 جلسة — منطقة دخول سيئة دلوقتي.", en: "Price is stretched far above its 20-session EMA — poor entry zone." },
+  stableVol: { code: "stable_vol", tone: "positive", ar: "التقلب اليومي منضبط.", en: "Daily volatility is contained." },
+  wildVol: { code: "wild_vol", tone: "negative", ar: "التقلب اليومي مرتفع — المخاطرة السعرية كبيرة.", en: "Daily volatility is elevated — high price risk." },
+  oversoldBounce: { code: "oversold_bounce", tone: "positive", ar: "أول إغلاق صاعد بعد تشبع بيعي — محاولة ارتداد مبكرة.", en: "First positive close after an oversold reading." },
+  atRangeTop: { code: "range_top", tone: "negative", ar: "السعر عند أعلى نطاق 60 جلسة — منطقة متشبعة.", en: "Price sits at the top of its 60-session range." },
 } as const satisfies Record<string, { code: string; tone: SignalReason["tone"]; ar: string; en: string }>
 
 function reason(key: keyof typeof R): SignalReason {
@@ -156,8 +168,8 @@ export interface CloseSignalOutput extends TechStance {
   changePct: number | null
   metrics: {
     rsi14: number | null
-    sma20: number | null
-    sma50: number | null
+    ema20: number | null
+    ema50: number | null
     macdLine: number | null
     macdHist: number | null
     relVol: number | null
@@ -255,8 +267,8 @@ export function computeCloseSignal(rows: CloseRow[]): CloseSignalOutput {
 
   const m = {
     rsi14: sessions >= 16 ? rsi(closes, 14).value : null,
-    sma20: sma(closes, 20).value,
-    sma50: sessions >= 50 ? sma(closes, 50).value : null,
+    ema20: ema(closes, 20).value,
+    ema50: sessions >= 50 ? ema(closes, 50).value : null,
     macdLine: sessions >= 36 ? macd(closes).macd : null,
     macdHist: sessions >= 36 ? macd(closes).histogram : null,
     relVol: relVol(rows),
@@ -268,36 +280,36 @@ export function computeCloseSignal(rows: CloseRow[]): CloseSignalOutput {
     obvSlope20: obvSlope(rows, 20),
   }
   if (sessions < MIN_SESSIONS) limitations.push(`A full-score stance needs ${MIN_SESSIONS} sessions — dimensions with insufficient history are excluded and the score rescales.`)
-  if (sessions < 50) limitations.push("SMA50 and slower structure checks are excluded below 50 sessions.")
+  if (sessions < 50) limitations.push("EMA50 and slower structure checks are excluded below 50 sessions.")
   if (m.relVol === null) limitations.push("Volume history is too thin — volume checks are excluded.")
   if (medianGap(rows) > 7) limitations.push("Sessions are sparse (not daily) — oscillator readings are approximate.")
 
   // ---------- TREND (max 35 → rescaled over computable checks) ----------
   let trendEarned = 0
   let trendMax = 0
-  if (m.sma20 !== null) {
+  if (m.ema20 !== null) {
     trendMax += 10
-    const ok = lastClose !== null && lastClose > m.sma20
+    const ok = lastClose !== null && lastClose > m.ema20
     if (ok) trendEarned += 10
   }
-  if (m.sma50 !== null && lastClose !== null) {
+  if (m.ema50 !== null && lastClose !== null) {
     trendMax += 8
-    const ok = lastClose > m.sma50
+    const ok = lastClose > m.ema50
     if (ok) trendEarned += 8
   }
-  if (m.sma20 !== null && m.sma50 !== null) {
+  if (m.ema20 !== null && m.ema50 !== null) {
     trendMax += 9
-    const ok = m.sma20 > m.sma50
+    const ok = m.ema20 > m.ema50
     if (ok) trendEarned += 9
   }
-  const s20series = smaSeries(closes, 20)
-  const s20Now = s20series[s20series.length - 1]
-  const s20Prev = s20series[s20series.length - 6]
-  let sma20SlopeUp: boolean | null = null
-  if (s20Now !== null && s20Prev !== null && s20Prev > 0) {
+  const e20series = emaSeries(closes, 20)
+  const e20Now = e20series[e20series.length - 1]
+  const e20Prev = e20series[e20series.length - 6]
+  let ema20SlopeUp: boolean | null = null
+  if (e20Now !== null && e20Prev !== null && e20Prev > 0) {
     trendMax += 8
-    sma20SlopeUp = s20Now > s20Prev
-    if (sma20SlopeUp) trendEarned += 8
+    ema20SlopeUp = e20Now > e20Prev
+    if (ema20SlopeUp) trendEarned += 8
   }
 
   // ---------- MOMENTUM (max 30) ----------
@@ -309,8 +321,8 @@ export function computeCloseSignal(rows: CloseRow[]): CloseSignalOutput {
     if (m.rsi14 >= 45 && m.rsi14 <= 65) pts = 10
     else if (m.rsi14 > 65 && m.rsi14 <= 70) pts = 6
     else if (m.rsi14 > 70) pts = 2
-    else if (m.rsi14 >= 30 && m.rsi14 < 45) pts = (sma20SlopeUp === false ? 3 : 5)
-    else pts = (sma20SlopeUp === false ? 3 : 6) // <30 oversold — contrarian credit only off a falling tape is small
+    else if (m.rsi14 >= 30 && m.rsi14 < 45) pts = (ema20SlopeUp === false ? 3 : 5)
+    else pts = (ema20SlopeUp === false ? 3 : 6) // <30 oversold — contrarian credit only off a falling tape is small
     momEarned += pts
   }
   if (m.macdHist !== null && m.macdLine !== null) {
@@ -349,9 +361,9 @@ export function computeCloseSignal(rows: CloseRow[]): CloseSignalOutput {
   // ---------- RISK (max 15) ----------
   let riskEarned = 0
   let riskMax = 0
-  if (m.sma20 !== null && lastClose !== null) {
+  if (m.ema20 !== null && lastClose !== null) {
     riskMax += 8
-    const extPct = ((lastClose - m.sma20) / m.sma20) * 100
+    const extPct = ((lastClose - m.ema20) / m.ema20) * 100
     const pts = extPct <= 8 ? 8 : extPct <= 15 ? 4 : 0
     riskEarned += pts
   }
@@ -392,14 +404,14 @@ export function computeCloseSignal(rows: CloseRow[]): CloseSignalOutput {
   // ---------- reasons (top evidence, capped at 4) ----------
   const reasons: SignalReason[] = []
   const push = (r: SignalReason) => { if (reasons.length < 4 && !reasons.some((x) => x.code === r.code)) reasons.push(r) }
-  const upStack = lastClose !== null && m.sma20 !== null && lastClose > m.sma20 && (m.sma50 === null || m.sma20 > m.sma50)
-  const downStack = lastClose !== null && m.sma20 !== null && lastClose < m.sma20 && (m.sma50 === null || m.sma20 < m.sma50)
-  if (upStack && m.sma50 !== null) push(reason("fullAlignmentUp"))
+  const upStack = lastClose !== null && m.ema20 !== null && lastClose > m.ema20 && (m.ema50 === null || m.ema20 > m.ema50)
+  const downStack = lastClose !== null && m.ema20 !== null && lastClose < m.ema20 && (m.ema50 === null || m.ema20 < m.ema50)
+  if (upStack && m.ema50 !== null) push(reason("fullAlignmentUp"))
   else if (upStack) push(reason("aboveSma20"))
-  else if (downStack && m.sma50 !== null) push(reason("fullAlignmentDown"))
+  else if (downStack && m.ema50 !== null) push(reason("fullAlignmentDown"))
   else if (downStack) push(reason("belowSma20"))
-  if (sma20SlopeUp === true) push(reason("sma20SlopeUp"))
-  else if (sma20SlopeUp === false) push(reason("sma20SlopeDown"))
+  if (ema20SlopeUp === true) push(reason("sma20SlopeUp"))
+  else if (ema20SlopeUp === false) push(reason("sma20SlopeDown"))
   if (m.macdLine !== null && m.macdHist !== null) {
     if (m.macdLine > 0 && m.macdHist > 0) push(reason("macdBullish"))
     else if (m.macdLine < 0 && m.macdHist < 0) push(reason("macdBearish"))
@@ -416,8 +428,8 @@ export function computeCloseSignal(rows: CloseRow[]): CloseSignalOutput {
     if (m.relVol > 4) push(reason("volumeChase"))
     else if (m.relVol >= 1.0 && m.relVol <= 3.0 && changePct > 0) push(reason("volumeConfirmUp"))
   }
-  if (m.sma20 !== null && lastClose !== null) {
-    const extPct = ((lastClose - m.sma20) / m.sma20) * 100
+  if (m.ema20 !== null && lastClose !== null) {
+    const extPct = ((lastClose - m.ema20) / m.ema20) * 100
     if (extPct > 15) push(reason("extended"))
     else if (extPct <= 8 && signal === "buy") push(reason("notExtended"))
   }
@@ -426,11 +438,16 @@ export function computeCloseSignal(rows: CloseRow[]): CloseSignalOutput {
 
   // ---------- style fits ----------
   const styleFits = computeStyleFits({
-    signal, changePct, rsi: m.rsi14, sma20: m.sma20, sma50: m.sma50,
+    signal, changePct, rsi: m.rsi14, ema20: m.ema20, ema50: m.ema50,
     lastClose, macdHist: m.macdHist, relVol: m.relVol, obvSlope20: m.obvSlope20,
-    rangePos60: m.rangePos60, dailyVolPct: m.dailyVolPct, sma20SlopeUp,
+    rangePos60: m.rangePos60, dailyVolPct: m.dailyVolPct, ema20SlopeUp,
     volumePresent: m.relVol !== null,
   })
+
+  // ---------- deterministic trade plan (entry / stop / target zones) ----------
+  const tradePlan = signal !== null && lastClose !== null
+    ? buildTradePlan({ signal, lastClose, closes, atrPct: null })
+    : null
 
   return {
     version: SIGNALS_VERSION,
@@ -440,6 +457,7 @@ export function computeCloseSignal(rows: CloseRow[]): CloseSignalOutput {
     reasons,
     styleFits,
     invalidation: null, // close-only engine has no reliable level map — full bundle supplies it
+    tradePlan,
     limitations,
     sessions,
     lastClose,
@@ -461,13 +479,14 @@ function emptyStance(
     reasons: [],
     styleFits: [],
     invalidation: null,
+    tradePlan: null,
     limitations,
     sessions: base.sessions,
     lastClose: base.lastClose,
     asOf: base.asOf,
     changePct: base.changePct,
     metrics: {
-      rsi14: null, sma20: null, sma50: null, macdLine: null, macdHist: null, relVol: null,
+      rsi14: null, ema20: null, ema50: null, macdLine: null, macdHist: null, relVol: null,
       perfW1: null, perfM1: null, perfM3: null, rangePos60: null, dailyVolPct: null, obvSlope20: null,
     },
   }
@@ -481,15 +500,15 @@ function computeStyleFits(x: {
   signal: TechSignalType | null
   changePct: number | null
   rsi: number | null
-  sma20: number | null
-  sma50: number | null
+  ema20: number | null
+  ema50: number | null
   lastClose: number | null
   macdHist: number | null
   relVol: number | null
   obvSlope20: number | null
   rangePos60: number | null
   dailyVolPct: number | null
-  sma20SlopeUp: boolean | null
+  ema20SlopeUp: boolean | null
   volumePresent: boolean
 }): StyleFit[] {
   const fits: StyleFit[] = []
@@ -506,24 +525,24 @@ function computeStyleFits(x: {
   }
 
   // --- swing (days-to-weeks): momentum inside an intact trend ---
-  if (x.lastClose !== null && x.sma20 !== null) {
+  if (x.lastClose !== null && x.ema20 !== null) {
     let earned = 0
     const checks: boolean[] = []
-    checks.push(x.lastClose !== null && x.sma20 !== null && x.lastClose > x.sma20); if (checks[0]) earned++
-    checks.push(x.sma50 === null ? false : x.sma20 > x.sma50); if (checks[1]) earned++
+    checks.push(x.lastClose !== null && x.ema20 !== null && x.lastClose > x.ema20); if (checks[0]) earned++
+    checks.push(x.ema50 === null ? false : x.ema20 > x.ema50); if (checks[1]) earned++
     checks.push(x.rsi !== null && x.rsi >= 40 && x.rsi <= 75); if (checks[2]) earned++
     checks.push(x.rangePos60 !== null && x.rangePos60 >= 25 && x.rangePos60 <= 85); if (checks[3]) earned++
     checks.push(x.macdHist !== null && x.macdHist > 0); if (checks[4]) earned++
-    checks.push(x.signal === "buy" || (x.signal === "hold" && (x.sma20SlopeUp ?? false))); if (checks[5]) earned++
+    checks.push(x.signal === "buy" || (x.signal === "hold" && (x.ema20SlopeUp ?? false))); if (checks[5]) earned++
     fits.push({ tag: "swing", earned, total: checks.length })
   }
 
   // --- trend (multi-week position): durability of the uptrend ---
-  if (x.sma50 !== null) {
+  if (x.ema50 !== null) {
     let earned = 0
     const checks: boolean[] = []
-    checks.push(x.lastClose !== null && x.lastClose > x.sma50); if (checks[0]) earned++
-    checks.push(x.sma20SlopeUp === true); if (checks[1]) earned++
+    checks.push(x.lastClose !== null && x.lastClose > x.ema50); if (checks[0]) earned++
+    checks.push(x.ema20SlopeUp === true); if (checks[1]) earned++
     checks.push(x.macdHist !== null && x.macdHist > 0); if (checks[2]) earned++
     checks.push(x.obvSlope20 !== null && x.obvSlope20 > 0); if (checks[3]) earned++
     checks.push(x.signal === "buy"); if (checks[4]) earned++
@@ -562,7 +581,7 @@ export function computeStanceFromSnapshot(snap: TechnicalSnapshot): TechStance {
   if (!snap.available || last === null) {
     return {
       version: SIGNALS_VERSION, score: null, signal: null, dimensions: [],
-      reasons: [], styleFits: [], invalidation: null,
+      reasons: [], styleFits: [], invalidation: null, tradePlan: null,
       limitations: ["No daily price history is stored for this company yet."],
     }
   }
@@ -720,15 +739,15 @@ export function computeStanceFromSnapshot(snap: TechnicalSnapshot): TechStance {
     signal,
     changePct: snap.perf.d1,
     rsi: mo.rsi14,
-    sma20: t.sma20,
-    sma50: t.sma50,
+    ema20: t.ema20,
+    ema50: t.ema50,
     lastClose: last,
     macdHist: mo.macd.histogram,
     relVol: v.relVol,
     obvSlope20: v.obvSlope20,
     rangePos60: null, // full path has zones instead; range check skipped
     dailyVolPct: vol.atrPct === null ? null : vol.atrPct,
-    sma20SlopeUp: slopeUp,
+    ema20SlopeUp: slopeUp,
     volumePresent: v.relVol !== null,
   })
 
@@ -743,6 +762,16 @@ export function computeStanceFromSnapshot(snap: TechnicalSnapshot): TechStance {
     reasons,
     styleFits,
     invalidation,
+    tradePlan: signal !== null
+      ? buildTradePlan({
+          signal,
+          lastClose: last,
+          closes: [], // the snapshot carries levels, not raw bars — zones come from levels below
+          supports: snap.levels.supports,
+          resistances: snap.levels.resistances,
+          atrPct: vol.atrPct ?? null,
+        })
+      : null,
     limitations,
   }
 }

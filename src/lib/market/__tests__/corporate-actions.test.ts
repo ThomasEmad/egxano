@@ -7,6 +7,7 @@ import {
   adjustedChangePct,
   actionOnSession,
   applyCorporateActionAdjustments,
+  detectSuspiciousGaps,
   perShareRatio,
   scannerChangeSessions,
   type CorporateActionTerms,
@@ -268,5 +269,46 @@ describe("applyCorporateActionAdjustments — technical series continuity", () =
     const { bars: adj, eventsApplied } = applyCorporateActionAdjustments(bars, [])
     expect(eventsApplied).toHaveLength(0)
     expect(adj[0].close).toBe(51.02)
+  })
+})
+
+// =============================================================================
+// Admin gap detector — find unrecorded corporate actions from the price
+// series (the CANA discovery path: a >12% mechanical overnight drop).
+// =============================================================================
+describe("detectSuspiciousGaps", () => {
+  it("20% drop with no recorded actions → flagged hasAction=false", () => {
+    const bars = [
+      { ts: "2026-03-01", close: 100 },
+      { ts: "2026-03-02", close: 80 }, // −20% overnight
+      { ts: "2026-03-03", close: 81 }, // −1.25% — normal, not flagged
+    ]
+    const gaps = detectSuspiciousGaps(bars, [])
+    expect(gaps).toHaveLength(1)
+    expect(gaps[0].ts).toBe("2026-03-02")
+    expect(gaps[0].prevTs).toBe("2026-03-01")
+    expect(gaps[0].dropPct).toBeCloseTo(20, 6)
+    expect(gaps[0].hasAction).toBe(false)
+  })
+
+  it("drop with an action ex-date 2 days later → hasAction=true", () => {
+    const bars = [
+      { ts: "2026-03-10", close: 50 },
+      { ts: "2026-03-11", close: 30 }, // −40% — the CANA shape
+    ]
+    // The weekend pushed the trading session 2 days past the ex-date.
+    const gaps = detectSuspiciousGaps(bars, ["2026-03-13"])
+    expect(gaps).toHaveLength(1)
+    expect(gaps[0].hasAction).toBe(true)
+  })
+
+  it("5% drops stay below the 12% threshold → no gaps", () => {
+    const bars = [
+      { ts: "2026-03-20", close: 100 },
+      { ts: "2026-03-21", close: 95 },
+      { ts: "2026-03-22", close: 90.25 },
+      { ts: "2026-03-23", close: 85.7 },
+    ]
+    expect(detectSuspiciousGaps(bars, [])).toEqual([])
   })
 })

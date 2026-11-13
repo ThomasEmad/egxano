@@ -13,6 +13,7 @@ const links = [
   { href: "/admin/ops", labelEn: "Ops & scripts", labelAr: "العمليات والسكريبتات" },
   { href: "/admin/data-quality", labelEn: "Data quality", labelAr: "جودة البيانات" },
   { href: "/admin/companies", labelEn: "Companies", labelAr: "الشركات" },
+  { href: "/admin/actions", labelEn: "Corporate actions", labelAr: "إجراءات الشركات" },
   { href: "/admin/subscriptions", labelEn: "Subscriptions", labelAr: "الاشتراكات" },
   { href: "/admin/payments", labelEn: "Payment Requests", labelAr: "طلبات الدفع" },
 ]

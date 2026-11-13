@@ -2,32 +2,42 @@
 
 // Technical analysis tab — deterministic readings over real daily price bars.
 // Everything shown is computed server-side (src/lib/technical/analyze.ts) from
-// stored sessions; nothing is estimated. The interpretation strip at the top
-// is rule-based (counts of pre-flagged signals) — honest and reproducible.
+// stored sessions; nothing is estimated. The stance hero is rule-based
+// (documented weights) and — when the engine can form one — carries a
+// rule-derived trade plan over OBSERVED levels. Order of the page: honest
+// disclaimer → stance + plan → the story in brief → adjusted chart → price and
+// performance → indicators → market context → zones → structure → signals →
+// limitations → the raw-price TradingView embed (collapsed, for comparison).
 
+import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import {
-  Activity,
   AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
   Boxes,
-  ClipboardCheck,
+  ChevronDown,
   Gauge,
   Globe,
+  Info,
   Layers,
   Minus,
   Network,
+  ScrollText,
+  ShieldAlert,
   SquareStack,
+  Target,
+  TrendingDown,
+  TrendingUp,
   Waves,
-  Zap,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/lib/client/api"
 import { useI18n } from "@/lib/i18n"
+import { BRAND } from "@/lib/brand"
 import { TradingViewChart } from "@/components/egx/tradingview"
 import { AdjustedPriceChart, type ChartCandle } from "@/components/egx/adjusted-price-chart"
 // Type-only imports from the deterministic lib layer — erased at build time,
@@ -37,7 +47,7 @@ import type { StructureSnapshot } from "@/lib/technical/structure"
 import type { VsaSnapshot } from "@/lib/technical/vsa"
 import type { ZonesSnapshot } from "@/lib/technical/zones"
 import type { QualityScore } from "@/lib/technical/quality"
-import { SIGNAL_META, SIGNAL_WEIGHTS, STYLE_TAG_META, type TechStance } from "@/lib/technical/signals"
+import { SIGNAL_META, STYLE_TAG_META, type TechStance } from "@/lib/technical/signals"
 
 export interface TechSnapshot {
   version: string
@@ -91,15 +101,54 @@ export interface TechSnapshot {
   // --- Newer analysis sections (optional: older cached payloads omit them) ---
   /** Swing map + BOS/CHoCH events (src/lib/technical/structure.ts). */
   structure?: StructureSnapshot | null
-  /** Volume Spread Analysis events (src/lib/technical/vsa.ts). */
+  /** Volume Spread Analysis events (src/lib/technical/vsa.ts) — still in the
+   *  payload; the tab UI simply no longer renders a VSA section. */
   vsa?: VsaSnapshot | null
   /** Supply & demand zones (src/lib/technical/zones.ts). */
   zones?: ZonesSnapshot | null
   /** Market & sector context injected by the intelligence layer. */
   context?: MarketContextSection | null
-  /** Analytical quality score (src/lib/technical/quality.ts). */
+  /** Analytical quality score (src/lib/technical/quality.ts) — still in the
+   *  payload; the tab UI simply no longer renders a quality section. */
   quality?: QualityScore | null
 }
+
+// ---------------------------------------------------------------------------
+// Structural extension types — the server payload is gaining EMA fields on the
+// trend block, EMA breadth fields on the market context, and a rule-derived
+// trade plan on the stance. Declared LOCALLY so this file compiles
+// independently of the server integration; integration aligns the shapes.
+// ---------------------------------------------------------------------------
+
+type TrendWithEma = TechSnapshot["trend"] & {
+  ema20?: number | null
+  ema50?: number | null
+  ema200?: number | null
+}
+
+type ContextWithEma = MarketContextSection & {
+  aboveEma20?: number | null
+  aboveEma50?: number | null
+}
+
+/** Rule-derived trade plan attached to the stance by the server (structural). */
+interface TradePlanFields {
+  bias: "buy" | "sell"
+  entryLow: number
+  entryHigh: number
+  entryPct: number
+  stop: number
+  stopPct: number
+  targetLow: number
+  targetHigh: number
+  targetPct: number
+  riskReward: number | string
+  textAr: string
+  textEn: string
+  basisAr: string
+}
+
+type StanceWithPlan = TechStance & { tradePlan?: TradePlanFields | null }
 
 const PERF_LABELS: Array<{ key: keyof TechSnapshot["perf"]; ar: string; en: string }> = [
   { key: "d1", ar: "يوم", en: "1D" },
@@ -118,6 +167,423 @@ function pctColor(v: number | null): string {
 function pctStr(v: number | null): string {
   if (v === null) return "—"
   return `${v > 0 ? "+" : ""}${v.toFixed(2)}%`
+}
+
+function fmtN(v: number | null, digits = 2): string {
+  return v === null || !Number.isFinite(v) ? "—" : v.toFixed(digits)
+}
+
+/** Day change % from the last two DISTINCT sessions of the adjusted series. */
+function sessionChangePct(candles: ChartCandle[]): number | null {
+  if (candles.length < 2) return null
+  const last = candles[candles.length - 1]
+  let prev: ChartCandle | null = null
+  for (let i = candles.length - 2; i >= 0; i--) {
+    if (candles[i].t !== last.t) {
+      prev = candles[i]
+      break
+    }
+  }
+  if (!prev || !(prev.c > 0)) return null
+  return ((last.c - prev.c) / prev.c) * 100
+}
+
+/** Signed % chip with a direction icon — used for the recorded day change. */
+function DayChangeChip({ pct }: { pct: number | null }) {
+  if (pct === null) return <span className="text-muted-foreground">—</span>
+  const Icon = pct > 0 ? ArrowUpRight : pct < 0 ? ArrowDownRight : Minus
+  const cls = pct > 0 ? "text-positive" : pct < 0 ? "text-negative" : "text-muted-foreground"
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-sm font-bold tabular ${cls}`} dir="ltr">
+      <Icon className="h-4 w-4" aria-hidden />
+      {pctStr(pct)}
+    </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Disclaimer banner — always the FIRST element of the tab. Factual wording.
+// ---------------------------------------------------------------------------
+
+function DisclaimerBanner({ ar }: { ar: boolean }) {
+  return (
+    <div
+      role="note"
+      className="flex items-start gap-2.5 rounded-xl border border-amber-500/40 bg-amber-500/5 px-4 py-3 text-xs leading-relaxed text-amber-800 dark:text-amber-300"
+    >
+      <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+      <p className="flex-1">
+        {ar
+          ? "التحليل الفني هنا لأغراض معلوماتية وتعليمية فقط — مش توصية بشراء أو بيع أي سهم. الأرقام محسوبة على أسعار معدّلة لإجراءات الشركات، والقرار النهائي قرارك وحدك."
+          : "The technical analysis here is for informational and educational purposes only — it is not a recommendation to buy or sell any stock. Figures are computed on prices adjusted for corporate actions, and the final decision is yours alone."}
+        {" "}
+        <Link
+          href="/disclaimer"
+          className="mx-1 inline-flex items-center gap-0.5 whitespace-nowrap font-semibold underline underline-offset-4 transition-opacity hover:opacity-80"
+        >
+          {ar ? "اقرأ الإخلاء الكامل" : "Read the full disclaimer"}
+          <ArrowUpRight className="h-3 w-3" aria-hidden />
+        </Link>
+        <span className="sr-only">{ar ? BRAND.notAdviceAr : BRAND.notAdviceEn}</span>
+      </p>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Technical stance — the rule-based synthesis hero (score gauge / read /
+// dimension bars / trade plan / invalidation). The desk-note summary.
+// ---------------------------------------------------------------------------
+
+const STANCE_CLS: Record<string, { badge: string; bar: string; stroke: string; text: string }> = {
+  buy: {
+    badge: "border-positive/40 bg-positive/10 text-positive",
+    bar: "bg-positive",
+    stroke: "stroke-positive",
+    text: "text-positive",
+  },
+  hold: {
+    badge: "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    bar: "bg-amber-500",
+    stroke: "stroke-amber-500",
+    text: "text-amber-600 dark:text-amber-400",
+  },
+  sell: {
+    badge: "border-negative/40 bg-negative/10 text-negative",
+    bar: "bg-negative",
+    stroke: "stroke-negative",
+    text: "text-negative",
+  },
+}
+
+const DIM_LABELS: Record<TechStance["dimensions"][number]["key"], { ar: string; en: string }> = {
+  trend: { ar: "الاتجاه", en: "Trend" },
+  momentum: { ar: "الزخم", en: "Momentum" },
+  volume: { ar: "الحجم", en: "Volume" },
+  risk: { ar: "المخاطرة", en: "Risk" },
+}
+
+/** Circular 0-100 score gauge. Null score → honest "weak data" disc. */
+function ScoreGauge({ score, strokeCls, textCls }: { score: number | null; strokeCls: string; textCls: string }) {
+  const { lang } = useI18n()
+  const ar = lang === "ar"
+  if (score === null || !Number.isFinite(score)) {
+    return (
+      <div className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-full border border-dashed border-border/60 px-2 text-center">
+        <span className="text-[10px] leading-tight text-muted-foreground">{ar ? "بيانات غير كافية" : "Weak data"}</span>
+      </div>
+    )
+  }
+  const clamped = Math.min(100, Math.max(0, score))
+  const R = 34
+  const C = 2 * Math.PI * R
+  return (
+    <div className="relative h-24 w-24 shrink-0" role="img" aria-label={ar ? `الدرجة ${score} من 100` : `Score ${score} of 100`}>
+      <svg viewBox="0 0 88 88" className="h-full w-full -rotate-90" aria-hidden>
+        <circle cx="44" cy="44" r={R} fill="none" strokeWidth="8" className="stroke-muted" />
+        <circle
+          cx="44"
+          cy="44"
+          r={R}
+          fill="none"
+          strokeWidth="8"
+          strokeLinecap="round"
+          className={strokeCls}
+          strokeDasharray={`${((clamped / 100) * C).toFixed(1)} ${C.toFixed(1)}`}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className={`text-2xl font-bold leading-none tabular ${textCls}`} dir="ltr">
+          {score}
+        </span>
+        <span className="mt-0.5 text-[10px] text-muted-foreground" dir="ltr">/100</span>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Rule-derived trade plan — three colored zones over OBSERVED levels.
+ * Rendered only when the server attached a plan; every figure comes straight
+ * from the payload and missing numbers render as "—", never as estimates.
+ */
+function TradePlanBlock({ plan, ar }: { plan: TradePlanFields; ar: boolean }) {
+  const fmt = (v: number): string => (Number.isFinite(v) ? v.toFixed(2) : "—")
+  const pctTxt = (v: number): string => (Number.isFinite(v) ? `(${v > 0 ? "+" : ""}${v.toFixed(2)}%)` : "(—)")
+  const rr = plan.riskReward === null || plan.riskReward === undefined ? "—" : String(plan.riskReward)
+  return (
+    <div className="space-y-2.5 rounded-xl border border-border/60 bg-muted/10 p-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 text-xs font-bold">
+          <Target className="h-3.5 w-3.5 text-primary" aria-hidden />
+          {ar ? "خطة الصفقة القواعدية" : "Rule-based trade plan"}
+        </span>
+        <Badge variant="outline" className={plan.bias === "buy" ? STANCE_CLS.buy.badge : STANCE_CLS.sell.badge}>
+          {ar ? SIGNAL_META[plan.bias].ar : SIGNAL_META[plan.bias].en}
+        </Badge>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-3">
+        {/* entry — blue */}
+        <div className="rounded-lg border border-blue-500/40 bg-blue-500/5 px-3 py-2.5">
+          <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+            {plan.bias === "buy" ? <TrendingUp className="h-3 w-3" aria-hidden /> : <TrendingDown className="h-3 w-3" aria-hidden />}
+            {ar ? "منطقة الدخول" : "Entry zone"}
+          </p>
+          <p className="mt-1 text-sm font-bold tabular" dir="ltr">
+            {fmt(plan.entryLow)} – {fmt(plan.entryHigh)}
+          </p>
+        </div>
+        {/* target — green */}
+        <div className="rounded-lg border border-positive/40 bg-positive/5 px-3 py-2.5">
+          <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-positive">
+            <Target className="h-3 w-3" aria-hidden />
+            {ar ? "الهدف — منطقة الخروج" : "Target — exit zone"}
+          </p>
+          <p className="mt-1 text-sm font-bold tabular" dir="ltr">
+            {fmt(plan.targetLow)} – {fmt(plan.targetHigh)}
+          </p>
+          <p className="tnum text-[10px] text-muted-foreground" dir="ltr">{pctTxt(plan.targetPct)}</p>
+        </div>
+        {/* stop — red */}
+        <div className="rounded-lg border border-negative/40 bg-negative/5 px-3 py-2.5">
+          <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-negative">
+            <ShieldAlert className="h-3 w-3" aria-hidden />
+            {ar ? "وقف الخسارة" : "Stop loss"}
+          </p>
+          <p className="mt-1 text-sm font-bold tabular" dir="ltr">{fmt(plan.stop)}</p>
+          <p className="tnum text-[10px] text-muted-foreground" dir="ltr">{pctTxt(plan.stopPct)}</p>
+        </div>
+      </div>
+
+      <p className="text-xs">
+        <span className="font-medium">{ar ? "المخاطرة/العائد: " : "Risk/reward: "}</span>
+        <span className="tnum font-bold" dir="ltr">{rr}</span>
+      </p>
+
+      {plan.textAr || plan.textEn ? (
+        <p className="text-xs leading-relaxed text-muted-foreground">{ar ? plan.textAr : plan.textEn}</p>
+      ) : null}
+
+      {ar && plan.basisAr ? (
+        <p className="text-[10px] leading-relaxed text-muted-foreground">{ar ? `الأساس: ${plan.basisAr}` : plan.basisAr}</p>
+      ) : null}
+
+      <p className="text-[10px] leading-relaxed text-muted-foreground">
+        {ar
+          ? "المناطق مبنية على مستويات مرصودة في السلسلة المعدّلة — وليست توصية."
+          : "Zones derive from observed levels on the adjusted series — not advice."}
+      </p>
+    </div>
+  )
+}
+
+function StanceCard({ stance, verdict, pos, neg, ar }: { stance: StanceWithPlan; verdict: string; pos: number; neg: number; ar: boolean }) {
+  const cls = stance.signal ? STANCE_CLS[stance.signal] : null
+  const plan = stance.tradePlan ?? null
+  return (
+    <Card className="p-0">
+      <CardHeader className="px-5 pb-2">
+        <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <span className="flex items-center gap-2">
+            <Gauge className="h-3.5 w-3.5 text-primary" aria-hidden />
+            {ar ? "الخلاصة الفنية" : "Technical stance"}
+          </span>
+          {stance.signal && cls ? (
+            <Badge variant="outline" className={cls.badge}>
+              {ar ? SIGNAL_META[stance.signal].ar : SIGNAL_META[stance.signal].en}
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="border-border/40 text-muted-foreground/70">{ar ? "بيانات غير كافية" : "Weak data"}</Badge>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 px-5 pb-5">
+        {/* score gauge + dimension bars */}
+        <div className="flex flex-wrap items-center gap-5">
+          <ScoreGauge score={stance.score} strokeCls={cls?.stroke ?? "stroke-primary"} textCls={cls?.text ?? ""} />
+          {stance.score !== null ? (
+            <div className="grid min-w-[220px] flex-1 gap-1.5">
+              {stance.dimensions.map((d) => {
+                const pct = d.max > 0 ? Math.round((d.earned / d.max) * 100) : 0
+                return (
+                  <div key={d.key} className="flex items-center gap-2">
+                    <span className="w-20 shrink-0 text-[11px] text-muted-foreground">{ar ? DIM_LABELS[d.key].ar : DIM_LABELS[d.key].en}</span>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                      <div className={`h-full rounded-full ${stance.signal && STANCE_CLS[stance.signal] ? STANCE_CLS[stance.signal].bar : "bg-primary"}`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="w-14 shrink-0 text-end text-[10px] tabular text-muted-foreground" dir="ltr">{d.earned}/{d.max}</span>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            stance.limitations[0] ? (
+              <p className="min-w-[220px] flex-1 text-xs leading-relaxed text-muted-foreground">{stance.limitations[0]}</p>
+            ) : null
+          )}
+        </div>
+
+        {/* client-composed verdict sentence (counts of pre-flagged signals) */}
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
+          <p className="text-xs font-medium">{verdict}</p>
+          <span className="text-[11px] text-muted-foreground">
+            · {ar ? `${pos} إشارة إيجابية / ${neg} سلبية` : `${pos} positive / ${neg} negative signals`}
+          </span>
+        </div>
+
+        {/* trade plan — prominent when the engine can form one */}
+        {plan ? (
+          <TradePlanBlock plan={plan} ar={ar} />
+        ) : (
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {ar ? "مفيش منطقة دخول واضحة دلوقتي — القراءة استنتاجية والانتظار أفضل." : "No clear entry zone right now — the read is inconclusive and waiting is better."}
+          </p>
+        )}
+
+        {stance.styleFits.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-muted-foreground">{ar ? "مناسب لأنماط:" : "Fits styles:"}</span>
+            {stance.styleFits.map((f) => (
+              <Badge key={f.tag} variant="secondary" className="text-[10px]">
+                {ar ? STYLE_TAG_META[f.tag].ar : STYLE_TAG_META[f.tag].en}
+                <span className="ms-1 tabular opacity-70">{f.earned}/{f.total}</span>
+              </Badge>
+            ))}
+          </div>
+        ) : null}
+
+        {stance.invalidation ? (
+          <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden />
+            <span>{ar ? stance.invalidation.labelAr : stance.invalidation.labelEn}</span>
+          </div>
+        ) : null}
+
+        {stance.limitations.length > 0 && stance.score !== null ? (
+          <p className="text-[10px] leading-relaxed text-muted-foreground">{ar ? "حدود: " : "Limits: "}{stance.limitations.join(" · ")}</p>
+        ) : null}
+
+        <p className="text-[10px] text-muted-foreground">
+          {ar
+            ? "قراءة قواعدية حتمية بأوزان معلنة (اتجاه 35 / زخم 30 / حجم 20 / مخاطرة 15) من الأسعار المسجلة — ليست توصية استثمارية ولا سعرًا مستهدفًا."
+            : "A deterministic rule-based read with disclosed weights (trend 35 / momentum 30 / volume 20 / risk 15) over recorded prices — not investment advice and not a price target."}
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// "القصة في سطور" — client-composed story bullets (null-safe; a bullet simply
+// does not render when its input is missing). No number is invented here.
+// ---------------------------------------------------------------------------
+
+type StoryTone = "positive" | "negative" | "amber" | "neutral" | "primary"
+
+const STORY_DOT: Record<StoryTone, string> = {
+  positive: "bg-positive",
+  negative: "bg-negative",
+  amber: "bg-amber-500",
+  neutral: "bg-muted-foreground",
+  primary: "bg-primary",
+}
+
+function StoryList({ snap, stance, ar }: { snap: TechSnapshot; stance: StanceWithPlan | undefined; ar: boolean }) {
+  const bullets: { tone: StoryTone; text: string }[] = []
+
+  // 1) the first stance reason — the line that moved the score
+  const reason0 = stance?.reasons?.[0]
+  if (reason0) {
+    bullets.push({
+      tone: reason0.tone === "positive" ? "positive" : reason0.tone === "negative" ? "negative" : "neutral",
+      text: ar ? reason0.ar : reason0.en,
+    })
+  }
+
+  // 2) short/medium structure sentence
+  const st = snap.structure
+  if (st?.available) {
+    const label = (s: "uptrend" | "downtrend" | "range" | null): string =>
+      s === "uptrend" ? (ar ? "صاعد" : "uptrend")
+        : s === "downtrend" ? (ar ? "هابط" : "downtrend")
+          : s === "range" ? (ar ? "عرضي" : "ranging")
+            : (ar ? "غير محدد" : "unclear")
+    if (st.trend.short !== null || st.trend.medium !== null) {
+      const short = label(st.trend.short)
+      const medium = label(st.trend.medium)
+      bullets.push({
+        tone: st.trend.short === "uptrend" ? "positive" : st.trend.short === "downtrend" ? "negative" : "neutral",
+        text: ar ? `الهيكل قصير المدى ${short} والمتوسط ${medium}.` : `Short-term structure is ${short} and the medium term is ${medium}.`,
+      })
+    }
+  }
+
+  // 3) + 4) nearest demand / supply zones (nearest by distance from last close)
+  const zones = snap.zones?.available ? (snap.zones.zones ?? []) : []
+  const nearest = (kind: "demand" | "supply") =>
+    zones
+      .filter((z) => z.kind === kind)
+      .sort((a, b) => Math.abs(a.distPct) - Math.abs(b.distPct))[0] ?? null
+  const demand = nearest("demand")
+  const supply = nearest("supply")
+  if (demand) {
+    bullets.push({
+      tone: "positive",
+      text: ar
+        ? `أقرب منطقة طلب عند ${demand.low.toFixed(2)}–${demand.high.toFixed(2)} (${pctStr(demand.distPct)}).`
+        : `Nearest demand zone at ${demand.low.toFixed(2)}–${demand.high.toFixed(2)} (${pctStr(demand.distPct)}).`,
+    })
+  }
+  if (supply) {
+    bullets.push({
+      tone: "negative",
+      text: ar
+        ? `أقرب منطقة عرض عند ${supply.low.toFixed(2)}–${supply.high.toFixed(2)} (${pctStr(supply.distPct)}).`
+        : `Nearest supply zone at ${supply.low.toFixed(2)}–${supply.high.toFixed(2)} (${pctStr(supply.distPct)}).`,
+    })
+  }
+
+  // 5) RSI sentence
+  const rsi = snap.momentum.rsi14
+  if (rsi !== null && Number.isFinite(rsi)) {
+    const zone = rsi >= 70 ? (ar ? "تشبع شرائي" : "overbought") : rsi <= 30 ? (ar ? "تشبع بيعي" : "oversold") : (ar ? "منطقة محايدة" : "neutral")
+    bullets.push({
+      tone: rsi >= 70 ? "amber" : rsi <= 30 ? "amber" : "neutral",
+      text: ar
+        ? `مؤشر القوة النسبية ${rsi.toFixed(1)} — ${zone}.`
+        : `RSI(14) at ${rsi.toFixed(1)} — ${zone}.`,
+    })
+  }
+
+  // 6) 60-session range position — skipped: the full-snapshot stance carries no
+  //    rangePos60 metric, and the tab never invents one.
+
+  if (bullets.length === 0) return null
+  return (
+    <Card className="p-0">
+      <CardHeader className="px-5 pb-2">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <ScrollText className="h-3.5 w-3.5 text-primary" aria-hidden />
+          {ar ? "القصة في سطور" : "The story in brief"}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-5 pb-5">
+        <ol className="space-y-1.5">
+          {bullets.map((b, i) => (
+            <li key={i} className="flex items-start gap-2 text-xs leading-relaxed">
+              <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${STORY_DOT[b.tone]}`} aria-hidden />
+              <span className="flex-1">{b.text}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-2 text-[10px] text-muted-foreground">
+          {ar ? "قراءة تجميعية من الأقسام التفصيلية في هذه الصفحة." : "A composed summary of the detailed sections on this page."}
+        </p>
+      </CardContent>
+    </Card>
+  )
 }
 
 function AlignmentChip({ value, ar }: { value: string | null; ar: boolean }) {
@@ -176,11 +642,16 @@ function RsiGauge({ rsi }: { rsi: number | null }) {
 // ---------------------------------------------------------------------------
 // Market & sector context strip — injected by the market-intelligence layer.
 // Rendered only when the section is actually available; absent → nothing.
+// Breadth chips prefer the EMA fields when the intelligence layer provides
+// them; the SMA chips stay honest (never relabelled) when only SMA exists.
 // ---------------------------------------------------------------------------
 
 function MarketContextStrip({ ctx, ar }: { ctx: MarketContextSection; ar: boolean }) {
+  const c = ctx as ContextWithEma
   const b = ctx.breadth
   const sector = ctx.sector
+  const ema20 = c.aboveEma20 ?? null
+  const ema50 = c.aboveEma50 ?? null
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border/60 bg-muted/10 px-4 py-3">
       <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -212,12 +683,20 @@ function MarketContextStrip({ ctx, ar }: { ctx: MarketContextSection; ar: boolea
           {b.unchanged > 0 ? <span className="text-muted-foreground"> / {b.unchanged}</span> : null}
         </span>
       ) : null}
-      {ctx.pctAboveSma20 !== null ? (
+      {ema20 !== null ? (
+        <span className="text-[11px] text-muted-foreground">
+          {ar ? "فوق EMA20" : "above EMA20"} <span className="tnum" dir="ltr">{ema20.toFixed(0)}%</span>
+        </span>
+      ) : ctx.pctAboveSma20 !== null ? (
         <span className="text-[11px] text-muted-foreground">
           {ar ? "فوق SMA20" : "above SMA20"} <span className="tnum" dir="ltr">{ctx.pctAboveSma20.toFixed(0)}%</span>
         </span>
       ) : null}
-      {ctx.pctAboveSma50 !== null ? (
+      {ema50 !== null ? (
+        <span className="text-[11px] text-muted-foreground">
+          {ar ? "فوق EMA50" : "above EMA50"} <span className="tnum" dir="ltr">{ema50.toFixed(0)}%</span>
+        </span>
+      ) : ctx.pctAboveSma50 !== null ? (
         <span className="text-[11px] text-muted-foreground">
           {ar ? "فوق SMA50" : "above SMA50"} <span className="tnum" dir="ltr">{ctx.pctAboveSma50.toFixed(0)}%</span>
         </span>
@@ -345,7 +824,7 @@ function StructureSection({ structure, ar }: { structure: StructureSnapshot | nu
                     <Badge variant="outline" className="shrink-0 bg-background/50 font-bold">
                       {e.code === "CHOCH" ? "CHoCH" : "BOS"}
                     </Badge>
-                    <span className="min-w-0 flex-1">{ar ? e.textAr : e.text}</span>
+                    <span className="min-w-0 flex-1 font-medium text-foreground">{ar ? e.textAr : e.text}</span>
                     <span className="flex shrink-0 flex-wrap items-center gap-1.5">
                       {e.volumeSupported !== null ? (
                         <span
@@ -428,89 +907,8 @@ function StructureSection({ structure, ar }: { structure: StructureSnapshot | nu
 }
 
 // ---------------------------------------------------------------------------
-// Volume Spread Analysis (VSA) — spread/volume events with tone coloring.
-// ---------------------------------------------------------------------------
-
-const VSA_EVENT_AR: Record<string, string> = {
-  selling_climax: "ذروة بيع",
-  buying_climax: "ذروة شراء",
-  stopping_volume: "حجم مكبح",
-  no_demand: "لا طلب",
-  no_supply: "لا عرض",
-  effort_no_result: "جهد بلا نتيجة",
-}
-
-function VsaSection({ vsa, ar }: { vsa: VsaSnapshot | null | undefined; ar: boolean }) {
-  if (!vsa) return null
-  return (
-    <Card className="p-0">
-      <CardHeader className="px-5 pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <Zap className="h-3.5 w-3.5 text-primary" aria-hidden />
-          {ar ? "تحليل الانتشار والحجم (VSA)" : "Volume Spread Analysis (VSA)"}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2 px-5 pb-5">
-        {!vsa.available ? (
-          <p className="text-xs text-muted-foreground">
-            {vsa.reason ?? (ar ? "تحليل الانتشار والحجم غير متاح لهذه البيانات." : "VSA unavailable for this data.")}
-          </p>
-        ) : vsa.events.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            {ar ? "لا أحداث انتشار مؤهلة في جلسات المسح الأخيرة." : "No qualifying spread events in the scanned sessions."}
-          </p>
-        ) : (
-          <div className="space-y-1.5">
-            {vsa.events.map((e, i) => (
-              <div
-                key={`${e.code}-${e.ts}-${i}`}
-                className={`flex flex-wrap items-start gap-2 rounded-lg border px-3 py-2 text-xs leading-relaxed ${
-                  e.tone === "bullish-leaning"
-                    ? "border-positive/30 bg-positive/5 text-positive"
-                    : e.tone === "bearish-leaning"
-                      ? "border-negative/30 bg-negative/5 text-negative"
-                      : "border-border/60 bg-muted/20 text-muted-foreground"
-                }`}
-              >
-                <Badge variant="outline" className="shrink-0 bg-background/50">
-                  {ar ? (VSA_EVENT_AR[e.code] ?? e.code) : e.code.replace(/_/g, " ")}
-                </Badge>
-                <span className="min-w-0 flex-1">{ar ? e.textAr : e.text}</span>
-                <span className="flex shrink-0 items-center gap-2 text-[10px] text-muted-foreground">
-                  <span className="tnum" dir="ltr">{e.volRatio.toFixed(1)}×</span>
-                  <span className="tnum" dir="ltr">{e.spreadPct > 0 ? "+" : ""}{e.spreadPct.toFixed(1)}%</span>
-                  {e.followThrough ? (
-                    <span className={e.followThrough === "recovered" ? "font-semibold text-positive" : "font-semibold text-negative"}>
-                      {e.followThrough === "recovered" ? (ar ? "تبع مؤكد" : "follow-through") : (ar ? "فشل التبع" : "failed follow-through")}
-                    </span>
-                  ) : null}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-        <p className="text-[11px] text-muted-foreground">
-          {vsa.baselineVolume !== null
-            ? ar
-              ? `خط الأساس: ~${Math.round(vsa.baselineVolume).toLocaleString("en-GB")} سهم · نافذة ${vsa.baselineWindow} جلسة.`
-              : `Baseline ≈ ${Math.round(vsa.baselineVolume).toLocaleString("en-GB")} shares over a ${vsa.baselineWindow}-session window.`
-            : ar
-              ? `نافذة خط الأساس: ${vsa.baselineWindow} جلسة.`
-              : `Baseline window: ${vsa.baselineWindow} sessions.`}
-        </p>
-        {vsa.limitations.length > 0 ? (
-          <p className="text-[10px] leading-relaxed text-muted-foreground">
-            {ar ? "حدود: " : "Limitations: "}
-            {vsa.limitations.join(" · ")}
-          </p>
-        ) : null}
-      </CardContent>
-    </Card>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Supply & demand zones — kind-colored cards with a quality meter.
+// Supply & demand zones — kind-colored cards with a quality meter and an
+// honest usage hint per zone kind.
 // ---------------------------------------------------------------------------
 
 function ZonesSection({ zones, ar }: { zones: ZonesSnapshot | null | undefined; ar: boolean }) {
@@ -564,6 +962,11 @@ function ZonesSection({ zones, ar }: { zones: ZonesSnapshot | null | undefined; 
                   {z.kind === "demand" ? (ar ? "الإبطال تحت" : "Invalidation below") : (ar ? "الإبطال فوق" : "Invalidation above")}{" "}
                   <span className="tnum" dir="ltr">{z.invalidation.toFixed(2)}</span>
                 </p>
+                <p className="mt-1 font-medium">
+                  {z.kind === "demand"
+                    ? <span className="text-positive">{ar ? "تناسب انتظار منطقة الدخول" : "A reasonable zone to wait for an entry"}</span>
+                    : <span className="text-negative">{ar ? "منطقة أخذ أرباح محتملة" : "Potential profit-taking zone"}</span>}
+                </p>
                 <p className="mt-1.5 leading-relaxed">{ar ? z.textAr : z.text}</p>
               </div>
             ))}
@@ -581,203 +984,8 @@ function ZonesSection({ zones, ar }: { zones: ZonesSnapshot | null | undefined; 
 }
 
 // ---------------------------------------------------------------------------
-// Analytical quality score — completeness/evidence score, NOT a trade forecast.
+// The tab
 // ---------------------------------------------------------------------------
-
-const QUALITY_BAND_META: Record<QualityScore["band"], { ar: string; en: string; cls: string }> = {
-  high: { ar: "أصلي", en: "High", cls: "border-positive/40 bg-positive/10 text-positive" },
-  good: { ar: "جيد", en: "Good", cls: "border-primary/40 bg-primary/10 text-primary" },
-  incomplete: { ar: "ناقص", en: "Incomplete", cls: "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400" },
-  weak: { ar: "ضعيف", en: "Weak", cls: "border-negative/40 bg-negative/10 text-negative" },
-  blocked: { ar: "مقيّد ببوابة بيانات", en: "Blocked by data gate", cls: "border-destructive/40 bg-destructive/10 text-destructive" },
-}
-
-function QualitySection({ quality, ar }: { quality: QualityScore | null | undefined; ar: boolean }) {
-  if (!quality) return null
-  const band = QUALITY_BAND_META[quality.band]
-  return (
-    <Card className="p-0">
-      <CardHeader className="px-5 pb-2">
-        <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span className="flex items-center gap-2">
-            <ClipboardCheck className="h-3.5 w-3.5 text-primary" aria-hidden />
-            {ar ? "الجودة التحليلية للقراءة" : "Analytical quality"}
-          </span>
-          <Badge variant="outline" className={band.cls}>{ar ? band.ar : band.en}</Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 px-5 pb-5">
-        <div className="flex items-center gap-3">
-          <span className="tnum shrink-0 text-2xl font-bold" dir="ltr">
-            {quality.score}
-            <span className="text-sm font-medium text-muted-foreground">/100</span>
-          </span>
-          {/* Segmented bar: segment width = weight, fill = earned/weight */}
-          <div className="flex h-2.5 min-w-[120px] flex-1 gap-px overflow-hidden rounded-full bg-muted">
-            {quality.dimensions.map((d) => (
-              <div
-                key={d.key}
-                className="relative h-full"
-                style={{ flexGrow: Math.max(1, d.weight) }}
-                title={`${ar ? d.labelAr : d.label}: ${d.earned}/${d.weight}`}
-              >
-                <div
-                  className="absolute inset-y-0 start-0 rounded-full bg-primary"
-                  style={{ width: `${Math.min(100, Math.max(0, (d.earned / Math.max(1, d.weight)) * 100))}%` }}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-        {quality.gateVeto ? (
-          <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs leading-relaxed text-destructive">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-            <span>{quality.gateVeto}</span>
-          </div>
-        ) : null}
-        <div className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
-          {quality.dimensions.map((d) => (
-            <div key={d.key} className="rounded-lg border border-border/50 px-3 py-2">
-              <div className="flex items-center justify-between gap-2 text-xs">
-                <span className="min-w-0 truncate font-medium" title={ar ? d.labelAr : d.label}>{ar ? d.labelAr : d.label}</span>
-                <span className="tnum shrink-0 text-muted-foreground" dir="ltr">{d.earned}/{d.weight}</span>
-              </div>
-              <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{d.reason}</p>
-            </div>
-          ))}
-        </div>
-        {quality.conflicts.length > 0 ? (
-          <div className="space-y-1.5">
-            {quality.conflicts.map((c, i) => (
-              <div
-                key={i}
-                className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs leading-relaxed text-amber-700 dark:text-amber-400"
-              >
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                <span>{ar ? "تعارض مرصود: " : "Flagged conflict: "}{c}</span>
-              </div>
-            ))}
-          </div>
-        ) : null}
-        <p className="text-[10px] text-muted-foreground">
-          {ar
-            ? "يقيس هذا الرصد اكتمال التحليل وجودة الأدلة — وليس احتمال نجاح صفقة."
-            : "Measures analytical completeness and evidence quality — not trade success probability."}
-        </p>
-      </CardContent>
-    </Card>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Technical stance — the rule-based synthesis card (score / read / style fits
-// / invalidation level). Sits at the top of the tab: the desk-note summary.
-// ---------------------------------------------------------------------------
-
-const STANCE_CLS: Record<string, { badge: string; bar: string }> = {
-  buy: { badge: "border-positive/40 bg-positive/10 text-positive", bar: "bg-positive" },
-  hold: { badge: "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400", bar: "bg-amber-500" },
-  sell: { badge: "border-negative/40 bg-negative/10 text-negative", bar: "bg-negative" },
-}
-
-const DIM_LABELS: Record<TechStance["dimensions"][number]["key"], { ar: string; en: string }> = {
-  trend: { ar: "الاتجاه", en: "Trend" },
-  momentum: { ar: "الزخم", en: "Momentum" },
-  volume: { ar: "الحجم", en: "Volume" },
-  risk: { ar: "المخاطرة", en: "Risk" },
-}
-
-function StanceCard({ stance, ar }: { stance: TechStance; ar: boolean }) {
-  const cls = stance.signal ? STANCE_CLS[stance.signal] : null
-  return (
-    <Card className="p-0">
-      <CardHeader className="px-5 pb-2">
-        <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span className="flex items-center gap-2">
-            <Gauge className="h-3.5 w-3.5 text-primary" aria-hidden />
-            {ar ? "الخلاصة الفنية — قراءة قواعدية" : "Technical stance — rule-based read"}
-          </span>
-          {stance.signal && cls ? (
-            <Badge variant="outline" className={cls.badge}>
-              {ar ? SIGNAL_META[stance.signal].ar : SIGNAL_META[stance.signal].en}
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="border-border/40 text-muted-foreground/70">{ar ? "بيانات غير كافية" : "Weak data"}</Badge>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 px-5 pb-5">
-        {stance.score !== null ? (
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="tnum text-3xl font-bold" dir="ltr">
-              {stance.score}
-              <span className="text-sm font-medium text-muted-foreground">/100</span>
-            </span>
-            <div className="grid min-w-[220px] flex-1 gap-1.5">
-              {stance.dimensions.map((d) => {
-                const pct = d.max > 0 ? Math.round((d.earned / d.max) * 100) : 0
-                return (
-                  <div key={d.key} className="flex items-center gap-2">
-                    <span className="w-20 shrink-0 text-[11px] text-muted-foreground">{ar ? DIM_LABELS[d.key].ar : DIM_LABELS[d.key].en}</span>
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                      <div className={`h-full rounded-full ${stance.signal && STANCE_CLS[stance.signal] ? STANCE_CLS[stance.signal].bar : "bg-primary"}`} style={{ width: `${pct}%` }} />
-                    </div>
-                    <span className="w-14 shrink-0 text-end text-[10px] tabular text-muted-foreground" dir="ltr">{d.earned}/{d.max}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        ) : (
-          stance.limitations[0] ? <p className="text-xs text-muted-foreground">{stance.limitations[0]}</p> : null
-        )}
-
-        {stance.reasons.length > 0 ? (
-          <ul className="space-y-1">
-            {stance.reasons.map((r) => (
-              <li key={r.code} className="flex items-start gap-1.5 text-xs leading-relaxed">
-                <span
-                  className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${r.tone === "positive" ? "bg-positive" : r.tone === "negative" ? "bg-negative" : "bg-muted-foreground"}`}
-                  aria-hidden
-                />
-                <span className="text-muted-foreground">{ar ? r.ar : r.en}</span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-
-        {stance.styleFits.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] text-muted-foreground">{ar ? "مناسب لأنماط:" : "Fits styles:"}</span>
-            {stance.styleFits.map((f) => (
-              <Badge key={f.tag} variant="secondary" className="text-[10px]">
-                {ar ? STYLE_TAG_META[f.tag].ar : STYLE_TAG_META[f.tag].en}
-                <span className="ms-1 tabular opacity-70">{f.earned}/{f.total}</span>
-              </Badge>
-            ))}
-          </div>
-        ) : null}
-
-        {stance.invalidation ? (
-          <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden />
-            <span>{ar ? stance.invalidation.labelAr : stance.invalidation.labelEn}</span>
-          </div>
-        ) : null}
-
-        {stance.limitations.length > 0 && stance.score !== null ? (
-          <p className="text-[10px] leading-relaxed text-muted-foreground">{ar ? "حدود: " : "Limits: "}{stance.limitations.join(" · ")}</p>
-        ) : null}
-
-        <p className="text-[10px] text-muted-foreground">
-          {ar
-            ? "قراءة قواعدية حتمية بأوزان معلنة (اتجاه 35 / زخم 30 / حجم 20 / مخاطرة 15) من الأسعار المسجلة — ليست توصية استثمارية ولا سعرًا مستهدفًا."
-            : "A deterministic rule-based read with disclosed weights (trend 35 / momentum 30 / volume 20 / risk 15) over recorded prices — not investment advice and not a price target."}
-        </p>
-      </CardContent>
-    </Card>
-  )
-}
 
 export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?: string | null }) {
   const { lang } = useI18n()
@@ -810,15 +1018,19 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
   )
   if (isError || !snap) {
     return (
-      <Card className="p-6 text-center text-sm text-muted-foreground">
-        {ar ? "تعذر تحميل التحليل الفني الآن — أعد المحاولة." : "Technical analysis could not be loaded — try again."}
-      </Card>
+      <div className="space-y-4">
+        <DisclaimerBanner ar={ar} />
+        <Card className="p-6 text-center text-sm text-muted-foreground">
+          {ar ? "تعذر تحميل التحليل الفني الآن — أعد المحاولة." : "Technical analysis could not be loaded — try again."}
+        </Card>
+      </div>
     )
   }
 
   if (!snap.available || snap.lastClose === null) {
     return (
       <div className="space-y-4">
+        <DisclaimerBanner ar={ar} />
         {ticker ? (
           <Card className="overflow-hidden p-0">
             <CardContent className="p-0">
@@ -847,13 +1059,30 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
     : pos + neg > 0 ? (ar ? "إشارات متضاربة — السوق في انتظار حاسم" : "Mixed signals — the market is undecided")
     : ar ? "لا إشارات فنية بارزة الآن" : "No notable technical signals right now"
 
-  const fmtN = (v: number | null, digits = 2): string => (v === null ? "—" : v.toFixed(digits))
+  // Day change from the last two DISTINCT sessions of the ADJUSTED series.
+  const dayPct = sessionChangePct(candles)
+  const stance = (data.stance ?? undefined) as StanceWithPlan | undefined
+  const tr = snap.trend as TrendWithEma
+  const emaRows = [
+    { label: "EMA 20", v: tr.ema20 ?? null },
+    { label: "EMA 50", v: tr.ema50 ?? null },
+    { label: "EMA 200", v: tr.ema200 ?? null },
+  ]
 
   return (
     <div className="space-y-4">
-      {/* EGXANO's own chart over the corporate-action-ADJUSTED series — the
-          same bars every indicator below is computed from, so a bonus/cash
-          ex-date never reads as a market crash. */}
+      {/* a. honest disclaimer — always first */}
+      <DisclaimerBanner ar={ar} />
+
+      {/* b. rule-based stance hero with the trade plan */}
+      {stance ? <StanceCard stance={stance} verdict={verdict} pos={pos} neg={neg} ar={ar} /> : null}
+
+      {/* c. the story in brief */}
+      <StoryList snap={snap} stance={stance} ar={ar} />
+
+      {/* d. EGXANO's own chart over the corporate-action-ADJUSTED series with
+          EMA20/EMA50 overlays — the same bars every number below is computed
+          from, so a bonus/cash ex-date never reads as a market crash. */}
       {candles.length > 1 ? (
         <Card className="overflow-hidden p-0">
           <CardContent className="px-2 py-3 sm:px-3">
@@ -862,29 +1091,7 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
         </Card>
       ) : null}
 
-      {/* TradingView embed — display-only external view. TradingView draws the
-          RAW series, so on a company with recent corporate actions its chart
-          shows the mechanical ex-date drop; the note makes the difference
-          explicit instead of silently contradicting the adjusted numbers. */}
-      {ticker ? (
-        <Card className="overflow-hidden p-0">
-          {(snap.adjustedActions ?? 0) > 0 ? (
-            <p className="border-b border-border/60 bg-muted/40 px-4 py-2 text-[11px] leading-relaxed text-muted-foreground">
-              {ar
-                ? "ملحوظة: شارت TradingView أدناه يعرض الأسعار الخام — فيبدو هابطًا شكليًا يوم توزيع الأسهم المجانية أو الأرباح النقدية. الرسم والمؤشرات في EGXANO أعلاه محسوبة على الأسعار المعدلة."
-                : "Note: the TradingView chart below draws RAW prices — it shows a mechanical drop on bonus/cash ex-dates. EGXANO's chart and indicators above use ex-date-adjusted prices."}
-            </p>
-          ) : null}
-          <CardContent className="p-0">
-            <TradingViewChart ticker={ticker} height={420} />
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {/* Rule-based stance synthesis — the desk-note summary above the raw readings */}
-      {data.stance ? <StanceCard stance={data.stance} ar={ar} /> : null}
-
-      {/* Header + performance strip */}
+      {/* e. header + performance strip (day change from the adjusted series) */}
       <Card className="p-0">
         <CardContent className="p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -892,12 +1099,26 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 {ar ? "آخر سعر مسجل" : "Last recorded price"}
               </p>
-              <p className="text-2xl font-bold tabular" dir="ltr">
-                {snap.lastClose.toFixed(2)} <span className="text-sm font-medium text-muted-foreground">{snap.currency}</span>
-              </p>
-              <p className="text-[11px] text-muted-foreground">
+              <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+                <p className="text-2xl font-bold tabular" dir="ltr">
+                  {snap.lastClose.toFixed(2)}{" "}
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {ar && snap.currency === "EGP" ? "جنيه" : snap.currency}
+                  </span>
+                </p>
+                <span className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-muted-foreground">{ar ? "التغير" : "Change"}</span>
+                  <DayChangeChip pct={dayPct} />
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground">
                 {ar ? `${snap.sessions} جلسة مسجلة · حتى ` : `${snap.sessions} sessions · as of `}
                 <span dir="ltr">{snap.asOf ?? "—"}</span>
+              </p>
+              <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+                {ar
+                  ? "التغير محسوب من آخر جلستين في السلسلة المعدّلة لإجراءات الشركات."
+                  : "Day change computed from the last two sessions of the corporate-action-adjusted series."}
               </p>
             </div>
             <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
@@ -917,55 +1138,9 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
         </CardContent>
       </Card>
 
-      {/* Deterministic reading */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
-        <Activity className="h-4 w-4 text-primary" aria-hidden />
-        <p className="text-xs font-medium">{verdict}</p>
-        <span className="text-[11px] text-muted-foreground">
-          · {ar ? `${pos} إشارة إيجابية / ${neg} سلبية` : `${pos} positive / ${neg} negative signals`}
-        </span>
-      </div>
-
-      {/* Market & sector context (injected by the intelligence layer; absent → nothing) */}
-      {snap.context?.available ? <MarketContextStrip ctx={snap.context} ar={ar} /> : null}
-
-      {/* Pre-flagged signals */}
-      {snap.signals.length > 0 ? (
-        <Card className="p-0">
-          <CardHeader className="px-5 pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Waves className="h-3.5 w-3.5 text-primary" aria-hidden />
-              {ar ? "إشارات فنية مرصودة" : "Flagged technical signals"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1.5 px-5 pb-5">
-            {snap.signals.map((s) => (
-              <div
-                key={s.code}
-                className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs leading-relaxed ${
-                  s.tone === "positive"
-                    ? "border-positive/30 bg-positive/5 text-positive"
-                    : s.tone === "negative"
-                      ? "border-negative/30 bg-negative/5 text-negative"
-                      : "border-border/60 bg-muted/20 text-muted-foreground"
-                }`}
-              >
-                {s.tone === "positive" ? (
-                  <ArrowUpRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                ) : s.tone === "negative" ? (
-                  <ArrowDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                ) : (
-                  <Minus className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                )}
-                <span>{ar ? s.textAr : s.text}</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      ) : null}
-
+      {/* f. indicators grid */}
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Trend */}
+        {/* Trend — EMA rows; null → honest "insufficient data" */}
         <Card className="p-0">
           <CardHeader className="px-5 pb-2">
             <CardTitle className="flex items-center justify-between gap-2 text-sm">
@@ -977,32 +1152,44 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 px-5 pb-5">
-            {(
-              [
-                { label: "SMA 20", v: snap.trend.sma20, vs: snap.trend.priceVsSma20 },
-                { label: "SMA 50", v: snap.trend.sma50, vs: snap.trend.priceVsSma50 },
-                { label: "SMA 200", v: snap.trend.sma200, vs: snap.trend.priceVsSma200 },
-              ] as const
-            ).map((row) => (
-              <div key={row.label} className="flex items-center justify-between rounded-lg border border-border/50 px-3 py-2 text-xs">
-                <span className="font-medium">{row.label}</span>
-                <span className="tabular" dir="ltr">{fmtN(row.v)}</span>
-                <span className={row.vs === "above" ? "text-positive" : row.vs === "below" ? "text-negative" : "text-muted-foreground"}>
-                  {row.vs === "above" ? (ar ? "السعر فوقه" : "price above") : row.vs === "below" ? (ar ? "السعر تحته" : "price below") : "—"}
-                </span>
-              </div>
-            ))}
+            {emaRows.map((row) => {
+              const has = row.v !== null && Number.isFinite(row.v)
+              const vsPct =
+                has && snap.lastClose !== null && (row.v as number) > 0
+                  ? ((snap.lastClose - (row.v as number)) / (row.v as number)) * 100
+                  : null
+              return (
+                <div key={row.label} className="flex items-center justify-between rounded-lg border border-border/50 px-3 py-2 text-xs">
+                  <span className="font-medium">{row.label}</span>
+                  {has ? (
+                    <>
+                      <span className="tabular" dir="ltr">{(row.v as number).toFixed(2)}</span>
+                      {vsPct !== null ? (
+                        <span className={`tabular ${pctColor(vsPct)}`} dir="ltr">{pctStr(vsPct)}</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">{ar ? "بيانات غير كافية" : "Insufficient data"}</span>
+                  )}
+                </div>
+              )
+            })}
             {snap.trend.cross50200 ? (
               <p className="text-[11px] text-muted-foreground">
-                {snap.trend.cross50200 === "golden"
-                  ? ar
-                    ? `تقاطع ذهبي (50 فوق 200) قبل ${snap.trend.cross50200Age ?? "—"} جلسة.`
-                    : `Golden cross (SMA50 > SMA200) ${snap.trend.cross50200Age ?? "—"} sessions ago.`
-                  : ar
-                    ? `تقاطع سفلي (50 تحت 200) قبل ${snap.trend.cross50200Age ?? "—"} جلسة.`
-                    : `Death cross (SMA50 < SMA200) ${snap.trend.cross50200Age ?? "—"} sessions ago.`}
+                {ar ? "تقاطع 50/200: " : "50/200 cross: "}
+                <span className={snap.trend.cross50200 === "golden" ? "font-semibold text-positive" : "font-semibold text-negative"}>
+                  {snap.trend.cross50200 === "golden" ? (ar ? "ذهبي" : "golden") : (ar ? "سفلي" : "death")}
+                </span>
+                {snap.trend.cross50200Age !== null
+                  ? ar ? ` قبل ${snap.trend.cross50200Age} جلسة.` : ` · ${snap.trend.cross50200Age} sessions ago.`
+                  : ""}
               </p>
             ) : null}
+            <p className="text-[10px] text-muted-foreground">
+              {ar ? "النسبة = آخر إغلاق مسجل مقابل المتوسط." : "Percentage = last recorded close versus the average."}
+            </p>
           </CardContent>
         </Card>
 
@@ -1070,69 +1257,90 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
             ))}
           </CardContent>
         </Card>
+      </div>
 
-        {/* Volatility, volume, 52w */}
+      {/* g. market & sector context (injected by the intelligence layer; absent → nothing) */}
+      {snap.context?.available ? <MarketContextStrip ctx={snap.context} ar={ar} /> : null}
+
+      {/* h. supply & demand zones */}
+      <ZonesSection zones={snap.zones} ar={ar} />
+
+      {/* i. market structure — swings, multi-timeframe chips, BOS/CHoCH, key levels */}
+      <StructureSection structure={snap.structure} ar={ar} />
+
+      {/* j. pre-flagged signals */}
+      {snap.signals.length > 0 ? (
         <Card className="p-0">
           <CardHeader className="px-5 pb-2">
             <CardTitle className="flex items-center gap-2 text-sm">
-              <Activity className="h-3.5 w-3.5 text-primary" aria-hidden />
-              {ar ? "التقلب والحجم ونطاق 52 أسبوعاً" : "Volatility, volume & 52-week range"}
+              <Waves className="h-3.5 w-3.5 text-primary" aria-hidden />
+              {ar ? "إشارات فنية مرصودة" : "Flagged technical signals"}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 px-5 pb-5 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">ATR(14)</span>
-              <span className="tabular" dir="ltr">{fmtN(snap.volatility.atr14)} {snap.volatility.atrPct !== null ? `(${snap.volatility.atrPct.toFixed(1)}%)` : ""}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">{ar ? "بولينجر (علوي/أوسط/سفلي)" : "Bollinger (upper/mid/lower)"}</span>
-              <span className="tabular" dir="ltr">
-                {fmtN(snap.volatility.bollinger.upper)} / {fmtN(snap.volatility.bollinger.middle)} / {fmtN(snap.volatility.bollinger.lower)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">{ar ? "الحجم النسبي (مقابل 20 جلسة)" : "Relative volume (vs 20 sessions)"}</span>
-              <span className="tabular" dir="ltr">{snap.volume.relVol !== null ? `${snap.volume.relVol.toFixed(2)}×` : "—"}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">OBV {ar ? "ميل 20 جلسة" : "20-session slope"}</span>
-              <span className={`tabular ${pctColor(snap.volume.obvSlope20)}`} dir="ltr">{fmtN(snap.volume.obvSlope20)}</span>
-            </div>
-            {snap.high52w !== null && snap.low52w !== null ? (
-              <>
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-muted-foreground">52W {ar ? "القمة/القاع" : "high / low"}</span>
-                  <span className="tabular" dir="ltr">{snap.high52w.toFixed(2)} / {snap.low52w.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">{ar ? "من القمة" : "From high"}</span>
-                  <span className={`tabular ${pctColor(snap.fromHigh52wPct)}`} dir="ltr">{pctStr(snap.fromHigh52wPct)}</span>
-                </div>
-              </>
-            ) : null}
+          <CardContent className="space-y-1.5 px-5 pb-5">
+            {snap.signals.map((s) => (
+              <div
+                key={s.code}
+                className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs leading-relaxed ${
+                  s.tone === "positive"
+                    ? "border-positive/30 bg-positive/5 text-positive"
+                    : s.tone === "negative"
+                      ? "border-negative/30 bg-negative/5 text-negative"
+                      : "border-border/60 bg-muted/20 text-muted-foreground"
+                }`}
+              >
+                {s.tone === "positive" ? (
+                  <ArrowUpRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                ) : s.tone === "negative" ? (
+                  <ArrowDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                ) : (
+                  <Minus className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                )}
+                <span>{ar ? s.textAr : s.text}</span>
+              </div>
+            ))}
           </CardContent>
         </Card>
-      </div>
+      ) : null}
 
-      {/* Market structure — swings, multi-timeframe chips, BOS/CHoCH, key levels */}
-      <StructureSection structure={snap.structure} ar={ar} />
-
-      {/* Volume Spread Analysis */}
-      <VsaSection vsa={snap.vsa} ar={ar} />
-
-      {/* Supply & demand zones */}
-      <ZonesSection zones={snap.zones} ar={ar} />
-
-      {/* Analytical quality score */}
-      <QualitySection quality={snap.quality} ar={ar} />
-
+      {/* k. data limitations + the one-line disclaimer */}
       {snap.limitations.length > 0 ? (
         <p className="text-[11px] leading-relaxed text-muted-foreground">
           {ar ? "حدود البيانات: " : "Data limitations: "}
-          {ar
-            ? snap.limitations.map((l) => l).join(" · ")
-            : snap.limitations.join(" · ")}
+          {snap.limitations.join(" · ")}
         </p>
+      ) : null}
+      <p className="text-[10px] leading-relaxed text-muted-foreground">
+        {ar
+          ? "التحليل الفني هنا قواعدي حتمي من أسعار معدّلة لإجراءات الشركات — لأغراض معلوماتية وتعليمية فقط وليس توصية استثمارية."
+          : "The technical read here is deterministic and rule-based over corporate-action-adjusted prices — informational and educational only, not investment advice."}
+      </p>
+
+      {/* l. TradingView embed — collapsed by default, for comparison only.
+          TradingView draws the RAW series, so on a company with recent
+          corporate actions its chart shows the mechanical ex-date drop; the
+          note makes the difference explicit instead of silently contradicting
+          the adjusted numbers. */}
+      {ticker ? (
+        <details className="group overflow-hidden rounded-xl border border-border/60 bg-card">
+          <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center gap-2">
+              <BarChart3 className="h-3.5 w-3.5 text-primary" aria-hidden />
+              {ar ? "شارت TradingView — للمقارنة (أسعار خام)" : "TradingView chart — for comparison (raw prices)"}
+            </span>
+            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
+          </summary>
+          <div className="border-t border-border/60">
+            {(snap.adjustedActions ?? 0) > 0 ? (
+              <p className="border-b border-border/60 bg-muted/40 px-4 py-2 text-[11px] leading-relaxed text-muted-foreground">
+                {ar
+                  ? "ملحوظة: شارت TradingView أدناه يعرض الأسعار الخام — فيبدو هابطًا شكليًا يوم توزيع الأسهم المجانية أو الأرباح النقدية. الرسم والمؤشرات في EGXANO أعلاه محسوبة على الأسعار المعدلة."
+                  : "Note: the TradingView chart below draws RAW prices — it shows a mechanical drop on bonus/cash ex-dates. EGXANO's chart and indicators above use ex-date-adjusted prices."}
+              </p>
+            ) : null}
+            <TradingViewChart ticker={ticker} height={420} />
+          </div>
+        </details>
       ) : null}
     </div>
   )

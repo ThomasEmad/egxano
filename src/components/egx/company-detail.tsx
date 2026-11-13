@@ -1,11 +1,13 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import ReactMarkdown, { type Components } from "react-markdown"
 import {
   AlertTriangle,
+  ArrowDownRight,
   ArrowLeft,
+  ArrowUpRight,
   BarChart3,
   CalendarDays,
   ChartBar,
@@ -146,19 +148,82 @@ const aiMdComponents = {
   td: ({ children }) => <td className="border-b p-2 align-top tabular-nums">{children}</td>,
 }
 
+/* ---------------- Header day-change badge ---------------- */
+
+interface HistoryPoint {
+  timestamp: string
+  price: number
+}
+
+/**
+ * Day change % for the header price block, computed from the last two DISTINCT
+ * calendar-day points of the raw daily price history
+ * (GET /api/v1/market/history?symbol=…&range=1M → { data: [{ timestamp, price }] }).
+ * The badge appears only once the data arrives and hides itself entirely on
+ * failure or when fewer than two distinct days exist — the header render never
+ * blocks on it and no number is ever invented.
+ */
+function HeaderPriceChange({ ticker }: { ticker: string }) {
+  const { lang } = useI18n()
+  const ar = lang === "ar"
+  const { data } = useQuery({
+    queryKey: ["market-history-1m", ticker],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/market/history?symbol=${encodeURIComponent(ticker)}&range=1M`)
+      if (!res.ok) throw new Error(`history request failed (${res.status})`)
+      return (await res.json()) as { data?: HistoryPoint[] }
+    },
+    enabled: !!ticker,
+    staleTime: 60_000,
+    retry: 1,
+  })
+
+  const pct = useMemo<number | null>(() => {
+    const pts = (data?.data ?? []).filter(
+      (p) => p && typeof p.timestamp === "string" && Number.isFinite(p.price) && p.price > 0,
+    )
+    if (pts.length < 2) return null
+    // input is ascending; keep the LAST observed point for each calendar day
+    const byDay = new Map<string, number>()
+    for (const p of pts) byDay.set(p.timestamp.slice(0, 10), p.price)
+    const days = [...byDay.entries()]
+    if (days.length < 2) return null
+    const prev = days[days.length - 2][1]
+    const last = days[days.length - 1][1]
+    if (!(prev > 0)) return null
+    return ((last - prev) / prev) * 100
+  }, [data])
+
+  if (pct === null) return null
+  const Icon = pct > 0 ? ArrowUpRight : pct < 0 ? ArrowDownRight : Minus
+  const cls = pct > 0 ? "text-positive" : pct < 0 ? "text-negative" : "text-muted-foreground"
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-background/60 px-2 py-1">
+      <span className="text-[10px] text-muted-foreground">{ar ? "التغير" : "Change"}</span>
+      <span className={`flex items-center gap-0.5 text-sm font-bold tabular num ${cls}`}>
+        <Icon className="h-3.5 w-3.5" aria-hidden />
+        <span dir="ltr">{`${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}</span>
+      </span>
+    </span>
+  )
+}
+
 export function CompanyDetail({
   companyId,
+  initialSubTab,
   onBack,
   onOpenScanner,
 }: {
   companyId: string
+  /** Deep link: pass "technical" to open the profile on the technical sub-tab. */
+  initialSubTab?: SubTab
   onBack: () => void
   onOpenScanner?: (ruleId: string) => void
 }) {
   const { t, lang, pick } = useI18n()
   const ar = lang === "ar"
   const { toast } = useToast()
-  const [sub, setSub] = useState<SubTab>("overview")
+  const [sub, setSub] = useState<SubTab>(initialSubTab ?? "overview")
   const [basisOverride, setBasisOverride] = useState<string | null>(null)
   const [periodViewOverride, setPeriodViewOverride] = useState<string | null>(null)
 
@@ -292,9 +357,14 @@ export function CompanyDetail({
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
                   {ar ? "آخر سعر مسجّل" : "Last recorded price"}
                 </p>
-                <p className="num mt-1 text-2xl font-bold leading-none">
-                  {formatMoney(data.marketPrice.price, lang, { decimals: 2 })}
-                </p>
+                <div className="mt-1 flex flex-wrap items-end justify-between gap-2">
+                  <p className="num text-2xl font-bold leading-none">
+                    {formatMoney(data.marketPrice.price, lang, { decimals: 2 })}
+                  </p>
+                  {/* day change — computed from the raw daily history; appears when
+                      ready and hides itself on failure. Never blocks the header. */}
+                  <HeaderPriceChange ticker={c.ticker} />
+                </div>
                 <MarketDataLine
                   asOf={data.marketPrice.asOf}
                   delayMinutes={15}

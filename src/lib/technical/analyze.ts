@@ -12,6 +12,7 @@ import {
   atr,
   bollinger,
   crossType,
+  emaSeries,
   historicalVolatility,
   macd,
   onBalanceVolume,
@@ -30,7 +31,7 @@ import { analyzeVsa, type VsaSnapshot } from "./vsa"
 import { analyzeZones, type ZonesSnapshot } from "./zones"
 import { scoreQuality, type QualityScore } from "./quality"
 
-export const TECHNICAL_VERSION = "technical@2"
+export const TECHNICAL_VERSION = "technical@3"
 
 /** Keep the prompt/cache JSON compact and stable: round every float to 2 decimals. */
 function roundReplacer(_key: string, value: unknown): unknown {
@@ -95,6 +96,9 @@ export interface TechnicalSnapshot {
     sma50: number | null
     sma100: number | null
     sma200: number | null
+    ema20: number | null
+    ema50: number | null
+    ema200: number | null
     priceVsSma20: string | null
     priceVsSma50: string | null
     priceVsSma200: string | null
@@ -401,6 +405,7 @@ export function assembleBundle(bars: Bar[], context: MarketContextSection | null
     perf: { d1: null, w1: null, m1: null, m3: null, m6: null, y1: null },
     trend: {
       sma20: null, sma50: null, sma100: null, sma200: null,
+      ema20: null, ema50: null, ema200: null,
       priceVsSma20: null, priceVsSma50: null, priceVsSma200: null,
       sma20VsSma50: null, sma50VsSma200: null, alignment: null,
       cross50200: null, cross50200Age: null,
@@ -453,8 +458,14 @@ export function assembleBundle(bars: Bar[], context: MarketContextSection | null
   const s100 = sma(closes, 100).value
   const s200 = sma(closes, 200).value
   const ti = trendInfo(closes)
+  // EMA family (seeded with SMA, classic convention): null when the window is
+  // too short — same null-disclosure pattern as the SMA fields above.
+  const lastOfSeries = (series: (number | null)[]): number | null => (series.length ? (series[series.length - 1] ?? null) : null)
   base.trend = {
     sma20: s20, sma50: s50, sma100: s100, sma200: s200,
+    ema20: lastOfSeries(emaSeries(closes, 20)),
+    ema50: lastOfSeries(emaSeries(closes, 50)),
+    ema200: lastOfSeries(emaSeries(closes, 200)),
     priceVsSma20: ti.priceVsSma20, priceVsSma50: ti.priceVsSma50, priceVsSma200: ti.priceVsSma200,
     sma20VsSma50: ti.sma20VsSma50, sma50VsSma200: ti.sma50VsSma200,
     alignment: ti.alignment,

@@ -450,3 +450,75 @@ export async function loadActionsBetween(fromISO: Date, toISO: Date): Promise<Ma
   }
   return byTicker
 }
+
+// =============================================================================
+// Admin gap detector — pure, no DB.
+//
+// A close-to-close drop larger than 12% between consecutive sessions is
+// either a real crash or an UNRECORDED corporate action (exactly how the CANA
+// bonus was found: −31.9% overnight). The admin actions page runs this against
+// the stored PriceBar series and the existing action ex-dates: a gap whose
+// ex-date window (±3 calendar days) already holds a recorded action is covered
+// — anything else needs the admin to check the exchange's official notices.
+// =============================================================================
+
+/** Result row of the suspicious-gap scan. `dropPct` is in percentage points
+ *  (20 means the close fell 20% from prevTs to ts). */
+export interface SuspiciousGap {
+  ts: string // YYYY-MM-DD of the session AFTER the drop
+  prevTs: string // YYYY-MM-DD of the session BEFORE the drop
+  dropPct: number
+  hasAction: boolean
+}
+
+/** UTC YYYY-MM-DD of a Date or an already-ISO date string. */
+function gapDayISO(v: Date | string): string {
+  if (typeof v === "string") return v.slice(0, 10)
+  return v.toISOString().slice(0, 10)
+}
+
+const GAP_DROP_FRACTION = 0.12 // >12% overnight drop is worth a look
+const GAP_ACTION_WINDOW_DAYS = 3
+
+/**
+ * Scan consecutive bars (in the order given — callers pass ts ascending) and
+ * flag every >12% close-to-close drop. A drop is `hasAction: true` when ANY
+ * recorded action ex-date falls within ±3 calendar days of the drop session
+ * (weekends/holidays can push the trading day a couple of days past the
+ * ex-date; a wider window would start matching unrelated crashes).
+ * Never throws; invalid closes are skipped, not fabricated.
+ */
+export function detectSuspiciousGaps(
+  bars: { ts: Date | string; close: number }[],
+  actionExDates: (Date | string)[] = []
+): SuspiciousGap[] {
+  const exDays = actionExDates.map(gapDayISO)
+  const DAY_MS = 86_400_000
+  const hasActionNear = (dayISO: string): boolean => {
+    const t = Date.parse(`${dayISO}T00:00:00.000Z`)
+    if (Number.isNaN(t)) return false
+    return exDays.some((e) => {
+      const et = Date.parse(`${e}T00:00:00.000Z`)
+      return !Number.isNaN(et) && Math.abs(t - et) <= GAP_ACTION_WINDOW_DAYS * DAY_MS
+    })
+  }
+  const gaps: SuspiciousGap[] = []
+  let prev: { ts: string; close: number } | null = null
+  for (const b of bars) {
+    const tsISO = gapDayISO(b.ts)
+    if (!Number.isFinite(b.close) || b.close <= 0 || !tsISO || tsISO.length !== 10) continue
+    if (prev) {
+      const dropPct = ((prev.close - b.close) / prev.close) * 100
+      if (dropPct > GAP_DROP_FRACTION * 100) {
+        gaps.push({
+          ts: tsISO,
+          prevTs: prev.ts,
+          dropPct: Number(dropPct.toFixed(2)),
+          hasAction: hasActionNear(tsISO),
+        })
+      }
+    }
+    prev = { ts: tsISO, close: b.close }
+  }
+  return gaps
+}

@@ -33,7 +33,8 @@ model Company {
   website           String?
   descriptionEn String?
   descriptionAr String?
-  egxCategory   String?  // MAIN | PRIME | NILE | OTC
+  egxCategory   String?  // MAIN | PRIME | NILE | OTC (legacy)
+  marketTier    String   @default("MAIN") // EGX30 | EGX70 | MAIN (main market outside indices) | NILEX | OTC (خارج المقصورة)
   sourceUrl     String?
   irUrl         String?
   lastVerifiedAt DateTime?

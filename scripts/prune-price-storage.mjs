@@ -1,11 +1,15 @@
 #!/usr/bin/env bun
 /**
- * Price-storage slimming (user-requested, 2026-11-12):
- *  - Platform no longer keeps its own price CHART history (TradingView covers
- *    charts; TA now pulls recent bars from Yahoo on demand, memory-only).
- *  - PriceBar: keep the last 120 days as an outage fallback, delete older rows.
+ * Price-storage slimming (user-requested, 2026-11-12; PriceBar retention
+ * widened 2026-11-14 when the Yahoo candles ingest unfroze the table):
+ *  - PriceBar stores ~1y of daily OHLCV candles per company (admin ingest in
+ *    src/lib/market/candles.ts, per-company retention keeps the newest 380
+ *    sessions). This script is the global date-based safety net: keep the
+ *    last 420 days, delete older rows.
+ *    365 trading sessions ≈ 500+ calendar days is not needed; 420 days
+ *    covers a full year of sessions with margin while keeping the table small.
  *  - MarketPrice: keep the last 400 days (52w context + breadth fallbacks),
- *    delete older rows.
+ *    delete older rows (unchanged).
  *  - Both tables are backed up to reports/*.csv.gz BEFORE any deletion.
  * Idempotent and safe to re-run.
  */
@@ -54,7 +58,7 @@ async function main() {
     return;
   }
 
-  const pbRes = await db.$executeRawUnsafe(`DELETE FROM "PriceBar" WHERE ts < NOW() - INTERVAL '120 days'`);
+  const pbRes = await db.$executeRawUnsafe(`DELETE FROM "PriceBar" WHERE ts < NOW() - INTERVAL '420 days'`);
   const mpRes = await db.$executeRawUnsafe(`DELETE FROM "MarketPrice" WHERE "asOf" < NOW() - INTERVAL '400 days'`);
   const after = await db.$queryRawUnsafe(`SELECT pg_size_pretty(pg_total_relation_size('"PriceBar"')) AS pb, pg_size_pretty(pg_total_relation_size('"MarketPrice"')) AS mp`);
   console.log(`Pruned: PriceBar -${pbRes} rows, MarketPrice -${mpRes} rows`);

@@ -461,7 +461,7 @@ export default function LandingClient() {
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   {ar
-                    ? "الاتجاه والزخم والحجم والتقلب بتتدمج في درجة واحدة من 100 موثقة الأوزان، مع إشارة شراء/انتظار/ضغط بيعي وفلاتر حسب أسلوب التداول — يومي، سوينج، توجهي. كل إشارة قابلة للتحقق من الأرقام — مش توصية."
+                    ? "الاتجاه والزخم والحجم والتقلب بتتدمج في درجة واحدة من 100 موثقة الأوزان، مع إشارة شراء/انتظار/ضغط بيعي وفلاتر حسب أسلوب التداول — صفقة يوم، صفقة أيام، صفقة أسابيع. كل إشارة قابلة للتحقق من الأرقام — مش توصية."
                     : "Trend, momentum, volume and volatility merge into one documented 0-100 score with a buy / wait / sell-press read and trading-style filters — day, swing, trend. Every signal is verifiable against the numbers — not a recommendation."}
                 </p>
               </div>

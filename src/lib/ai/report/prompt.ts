@@ -54,7 +54,7 @@ OUTPUT — clean markdown in the requested language, exactly these section headi
 ## Financial Analysis
 (quality of earnings, growth, balance sheet, cash flow, valuation versus sector — cite period labels, give the mechanism behind every move, frame every figure against its comparison)
 ## Technical Analysis
-(trend and moving-average alignment first, then momentum reading, then volume behavior, then support/resistance zones with distances, then volatility; state data limitations when indicator history is short; describe what the market is pricing versus what the fundamentals show)
+(trend and EMA alignment first, then momentum reading, then support/resistance and trade-plan zones with distances; state data limitations when indicator history is short; describe what the market is pricing versus what the fundamentals show)
 ## Combined View
 (where fundamentals and technicals agree; where they conflict and what would resolve the conflict — the tension itself, stated plainly, is often the most valuable paragraph; strengths and weaknesses on both sides)
 ## Trader & Investor Lens
@@ -73,7 +73,7 @@ export const AR_INSTRUCTION =
   "## أطروحة الاستثمار\n(من ٤ إلى ٦ جمل بالأرقام والآليات تدمج الأساسيات وهيكل السعر، ولماذا الآن)\n" +
   "## أبرز الأرقام\n(جدول ماركداون مركّز بأهم الأرقام المؤثرة في القرار: الإيرادات، صافي الربح، الهوامش، صافي الدين، التدفقات، مضاعفات التقييم، RSI، المسافة من قمة 52 أسبوعاً — مع ذكر فترة كل رقم ومقارنته حيث ينفع؛ اترك أي رقم غير متوفر ولا تعبئ بالتقدير)\n" +
   "## التحليل المالي\n(جودة الأرباح، النمو، الميزانية، التدفقات، التقييم مقابل القطاع — ذكر فترة كل رقم، وبيان الآلية وراء كل حركة، ووضع كل رقم في سياقه بالمقارنة)\n" +
-  "## التحليل الفني\n(الاتجاه ورصيف المتوسطات أولًا، ثم الزخم، ثم سلوك التداول، ثم مناطق الدعم والمقاومة بمسافاتها، ثم التقلب؛ واذكر حدود البيانات حين يكون التاريخ قصيراً؛ وصف ما يسعّره السوق مقابل ما تُظهره الأساسيات)\n" +
+  "## التحليل الفني\n(الاتجاه ورصيف المتوسطات أولًا، ثم الزخم، ثم سلوك التداول، ثم مناطق الدعم والمقاومة بمسافاتها؛ واذكر حدود البيانات حين يكون التاريخ قصيراً؛ وصف ما يسعّره السوق مقابل ما تُظهره الأساسيات)\n" +
   "## الرؤية المدمجة\n(حيث تتفق الأساسيات والفنية، وحيث تتعارض وما الذي يحسم التعارض — التعارض نفسه إن وُجد فقرة قيّمة تُقال بصراحة)\n" +
   "## عدسة المضارب والمستثمر\n(قراءتان مختلفتان. فقرة المضارب قصير المدى: ما يراقبه المتداول النشط الآن — أقرب مناطق الدعم والمقاومة بمسافاتها، حالة الزخم ونقاط انعكاسه، طبيعة التداول توسع أو جفاف، التقلب (ATR كحجم حركة واقعي)، وسلوك السعر الذي يؤكد الإعداد الحالي أو ينهيه — وصف للمراقبة وليس توصيات. فقرة المستثمر طويل المدى: ما يهم حامل السنوات — متانة الأرباح، هامش الأمان في الميزانية، تغطية التوزيعات، التقييم مقابل القطاع، والتطورات الأساسية التي تغير الأطروحة. ثم فقرة قصيرة عن سيكولوجية السوق مستندة حصراً إلى بيانات الحجم/الزخم المتاحة — ميول التجميع أو التوزيع، مخاطر مطاردة القمم عند التمدد، مخاوف سيولة القلة؛ وقل «غير معروف» حين لا تستطيع البيانات الاستنتاج.)\n" +
   "## المخاطر الجوهرية والعلامات الحمراء\n(من نقطتين إلى خمس نقاط مركزة ومكمّاة، كل نقطة برقمها)\n" +

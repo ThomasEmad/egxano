@@ -54,6 +54,11 @@ export interface EnrichmentBlock {
   pctAboveSma20: number | null
   pctAboveSma50: number | null
   pctAboveSma200: number | null
+  /** EMA-breadth twins of the SMA aggregates — optional because stored blocks
+   *  written before this field existed simply lack the keys (read as null). */
+  pctAboveEma20?: number | null
+  pctAboveEma50?: number | null
+  pctAboveEma200?: number | null
   new52wHighs: number | null
   new52wLows: number | null
   universe: number
@@ -152,6 +157,9 @@ export interface MarketIntelligence {
     pctAboveSma20: number | null
     pctAboveSma50: number | null
     pctAboveSma200: number | null
+    pctAboveEma20: number | null
+    pctAboveEma50: number | null
+    pctAboveEma200: number | null
     new52wHighs: number | null
     new52wLows: number | null
     new52wWindowDays: number | null
@@ -203,6 +211,12 @@ export const marketIntelligenceSchema = z.object({
     pctAboveSma20: z.number().nullable(),
     pctAboveSma50: z.number().nullable(),
     pctAboveSma200: z.number().nullable(),
+    // EMA breadth twins — optional so intelligence snapshots persisted before
+    // these fields existed still validate (they read back as undefined and are
+    // normalized to null in getIntelligence).
+    pctAboveEma20: z.number().nullable().optional(),
+    pctAboveEma50: z.number().nullable().optional(),
+    pctAboveEma200: z.number().nullable().optional(),
     new52wHighs: z.number().nullable(),
     new52wLows: z.number().nullable(),
     new52wWindowDays: z.number().nullable(),
@@ -280,6 +294,9 @@ export const marketIntelligenceSchema = z.object({
       pctAboveSma20: z.number().nullable(),
       pctAboveSma50: z.number().nullable(),
       pctAboveSma200: z.number().nullable(),
+      pctAboveEma20: z.number().nullable().optional(),
+      pctAboveEma50: z.number().nullable().optional(),
+      pctAboveEma200: z.number().nullable().optional(),
       new52wHighs: z.number().nullable(),
       new52wLows: z.number().nullable(),
       universe: z.number(),
@@ -524,6 +541,9 @@ export function computeIntelligence(input: IntelInput): MarketIntelligence {
       advancing, declining, unchanged, ratio,
       tradedValueEgp, tradedValueCoverage: volumeCoveragePct,
       pctAboveSma20: pctAbove20, pctAboveSma50: pctAbove50, pctAboveSma200: input.enrichment?.pctAboveSma200 ?? null,
+      pctAboveEma20: input.enrichment?.pctAboveEma20 ?? null,
+      pctAboveEma50: input.enrichment?.pctAboveEma50 ?? null,
+      pctAboveEma200: input.enrichment?.pctAboveEma200 ?? null,
       new52wHighs: nh, new52wLows: nl,
       new52wWindowDays: input.enrichment ? 252 : null,
       adLine, adLineNote,

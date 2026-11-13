@@ -5,8 +5,9 @@
 // ZBorsa-style reading surface built on EGXANO's own deterministic engine:
 // rule-based confluence score (trend/momentum/volume/risk, documented weights),
 // a buy/wait/sell-press READING (disclosed as a rule output, not advice),
-// trading-style fit tags, and live filters. Every number traces to the
-// close-based engine in src/lib/technical/signals.ts.
+// trading-style fit tags, a deterministic TRADE PLAN strip (entry zone / stop /
+// target from src/lib/technical/trade-plan.ts), and live filters. Every number
+// traces to the close-based engine in src/lib/technical/signals.ts.
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
@@ -29,14 +30,19 @@ import { api } from "@/lib/client/api"
 import { useI18n } from "@/lib/i18n"
 import { useWatchlist } from "@/lib/client/watchlist"
 import { useMarketLive } from "./use-market-live"
-import { SIGNAL_META, STYLE_TAG_META, type TechSignalType, type TechStyleTag } from "@/lib/technical/signals"
+import { SIGNAL_META, STYLE_TAG_HINT_AR, STYLE_TAG_META, type TechSignalType, type TechStyleTag } from "@/lib/technical/signals"
 import type { MarketSignalRow } from "@/lib/technical/signals-service"
+import { TIER_AR } from "@/lib/market/tiers"
 
 type SignalFilter = "all" | "buy" | "hold" | "sell" | "fav"
 type StyleFilter = "all" | TechStyleTag
 type RsiFilter = "all" | "oversold" | "neutral" | "overbought"
 type LiquidityFilter = "all" | "high" | "normal"
 type DayMoveFilter = "all" | "up" | "down"
+type TierFilter = "all" | "EGX30" | "EGX70" | "MAIN" | "NILEX" | "OTC"
+type MaFilter = "all" | "aboveEma50" | "belowEma50"
+type RangePosFilter = "all" | "top" | "middle" | "bottom"
+type ScoreFilter = "all" | "s70" | "s60"
 type SortKey = "score" | "change" | "perfM1" | "rsi" | "relVol"
 
 function pctStr(v: number | null | undefined, digits = 2): string {
@@ -47,6 +53,13 @@ function pctStr(v: number | null | undefined, digits = 2): string {
 function pctCls(v: number | null | undefined): string {
   if (v === null || v === undefined) return "text-muted-foreground"
   return v > 0 ? "text-positive" : v < 0 ? "text-negative" : "text-muted-foreground"
+}
+
+/** Defensive tier label lookup — unknown/missing tiers render no badge at all. */
+function tierShort(tier: string | null | undefined): string {
+  if (!tier) return ""
+  const map = TIER_AR as unknown as Partial<Record<string, { short?: string }>> | undefined
+  return map?.[tier]?.short ?? ""
 }
 
 const SIGNAL_CLS: Record<TechSignalType, { badge: string; ring: string; dot: string }> = {
@@ -74,6 +87,10 @@ export function SignalsView() {
   const [rsiFilter, setRsiFilter] = useState<RsiFilter>("all")
   const [liquidity, setLiquidity] = useState<LiquidityFilter>("all")
   const [dayMove, setDayMove] = useState<DayMoveFilter>("all")
+  const [tierFilter, setTierFilter] = useState<TierFilter>("all")
+  const [maFilter, setMaFilter] = useState<MaFilter>("all")
+  const [rangePosFilter, setRangePosFilter] = useState<RangePosFilter>("all")
+  const [scoreFilter, setScoreFilter] = useState<ScoreFilter>("all")
   const [sector, setSector] = useState("")
   const [q, setQ] = useState("")
   const [sort, setSort] = useState<SortKey>("score")
@@ -105,6 +122,14 @@ export function SignalsView() {
     if (liquidity === "normal") list = list.filter((r) => r.metrics.relVol === null || r.metrics.relVol < 1.5)
     if (dayMove === "up") list = list.filter((r) => (r.changePct ?? 0) > 0)
     if (dayMove === "down") list = list.filter((r) => (r.changePct ?? 0) < 0)
+    if (tierFilter !== "all") list = list.filter((r) => (r.marketTier ?? "MAIN") === tierFilter)
+    if (maFilter === "aboveEma50") list = list.filter((r) => r.metrics.ema50 !== null && r.lastClose !== null && r.lastClose > r.metrics.ema50)
+    if (maFilter === "belowEma50") list = list.filter((r) => r.metrics.ema50 !== null && r.lastClose !== null && r.lastClose < r.metrics.ema50)
+    if (rangePosFilter === "top") list = list.filter((r) => r.metrics.rangePos60 !== null && r.metrics.rangePos60 >= 80)
+    if (rangePosFilter === "bottom") list = list.filter((r) => r.metrics.rangePos60 !== null && r.metrics.rangePos60 <= 20)
+    if (rangePosFilter === "middle") list = list.filter((r) => r.metrics.rangePos60 !== null && r.metrics.rangePos60 > 20 && r.metrics.rangePos60 < 80)
+    if (scoreFilter === "s70") list = list.filter((r) => (r.score ?? -1) >= 70)
+    if (scoreFilter === "s60") list = list.filter((r) => (r.score ?? -1) >= 60)
     if (sector) list = list.filter((r) => r.sector === sector)
     const needle = q.trim().toLowerCase()
     if (needle) {
@@ -126,7 +151,7 @@ export function SignalsView() {
       }
     })
     return sorted
-  }, [rows, signalFilter, styleFilter, rsiFilter, liquidity, dayMove, sector, q, sort, watch.items])
+  }, [rows, signalFilter, styleFilter, rsiFilter, liquidity, dayMove, tierFilter, maFilter, rangePosFilter, scoreFilter, sector, q, sort, watch.items])
 
   if (isLoading) {
     return (
@@ -159,6 +184,11 @@ export function SignalsView() {
       active ? "border-primary bg-primary text-primary-foreground" : "border-border/60 bg-muted/40 text-muted-foreground hover:text-foreground"
     }`
 
+  const styleHintAr = (["day", "swing", "trend", "reversal"] as TechStyleTag[])
+    .map((t) => `${STYLE_TAG_META[t].ar} = ${STYLE_TAG_HINT_AR[t]}`)
+    .join(" · ")
+  const styleHintEn = "Day trade = in and out within the session · Days trade = two days to two weeks · Weeks trade = with the trend for months · Reversal watch = near the lows"
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -170,8 +200,8 @@ export function SignalsView() {
           </h1>
           <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
             {ar
-              ? "قراءة قواعدية حتمية لكل الأسهم المتداولة من بيانات الأسعار الحقيقية — مؤشرات الاتجاه والزخم والحجم والتقلب تُدمج في درجة واحدة موثقة الأوزان. الإشارة قراءة فنية قابلة للتحقق — وليست توصية استثمارية."
-              : "A deterministic rule-based reading of every traded name from real price data — trend, momentum, volume and volatility indicators merge into one documented score. The signal is a verifiable technical reading — not an investment recommendation."}
+              ? "قراءة قواعدية حتمية لكل الأسهم المتداولة من بيانات الأسعار الحقيقية — الاتجاه والزخم ومناطق الدخول والخروج تُدمج في درجة واحدة موثقة الأوزان. الإشارة قراءة فنية قابلة للتحقق — وليست توصية استثمارية."
+              : "A deterministic rule-based reading of every traded name from real price data — trend, momentum and entry/exit zones merge into one documented score. The signal is a verifiable technical reading — not an investment recommendation."}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -211,30 +241,33 @@ export function SignalsView() {
           value={strengthPct !== null ? `${strengthPct}%` : "—"}
           tone={strengthPct !== null && strengthPct >= 55 ? "positive" : strengthPct !== null && strengthPct < 40 ? "negative" : "amber"}
           hint={
-            data.pctAboveSma20 !== null
+            data.pctAboveEma20 !== null
               ? ar
-                ? `${data.pctAboveSma20}% من الأسهم فوق متوسط 20 جلسة`
-                : `${data.pctAboveSma20}% of names above their SMA20`
+                ? `${data.pctAboveEma20}% من الأسهم فوق متوسط 20 جلسة`
+                : `${data.pctAboveEma20}% of names above their EMA20`
               : ar ? "اتساع فني" : "technical breadth"
           }
         />
       </div>
 
       {/* Style chips */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground">{ar ? "أسلوب التداول:" : "Trading style:"}</span>
-        <button className={chip(styleFilter === "all")} onClick={() => setStyleFilter("all")}>
-          {ar ? "كل الأنماط" : "All styles"}
-        </button>
-        {(["day", "swing", "trend", "reversal"] as TechStyleTag[]).map((st) => {
-          const n = rows.filter((r) => r.styleFits.some((f) => f.tag === st)).length
-          return (
-            <button key={st} className={chip(styleFilter === st)} onClick={() => setStyleFilter(st)}>
-              {ar ? STYLE_TAG_META[st].ar : STYLE_TAG_META[st].en}
-              <span className="ms-1 tabular opacity-80">{n}</span>
-            </button>
-          )
-        })}
+      <div className="space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">{ar ? "أسلوب التداول:" : "Trading style:"}</span>
+          <button className={chip(styleFilter === "all")} onClick={() => setStyleFilter("all")}>
+            {ar ? "كل الأنماط" : "All styles"}
+          </button>
+          {(["day", "swing", "trend", "reversal"] as TechStyleTag[]).map((st) => {
+            const n = rows.filter((r) => r.styleFits.some((f) => f.tag === st)).length
+            return (
+              <button key={st} className={chip(styleFilter === st)} onClick={() => setStyleFilter(st)}>
+                {ar ? STYLE_TAG_META[st].ar : STYLE_TAG_META[st].en}
+                <span className="ms-1 tabular opacity-80">{n}</span>
+              </button>
+            )
+          })}
+        </div>
+        <p className="text-xs text-muted-foreground">{ar ? styleHintAr : styleHintEn}</p>
       </div>
 
       {/* Signal filter chips */}
@@ -255,6 +288,63 @@ export function SignalsView() {
         <button className={chip(signalFilter === "fav")} onClick={() => setSignalFilter("fav")}>
           <Star className={`inline h-3 w-3 ${counts.fav > 0 ? "fill-warning text-warning" : ""}`} aria-hidden />
           {ar ? "المفضلة" : "Favorites"} <span className="ms-1 tabular opacity-80">{counts.fav}</span>
+        </button>
+      </div>
+
+      {/* Tier filter chips */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground">{ar ? "التصنيف:" : "Tier:"}</span>
+        <button className={chip(tierFilter === "all")} onClick={() => setTierFilter("all")}>
+          {ar ? "الكل" : "All"}
+        </button>
+        {(["EGX30", "EGX70", "MAIN", "NILEX", "OTC"] as Exclude<TierFilter, "all">[]).map((t) => {
+          const n = rows.filter((r) => (r.marketTier ?? "MAIN") === t).length
+          const label = ar ? (TIER_AR as unknown as Record<string, { short?: string }> | undefined)?.[t]?.short ?? t : t
+          return (
+            <button key={t} className={chip(tierFilter === t)} onClick={() => setTierFilter(t)}>
+              {label}
+              <span className="ms-1 tabular opacity-80">{n}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Moving-average / range / score filter chips */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground">{ar ? "المتوسطات:" : "Averages:"}</span>
+        <button className={chip(maFilter === "all")} onClick={() => setMaFilter("all")}>
+          {ar ? "الكل" : "All"}
+        </button>
+        <button className={chip(maFilter === "aboveEma50")} onClick={() => setMaFilter("aboveEma50")}>
+          {ar ? "فوق EMA50" : "Above EMA50"}
+        </button>
+        <button className={chip(maFilter === "belowEma50")} onClick={() => setMaFilter("belowEma50")}>
+          {ar ? "تحت EMA50" : "Below EMA50"}
+        </button>
+        <span className="mx-1 hidden text-border sm:inline" aria-hidden>|</span>
+        <span className="text-xs text-muted-foreground">{ar ? "الموقع السعري:" : "Price position:"}</span>
+        <button className={chip(rangePosFilter === "all")} onClick={() => setRangePosFilter("all")}>
+          {ar ? "الكل" : "All"}
+        </button>
+        <button className={chip(rangePosFilter === "top")} onClick={() => setRangePosFilter("top")}>
+          {ar ? "قرب قمة 60 جلسة (≥80%)" : "Near 60-session high (≥80%)"}
+        </button>
+        <button className={chip(rangePosFilter === "bottom")} onClick={() => setRangePosFilter("bottom")}>
+          {ar ? "قرب قاع (≤20%)" : "Near low (≤20%)"}
+        </button>
+        <button className={chip(rangePosFilter === "middle")} onClick={() => setRangePosFilter("middle")}>
+          {ar ? "المنتصف" : "Middle"}
+        </button>
+        <span className="mx-1 hidden text-border sm:inline" aria-hidden>|</span>
+        <span className="text-xs text-muted-foreground">{ar ? "الدرجة:" : "Score:"}</span>
+        <button className={chip(scoreFilter === "all")} onClick={() => setScoreFilter("all")}>
+          {ar ? "الكل" : "All"}
+        </button>
+        <button className={chip(scoreFilter === "s70")} onClick={() => setScoreFilter("s70")}>
+          ≥70
+        </button>
+        <button className={chip(scoreFilter === "s60")} onClick={() => setScoreFilter("s60")}>
+          ≥60
         </button>
       </div>
 
@@ -328,8 +418,8 @@ export function SignalsView() {
       {data.weakData > 0 || data.rows.some((r) => r.limitations.length > 0) ? (
         <p className="text-[11px] leading-relaxed text-muted-foreground">
           {ar
-            ? `الشفافية: الحساب يعمل على أسعار الإغلاق اليومية من مسح السوق (${data.scored} شركة قابلة للقراءة، ${data.weakData} بتاريخ غير كافٍ — تظهر بدون درجة). الجلسات القليلة الأخيرة قد تكون بسعر الجلسة الجاري وليس إغلاقًا نهائيًا.`
-            : `Transparency: the engine runs on daily closing prices from the market scan (${data.scored} scored, ${data.weakData} with insufficient history — shown without a score). The latest sessions may carry the running session's price rather than a final close.`}
+            ? `الشفافية: الحساب يعمل على أسعار الإغلاق اليومية من مسح السوق (${data.scored} شركة قابلة للقراءة، ${data.weakData} بتاريخ غير كافٍ — تظهر بدون درجة). السلسلة معدّلة لتوزيعات الأرباح والزيادات قبل الحساب، والجلسات القليلة الأخيرة قد تكون بسعر الجلسة الجاري وليس إغلاقًا نهائيًا.`
+            : `Transparency: the engine runs on daily closing prices from the market scan (${data.scored} scored, ${data.weakData} with insufficient history — shown without a score). The series is rebuilt across corporate actions before computing, and the latest sessions may carry the running session's price rather than a final close.`}
         </p>
       ) : null}
 
@@ -366,13 +456,17 @@ function SignalCard({ row, ar, fav, onFav }: { row: MarketSignalRow; ar: boolean
   const m = row.metrics
   const sig = row.signal
   const sigCls = sig ? SIGNAL_CLS[sig] : null
+  const tp = row.tradePlan
+  const tier = tierShort(row.marketTier)
+  const planZone = (low: number, high: number): string => (low === high ? low.toFixed(2) : `${low.toFixed(2)}–${high.toFixed(2)}`)
   return (
     <Card className={`group relative p-0 transition-shadow hover:shadow-md ${sigCls?.ring ?? "border-border/60"}`}>
       <CardContent className="space-y-2.5 px-4 py-3.5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <Link href={`/company/${row.companyId}`} className="flex items-center gap-1.5 text-sm font-bold text-foreground hover:text-primary">
+            <Link href={`/company/${row.companyId}?tab=technical`} className="flex items-center gap-1.5 text-sm font-bold text-foreground hover:text-primary">
               <span dir="ltr">{row.ticker}</span>
+              {tier ? <span className="rounded bg-muted px-1 py-0.5 text-[9px] font-medium text-muted-foreground">{tier}</span> : null}
               <ArrowUpRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
             </Link>
             <p className="truncate text-xs text-muted-foreground" title={ar ? (row.nameAr ?? row.nameEn) : row.nameEn}>
@@ -426,6 +520,32 @@ function SignalCard({ row, ar, fav, onFav }: { row: MarketSignalRow; ar: boolean
         ) : (
           row.limitations[0] ? <p className="text-[11px] leading-relaxed text-muted-foreground">{row.limitations[0]}</p> : null
         )}
+
+        {/* Trade plan strip — deterministic entry / stop / target zones */}
+        {tp ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-md border border-blue-500/40 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
+              {ar ? "دخول: " : "Entry: "}
+              <span className="tabular" dir="ltr">{planZone(tp.entryLow, tp.entryHigh)}</span>
+            </span>
+            <span className="rounded-md border border-positive/40 bg-positive/10 px-1.5 py-0.5 text-[10px] font-semibold text-positive">
+              {ar ? "الهدف: " : "Target: "}
+              <span className="tabular" dir="ltr">{planZone(tp.targetLow, tp.targetHigh)} ({tp.targetPct.toFixed(1)}%)</span>
+            </span>
+            <span className="rounded-md border border-negative/40 bg-negative/10 px-1.5 py-0.5 text-[10px] font-semibold text-negative">
+              {ar ? "وقف الخسارة: " : "Stop: "}
+              <span className="tabular" dir="ltr">{tp.stop.toFixed(2)} ({tp.stopPct.toFixed(1)}%)</span>
+            </span>
+            <span className="rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              {ar ? "مخاطرة/عائد " : "R/R "}
+              <span className="tabular" dir="ltr">{tp.riskReward.toFixed(2)}</span>
+            </span>
+          </div>
+        ) : sig !== null ? (
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            {ar ? "مفيش منطقة دخول واضحة دلوقتي — استنى إشارة أوضح." : "No clear entry zone right now — wait for a cleaner read."}
+          </p>
+        ) : null}
 
         {/* Metric chips */}
         <div className="grid grid-cols-4 gap-1.5 text-center">

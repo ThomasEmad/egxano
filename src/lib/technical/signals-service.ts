@@ -3,21 +3,31 @@
 // close-based signal engine (src/lib/technical/signals.ts).
 //
 // Data source: MarketPrice day-rows (one row per company per UTC day, from the
-// public TradingView EGX scanner pull). Close-only bars are the SAME documented
-// precedent the per-company technical engine uses for its freshest sessions —
-// here they are the whole input, and that limitation is disclosed on every
-// response rather than hidden. Nothing is written to the DB.
+// public TradingView EGX scanner pull) + PriceBar deep history. Close-only
+// bars are the SAME documented precedent the per-company technical engine uses
+// for its freshest sessions — here they are the whole input, and that
+// limitation is disclosed on every response rather than hidden. Nothing is
+// written to the DB.
 //
-// Cost shape: ~250 active companies × ~120 trailing day-rows ≈ 30k rows — one
-// cached pass every 10 minutes (prices move intraday, the stance follows).
+// Corporate-action continuity: the board computes its own changePct from the
+// merged series (last vs prior close), so bonus/split/cash ex-dates inside the
+// window are rebuilt through applyCorporateActionAdjustments() — the SAME
+// engine the per-company technical bundle uses — before any indicator runs.
+// Without this pass an ex-date shows up as a fake cliff (CANA 2026-11-12:
+// −31.9% displayed for a real ≈ +2% session) and poisons every reading.
+//
+// Cost shape: ~250 active companies × a 420-calendar-day trailing window —
+// one cached pass every 10 minutes (prices move intraday, the stance follows).
+// The per-company action lookup (2 indexed queries each) rides the same cache.
 // =============================================================================
 
 import { db } from "@/lib/db"
 import { cached } from "@/lib/server-cache"
-import { computeCloseSignal, SIGNALS_VERSION, type CloseSignalOutput, type TechSignalType } from "./signals"
+import { applyCorporateActionAdjustments, loadCompanySeriesActions, type SeriesBar } from "@/lib/market/corporate-actions"
+import { computeCloseSignal, SIGNALS_VERSION, type CloseSignalOutput } from "./signals"
 
-/** Calendar-day cutoff for the trailing window (~120 sessions comfortably covers 80+). */
-const WINDOW_DAYS = 180
+/** Calendar-day cutoff for the trailing window (~280 sessions where history exists). */
+const WINDOW_DAYS = 420
 const CACHE_MS = 10 * 60_000
 
 export interface MarketSignalRow extends CloseSignalOutput {
@@ -26,6 +36,8 @@ export interface MarketSignalRow extends CloseSignalOutput {
   nameEn: string
   nameAr: string | null
   sector: string
+  /** EGX30 | EGX70 | MAIN | NILEX | OTC (see src/lib/market/tiers.ts) */
+  marketTier: string
 }
 
 export interface MarketSignalsOutput {
@@ -37,8 +49,8 @@ export interface MarketSignalsOutput {
   scored: number
   weakData: number
   distribution: { buy: number; hold: number; sell: number }
-  /** % of scored companies whose price sits above SMA20 — the technical breadth line */
-  pctAboveSma20: number | null
+  /** % of scored companies whose price sits above EMA20 — technical breadth */
+  pctAboveEma20: number | null
   rows: MarketSignalRow[]
   computedAt: string
 }
@@ -46,14 +58,14 @@ export interface MarketSignalsOutput {
 async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
   const companies = await db.company.findMany({
     where: { isActive: true },
-    select: { id: true, ticker: true, nameEn: true, nameAr: true, sector: true },
+    select: { id: true, ticker: true, nameEn: true, nameAr: true, sector: true, marketTier: true },
     orderBy: { ticker: "asc" },
   })
 
   const cutoff = new Date(Date.now() - WINDOW_DAYS * 86_400_000)
   const ids = companies.map((c) => c.id)
 
-  // Source 1 — PriceBar: the deep stored history (~80 sessions per name).
+  // Source 1 — PriceBar: the deep stored history.
   // Source 2 — MarketPrice day-rows: the freshest scanner sessions (the
   // intraday refreshes rewrite the same UTC day). Precedence mirrors
   // buildTechnicalBundle: the scanner day-row WINS for its day (it carries the
@@ -101,7 +113,34 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
     for (const day of byDay.keys()) {
       if (!pricedAsOf || day > pricedAsOf) pricedAsOf = day
     }
-    const series = [...byDay.values()].sort((a, b) => a.ts.localeCompare(b.ts))
+    let series = [...byDay.values()].sort((a, b) => a.ts.localeCompare(b.ts))
+
+    // Corporate-action continuity over the merged series (best-effort): the
+    // close-only rows become flat bars, the shared adjustment engine rescales
+    // every session before the first ex-date, and the resulting series is
+    // continuous across bonus/split/cash events — so the board's own
+    // changePct and every indicator read the REAL market move.
+    try {
+      if (series.length >= 2) {
+        const bars: SeriesBar[] = series.map((r) => ({
+          ts: r.ts,
+          open: r.close,
+          high: r.close,
+          low: r.close,
+          close: r.close,
+          volume: r.volume,
+          source: "scanner", // PriceBar/scanner rows are RAW prices (documented)
+        }))
+        const actions = await loadCompanySeriesActions(companyId, series[0].ts, series[series.length - 1].ts)
+        if (actions.length > 0) {
+          const adjusted = applyCorporateActionAdjustments(bars, actions)
+          series = adjusted.bars.map((b) => ({ ts: b.ts, close: b.close, volume: b.volume }))
+        }
+      }
+    } catch {
+      // Adjustment is best-effort — the raw series remains the honest fallback.
+    }
+
     const sig = computeCloseSignal(series)
     rows.push({
       ...sig,
@@ -110,18 +149,19 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
       nameEn: c.nameEn,
       nameAr: c.nameAr,
       sector: c.sector,
+      marketTier: (c as { marketTier?: string }).marketTier ?? "MAIN",
     })
     if (sig.signal === null) weakData++
   }
 
   const distribution = { buy: 0, hold: 0, sell: 0 }
-  let aboveSma20 = 0
-  let sma20Count = 0
+  let aboveEma20 = 0
+  let ema20Count = 0
   for (const r of rows) {
     if (r.signal) distribution[r.signal]++
-    if (r.metrics.sma20 !== null && r.lastClose !== null) {
-      sma20Count++
-      if (r.lastClose > r.metrics.sma20) aboveSma20++
+    if (r.metrics.ema20 !== null && r.lastClose !== null) {
+      ema20Count++
+      if (r.lastClose > r.metrics.ema20) aboveEma20++
     }
     if (!r.asOf) continue
   }
@@ -136,7 +176,7 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
     scored: rows.length - weakData,
     weakData,
     distribution,
-    pctAboveSma20: sma20Count > 0 ? Math.round((aboveSma20 / sma20Count) * 1000) / 10 : null,
+    pctAboveEma20: ema20Count > 0 ? Math.round((aboveEma20 / ema20Count) * 1000) / 10 : null,
     rows,
     computedAt: new Date().toISOString(),
   }
@@ -144,5 +184,7 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
 
 /** Cached whole-market signal computation (10 min — follows the intraday price refresh). */
 export function getCachedMarketSignals(): Promise<MarketSignalsOutput> {
-  return cached("technical-signals:market", CACHE_MS, () => buildMarketSignalsUncached())
+  // v2: adjusted series (corporate actions) + EMA metrics + marketTier —
+  // the bump invalidates any stale v1 board payload still in memory.
+  return cached("technical-signals:market:v2", CACHE_MS, () => buildMarketSignalsUncached())
 }

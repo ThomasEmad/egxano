@@ -12,6 +12,7 @@
 // =============================================================================
 
 import { db } from "@/lib/db"
+import { emaSeries } from "@/lib/technical/indicators"
 import {
   computeIntelligence,
   marketIntelligenceSchema,
@@ -226,8 +227,25 @@ export async function rebuildIntelligence(): Promise<MarketIntelligence | null> 
 export async function getIntelligence(): Promise<MarketIntelligence | null> {
   const row = await db.setting.findUnique({ where: { key: MI_SETTING_KEY }, select: { value: true } })
   if (!row) return null
-  const parsed = marketIntelligenceSchema.safeParse(JSON.parse(row.value))
-  return parsed.success ? (parsed.data as MarketIntelligence) : null
+  let parsed: MarketIntelligence
+  try {
+    const res = marketIntelligenceSchema.safeParse(JSON.parse(row.value))
+    if (!res.success) return null
+    parsed = res.data as MarketIntelligence
+  } catch {
+    return null
+  }
+  // Normalize the EMA breadth twins on legacy snapshots persisted before the
+  // fields existed (schema allows them missing; the UI contract is number|null).
+  return {
+    ...parsed,
+    breadth: {
+      ...parsed.breadth,
+      pctAboveEma20: parsed.breadth.pctAboveEma20 ?? null,
+      pctAboveEma50: parsed.breadth.pctAboveEma50 ?? null,
+      pctAboveEma200: parsed.breadth.pctAboveEma200 ?? null,
+    },
+  }
 }
 
 // ---------------------------------------------------------------- enrichment
@@ -239,13 +257,22 @@ export interface EnrichmentCursor {
 }
 
 /** Aggregate counts over the partial per-company enrichment results. */
-function finalizeEnrichment(partial: Record<string, { above20: boolean | null; above50: boolean | null; above200: boolean | null; newHigh: boolean | null; newLow: boolean | null }>, universe: number): EnrichmentBlock | null {
+function finalizeEnrichment(
+  partial: Record<string, { above20: boolean | null; above50: boolean | null; above200: boolean | null; aboveE20: boolean | null; aboveE50: boolean | null; aboveE200: boolean | null; newHigh: boolean | null; newLow: boolean | null }>,
+  universe: number
+): EnrichmentBlock | null {
   let a20 = 0
   let n20 = 0
   let a50 = 0
   let n50 = 0
   let a200 = 0
   let n200 = 0
+  let aE20 = 0
+  let nE20 = 0
+  let aE50 = 0
+  let nE50 = 0
+  let aE200 = 0
+  let nE200 = 0
   let nh = 0
   let nl = 0
   let nhKnown = 0
@@ -262,6 +289,18 @@ function finalizeEnrichment(partial: Record<string, { above20: boolean | null; a
     if (v.above200 !== null) {
       n200++
       if (v.above200) a200++
+    }
+    if (v.aboveE20 !== null) {
+      nE20++
+      if (v.aboveE20) aE20++
+    }
+    if (v.aboveE50 !== null) {
+      nE50++
+      if (v.aboveE50) aE50++
+    }
+    if (v.aboveE200 !== null) {
+      nE200++
+      if (v.aboveE200) aE200++
     }
     if (v.newHigh !== null) {
       nhKnown++
@@ -280,6 +319,9 @@ function finalizeEnrichment(partial: Record<string, { above20: boolean | null; a
     pctAboveSma20: n20 ? Math.round((a20 / n20) * 1000) / 10 : null,
     pctAboveSma50: n50 ? Math.round((a50 / n50) * 1000) / 10 : null,
     pctAboveSma200: n200 ? Math.round((a200 / n200) * 1000) / 10 : null,
+    pctAboveEma20: nE20 ? Math.round((aE20 / nE20) * 1000) / 10 : null,
+    pctAboveEma50: nE50 ? Math.round((aE50 / nE50) * 1000) / 10 : null,
+    pctAboveEma200: nE200 ? Math.round((aE200 / nE200) * 1000) / 10 : null,
     new52wHighs: nhKnown ? nh : null,
     new52wLows: nlKnown ? nl : null,
     universe,
@@ -312,7 +354,7 @@ export async function runEnrichmentChunk(limit = 40): Promise<{ done: boolean; p
   }
 
   const partialRow = await db.setting.findUnique({ where: { key: ENRICH_PARTIAL_KEY }, select: { value: true } })
-  let partial: Record<string, { above20: boolean | null; above50: boolean | null; above200: boolean | null; newHigh: boolean | null; newLow: boolean | null }> = {}
+  let partial: Record<string, { above20: boolean | null; above50: boolean | null; above200: boolean | null; aboveE20: boolean | null; aboveE50: boolean | null; aboveE200: boolean | null; newHigh: boolean | null; newLow: boolean | null }> = {}
   if (partialRow) {
     try {
       partial = JSON.parse(partialRow.value) as typeof partial
@@ -329,7 +371,7 @@ export async function runEnrichmentChunk(limit = 40): Promise<{ done: boolean; p
     try {
       const bars = await fetchRecentBarsForCompany(companyId)
       if (!bars || bars.length < 21) {
-        partial[companyId] = { above20: null, above50: null, above200: null, newHigh: null, newLow: null }
+        partial[companyId] = { above20: null, above50: null, above200: null, aboveE20: null, aboveE50: null, aboveE200: null, newHigh: null, newLow: null }
         continue
       }
       const closes = bars.map((b) => b.close)
@@ -339,9 +381,17 @@ export async function runEnrichmentChunk(limit = 40): Promise<{ done: boolean; p
         const w = closes.slice(-n)
         return w.reduce((a, b) => a + b, 0) / n
       }
+      // EMA twin of the SMA aggregate — same closes, same null-disclosure.
+      const lastEma = (n: number): number | null => {
+        const s = emaSeries(closes, n)
+        return s.length ? (s[s.length - 1] ?? null) : null
+      }
       const s20 = sma(20)
       const s50 = sma(50)
       const s200 = sma(200)
+      const e20 = lastEma(20)
+      const e50 = lastEma(50)
+      const e200 = lastEma(200)
       const window = bars.slice(-253, -1) // the 252 sessions BEFORE today
       const maxHigh = window.length ? Math.max(...window.map((b) => b.high)) : null
       const minLow = window.length ? Math.min(...window.map((b) => b.low)) : null
@@ -349,12 +399,15 @@ export async function runEnrichmentChunk(limit = 40): Promise<{ done: boolean; p
         above20: s20 === null ? null : last > s20,
         above50: s50 === null ? null : last > s50,
         above200: s200 === null ? null : last > s200,
+        aboveE20: e20 === null ? null : last > e20,
+        aboveE50: e50 === null ? null : last > e50,
+        aboveE200: e200 === null ? null : last > e200,
         newHigh: maxHigh === null ? null : last >= maxHigh * 0.999,
         newLow: minLow === null ? null : last <= minLow * 1.001,
       }
       processed++
     } catch {
-      partial[companyId] = { above20: null, above50: null, above200: null, newHigh: null, newLow: null }
+      partial[companyId] = { above20: null, above50: null, above200: null, aboveE20: null, aboveE50: null, aboveE200: null, newHigh: null, newLow: null }
     }
   }
 
