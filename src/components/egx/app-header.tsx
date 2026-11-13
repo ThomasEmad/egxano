@@ -277,6 +277,13 @@ export function AppHeader({
           {/* Desktop nav (only visible when sidebar is collapsed) */}
           <nav className={`hidden lg:flex items-center gap-0.5 ${sidebarCollapsed ? "" : "hidden"}`} aria-label="Primary">
             <Link
+              href="/signals"
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition-all duration-150 hover:bg-accent hover:text-accent-foreground"
+            >
+              <Activity className="h-4 w-4" />
+              {lang === "ar" ? "الإشارات الفنية" : "Signals"}
+            </Link>
+            <Link
               href="/rankings"
               className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition-all duration-150 hover:bg-accent hover:text-accent-foreground"
             >
@@ -506,6 +513,13 @@ export function AppHeader({
             <CalendarDays className="h-4 w-4" />
             {t("nav.dividends")}
           </button>
+          <Link
+            href="/signals"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <Activity className="h-3.5 w-3.5" />
+            {lang === "ar" ? "الإشارات الفنية" : "Signals"}
+          </Link>
           <Link
             href="/rankings"
             className="flex shrink-0 items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"

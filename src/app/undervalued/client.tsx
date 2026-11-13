@@ -1,9 +1,12 @@
 "use client"
 
 // /undervalued — "فحص التقييم": companies meeting explicitly stated valuation
-// criteria. This is a screen, not a call: fair value is arithmetic from the
-// published criteria, the "gap" is not a price target, and each row lists the
-// criteria it met plus a data-quality flag when the gap is extreme.
+// criteria. This is a screen, not a call: the criteria-implied value is
+// arithmetic from the published criteria, the "gap" is not a price target, and
+// each row lists the criteria it met plus a data-quality flag when the gap is
+// extreme. The wording deliberately avoids "fair value" (القيمة العادلة) —
+// that is a financial-analysis term of art, while this screen states a
+// criteria-implied arithmetic reference.
 
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -113,8 +116,8 @@ export default function UndervaluedPage() {
           </h1>
           <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
             {ar
-              ? "شركات تحققت فيها معايير تقييم معلنة. القيمة العادلة نتيجة حسابية من هذه المعايير، والفجوة المعروضة ليست سعرًا مستهدفًا وليست توصية."
-              : "Companies that met explicitly stated valuation criteria. Fair value is arithmetic from those criteria; the gap shown is not a price target and not a recommendation."}
+              ? "شركات تحققت فيها معايير تقييم معلنة. القيمة المستنتجة نتيجة حسابية من هذه المعايير، والفجوة المعروضة ليست سعرًا مستهدفًا وليست توصية."
+              : "Companies that met explicitly stated valuation criteria. The criteria-implied value is arithmetic from those criteria; the gap shown is not a price target and not a recommendation."}
           </p>
         </header>
 

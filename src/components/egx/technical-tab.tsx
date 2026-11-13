@@ -37,6 +37,7 @@ import type { StructureSnapshot } from "@/lib/technical/structure"
 import type { VsaSnapshot } from "@/lib/technical/vsa"
 import type { ZonesSnapshot } from "@/lib/technical/zones"
 import type { QualityScore } from "@/lib/technical/quality"
+import { SIGNAL_META, SIGNAL_WEIGHTS, STYLE_TAG_META, type TechStance } from "@/lib/technical/signals"
 
 export interface TechSnapshot {
   version: string
@@ -668,6 +669,116 @@ function QualitySection({ quality, ar }: { quality: QualityScore | null | undefi
   )
 }
 
+// ---------------------------------------------------------------------------
+// Technical stance — the rule-based synthesis card (score / read / style fits
+// / invalidation level). Sits at the top of the tab: the desk-note summary.
+// ---------------------------------------------------------------------------
+
+const STANCE_CLS: Record<string, { badge: string; bar: string }> = {
+  buy: { badge: "border-positive/40 bg-positive/10 text-positive", bar: "bg-positive" },
+  hold: { badge: "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400", bar: "bg-amber-500" },
+  sell: { badge: "border-negative/40 bg-negative/10 text-negative", bar: "bg-negative" },
+}
+
+const DIM_LABELS: Record<TechStance["dimensions"][number]["key"], { ar: string; en: string }> = {
+  trend: { ar: "الاتجاه", en: "Trend" },
+  momentum: { ar: "الزخم", en: "Momentum" },
+  volume: { ar: "الحجم", en: "Volume" },
+  risk: { ar: "المخاطرة", en: "Risk" },
+}
+
+function StanceCard({ stance, ar }: { stance: TechStance; ar: boolean }) {
+  const cls = stance.signal ? STANCE_CLS[stance.signal] : null
+  return (
+    <Card className="p-0">
+      <CardHeader className="px-5 pb-2">
+        <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <span className="flex items-center gap-2">
+            <Gauge className="h-3.5 w-3.5 text-primary" aria-hidden />
+            {ar ? "الخلاصة الفنية — قراءة قواعدية" : "Technical stance — rule-based read"}
+          </span>
+          {stance.signal && cls ? (
+            <Badge variant="outline" className={cls.badge}>
+              {ar ? SIGNAL_META[stance.signal].ar : SIGNAL_META[stance.signal].en}
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="border-border/40 text-muted-foreground/70">{ar ? "بيانات غير كافية" : "Weak data"}</Badge>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 px-5 pb-5">
+        {stance.score !== null ? (
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="tnum text-3xl font-bold" dir="ltr">
+              {stance.score}
+              <span className="text-sm font-medium text-muted-foreground">/100</span>
+            </span>
+            <div className="grid min-w-[220px] flex-1 gap-1.5">
+              {stance.dimensions.map((d) => {
+                const pct = d.max > 0 ? Math.round((d.earned / d.max) * 100) : 0
+                return (
+                  <div key={d.key} className="flex items-center gap-2">
+                    <span className="w-20 shrink-0 text-[11px] text-muted-foreground">{ar ? DIM_LABELS[d.key].ar : DIM_LABELS[d.key].en}</span>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                      <div className={`h-full rounded-full ${stance.signal && STANCE_CLS[stance.signal] ? STANCE_CLS[stance.signal].bar : "bg-primary"}`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="w-14 shrink-0 text-end text-[10px] tabular text-muted-foreground" dir="ltr">{d.earned}/{d.max}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ) : (
+          stance.limitations[0] ? <p className="text-xs text-muted-foreground">{stance.limitations[0]}</p> : null
+        )}
+
+        {stance.reasons.length > 0 ? (
+          <ul className="space-y-1">
+            {stance.reasons.map((r) => (
+              <li key={r.code} className="flex items-start gap-1.5 text-xs leading-relaxed">
+                <span
+                  className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${r.tone === "positive" ? "bg-positive" : r.tone === "negative" ? "bg-negative" : "bg-muted-foreground"}`}
+                  aria-hidden
+                />
+                <span className="text-muted-foreground">{ar ? r.ar : r.en}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        {stance.styleFits.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-muted-foreground">{ar ? "مناسب لأنماط:" : "Fits styles:"}</span>
+            {stance.styleFits.map((f) => (
+              <Badge key={f.tag} variant="secondary" className="text-[10px]">
+                {ar ? STYLE_TAG_META[f.tag].ar : STYLE_TAG_META[f.tag].en}
+                <span className="ms-1 tabular opacity-70">{f.earned}/{f.total}</span>
+              </Badge>
+            ))}
+          </div>
+        ) : null}
+
+        {stance.invalidation ? (
+          <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden />
+            <span>{ar ? stance.invalidation.labelAr : stance.invalidation.labelEn}</span>
+          </div>
+        ) : null}
+
+        {stance.limitations.length > 0 && stance.score !== null ? (
+          <p className="text-[10px] leading-relaxed text-muted-foreground">{ar ? "حدود: " : "Limits: "}{stance.limitations.join(" · ")}</p>
+        ) : null}
+
+        <p className="text-[10px] text-muted-foreground">
+          {ar
+            ? "قراءة قواعدية حتمية بأوزان معلنة (اتجاه 35 / زخم 30 / حجم 20 / مخاطرة 15) من الأسعار المسجلة — ليست توصية استثمارية ولا سعرًا مستهدفًا."
+            : "A deterministic rule-based read with disclosed weights (trend 35 / momentum 30 / volume 20 / risk 15) over recorded prices — not investment advice and not a price target."}
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?: string | null }) {
   const { lang } = useI18n()
   const ar = lang === "ar"
@@ -769,6 +880,9 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
           </CardContent>
         </Card>
       ) : null}
+
+      {/* Rule-based stance synthesis — the desk-note summary above the raw readings */}
+      {data.stance ? <StanceCard stance={data.stance} ar={ar} /> : null}
 
       {/* Header + performance strip */}
       <Card className="p-0">

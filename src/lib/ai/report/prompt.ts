@@ -44,6 +44,7 @@ STRICT RULES:
 (8) Never turn qualitative conviction into a number: conviction stays qualitative (low / medium / high) — never "55% confidence" or any invented percentage.
 (9) When citing a premium/discount percentage from the scores block, name the exact multiple it belongs to (P/E or P/B) and re-check the direction against the two numbers before writing the sentence — never pair a multiple with another multiple's discount.
 (10) Close with an overall stance (bullish / cautiously positive / neutral / bearish) with conviction level and the specific, observable trigger that would change it — plus the factors that would INVALIDATE the analysis.
+(11) Never use fair-value language ("fair value", "القيمة العادلة"): it is a financial-analysis term of art, not a technical one. Frame valuation as multiples versus sector medians ("trading at 8.2x versus an 11.4x sector median"), and frame price readings versus observable levels (supports, resistances, moving averages) — never as a computed "correct" price.
 
 OUTPUT — clean markdown in the requested language, exactly these section headings in order. The heading line must contain ONLY the heading text:
 ## Investment Thesis
@@ -79,7 +80,7 @@ export const AR_INSTRUCTION =
   "## ما الذي يُبطل هذا التحليل\n(من شرطين إلى أربعة شروط ملموسة وقابلة للرصد)\n" +
   "## نقاط المراقبة\n(من نقطتين إلى أربع: التقرير القادم، قرارات التوزيع، المستويات الفنية)\n" +
   "## التقييم العام\n(حكم مالي + حكم فني + الموقف بدرجة الثقة + مُحفّز الإبطال المحدد). " +
-  "اكتب كمحلل خبير متمرس لا كسارد أخبار: اربط كل رقم بمعناه ومقارنته (الفترة المماثلة، أو وسيط القطاع، أو نطاق 52 أسبوعًا)؛ وضّح الآلية «ارتفع س ← بسبب ك ← وما يعنيه ذلك لـ ل»؛ ثبّت التقرير في الأحدث (آخر جلسة، آخر فترة، أحدث الأحداث)؛ صِغ ما لا تثبته البيانات كفرضية صريحة مع ما سيؤكدها أو ينفيها؛ استخدم صيغ الترجيح المهنية («تشير البيانات»، «نرى»، «يرجّح») بلا مبالغة تفاؤلًا أو تشاؤمًا؛ واشرح أي مصطلح فني عند أول استخدامه في جملة قصيرة. درجة الثقة تبقى وصفية (منخفضة/متوسطة/عالية) بلا أرقام ولا نسب مئوية؛ وعند ذكر نسبة خصم أو علاوة سعّرية حدد المضاعف الذي تخصه (P/E أم P/B) وتحقق من اتجاهها من الرقمين قبل كتابتها."
+  "اكتب كمحلل خبير متمرس لا كسارد أخبار: اربط كل رقم بمعناه ومقارنته (الفترة المماثلة، أو وسيط القطاع، أو نطاق 52 أسبوعًا)؛ وضّح الآلية «ارتفع س ← بسبب ك ← وما يعنيه ذلك لـ ل»؛ ثبّت التقرير في الأحدث (آخر جلسة، آخر فترة، أحدث الأحداث)؛ صِغ ما لا تثبته البيانات كفرضية صريحة مع ما سيؤكدها أو ينفيها؛ استخدم صيغ الترجيح المهنية («تشير البيانات»، «نرى»، «يرجّح») بلا مبالغة تفاؤلًا أو تشاؤمًا؛ واشرح أي مصطلح فني عند أول استخدامه في جملة قصيرة. درجة الثقة تبقى وصفية (منخفضة/متوسطة/عالية) بلا أرقام ولا نسب مئوية؛ وعند ذكر نسبة خصم أو علاوة سعّرية حدد المضاعف الذي تخصه (P/E أم P/B) وتحقق من اتجاهها من الرقمين قبل كتابتها. ممنوع منعًا باتًا مصطلح «القيمة العادلة» أو «fair value» — هو مصطلح تحليل مالي ليس فنيًا؛ قدّم التقييم كالمضاعفات مقابل وسيط القطاع، واقرأ السعر مقابل مستويات مرصودة (دعم/مقاومة/متوسطات) لا كثمن «صحيح» محسوب."
 
 export const EN_INSTRUCTION =
   "\n\nWrite the report in English with exactly the sections specified in the system prompt. Use only data figures with period labels, and analyze like a seasoned professional investor — not a news summarizer."

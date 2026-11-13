@@ -507,7 +507,13 @@ export const api = {
         hash: string
         /** Corporate-action-adjusted daily candles for the client chart. */
         candles?: { t: string; o: number; h: number; l: number; c: number }[]
+        stance?: import("@/lib/technical/signals").TechStance
       }>(r)
+    ),
+
+  technicalSignals: () =>
+    fetch("/api/v1/technical/signals").then((r) =>
+      handle<import("@/lib/technical/signals-service").MarketSignalsOutput>(r)
     ),
 
   companyDocuments: (id: string) =>

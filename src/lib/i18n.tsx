@@ -12,6 +12,7 @@ const dict = {
   "nav.dashboard": { en: "Dashboard", ar: "لوحة القيادة" },
   "nav.scanners": { en: "Scanners", ar: "الماسحات" },
   "nav.customScanner": { en: "Custom Scanner", ar: "ماسح مخصص" },
+  "nav.signals": { en: "Technical Signals", ar: "الإشارات الفنية" },
   "nav.companies": { en: "Companies", ar: "الشركات" },
   "nav.dividends": { en: "Dividends", ar: "التوزيعات" },
   "nav.reports": { en: "Reports & Review", ar: "التقارير والمراجعة" },

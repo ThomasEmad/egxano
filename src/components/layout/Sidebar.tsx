@@ -86,6 +86,7 @@ const NAV_GROUPS: NavGroup[] = [
     icon: <BarChart3 className="h-4 w-4" />,
     collapsible: true,
     items: [
+      { href: "/signals", label: "الإشارات الفنية", labelAr: "الإشارات الفنية", icon: <Activity className="h-4 w-4" /> },
       { href: "/dashboard#/custom", label: "الماسح المخصص", labelAr: "الماسح المخصص", icon: <Scale className="h-4 w-4" /> },
       { href: "/compare", label: "المقارنات", labelAr: "المقارنات", icon: <Scale className="h-4 w-4" /> },
       { href: "/dividends", label: "التوزيعات", labelAr: "التوزيعات", icon: <CalendarDays className="h-4 w-4" /> },

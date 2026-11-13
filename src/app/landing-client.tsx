@@ -447,6 +447,36 @@ export default function LandingClient() {
         </section>
 
         {/* ---------------------------------------------------------------- */}
+        {/* Technical signals banner                                            */}
+        {/* ---------------------------------------------------------------- */}
+        <section className="border-b border-border/70 bg-surface-secondary">
+          <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+            <div className="flex flex-col items-start justify-between gap-6 rounded-2xl border border-primary/25 bg-primary/5 p-6 sm:flex-row sm:items-center sm:p-8">
+              <div className="max-w-2xl">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                  {ar ? "جديد على المنصة" : "New on the platform"}
+                </p>
+                <h3 className="mt-1.5 text-lg font-bold tracking-tight text-foreground">
+                  {ar ? "الإشارات الفنية — قراءة قواعدية لكل الأسهم المتداولة" : "Technical signals — a rule-based read on every traded name"}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  {ar
+                    ? "الاتجاه والزخم والحجم والتقلب بتتدمج في درجة واحدة من 100 موثقة الأوزان، مع إشارة شراء/انتظار/ضغط بيعي وفلاتر حسب أسلوب التداول — يومي، سوينج، توجهي. كل إشارة قابلة للتحقق من الأرقام — مش توصية."
+                    : "Trend, momentum, volume and volatility merge into one documented 0-100 score with a buy / wait / sell-press read and trading-style filters — day, swing, trend. Every signal is verifiable against the numbers — not a recommendation."}
+                </p>
+              </div>
+              <Link
+                href="/signals"
+                className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+              >
+                {ar ? "افتح الإشارات الفنية" : "Open technical signals"}
+                <ArrowRight className="h-4 w-4 rtl-flip" aria-hidden="true" />
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* ---------------------------------------------------------------- */}
         {/* Latest results                                                     */}
         {/* ---------------------------------------------------------------- */}
         <section className="border-b border-border/70 bg-surface-secondary">
