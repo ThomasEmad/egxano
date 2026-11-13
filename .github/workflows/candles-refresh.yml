@@ -48,10 +48,10 @@ jobs:
           bun install --frozen-lockfile
           npx prisma generate
 
-      - name: Refresh candles (full market)
+      - name: Refresh candles (incremental — only stale tickers)
         env:
           DATABASE_URL: ${{ secrets.CANDLE_DB_URL }}
-        run: node scripts/import-missing-candles.mjs --all --apply --pacing=1500
+        run: node scripts/import-missing-candles.mjs --stale-days=1 --apply --pacing=2000
 
       - name: Storage stats
         env:

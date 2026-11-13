@@ -54,6 +54,7 @@ const DEFAULT_TICKERS = [
 const args = process.argv.slice(2)
 const apply = args.includes("--apply")
 const allMode = args.includes("--all")
+const staleArg = args.find((a) => a.startsWith("--stale-days="))
 const pacingArg = args.find((a) => a.startsWith("--pacing="))
 const tickersArg = args.find((a) => a.startsWith("--tickers="))
 /** تباعد بين التيكرات (ms) — للسوق الكامل استخدم ≥1500 لتفادي 429 من Yahoo. */
@@ -182,6 +183,22 @@ if (allMode) {
     orderBy: { ticker: "asc" },
   })
   tickers = rows.map((r) => r.ticker)
+}
+
+// وضع --stale-days=N: الشركات اللي آخر شمعة لها أقدم من N يوم بس — التحديث
+// اليومي التدريجي. عادةً 0-5 شركات في اليوم بدل السوق كله (248 طلبًا)، وده
+// اللي بيخلي الخط يشتغل من أي IP من غير ما يشعل حظر 429 من Yahoo.
+if (staleArg) {
+  const days = Math.max(1, Number(staleArg.slice("--stale-days=".length)) || 1)
+  const cutoff = new Date(Date.now() - days * 86_400_000)
+  const rows = await db.$queryRawUnsafe(
+    `SELECT c.ticker FROM "Company" c
+     WHERE c."isActive" = true AND c."listingStatus" <> 'DELISTED'
+       AND NOT EXISTS (SELECT 1 FROM "PriceBar" p WHERE p."companyId" = c.id AND p.ts >= $1::timestamp)`,
+    cutoff,
+  )
+  tickers = rows.map((r) => r.ticker)
+  console.log(`وضع stale-days=${days}: ${tickers.length} شركة شمعتها أقدم من ${days} يوم`)
 }
 
 let mode

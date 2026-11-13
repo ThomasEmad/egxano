@@ -18,7 +18,7 @@
 // server but true on the client's first fetch — both server and first client
 // render must agree, and the spinner/interactive state appears only after mount.
 
-import { useState, useSyncExternalStore } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
@@ -68,6 +68,42 @@ function fmtRangeLimit(v: number | "ALL" | "UNLIMITED", allAr: string, unAr: str
 function fmtBriefing(hours: number | null): string {
   if (hours === null) return "بلا حدود"
   return hours >= 24 ? `تجربة ${hours / 24} يوم` : `تجربة ${hours} ساعة`
+}
+
+/** InstaPay QR with a hydration-safe broken-image fallback: the 404 error can
+ *  fire before React attaches onError (SSR-rendered <img>), so completeness is
+ *  also checked on mount. The real barcode is set by the admin via the
+ *  INSTAPAY_QR_URL setting; until then a dashed placeholder renders. */
+function InstaPayQr({ src, ar }: { src: string; ar: boolean }) {
+  const [broken, setBroken] = useState(false)
+  const ref = useRef<HTMLImageElement | null>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (el && el.complete && el.naturalWidth === 0) setBroken(true)
+  }, [src])
+  if (broken) {
+    return (
+      <div className="flex h-[132px] w-[132px] shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border/70 bg-muted/30 text-center">
+        <QrCode className="h-6 w-6 text-muted-foreground/50" aria-hidden />
+        <p className="px-2 text-[10px] leading-snug text-muted-foreground">
+          {ar ? "باركود انستاباي — هيظهر هنا" : "InstaPay QR appears here"}
+        </p>
+      </div>
+    )
+  }
+  return (
+    <div className="shrink-0 rounded-xl border border-border/60 bg-white p-2 shadow-sm">
+      <img
+        ref={ref}
+        src={src}
+        alt={ar ? "باركود انستاباي للاشتراك" : "InstaPay QR for subscription"}
+        width={132}
+        height={132}
+        className="h-[132px] w-[132px] object-contain"
+        onError={() => setBroken(true)}
+      />
+    </div>
+  )
 }
 
 export default function PremiumPage() {
@@ -142,8 +178,6 @@ export default function PremiumPage() {
   // matches the payment to the account from that note and activates.
   const instapayQr = typeof settings.INSTAPAY_QR_URL === "string" && settings.INSTAPAY_QR_URL.trim() !== "" ? settings.INSTAPAY_QR_URL.trim() : "/instapay-qr.png"
   const instructions = typeof settings.PAYMENT_INSTRUCTIONS === "string" ? settings.PAYMENT_INSTRUCTIONS : ""
-  const [qrBroken, setQrBroken] = useState(false)
-
   const subscription = subStatus?.subscription
   const isPremium = !!subStatus?.isPremium
   const status = subscription?.status
@@ -506,25 +540,7 @@ export default function PremiumPage() {
                   {ar ? "الدفع عبر انستاباي InstaPay" : "Pay via InstaPay"}
                 </p>
                 <div className="mt-3 flex items-start gap-4">
-                  {!qrBroken ? (
-                    <div className="shrink-0 rounded-xl border border-border/60 bg-white p-2 shadow-sm">
-                      <img
-                        src={instapayQr}
-                        alt={ar ? "باركود انستاباي للاشتراك" : "InstaPay QR for subscription"}
-                        width={132}
-                        height={132}
-                        className="h-[132px] w-[132px] object-contain"
-                        onError={() => setQrBroken(true)}
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex h-[132px] w-[132px] shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border/70 bg-muted/30 text-center">
-                      <QrCode className="h-6 w-6 text-muted-foreground/50" aria-hidden />
-                      <p className="px-2 text-[10px] leading-snug text-muted-foreground">
-                        {ar ? "باركود انستاباي — هيظهر هنا" : "InstaPay QR appears here"}
-                      </p>
-                    </div>
-                  )}
+                  <InstaPayQr src={instapayQr} ar={ar} />
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="rounded-lg border border-warning/40 bg-warning/10 p-3">
                       <p className="flex items-start gap-2 text-xs font-bold leading-relaxed text-warning-foreground">
@@ -686,25 +702,7 @@ export default function PremiumPage() {
                       {/* QR — admin-set via the INSTAPAY_QR_URL setting, or the
                           static /instapay-qr.png placeholder until the owner
                           drops the real barcode in. */}
-                      {!qrBroken ? (
-                        <div className="shrink-0 rounded-xl border border-border/60 bg-white p-2 shadow-sm">
-                          <img
-                            src={instapayQr}
-                            alt={ar ? "باركود انستاباي للاشتراك" : "InstaPay QR for subscription"}
-                            width={132}
-                            height={132}
-                            className="h-[132px] w-[132px] object-contain"
-                            onError={() => setQrBroken(true)}
-                          />
-                        </div>
-                      ) : (
-                        <div className="flex h-[132px] w-[132px] shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border/70 bg-muted/30 text-center">
-                          <QrCode className="h-6 w-6 text-muted-foreground/50" aria-hidden />
-                          <p className="px-2 text-[10px] leading-snug text-muted-foreground">
-                            {ar ? "باركود انستاباي — هيظهر هنا" : "InstaPay QR appears here"}
-                          </p>
-                        </div>
-                      )}
+                      <InstaPayQr src={instapayQr} ar={ar} />
                       <div className="min-w-0 flex-1 space-y-2">
                         <div className="rounded-lg border border-warning/40 bg-warning/10 p-3">
                           <p className="flex items-start gap-2 text-xs font-bold leading-relaxed text-warning-foreground">
