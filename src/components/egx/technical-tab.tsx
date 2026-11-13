@@ -150,6 +150,15 @@ interface TradePlanFields {
 
 type StanceWithPlan = TechStance & { tradePlan?: TradePlanFields | null }
 
+/** The market board's close-only read for the same ticker (from the technical
+ * route) — powers the sync strip that keeps the company tab and /signals
+ * visibly telling the same story. */
+interface BoardSignal {
+  signal: "buy" | "hold" | "sell"
+  score: number
+  asOf: string | null
+}
+
 const PERF_LABELS: Array<{ key: keyof TechSnapshot["perf"]; ar: string; en: string }> = [
   { key: "d1", ar: "يوم", en: "1D" },
   { key: "w1", ar: "أسبوع", en: "1W" },
@@ -378,7 +387,7 @@ function TradePlanBlock({ plan, ar }: { plan: TradePlanFields; ar: boolean }) {
   )
 }
 
-function StanceCard({ stance, verdict, pos, neg, ar }: { stance: StanceWithPlan; verdict: string; pos: number; neg: number; ar: boolean }) {
+function StanceCard({ stance, verdict, pos, neg, boardSignal, ar }: { stance: StanceWithPlan; verdict: string; pos: number; neg: number; boardSignal?: BoardSignal | null; ar: boolean }) {
   const cls = stance.signal ? STANCE_CLS[stance.signal] : null
   const plan = stance.tradePlan ?? null
   return (
@@ -432,6 +441,28 @@ function StanceCard({ stance, verdict, pos, neg, ar }: { stance: StanceWithPlan;
             · {ar ? `${pos} إشارة إيجابية / ${neg} سلبية` : `${pos} positive / ${neg} negative signals`}
           </span>
         </div>
+
+        {/* sync strip — the market board and this tab must tell the same story;
+            when their read differs, the reason is stated instead of hiding it. */}
+        {boardSignal?.signal ? (
+          boardSignal.signal === stance.signal ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-positive/25 bg-positive/5 px-3 py-1.5">
+              <span className="text-[11px] font-medium text-positive">
+                {ar
+                  ? `متزامنة مع لوحة الإشارات الفنية: ${SIGNAL_META[boardSignal.signal].ar} (${boardSignal.score}/100) — نفس القراءة من زاويتين.`
+                  : `In sync with the signals board: ${SIGNAL_META[boardSignal.signal].en} (${boardSignal.score}/100).`}
+              </span>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-1.5">
+              <p className="text-[11px] leading-relaxed text-amber-700 dark:text-amber-400">
+                {ar
+                  ? `لوحة الإشارات الفنية (اللي بتحسب على الإغلاقات اليومية بس) بتقرا هنا: ${SIGNAL_META[boardSignal.signal].ar} (${boardSignal.score}/100). القراءة التفصيلية دي أشمل لأنها بتشوف الستوكاستيك و ATR والهيكل كمان — اختلاف الزاوية طبيعي والكلمة الأساسية هي أقرب قراءة للبيانات الكاملة.`
+                  : `The signals board (close-only math) reads: ${SIGNAL_META[boardSignal.signal].en} (${boardSignal.score}/100). This detailed read is broader — Stochastic, ATR and structure — so a different angle is expected.`}
+              </p>
+            </div>
+          )
+        ) : null}
 
         {/* trade plan — prominent when the engine can form one */}
         {plan ? (
@@ -1075,7 +1106,7 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
       <DisclaimerBanner ar={ar} />
 
       {/* b. rule-based stance hero with the trade plan */}
-      {stance ? <StanceCard stance={stance} verdict={verdict} pos={pos} neg={neg} ar={ar} /> : null}
+      {stance ? <StanceCard stance={stance} verdict={verdict} pos={pos} neg={neg} boardSignal={(data as { boardSignal?: BoardSignal | null }).boardSignal ?? null} ar={ar} /> : null}
 
       {/* c. the story in brief */}
       <StoryList snap={snap} stance={stance} ar={ar} />

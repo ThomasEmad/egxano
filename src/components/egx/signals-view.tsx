@@ -302,8 +302,8 @@ export function SignalsView() {
           const label = ar ? (TIER_AR as unknown as Record<string, { short?: string }> | undefined)?.[t]?.short ?? t : t
           return (
             <button key={t} className={chip(tierFilter === t)} onClick={() => setTierFilter(t)}>
-              {label}
-              <span className="ms-1 tabular opacity-80">{n}</span>
+              {/* Parentheses keep the count visually separate in RTL — «مؤشر 30 (31)» not «مؤشر 3031» */}
+              {ar ? `${label} (${n})` : `${label} ${n}`}
             </button>
           )
         })}
