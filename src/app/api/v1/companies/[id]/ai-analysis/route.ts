@@ -161,7 +161,12 @@ async function postHandler(req: Request, { params }: { params: Promise<{ id: str
       if (outcome.status === "completed") {
         const report = await db.aiAnalysisReport.findUnique({ where: { reportKey: result.job.reportKey } })
         if (report) {
-          return Response.json({ analysis: serializeReport(report), cached: false })
+          return Response.json({
+            analysis: serializeReport(report),
+            cached: false,
+            charged: true, // quota was consumed atomically at enqueue
+            usage: isPremium ? null : await getSmartAnalysisUsage(userId),
+          })
         }
       }
       return Response.json(
@@ -196,7 +201,14 @@ async function postHandler(req: Request, { params }: { params: Promise<{ id: str
         if (outcome.status === "completed") {
           const report = await db.aiAnalysisReport.findUnique({ where: { reportKey: result.job.reportKey } })
           if (report) {
-            return Response.json({ analysis: serializeReport(report), cached: false })
+            return Response.json({
+              analysis: serializeReport(report),
+              cached: false,
+              // The reclaim path delivers without a fresh charge; the next
+              // read of this identity is the charged one (ledger converges).
+              charged: false,
+              usage: isPremium ? null : await getSmartAnalysisUsage(userId),
+            })
           }
         }
       }
@@ -206,6 +218,7 @@ async function postHandler(req: Request, { params }: { params: Promise<{ id: str
           jobRef: result.job.id,
           reportKey: result.job.reportKey,
           message: "Report generation already running — poll the status endpoint.",
+          usage: isPremium ? null : await getSmartAnalysisUsage(userId),
         },
         { status: 202 }
       )

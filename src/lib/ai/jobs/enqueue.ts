@@ -38,6 +38,21 @@ interface ReportRowLike {
 export type ReportRow = ReportRowLike
 
 /**
+ * Charge one free-tier unit for a cached delivery — only the FIRST time this
+ * user receives THIS report identity this month (AiAnalysisEvent ledger
+ * dedup), so re-reading an analysis never burns extra quota while a DIFFERENT
+ * report costs its own unit.
+ * Returns "charged" | "uncharged" | "quota_exhausted".
+ */
+async function chargeForCachedDelivery(opts: { isPremium: boolean; skipQuota?: boolean }, userId: string, reportKey: string): Promise<"charged" | "uncharged" | "quota_exhausted"> {
+  if (opts.isPremium || opts.skipQuota) return "uncharged"
+  const already = await hasUsageEntryForReport(userId, reportKey)
+  if (already) return "uncharged"
+  const consumed = await consumeSmartAnalysisUsage(userId, 3)
+  return consumed ? "charged" : "quota_exhausted"
+}
+
+/**
  * Request a report for (company, lang):
  *  0. free-tier gate — an analysis is an analysis: cached or fresh, a report
  *     delivered to a free user counts against the monthly window (the old
@@ -71,22 +86,44 @@ export async function requestReport(rawId: string, lang: "ar" | "en", opts: { is
   // 1) valid artifact?
   const existing = await db.aiAnalysisReport.findUnique({ where: { reportKey: ctx.reportKey } })
   if (existing && existing.status === "COMPLETED" && existing.content) {
-    let charged = false
-    if (!opts.isPremium && !opts.skipQuota) {
-      // Charge one unit for a cached delivery — but only the FIRST time this
-      // user receives THIS report identity this month (event ledger dedup),
-      // so re-reading an analysis never burns extra quota.
-      const already = await hasUsageEntryForReport(quotaUserId, ctx.reportKey)
-      if (!already) {
-        const consumed = await consumeSmartAnalysisUsage(quotaUserId, 3)
-        if (!consumed) {
+    // A degraded (rule-based) artifact is a last resort, NOT a final answer —
+    // without this branch it would squat on the reportKey until the next data
+    // change and the real AI report would never happen. Retry the real
+    // generation, bounded: at most one retry per 30 min per report identity
+    // (DEGRADED_FALLBACK event is the cooldown marker), so provider outages
+    // don't hammer the queue. During cooldown the honest degraded artifact is
+    // served like any cache hit.
+    if (existing.degraded) {
+      const lastDegraded = await db.aiAnalysisEvent.findFirst({
+        where: { reportKey: ctx.reportKey, kind: "DEGRADED_FALLBACK" },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
+      })
+      const cooled = !lastDegraded || Date.now() - lastDegraded.createdAt.getTime() >= 30 * 60_000
+      if (cooled) {
+        // Only ever remove a DEGRADED row — a concurrent good completion must
+        // survive this delete (upsert overwrite makes the retry write safe).
+        await db.aiAnalysisReport.deleteMany({ where: { reportKey: ctx.reportKey, degraded: true } }).catch(() => {})
+        await db.aiAnalysisEvent.create({
+          data: { companyId: company.id, reportKey: ctx.reportKey, kind: "DEGRADED_RETRY", details: "degraded artifact bypassed for a real generation attempt" },
+        }).catch(() => {})
+        // fall through: quota gate → active-job check → enqueue
+      } else {
+        const charged = await chargeForCachedDelivery(opts, quotaUserId, ctx.reportKey)
+        if (charged === "quota_exhausted") {
           const usage = await getSmartAnalysisUsage(quotaUserId)
           return { kind: "quota_exhausted", usage: { usageCount: usage.usageCount, limit: usage.limit, remaining: 0, resetAt: usage.resetAt } }
         }
-        charged = true
+        return { kind: "cache_hit", report: existing, charged: charged === "charged" }
       }
+    } else {
+      const charged = await chargeForCachedDelivery(opts, quotaUserId, ctx.reportKey)
+      if (charged === "quota_exhausted") {
+        const usage = await getSmartAnalysisUsage(quotaUserId)
+        return { kind: "quota_exhausted", usage: { usageCount: usage.usageCount, limit: usage.limit, remaining: 0, resetAt: usage.resetAt } }
+      }
+      return { kind: "cache_hit", report: existing, charged: charged === "charged" }
     }
-    return { kind: "cache_hit", report: existing, charged }
   }
 
   // 2) active job?
