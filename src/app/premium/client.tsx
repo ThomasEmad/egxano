@@ -65,10 +65,6 @@ function fmtRangeLimit(v: number | "ALL" | "UNLIMITED", allAr: string, unAr: str
 }
 
 /** Briefing entitlement → "تجربة يوم" (24h trial) or "بلا حدود". */
-function fmtBriefing(hours: number | null): string {
-  if (hours === null) return "بلا حدود"
-  return hours >= 24 ? `تجربة ${hours / 24} يوم` : `تجربة ${hours} ساعة`
-}
 
 /** InstaPay QR with a hydration-safe broken-image fallback: the 404 error can
  *  fire before React attaches onError (SSR-rendered <img>), so completeness is
@@ -209,14 +205,6 @@ export default function PremiumPage() {
         FREE: fmtRangeLimit(PLANS.FREE.limits.smartAnalysesPerMonth, ar ? "الكل" : "All", ar ? "غير محدود" : "Unlimited"),
         PRO: fmtRangeLimit(PLANS.PRO.limits.smartAnalysesPerMonth, ar ? "الكل" : "All", ar ? "غير محدود" : "Unlimited"),
         PRO_PLUS: fmtRangeLimit(PLANS.PRO_PLUS.limits.smartAnalysesPerMonth, ar ? "الكل" : "All", ar ? "غير محدود" : "Unlimited"),
-      },
-    },
-    {
-      label: ar ? "البريفينج الصوتي" : "Audio briefing",
-      values: {
-        FREE: fmtBriefing(PLANS.FREE.limits.briefingTrialHours),
-        PRO: fmtBriefing(PLANS.PRO.limits.briefingTrialHours),
-        PRO_PLUS: fmtBriefing(PLANS.PRO_PLUS.limits.briefingTrialHours),
       },
     },
     { label: ar ? "أحداث الشركات" : "Company events", values: { FREE: PLANS.FREE.limits.events, PRO: PLANS.PRO.limits.events, PRO_PLUS: PLANS.PRO_PLUS.limits.events } },
@@ -403,8 +391,8 @@ export default function PremiumPage() {
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
               {ar
-                ? "ثلاث باقات بسيطة: ابدأ مجانًا، وبعد كده افتح لوحة الإشارات الفنية كاملة والتحليلات الذكية بلا حد والبريفينج الصوتي وأحداث الشركات والماسحات — وبرو بلس بيضيف تقرير PDF القابل للطباعة."
-                : "Three simple plans: start free, then unlock the full signals board, unlimited Smart Analyses, audio briefings, company events and scanners — Pro Plus adds the printable PDF report."}
+                ? "ثلاث باقات بسيطة: ابدأ مجانًا، وبعد كده افتح لوحة الإشارات الفنية كاملة والتحليلات الذكية بلا حد وأحداث الشركات والماسحات — وبرو بلس بيضيف تقرير PDF القابل للطباعة."
+                : "Three simple plans: start free, then unlock the full signals board, unlimited Smart Analyses, company events and scanners — Pro Plus adds the printable PDF report."}
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary">

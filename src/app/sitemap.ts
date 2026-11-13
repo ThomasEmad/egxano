@@ -26,26 +26,38 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/status`, lastModified: now, changeFrequency: "daily", priority: 0.5 },
   ]
 
-  const companies = await db.company.findMany({
-    where: { isActive: true },
-    select: { id: true, ticker: true, sector: true, updatedAt: true },
-    take: 10000,
-    orderBy: { ticker: "asc" },
-  })
+  // BUILD-TIME RESILIENCE (2026-11-14): the sitemap must never fail a deploy
+  // because the database was unreachable during prerendering (transient Neon
+  // outage, migration window, or a local build without a postgres URL). A DB
+  // failure degrades to the static page list — SEO recovers on the next
+  // revalidation instead of the whole deployment failing.
+  let indexable: { id: string; ticker: string; sector: string; updatedAt: Date }[] = []
+  let allCompanies: { id: string; ticker: string; sector: string; updatedAt: Date }[] = []
+  try {
+    const companies = await db.company.findMany({
+      where: { isActive: true },
+      select: { id: true, ticker: true, sector: true, updatedAt: true },
+      take: 10000,
+      orderBy: { ticker: "asc" },
+    })
 
-  // A company with no trusted value is a thin page; it stays reachable but is
-  // noindex and therefore excluded from the sitemap until data arrives.
-  const withData = await db.financialValue.groupBy({
-    by: ["companyId"],
-    where: {
-      companyId: { in: companies.map((c) => c.id) },
-      validationStatus: "VALID",
-      report: { deletedAt: null, processingStatus: { in: ["VALIDATED", "APPROVED", "EXTRACTED"] } },
-    },
-    _count: { _all: true },
-  })
-  const hasData = new Set(withData.filter((r) => r._count._all > 0).map((r) => r.companyId))
-  const indexable = companies.filter((c) => hasData.has(c.id))
+    // A company with no trusted value is a thin page; it stays reachable but is
+    // noindex and therefore excluded from the sitemap until data arrives.
+    const withData = await db.financialValue.groupBy({
+      by: ["companyId"],
+      where: {
+        companyId: { in: companies.map((c) => c.id) },
+        validationStatus: "VALID",
+        report: { deletedAt: null, processingStatus: { in: ["VALIDATED", "APPROVED", "EXTRACTED"] } },
+      },
+      _count: { _all: true },
+    })
+    const hasData = new Set(withData.filter((r) => r._count._all > 0).map((r) => r.companyId))
+    allCompanies = companies
+    indexable = companies.filter((c) => hasData.has(c.id))
+  } catch (err) {
+    console.error("[sitemap] database unavailable — serving static page list only:", err instanceof Error ? err.message : err)
+  }
 
   const companyPages: MetadataRoute.Sitemap = indexable.map((c) => ({
     url: `${baseUrl}/company/${c.ticker}`,
@@ -56,7 +68,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Only sectors that actually have at least one active company, so the
   // sitemap never advertises empty, thin pages.
-  const populated = new Set(companies.map((c) => c.sector))
+  const populated = new Set(allCompanies.map((c) => c.sector))
   const sectorPages: MetadataRoute.Sitemap = SECTORS.filter((s) => populated.has(s)).map((sector) => ({
     url: `${baseUrl}/sectors/${encodeURIComponent(sector)}`,
     lastModified: now,

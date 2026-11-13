@@ -163,11 +163,14 @@ export function SignalsView() {
     return sorted
   }, [rows, signalFilter, styleFilter, rsiFilter, liquidity, dayMove, tierFilter, maFilter, rangePosFilter, scoreFilter, sector, q, sort, watch.items])
 
-  // Free-tier gating: after filters + sort, free/anonymous users see the first
-  // FREE_SIGNALS_ROWS rows fully; every additional row renders as a locked card.
+  // Free-tier gating (2026-11-14): the API itself enforces the FIXED free set —
+  // free/anonymous callers only ever receive those rows (no locked ticker
+  // names cross the wire). The client keeps the locked-card placeholders as a
+  // visual affordance for what exists beyond the free coverage.
   const gateActive = !planLoading && !isPremium
-  const visibleRows = gateActive ? filtered.slice(0, FREE_SIGNALS_ROWS) : filtered
-  const lockedCount = gateActive ? Math.max(filtered.length - FREE_SIGNALS_ROWS, 0) : 0
+  const hiddenCompanies = gateActive ? Math.max((data as { hiddenCompanies?: number } | null)?.hiddenCompanies ?? 0, 0) : 0
+  const visibleRows = filtered
+  const lockedCount = gateActive ? Math.min(FREE_SIGNALS_ROWS - visibleRows.length, FREE_SIGNALS_ROWS) : 0
   // Cap the placeholder cards so a large locked set doesn't flood the grid.
   const lockedPlaceholders = Math.min(lockedCount, 4)
 
@@ -449,12 +452,12 @@ export function SignalsView() {
       ) : (
         <>
           {/* Free-tier banner — visible only when rows are actually gated */}
-          {lockedCount > 0 ? (
+          {lockedCount > 0 || hiddenCompanies > 0 ? (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2">
               <span className="text-xs font-medium text-foreground">
                 {ar
-                  ? `بتشوف أول ${FREE_SIGNALS_ROWS} شركات من ${filtered.length} — الباقي مع باقة برو`
-                  : `Showing the first ${FREE_SIGNALS_ROWS} of ${filtered.length} companies — the rest with Pro`}
+                  ? `التغطية المجانية ثابتة على ${FREE_SIGNALS_ROWS} شركات${hiddenCompanies > 0 ? ` — باقي الشركات (${hiddenCompanies}) مع باقة برو` : ""}`
+                  : `Free coverage is a fixed set of ${FREE_SIGNALS_ROWS} companies${hiddenCompanies > 0 ? ` — the other ${hiddenCompanies} with Pro` : ""}`}
               </span>
               <Button asChild size="sm" variant="link" className="h-auto px-0 text-xs font-semibold">
                 <Link href="/premium">{ar ? "ترقية الآن" : "Upgrade now"}</Link>

@@ -5,7 +5,7 @@
 //   • missing-evidence caps — no volume evidence → 70, no risk evidence → 75,
 //     and NO trend evidence → null score (the anchor is gone, not rescaled);
 //   • excellence gate — raw > 85 needs every present dim ≥ 80% AND relVol ≥ 1.2;
-//   • high-end compression — final = round(100 × (raw/100)^1.25);
+//   • high-end compression — final = round(100 × (raw/100)^1.4);
 //   • tightened bands — trend 8/7/8/7 (max 30), RSI full credit only 45-60,
 //     OBV 8, relVol 2-3× on an up day = 10 / >3× = 4, extension ≤4/≤8, daily
 //     vol ≤3/≤5.
@@ -58,7 +58,7 @@ function downtrendCloses(n = 80): number[] {
   return out
 }
 
-describe("computeCloseSignal — stance mapping (@3 math)", () => {
+describe("computeCloseSignal — stance mapping (@4 math)", () => {
   it("steady uptrend with confirmed volume → buy read at the @3 compressed score", () => {
     const closes = uptrendCloses(80)
     // rising volume — accumulation alongside price
@@ -68,9 +68,9 @@ describe("computeCloseSignal — stance mapping (@3 math)", () => {
     // MACD 10, rangePos 100 → 2) · volume 14/20 × 20 = 14 (OBV 8 + relVol
     // ~1.04 on an up day → 6) · risk 12/15 × 15 = 12 (ext ~4.3% → 5, daily
     // vol ~0.8% → 7) → raw 75 → curve → 70. Buy still reachable (≥ 62).
-    expect(sig.version).toBe("tech-signals@3")
+    expect(sig.version).toBe("tech-signals@4")
     expect(sig.signal).toBe("buy")
-    expect(sig.score).toBe(70)
+    expect(sig.score).toBe(67)
     expect(sig.dimensions.find((d) => d.key === "trend")).toEqual({ key: "trend", earned: 30, max: 30 })
     expect(sig.dimensions.find((d) => d.key === "momentum")).toEqual({ key: "momentum", earned: 14, max: 30 })
     expect(sig.dimensions.find((d) => d.key === "volume")).toEqual({ key: "volume", earned: 14, max: 20 })
@@ -92,9 +92,9 @@ describe("computeCloseSignal — stance mapping (@3 math)", () => {
     const sig = computeCloseSignal(rowsFrom(closes, volumes))
     // raw: trend 0/30 · momentum 12/30 (RSI ~0.8 → 2, MACD line<0 but hist
     // converging up → 7, rangePos 0 → 3) · volume 3/20 (OBV<0 → 0, relVol
-    // ~0.94 on a down day → 3) · risk 15/15 → raw 30 → curve → 22 < 35.
+    // ~0.94 on a down day → 3) · risk 15/15 → raw 30 → curve → 19 < 35.
     expect(sig.signal).toBe("sell")
-    expect(sig.score).toBe(22)
+    expect(sig.score).toBe(19)
     expect(sig.reasons.some((r) => r.tone === "negative")).toBe(true)
     // the early top gives the plan a usable resistance → a real sell plan
     expect(sig.tradePlan).not.toBeNull()
@@ -112,11 +112,11 @@ describe("computeCloseSignal — stance mapping (@3 math)", () => {
     }
     const sig = computeCloseSignal(rowsFrom(closes))
     // raw: trend 0/30 (price under EMA20 after the last down-step, no rising
-    // streak) · momentum 14/30 · volume 3/20 · risk 15/15 → raw 32 → 24.
+    // streak) · momentum 14/30 · volume 3/20 · risk 15/15 → raw 32 → 20.
     // Sell is vetoed: RSI ~50 is not sell momentum. Hold.
     expect(sig.signal).toBe("hold")
-    expect(sig.score).toBe(24)
-    expect(sig.score!).toBeGreaterThan(20)
+    expect(sig.score).toBe(20)
+    expect(sig.score!).toBeGreaterThan(19)
     expect(sig.score!).toBeLessThan(80)
   })
 
@@ -170,8 +170,8 @@ describe("computeCloseSignal — stance mapping (@3 math)", () => {
     const vol = sig.dimensions.find((d) => d.key === "volume")!
     expect(vol.max).toBe(0)
     // raw over trend+momentum+risk = (35 + 14 + 12)/80 → 76.25; @2 rescaled that
-    // to a near-perfect display. @3 caps the ceiling at 70 → curve → 64.
-    expect(sig.score).toBe(64)
+    // to a near-perfect display. @3 caps the ceiling at 70 → curve → 61.
+    expect(sig.score).toBe(61)
     expect(sig.score!).toBeLessThanOrEqual(70)
   })
 
@@ -185,17 +185,25 @@ describe("computeCloseSignal — stance mapping (@3 math)", () => {
   })
 })
 
-describe("finalizeScore — @3 calibration layer", () => {
+describe("finalizeScore — @4 calibration layer", () => {
   const strong: Parameters<typeof finalizeScore>[1] = { volumeKnown: true, riskKnown: true, allDimsStrong: true, relVol: 1.5 }
 
-  it("compression anchors: 0→0, 100→100, and the documented mid-curve points", () => {
+  it("compression anchors: 0→0, 100→100, and the documented mid-curve points (@4)", () => {
     expect(finalizeScore(0, strong)).toBe(0)
     expect(finalizeScore(100, strong)).toBe(100)
-    expect(finalizeScore(90, strong)).toBe(88)
-    expect(finalizeScore(85, strong)).toBe(82)
-    expect(finalizeScore(80, strong)).toBe(76)
-    expect(finalizeScore(75, strong)).toBe(70)
-    expect(finalizeScore(70, strong)).toBe(64)
+    expect(finalizeScore(90, strong)).toBe(86)
+    expect(finalizeScore(85, strong)).toBe(80)
+    expect(finalizeScore(80, strong)).toBe(73)
+    expect(finalizeScore(75, strong)).toBe(67)
+    expect(finalizeScore(70, strong)).toBe(61)
+  })
+
+  it("@4: displayed 80+ is rare — only full-strength dims with real participation", () => {
+    // same raw score WITHOUT confirmed participation is capped below 80
+    const weakPart: Parameters<typeof finalizeScore>[1] = { volumeKnown: true, riskKnown: true, allDimsStrong: true, relVol: 1.0 }
+    expect(finalizeScore(90, weakPart)).toBeLessThan(80)
+    const noVolume: Parameters<typeof finalizeScore>[1] = { volumeKnown: false, riskKnown: true, allDimsStrong: false, relVol: 1.5 }
+    expect(finalizeScore(90, noVolume)).toBeLessThanOrEqual(70)
   })
 
   it("compression is monotonic across the whole raw domain (any ctx)", () => {
@@ -221,32 +229,33 @@ describe("finalizeScore — @3 calibration layer", () => {
   })
 
   it("missing volume evidence caps the raw ceiling at 70 → 64 displayed", () => {
-    expect(finalizeScore(100, { ...strong, volumeKnown: false })).toBe(64)
-    expect(finalizeScore(90, { ...strong, volumeKnown: false })).toBe(64)
-    expect(finalizeScore(60, { ...strong, volumeKnown: false })).toBe(53) // cap not binding
+    expect(finalizeScore(100, { ...strong, volumeKnown: false })).toBe(61)
+    expect(finalizeScore(90, { ...strong, volumeKnown: false })).toBe(61)
+    expect(finalizeScore(60, { ...strong, volumeKnown: false })).toBe(49) // cap not binding
   })
 
   it("missing risk evidence caps the raw ceiling at 75 → 70 displayed", () => {
-    expect(finalizeScore(100, { ...strong, riskKnown: false })).toBe(70)
-    expect(finalizeScore(90, { ...strong, riskKnown: false })).toBe(70)
-    expect(finalizeScore(60, { ...strong, riskKnown: false })).toBe(53) // cap not binding
+    expect(finalizeScore(100, { ...strong, riskKnown: false })).toBe(67)
+    expect(finalizeScore(90, { ...strong, riskKnown: false })).toBe(67)
+    expect(finalizeScore(60, { ...strong, riskKnown: false })).toBe(49) // cap not binding
   })
 
   it("both caps missing → volume cap dominates (70)", () => {
-    expect(finalizeScore(100, { ...strong, volumeKnown: false, riskKnown: false })).toBe(64)
+    expect(finalizeScore(100, { ...strong, volumeKnown: false, riskKnown: false })).toBe(61)
   })
 
-  it("raw > 85 requires allDimsStrong AND relVol ≥ 1.2, else clamps to 85 → 82", () => {
-    expect(finalizeScore(95, { ...strong, allDimsStrong: false })).toBe(82)
-    expect(finalizeScore(95, { ...strong, relVol: 1.1 })).toBe(82)
-    expect(finalizeScore(95, { ...strong, relVol: null })).toBe(82)
-    // exactly at the 1.2 boundary the gate passes → raw 95 → 94
-    expect(finalizeScore(95, strong)).toBe(94)
-    expect(finalizeScore(95, { ...strong, relVol: 1.2 })).toBe(94)
+  it("raw > 80 requires allDimsStrong AND relVol ≥ 1.3, else clamps to 80 → 73 (@4)", () => {
+    expect(finalizeScore(95, { ...strong, allDimsStrong: false })).toBe(73)
+    expect(finalizeScore(95, { ...strong, relVol: 1.1 })).toBe(73)
+    expect(finalizeScore(95, { ...strong, relVol: null })).toBe(73)
+    // exactly at the 1.3 boundary the gate passes → raw 95 → 93
+    expect(finalizeScore(95, strong)).toBe(93)
+    expect(finalizeScore(95, { ...strong, relVol: 1.3 })).toBe(93)
+    expect(finalizeScore(95, { ...strong, relVol: 1.2 })).toBe(73)
   })
 })
 
-describe("computeStanceFromSnapshot — full-bundle stance (@3 EMA facts)", () => {
+describe("computeStanceFromSnapshot — full-bundle stance (@4 EMA facts)", () => {
   function bundleBars(closes: number[]): Bar[] {
     return closes.map((c, i) => ({
       ts: new Date(new Date("2025-06-02T00:00:00Z").getTime() + i * 86_400_000).toISOString().slice(0, 10),
@@ -261,7 +270,7 @@ describe("computeStanceFromSnapshot — full-bundle stance (@3 EMA facts)", () =
   it("produces a score in range and a valid signal from a real bundle", () => {
     const bundle = assembleBundle(bundleBars(uptrendCloses(80)))
     const stance = computeStanceFromSnapshot(bundle.snapshot)
-    expect(stance.version).toBe("tech-signals@3")
+    expect(stance.version).toBe("tech-signals@4")
     expect(stance.score).not.toBeNull()
     expect(stance.score!).toBeGreaterThanOrEqual(0)
     expect(stance.score!).toBeLessThanOrEqual(100)
@@ -305,12 +314,12 @@ describe("computeStanceFromSnapshot — full-bundle stance (@3 EMA facts)", () =
     expect(stance.limitations.join(" ")).toMatch(/Trend checks could not be computed/)
   })
 
-  it("excellence gate passes on a fully strong, volume-confirmed snapshot (98/100 raw→98)", () => {
+  it("excellence gate passes on a fully strong, volume-confirmed snapshot (98/100 raw→97 @4)", () => {
     const empty = assembleBundle([]).snapshot
     // hand-built with known facts: ext (110-107)/107 ≈ 2.8% → 8, atrPct 2.5 → 7,
     // RSI 55 → 10, MACD line/hist > 0 → 10, stoch k>d in band → 10,
     // OBV slope > 0 → 8, relVol 2.5 on an up day → 10, full EMA stack → 30/30.
-    // raw = 35 + 30 + 18 + 15 = 98; all dims ≥ 80% and relVol ≥ 1.2 → no clamp.
+    // raw = 35 + 30 + 18 + 15 = 98; all dims ≥ 80% and relVol 2.5 ≥ 1.3 → no clamp.
     const strongSnap: TechnicalSnapshot = {
       ...empty,
       available: true,
@@ -325,7 +334,7 @@ describe("computeStanceFromSnapshot — full-bundle stance (@3 EMA facts)", () =
     }
     const stance = computeStanceFromSnapshot(strongSnap)
     expect(stance.signal).toBe("buy")
-    expect(stance.score).toBe(98)
+    expect(stance.score).toBe(97)
     expect(stance.dimensions.find((d) => d.key === "trend")).toEqual({ key: "trend", earned: 30, max: 30 })
     expect(stance.reasons.map((r) => r.code)).toContain("alignment_up")
   })
@@ -346,8 +355,9 @@ describe("computeStanceFromSnapshot — full-bundle stance (@3 EMA facts)", () =
       levels: { supports: [], resistances: [] },
     }
     const stance = computeStanceFromSnapshot(gatedSnap)
-    // raw = 35 + 30 + 14 + 15 = 94 → gate clamps to 85 → curve → 82
-    expect(stance.score).toBe(82)
+    // raw = 35 + 30 + 14 + 15 = 94 → @4 gate clamps to 80 (relVol 1.0 < 1.3
+    // and the volume dim is not ≥80% strong) → curve → 73
+    expect(stance.score).toBe(73)
     expect(stance.signal).toBe("buy")
   })
 

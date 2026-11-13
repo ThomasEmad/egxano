@@ -66,6 +66,7 @@ model Company {
   watchlistItems        WatchlistItem[]
   priceAlerts           PriceAlert[]
   briefing              StockBriefing?
+  stanceSnapshot        StanceSnapshot?
 
   @@index([sector])
   @@index([isActive])
@@ -301,6 +302,21 @@ model AiAnalysis {
 // A bar is an observed trading session from the authorized public data source —
 // sessions are never synthesized, forward-filled, or interpolated. Indicators
 // that need more history than exists report "insufficient data" instead.
+// Canonical per-company technical stance (2026-11-14 — single source of truth).
+// The signals board AND the company technical tab MUST read this same persisted
+// row, so one analysis can never show two different stop/invalidation levels on
+// two pages. Refreshed lazily (stale > 20h) and by the stance-refresh cron.
+model StanceSnapshot {
+  id            String   @id @default(cuid())
+  companyId     String   @unique
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  engineVersion String
+  signalsVersion String
+  dataAsOf      DateTime // last bar session the stance was computed on
+  stanceJson    String   // full TechStance payload (signal, score, plan, invalidation, reasons)
+  computedAt    DateTime @default(now())
+}
+
 model PriceBar {
   id         String   @id @default(cuid())
   companyId  String

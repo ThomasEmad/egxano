@@ -1,31 +1,59 @@
+import { NextRequest } from "next/server"
 import { findCompanyByKey } from "@/lib/company-lookup"
 import { buildTechnicalBundleWithContext } from "@/lib/market/intelligence/context"
 import { computeStanceFromSnapshot } from "@/lib/technical/signals"
 import { getCachedMarketSignals } from "@/lib/technical/signals-service"
 import { cached } from "@/lib/server-cache"
+import { getCanonicalStance } from "@/lib/technical/stance-store"
+import { getSessionUser } from "@/lib/auth"
+import { getActivePlanId } from "@/lib/subscription"
+import { isFreeSignalTicker, isPaidPlanId } from "@/lib/plans/entitlements"
 
-// GET /api/v1/companies/[id]/technical — deterministic technical analysis over
-// the stored daily price bars (trend, momentum, volatility, volume, support /
-// resistance zones, 52-week context, pre-flagged signals) + the rule-based
-// stance synthesis (score / buy-wait-sell reading / style fits / invalidation
-// level) + the market board's close-only read for the same ticker, so the
-// company tab and the /signals board stay visibly in sync. Public: it is the
-// same price-derived math the AI reports ground on — no user-specific data.
+// GET /api/v1/companies/[id]/technical — THE canonical technical analysis.
+//
+// SINGLE SOURCE OF TRUTH (2026-11-14): the stance (reading + trade plan +
+// invalidation) is computed ONCE and PERSISTED via the canonical stance store.
+// The /signals board reads the exact same persisted row, so the board's stop
+// and the company page's stop are the same number by construction — the old
+// close-based-plan-vs-snapshot-plan discrepancy is structurally impossible.
+//
+// ENTITLEMENT GATE (backend, not UI): free/anonymous users may read technical
+// analysis ONLY for the fixed free-access set. Any other ticker returns 403
+// with ZERO payload — no levels, no zones, no chart data, no ticker list leak.
 // Cached 10 minutes per company; a recompute/price import clears the cache.
 
 export const maxDuration = 30
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const company = await findCompanyByKey(id, { id: true, ticker: true })
   if (!company) return Response.json({ error: "NOT_FOUND" }, { status: 404 })
 
+  // ---- entitlement gate (fixed free set) ----
+  const headerToken = req.headers.get("x-session-token") ?? req.headers.get("authorization")
+  const token = headerToken ? (headerToken.startsWith("Bearer ") ? headerToken.slice(7) : headerToken) : null
+  const userId = await getSessionUser(token)
+  const plan = userId ? await getActivePlanId(userId) : "FREE"
+  const paid = isPaidPlanId(plan)
+  if (!paid && !isFreeSignalTicker(company.ticker ?? "")) {
+    return Response.json(
+      {
+        error: "PREMIUM_REQUIRED",
+        message: "التحليل الفني الكامل لكل الشركات متاح في باقتي Pro وPro Plus.",
+        plan,
+      },
+      { status: 403, headers: { "cache-control": "no-store" } },
+    )
+  }
+
   const payload = await cached(`technical-tab:${company.id}`, 10 * 60_000, async () => {
     const bundle = await buildTechnicalBundleWithContext(company.id)
+    // THE canonical persisted stance — identical to what the /signals board
+    // displays for this ticker (same row, same levels, same invalidation).
+    const canonical = await getCanonicalStance(company.id)
     // The market board read for this ticker (10-min cached whole-market pass —
-    // cheap to touch here). Used by the UI to show the sync strip: same
-    // vocabulary, and any difference between the close-only board read and the
-    // fuller snapshot stance is explained instead of silently contradicting.
+    // cheap to touch here). Since the board now overlays the same canonical
+    // stance, boardSignal and stance agree by construction.
     let boardSignal: { signal: "buy" | "hold" | "sell"; score: number; asOf: string | null } | null = null
     try {
       const board = await getCachedMarketSignals()
@@ -42,10 +70,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       // Adjusted daily candles for the client chart (corporate-action
       // continuity) — compact series, already capped in the bundle.
       candles: bundle.candles,
-      stance: computeStanceFromSnapshot(bundle.snapshot),
+      stance: canonical.stance,
+      stanceDataAsOf: canonical.dataAsOf.toISOString(),
       boardSignal,
     }
   })
 
-  return Response.json({ companyId: company.id, ticker: company.ticker, ...payload })
+  return Response.json({ companyId: company.id, ticker: company.ticker, plan, ...payload })
 }

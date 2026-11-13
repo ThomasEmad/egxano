@@ -24,7 +24,8 @@
 import { db } from "@/lib/db"
 import { cached } from "@/lib/server-cache"
 import { applyCorporateActionAdjustments, loadSeriesActionsByCompany, type SeriesBar } from "@/lib/market/corporate-actions"
-import { computeCloseSignal, SIGNALS_VERSION, type CloseSignalOutput } from "./signals"
+import { computeCloseSignal, SIGNALS_VERSION, type CloseSignalOutput, type TechStance } from "./signals"
+import { readCanonicalStance, BOARD_MAX_AGE_MS, STANCE_ENGINE_VERSION } from "./stance-store"
 
 /** Calendar-day cutoff for the trailing window (~280 sessions where history exists). */
 const WINDOW_DAYS = 420
@@ -49,6 +50,8 @@ export interface MarketSignalsOutput {
   scored: number
   weakData: number
   distribution: { buy: number; hold: number; sell: number }
+  /** rows whose displayed reading comes from the persisted canonical stance */
+  canonicalCount?: number
   /** % of scored companies whose price sits above EMA20 — technical breadth */
   pctAboveEma20: number | null
   rows: MarketSignalRow[]
@@ -173,6 +176,51 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
     if (sig.signal === null) weakData++
   }
 
+  // ---- CANONICAL STANCE OVERLAY (single source of truth, 2026-11-14) ----
+  // The close-only engine's own trade plan came from a DIFFERENT level source
+  // than the company technical tab (close-based S/R vs OHLC zones) — the same
+  // stock showed two different stop-losses on two pages. Every row that has a
+  // persisted canonical stance now displays THAT reading (identical to the
+  // company tab, same levels, same invalidation). Rows without one keep the
+  // close-based READ but never show levels (no plan, no invalidation) — one
+  // stock, one analysis, everywhere.
+  const canonicalRows = await db.stanceSnapshot.findMany({
+    where: { company: { isActive: true } },
+    select: { companyId: true, stanceJson: true, dataAsOf: true, computedAt: true, engineVersion: true },
+  })
+  const canonicalByCompany = new Map(
+    canonicalRows
+      .filter((s) => s.engineVersion === STANCE_ENGINE_VERSION && Date.now() - s.computedAt.getTime() <= BOARD_MAX_AGE_MS)
+      .map((s) => {
+        try {
+          return [s.companyId, { stance: JSON.parse(s.stanceJson) as TechStance, dataAsOf: s.dataAsOf }]
+        } catch {
+          return [s.companyId, null]
+        }
+      })
+      .filter(([, v]) => v !== null) as [string, { stance: TechStance; dataAsOf: Date }][],
+  )
+  let canonicalCount = 0
+  for (const row of rows) {
+    const canonical = canonicalByCompany.get(row.companyId)
+    if (canonical) {
+      canonicalCount++
+      row.score = canonical.stance.score
+      row.signal = canonical.stance.signal
+      row.dimensions = canonical.stance.dimensions
+      row.reasons = canonical.stance.reasons
+      row.styleFits = canonical.stance.styleFits
+      row.invalidation = canonical.stance.invalidation
+      row.tradePlan = canonical.stance.tradePlan
+      row.limitations = canonical.stance.limitations
+    } else {
+      // No canonical bundle (no candles / too few sessions): the close-based
+      // reading stays, but LEVELS are withheld everywhere for consistency.
+      row.tradePlan = null
+      row.invalidation = null
+    }
+  }
+
   const distribution = { buy: 0, hold: 0, sell: 0 }
   let aboveEma20 = 0
   let ema20Count = 0
@@ -194,6 +242,7 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
     universe: companies.length,
     scored: rows.length - weakData,
     weakData,
+    canonicalCount,
     distribution,
     pctAboveEma20: ema20Count > 0 ? Math.round((aboveEma20 / ema20Count) * 1000) / 10 : null,
     rows,

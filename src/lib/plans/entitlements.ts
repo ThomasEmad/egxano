@@ -1,5 +1,5 @@
 // Single source of truth for the 3 plans and their REAL, enforced entitlements.
-// Every gate in the codebase (signals board rows, smart analyses, briefings,
+// Every gate in the codebase (signals board rows, smart analyses,
 // portfolio, QA quota, events, scanners, ads, PDF report) MUST derive its limit
 // from this file so that the marketing copy on /premium can never drift from
 // what the app actually enforces.
@@ -11,10 +11,6 @@ export interface PlanLimits {
   signalsRows: number | "ALL"
   /** AI smart analyses per calendar month. */
   smartAnalysesPerMonth: number | "UNLIMITED"
-  /** Audio briefing per-stock trial window in hours; null = unlimited access. */
-  briefingTrialHours: number | null
-  /** Ads shown next to the briefing player. */
-  briefingAds: boolean
   /** Tracked portfolio holdings. */
   portfolioHoldings: number | "UNLIMITED"
   /** AI Q&A per day. */
@@ -74,8 +70,6 @@ export const PLANS: Record<PlanId, PlanDef> = {
     limits: {
       signalsRows: 5,
       smartAnalysesPerMonth: 3,
-      briefingTrialHours: 24,
-      briefingAds: true,
       portfolioHoldings: 2,
       qaPerDay: 20,
       alerts: 5,
@@ -111,8 +105,6 @@ export const PLANS: Record<PlanId, PlanDef> = {
     limits: {
       signalsRows: "ALL",
       smartAnalysesPerMonth: "UNLIMITED",
-      briefingTrialHours: null,
-      briefingAds: false,
       portfolioHoldings: "UNLIMITED",
       qaPerDay: 60,
       alerts: 30,
@@ -144,8 +136,6 @@ export const PLANS: Record<PlanId, PlanDef> = {
     limits: {
       signalsRows: "ALL",
       smartAnalysesPerMonth: "UNLIMITED",
-      briefingTrialHours: null,
-      briefingAds: false,
       portfolioHoldings: "UNLIMITED",
       qaPerDay: 120,
       alerts: 100,
@@ -171,4 +161,24 @@ export const PAID_PLAN_IDS: PlanId[] = ["PRO", "PRO_PLUS"]
 
 export function isPaidPlanId(name: string): boolean {
   return PAID_PLAN_IDS.includes(name as PlanId)
+}
+
+// =============================================================================
+// FREE-ACCESS UNIVERSE (2026-11-14 hardening — closes the filter-bypass hole)
+// =============================================================================
+// Product decision: a free user's ENTIRE technical coverage is a FIXED set of
+// 5 companies — not "the first 5 rows of whatever the current filter/sort
+// produces". Filters, sorting, pagination and direct API calls can shuffle the
+// board all they want: for FREE/anonymous callers the API itself intersects
+// every response with this set, so no filter combination can ever reveal a
+// sixth company and no locked ticker name ever leaves the server.
+//
+// The five are liquid EGX30 large caps across different sectors with reliable
+// candle coverage. Changing this list is a product decision — server-side only.
+export const FREE_SIGNAL_TICKERS = ["COMI", "ETEL", "TMGH", "ABUK", "EFID"] as const
+
+export const FREE_SIGNAL_SET: ReadonlySet<string> = new Set(FREE_SIGNAL_TICKERS)
+
+export function isFreeSignalTicker(ticker: string): boolean {
+  return FREE_SIGNAL_SET.has(ticker.trim().toUpperCase())
 }

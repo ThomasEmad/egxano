@@ -32,7 +32,7 @@ import { ema, emaSeries, macd, perfN, rsi } from "./indicators"
 import type { TechnicalSnapshot } from "./analyze"
 import { buildTradePlan, type TradePlan } from "./trade-plan"
 
-export const SIGNALS_VERSION = "tech-signals@3"
+export const SIGNALS_VERSION = "tech-signals@4"
 
 export type TechSignalType = "buy" | "hold" | "sell"
 
@@ -160,11 +160,15 @@ export function finalizeScore(rawPct: number, ctx: FinalizeContext): number {
   // 1. missing-evidence caps (volume missing dominates: 70 wins over 75)
   if (!ctx.volumeKnown) s = Math.min(s, 70)
   if (!ctx.riskKnown) s = Math.min(s, 75)
-  // 2. excellence gate — >85 needs full-strength dims + confirmed participation
-  const relVolStrong = ctx.relVol !== null && ctx.relVol >= 1.2
-  if (s > 85 && !(ctx.allDimsStrong && relVolStrong)) s = 85
-  // 3. high-end compression curve (documented above)
-  return Math.round(100 * Math.pow(s / 100, 1.25))
+  // 2. excellence gate (tech-signals@4, tightened): anything above 80 needs
+  //    full-strength dimensions AND confirmed participation — the owner saw
+  //    too many 80+ reads, so the bar moved from 85 to 80 and relVol from 1.2
+  //    to 1.3× the 20-day average.
+  const relVolStrong = ctx.relVol !== null && ctx.relVol >= 1.3
+  if (s > 80 && !(ctx.allDimsStrong && relVolStrong)) s = 80
+  // 3. high-end compression curve (steeper @4: displayed 80 now demands a raw
+  //    ≈ 86.6; 90 → 86, 85 → 80, 80 → 74, 75 → 68, 70 → 62)
+  return Math.round(100 * Math.pow(s / 100, 1.4))
 }
 
 /** One scored dimension in its own (pre-weight) scale. */

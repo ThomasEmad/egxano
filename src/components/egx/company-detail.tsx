@@ -56,7 +56,6 @@ import { Input } from "@/components/ui/input"
 import { PremiumGate } from "@/components/egx/premium-gate"
 import { HealthTab } from "@/components/egx/health-tab"
 import { TechnicalTab } from "@/components/egx/technical-tab"
-import { BriefingCard } from "@/components/egx/briefing-card"
 import { FScoreCard } from "@/components/egx/f-score-card"
 import { QaBox } from "@/components/egx/qa-box"
 import { AiReportRenderer } from "@/components/ai/ai-report-renderer"
@@ -446,9 +445,6 @@ export function CompanyDetail({
         </TabsContent>
         <TabsContent value="technical" className="mt-4">
           <TechnicalTab companyId={companyId} ticker={c.ticker} />
-          <div className="mt-4">
-            <BriefingCard key={companyId} companyId={companyId} ticker={c.ticker} nameAr={c.nameAr} />
-          </div>
         </TabsContent>
         <TabsContent value="peers" className="mt-4">
           <PeersTab companyId={companyId} />

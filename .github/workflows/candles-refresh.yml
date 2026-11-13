@@ -53,6 +53,14 @@ jobs:
           DATABASE_URL: ${{ secrets.CANDLE_DB_URL }}
         run: node scripts/import-missing-candles.mjs --stale-days=1 --apply --pacing=2000
 
+      - name: Recompute canonical technical stances (chunked)
+        run: |
+          for i in 1 2 3 4 5 6; do
+            echo "stance batch $i"
+            curl -s --max-time 120 -X POST "${{ secrets.STANCE_REFRESH_URL }}/api/v1/cron/stance-refresh?limit=50" -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" || true
+            echo
+          done
+
       - name: Storage stats
         env:
           DATABASE_URL: ${{ secrets.CANDLE_DB_URL }}
