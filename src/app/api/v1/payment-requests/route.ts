@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth"
 import { audit } from "@/lib/audit"
 import { checkEndpointRateLimit, getClientIp } from "@/lib/rate-limit"
 import { withKeyLock } from "@/lib/key-lock"
+import { planFirstMonthAmount } from "@/lib/subscription"
 
 // GET /api/v1/payment-requests/me
 export async function GET(req: NextRequest) {
@@ -55,12 +56,17 @@ export async function POST(req: NextRequest) {
     const transactionReference = typeof body?.transactionReference === "string" ? body.transactionReference.trim().slice(0, 80) : null
     if (!planId) return Response.json({ error: "INVALID_PAYLOAD" }, { status: 400 })
 
-    const plan = await db.plan.findUnique({ where: { id: planId }, select: { id: true, name: true, price: true, currency: true, isActive: true } })
+    const plan = await db.plan.findUnique({
+      where: { id: planId },
+      select: { id: true, name: true, price: true, offerActive: true, offerPrice: true, currency: true, isActive: true },
+    })
     if (!plan || !plan.isActive) return Response.json({ error: "PLAN_NOT_FOUND" }, { status: 404 })
 
-    // Security: the amount is ALWAYS the plan's server-side price. The client
-    // used to control `amount`, letting a user file a premium request for an
-    // arbitrary (tiny) figure and mislead the manual payment review.
+    // Security: the amount is ALWAYS derived server-side from the plan row —
+    // the first-month offer price when the offer is active, the full price
+    // otherwise. The client used to control `amount`, letting a user file a
+    // premium request for an arbitrary (tiny) figure and mislead the manual
+    // payment review; the body amount is ignored entirely.
     const result = await withKeyLock(`pay-req:${userId}`, async () => {
       // Idempotency guard: reuse an existing PENDING request for the same
       // user+plan instead of stacking duplicates.
@@ -69,25 +75,25 @@ export async function POST(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         include: { plan: { select: { name: true, price: true, currency: true } } },
       })
-      if (pending) return { request: pending, created: false }
+      if (pending) return { request: pending, created: false, amount: planFirstMonthAmount(plan) }
 
       const request = await db.paymentRequest.create({
         data: {
           userId,
           planId: plan.id,
-          amount: plan.price,
+          amount: planFirstMonthAmount(plan),
           currency: plan.currency,
           paymentMethod,
           transactionReference: transactionReference ?? undefined,
         },
         include: { plan: { select: { name: true, price: true, currency: true } } },
       })
-      return { request, created: true }
+      return { request, created: true, amount: planFirstMonthAmount(plan) }
     })
 
     if (result.created) {
-      await audit("PAYMENT_REQUEST_CREATED", { actor: userId, entityType: "PaymentRequest", entityId: result.request.id, details: `${plan.name} ${plan.currency} ${plan.price}` })
-      return Response.json({ id: result.request.id, status: result.request.status, createdAt: result.request.createdAt.toISOString() }, { status: 201 })
+      await audit("PAYMENT_REQUEST_CREATED", { actor: userId, entityType: "PaymentRequest", entityId: result.request.id, details: `${plan.name} ${plan.currency} ${result.amount}` })
+      return Response.json({ id: result.request.id, status: result.request.status, createdAt: result.request.createdAt.toISOString(), planName: plan.name, amount: result.amount, currency: plan.currency }, { status: 201 })
     }
 
     // Duplicate submission — point the client at the request already in review.

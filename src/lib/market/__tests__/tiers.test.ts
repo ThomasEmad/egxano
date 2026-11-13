@@ -1,13 +1,13 @@
 // Market-tier metadata + constituent seed lists — integrity tests.
-// The lists are real EGX constituents (egxbot.com, November 2026); these
-// tests guard against typos, duplicates across indices and silent drift.
+// The lists are real EGX constituents (egxbot.com + egx.com.eg, November
+// 2026); these tests guard against typos, duplicates across indices and
+// silent drift.
 import { describe, expect, it } from "vitest"
 import {
   MARKET_TIERS,
   TIER_AR,
   EGX30_TICKERS,
   EGX70_TICKERS,
-  NILEX_TICKERS,
 } from "@/lib/market/tiers"
 
 describe("market tier labels", () => {
@@ -19,6 +19,11 @@ describe("market tier labels", () => {
       expect(TIER_AR[tier].en.length).toBeGreaterThan(0)
     }
   })
+
+  it("NILEX is retired as a tier category (Nilex companies fold into MAIN)", () => {
+    expect(MARKET_TIERS).not.toContain("NILEX")
+    expect(Object.keys(TIER_AR)).not.toContain("NILEX")
+  })
 })
 
 describe("constituent seed lists", () => {
@@ -28,13 +33,20 @@ describe("constituent seed lists", () => {
   })
 
   it("every constituent is a valid EGX ticker shape (/^[A-Z0-9]{2,6}$/)", () => {
-    for (const t of [...EGX30_TICKERS, ...EGX70_TICKERS, ...NILEX_TICKERS]) {
+    for (const t of [...EGX30_TICKERS, ...EGX70_TICKERS]) {
       expect(t).toMatch(/^[A-Z0-9]{2,6}$/)
     }
   })
 
-  it("EGX30 has 32 entries and EGX70 has 70 entries", () => {
-    expect(EGX30_TICKERS).toHaveLength(32)
+  it("EGX30 has exactly 30 entries and EGX70 has 70 entries", () => {
+    expect(EGX30_TICKERS).toHaveLength(30)
     expect(EGX70_TICKERS).toHaveLength(70)
+  })
+
+  it("EGX30 excludes CANA (in neither EGX30 nor EGX70) and the VLMR share class (only VLMRA is the primary listed class)", () => {
+    expect(EGX30_TICKERS).not.toContain("CANA")
+    expect(EGX70_TICKERS).not.toContain("CANA")
+    expect(EGX30_TICKERS).not.toContain("VLMR")
+    expect(EGX30_TICKERS).toContain("VLMRA")
   })
 })

@@ -1,0 +1,82 @@
+# Candles refresh — daily PriceBar backfill driver (external scheduler loop).
+#
+# Vercel Hobby caps crons at 2 (both taken by cron/audit daily + weekly), so
+# the scheduler lives here — same rationale as ai-worker.yml.
+#
+# How it works: /api/v1/cron/candles ingests ONE chunk (≤40 companies) per
+# POST and returns nextCursor + done. This loop carries the cursor forward
+# until done=true (~7 chunks for 269 companies; 12 iterations is headroom for
+# transient 5xx/cold-start retries). Schedule runs at 05:00 UTC — after the
+# 04:00 market snapshot refresh so yesterday's session already exists.
+#
+# Failure policy: the step fails ONLY if every iteration fails (auth/network/
+# endpoint outage). If the iteration budget runs out before done=true the job
+# still passes — upserts are idempotent (ON CONFLICT per (companyId, ts)) and
+# the next run resumes from the head, overwriting stale chunks harmlessly.
+name: candles-refresh
+
+on:
+  schedule:
+    - cron: "0 5 * * *" # after the 04:00 market snapshot refresh — yesterday's session exists
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: candles-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Chain candle ingest chunks until done
+        env:
+          CRON_URL: https://egxano.vercel.app/api/v1/cron/candles
+        run: |
+          set -u
+          CURSOR=""
+          ANY_OK=false
+          CHAIN_DONE=false
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            # jq isn't guaranteed on every runner image — parse with python3.
+            body=$(python3 -c 'import json,sys; print(json.dumps({"limit":40,"cursor":sys.argv[1] or None}))' "$CURSOR")
+            code=$(curl -sS -m 120 -o /tmp/candles.json -w "%{http_code}" -X POST "$CRON_URL" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${{ secrets.EGX_CRON_SECRET }}" \
+              -d "$body" || echo "000")
+            read -r next done_flag processed succeeded errcount < <(python3 -c 'import json; d = json.load(open("/tmp/candles.json")); print((d.get("nextCursor") or "-"), ("true" if d.get("done") else "false"), (d.get("processed") if d.get("processed") is not None else "?"), (d.get("succeeded") if d.get("succeeded") is not None else "?"), len(d.get("errors") or []))' 2>/dev/null || printf -- '- false ? ? ?\n')
+            echo "iteration $i -> HTTP $code | processed=$processed succeeded=$succeeded errors=$errcount done=$done_flag nextCursor=$next"
+            if [ "$code" = "200" ]; then
+              ANY_OK=true
+              if [ "$next" != "-" ]; then CURSOR="$next"; fi
+              if [ "$done_flag" = "true" ]; then
+                echo "candle ingest chain complete after $i iterations"
+                CHAIN_DONE=true
+                break
+              fi
+            else
+              # 401/429/5xx/000: transient — back off and retry the SAME
+              # cursor (no advance); the idempotent upsert makes a re-run
+              # of the same chunk harmless.
+              echo "transient failure (HTTP $code) - retrying same chunk after backoff"
+              sleep 20
+            fi
+          done
+          if [ "$ANY_OK" = "false" ]; then
+            echo "::error::all 12 candle-ingest iterations failed - check EGX_CRON_SECRET / endpoint health"
+            exit 1
+          fi
+          if [ "$CHAIN_DONE" = "false" ]; then
+            echo "::warning::iteration budget exhausted before done=true - next run resumes from head (idempotent upserts)"
+          fi

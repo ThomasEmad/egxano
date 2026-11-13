@@ -1,6 +1,7 @@
 // Subscription helper — single source of truth for premium status.
 
 import { db } from "@/lib/db"
+import type { PlanId } from "@/lib/plans/entitlements"
 
 export type SubscriptionStatus = "PENDING" | "ACTIVE" | "EXPIRED" | "CANCELLED" | "REJECTED"
 
@@ -86,6 +87,58 @@ export async function getSubscriptionSummary(userId: string): Promise<Subscripti
   return { isPremium, subscription: info }
 }
 
+// Hot-path cache for the resolved plan id — same shape/TTL rationale as
+// premiumCache above: it is read on every gated request (QA quota, alerts,
+// watchlist, portfolio). 60s bounded staleness.
+const planCache = new Map<string, { value: PlanId; at: number }>()
+const PLAN_CACHE_TTL_MS = 60_000
+
+/**
+ * The user's ACTIVE subscription plan as a canonical PlanId.
+ * FREE when there is no active (non-expired) subscription.
+ * Back-compat: legacy paid plans with unknown names (e.g. the retired
+ * "PREMIUM" row) still mean a paying user — mapped to "PRO".
+ */
+export async function getActivePlanId(userId: string): Promise<PlanId> {
+  const hit = planCache.get(userId)
+  if (hit && Date.now() - hit.at < PLAN_CACHE_TTL_MS) return hit.value
+
+  const sub = await db.subscription.findUnique({
+    where: { userId },
+    include: { plan: { select: { name: true, price: true } } },
+  })
+  let value: PlanId = "FREE"
+  if (sub && sub.status === "ACTIVE" && (!sub.endDate || new Date(sub.endDate) >= new Date())) {
+    const name = sub.plan.name
+    if (name === "FREE" || name === "PRO" || name === "PRO_PLUS") {
+      value = name
+    } else if (sub.plan.price > 0) {
+      value = "PRO"
+    }
+  }
+  planCache.set(userId, { value, at: Date.now() })
+  return value
+}
+
+/** Invalidate both hot-path caches when a write changes a user's plan state. */
+export function invalidatePlanCaches(userId?: string): void {
+  if (userId) {
+    premiumCache.delete(userId)
+    planCache.delete(userId)
+  } else {
+    premiumCache.clear()
+    planCache.clear()
+  }
+}
+
+/**
+ * First-month amount a user must transfer for a DB plan row — offer-aware and
+ * ALWAYS computed server-side (the client never sends an amount).
+ */
+export function planFirstMonthAmount(plan: { price: number; offerActive: boolean; offerPrice: number | null }): number {
+  return plan.offerActive && plan.offerPrice != null ? plan.offerPrice : plan.price
+}
+
 export async function activateSubscription({
   userId,
   planId,
@@ -99,6 +152,7 @@ export async function activateSubscription({
   activatedBy?: string | null
   notes?: string | null
 }): Promise<SubscriptionInfo> {
+  invalidatePlanCaches(userId)
   const now = new Date()
   const existing = await db.subscription.findUnique({ where: { userId } })
   let endDate = new Date(now)
@@ -143,6 +197,7 @@ export async function activateSubscription({
 }
 
 export async function cancelSubscription(userId: string, note?: string | null): Promise<SubscriptionInfo | null> {
+  invalidatePlanCaches(userId)
   const sub = await db.subscription.findUnique({ where: { userId } })
   if (!sub) return null
   const updated = await db.subscription.update({

@@ -60,16 +60,17 @@ export interface TechSnapshot {
   sparse: boolean
   limitations: string[]
   perf: { d1: number | null; w1: number | null; m1: number | null; m3: number | null; m6: number | null; y1: number | null }
+  /** EMA-first trend block (technical@4) — every reading is EMA-based;
+   *  SMA values are no longer part of the payload. */
   trend: {
-    sma20: number | null
-    sma50: number | null
-    sma100: number | null
-    sma200: number | null
-    priceVsSma20: string | null
-    priceVsSma50: string | null
-    priceVsSma200: string | null
-    sma20VsSma50: string | null
-    sma50VsSma200: string | null
+    ema20: number | null
+    ema50: number | null
+    ema200: number | null
+    priceVsEma20: string | null
+    priceVsEma50: string | null
+    priceVsEma200: string | null
+    ema20VsEma50: string | null
+    ema50VsEma200: string | null
     alignment: string | null
     cross50200: string | null
     cross50200Age: number | null
@@ -90,10 +91,9 @@ export interface TechSnapshot {
     supports: { price: number; touches: number; distPct: number }[]
     resistances: { price: number; touches: number; distPct: number }[]
   }
-  high52w: number | null
-  low52w: number | null
-  fromHigh52wPct: number | null
-  fromLow52wPct: number | null
+  /** Observed 60-session range: raw highs/lows of the last 60 stored sessions
+   *  and where the last close sits inside that range (0 = low, 100 = high). */
+  range60: { high: number | null; low: number | null; posPct: number | null; sessions: number }
   signals: { code: string; tone: "positive" | "negative" | "neutral"; severity?: "warning" | "info"; text: string; textAr: string }[]
   /** Corporate-action ex-dates the series was rebuilt across (bonus/split/
    *  cash/rights) — null/undefined when no adjustment applied. */
@@ -101,35 +101,23 @@ export interface TechSnapshot {
   // --- Newer analysis sections (optional: older cached payloads omit them) ---
   /** Swing map + BOS/CHoCH events (src/lib/technical/structure.ts). */
   structure?: StructureSnapshot | null
-  /** Volume Spread Analysis events (src/lib/technical/vsa.ts) — still in the
-   *  payload; the tab UI simply no longer renders a VSA section. */
+  /** Removed from the engine (technical@4) — always null; typed for payload
+   *  compatibility with older cached snapshots. The tab never renders it. */
   vsa?: VsaSnapshot | null
   /** Supply & demand zones (src/lib/technical/zones.ts). */
   zones?: ZonesSnapshot | null
   /** Market & sector context injected by the intelligence layer. */
   context?: MarketContextSection | null
-  /** Analytical quality score (src/lib/technical/quality.ts) — still in the
-   *  payload; the tab UI simply no longer renders a quality section. */
+  /** Removed from the engine (technical@4) — always null; typed for payload
+   *  compatibility with older cached snapshots. The tab never renders it. */
   quality?: QualityScore | null
 }
 
 // ---------------------------------------------------------------------------
-// Structural extension types — the server payload is gaining EMA fields on the
-// trend block, EMA breadth fields on the market context, and a rule-derived
-// trade plan on the stance. Declared LOCALLY so this file compiles
-// independently of the server integration; integration aligns the shapes.
+// Structural extension types — the server payload carries a rule-derived trade
+// plan on the stance. Declared LOCALLY so this file compiles independently of
+// the server integration; integration aligns the shapes.
 // ---------------------------------------------------------------------------
-
-type TrendWithEma = TechSnapshot["trend"] & {
-  ema20?: number | null
-  ema50?: number | null
-  ema200?: number | null
-}
-
-type ContextWithEma = MarketContextSection & {
-  aboveEma20?: number | null
-  aboveEma50?: number | null
-}
 
 /** Rule-derived trade plan attached to the stance by the server (structural). */
 interface TradePlanFields {
@@ -442,6 +430,23 @@ function StanceCard({ stance, verdict, pos, neg, boardSignal, ar }: { stance: St
           </span>
         </div>
 
+        {/* why this read — the top evidence lines the engine actually used,
+            tone-colored; the detailed section stays honest about its inputs */}
+        {stance.reasons.length > 0 ? (
+          <div className="space-y-1.5 rounded-lg border border-border/60 bg-muted/10 px-3 py-2.5">
+            <p className="text-xs font-semibold">{ar ? "ليه القرار ده؟" : "Why this read?"}</p>
+            {stance.reasons.map((r) => (
+              <div key={r.code} className="flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground">
+                <span
+                  className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${r.tone === "positive" ? "bg-positive" : r.tone === "negative" ? "bg-negative" : "bg-muted-foreground/60"}`}
+                  aria-hidden
+                />
+                <span>{ar ? r.ar : r.en}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
         {/* sync strip — the market board and this tab must tell the same story;
             when their read differs, the reason is stated instead of hiding it. */}
         {boardSignal?.signal ? (
@@ -673,16 +678,16 @@ function RsiGauge({ rsi }: { rsi: number | null }) {
 // ---------------------------------------------------------------------------
 // Market & sector context strip — injected by the market-intelligence layer.
 // Rendered only when the section is actually available; absent → nothing.
-// Breadth chips prefer the EMA fields when the intelligence layer provides
-// them; the SMA chips stay honest (never relabelled) when only SMA exists.
+// Breadth chips use the EMA fields injected by the intelligence enrichment
+// (aboveEma20/50/200). When enrichment has not run yet, the chips simply do
+// not render — SMA data is never relabelled as EMA.
 // ---------------------------------------------------------------------------
 
 function MarketContextStrip({ ctx, ar }: { ctx: MarketContextSection; ar: boolean }) {
-  const c = ctx as ContextWithEma
   const b = ctx.breadth
   const sector = ctx.sector
-  const ema20 = c.aboveEma20 ?? null
-  const ema50 = c.aboveEma50 ?? null
+  const ema20 = ctx.aboveEma20
+  const ema50 = ctx.aboveEma50
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border/60 bg-muted/10 px-4 py-3">
       <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -718,18 +723,10 @@ function MarketContextStrip({ ctx, ar }: { ctx: MarketContextSection; ar: boolea
         <span className="text-[11px] text-muted-foreground">
           {ar ? "فوق EMA20" : "above EMA20"} <span className="tnum" dir="ltr">{ema20.toFixed(0)}%</span>
         </span>
-      ) : ctx.pctAboveSma20 !== null ? (
-        <span className="text-[11px] text-muted-foreground">
-          {ar ? "فوق SMA20" : "above SMA20"} <span className="tnum" dir="ltr">{ctx.pctAboveSma20.toFixed(0)}%</span>
-        </span>
       ) : null}
       {ema50 !== null ? (
         <span className="text-[11px] text-muted-foreground">
           {ar ? "فوق EMA50" : "above EMA50"} <span className="tnum" dir="ltr">{ema50.toFixed(0)}%</span>
-        </span>
-      ) : ctx.pctAboveSma50 !== null ? (
-        <span className="text-[11px] text-muted-foreground">
-          {ar ? "فوق SMA50" : "above SMA50"} <span className="tnum" dir="ltr">{ctx.pctAboveSma50.toFixed(0)}%</span>
         </span>
       ) : null}
       {sector ? (
@@ -790,7 +787,7 @@ const KEY_LEVEL_ROLE_AR: Record<string, string> = {
   "recent lower high": "قمة أدنى حديثة",
   "recent higher low": "قاع أعلى حديث",
   "recent lower low": "قاع أدنى حديث",
-  "swing level": "مستوى سوينغ",
+  "swing level": "قمة أو قاع محوري",
 }
 
 function StructureSection({ structure, ar }: { structure: StructureSnapshot | null | undefined; ar: boolean }) {
@@ -1093,7 +1090,7 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
   // Day change from the last two DISTINCT sessions of the ADJUSTED series.
   const dayPct = sessionChangePct(candles)
   const stance = (data.stance ?? undefined) as StanceWithPlan | undefined
-  const tr = snap.trend as TrendWithEma
+  const tr = snap.trend
   const emaRows = [
     { label: "EMA 20", v: tr.ema20 ?? null },
     { label: "EMA 50", v: tr.ema50 ?? null },

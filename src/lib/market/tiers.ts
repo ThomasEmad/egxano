@@ -3,16 +3,17 @@
 // One tier per company, stored on Company.marketTier (default "MAIN"):
 //   EGX30 — heavy-weight blue-chip index constituents
 //   EGX70 — mid/small-cap index constituents
-//   MAIN  — main market, outside both indices
-//   NILEX — Nilex SME board
+//   MAIN  — main market, outside both indices (Nilex companies are folded
+//           in here since the Nilex board tier was retired as a category)
 //   OTC   — خارج المقصورة (suspended / not listed for regular trading)
 //
-// The constituent lists below are REAL data gathered from egxbot.com live
-// pages in November 2026. They are seed lists only — the admin can override
-// any company's tier through the market-tier API (and must fill in the
-// remaining Nilex tickers manually; the Nilex list here is partial).
+// The constituent lists below are REAL data gathered from egxbot.com and
+// egx.com.eg in November 2026. They are seed lists only — the admin can
+// override any company's tier through the market-tier API, and the seed's
+// activity-based sweep re-classifies MAIN companies with no recent price
+// activity into OTC (see /api/v1/admin/market-tier).
 
-export const MARKET_TIERS = ["EGX30", "EGX70", "MAIN", "NILEX", "OTC"] as const
+export const MARKET_TIERS = ["EGX30", "EGX70", "MAIN", "OTC"] as const
 
 export type MarketTier = (typeof MARKET_TIERS)[number]
 
@@ -21,16 +22,19 @@ export const TIER_AR: Record<MarketTier, { short: string; full: string; en: stri
   EGX30: { short: "مؤشر 30", full: "ضمن مؤشر EGX30 الثقيل", en: "EGX30 index" },
   EGX70: { short: "مؤشر 70", full: "ضمن مؤشر EGX70", en: "EGX70 index" },
   MAIN: { short: "الرئيسي", full: "السوق الرئيسي — خارج المؤشرات", en: "Main market" },
-  NILEX: { short: "بورصة النيل", full: "بورصة النيل للشركات الصغيرة والمتوسطة", en: "Nilex" },
   OTC: { short: "خارج المقصورة", full: "خارج المقصورة — غير مدرج للتداول العادي", en: "OTC / suspended" },
 }
 
-/** EGX30 constituents (egxbot.com, November 2026). */
+/**
+ * EGX30 constituents — exactly 30 names (egxbot.com + egx.com.eg, November
+ * 2026). VLMRA = Valmore Holding's primary listed class; VLMR (the second
+ * share class) and CANA are deliberately excluded — neither is an EGX30 or
+ * EGX70 constituent.
+ */
 export const EGX30_TICKERS = [
   "ETEL", "EAST", "CCAP", "COMI", "TMGH", "FWRY", "ORAS", "BTFH", "ORHD", "GBCO",
   "AMOC", "ABUK", "EGAL", "PHDC", "JUFO", "MFPC", "EMFD", "HELI", "MCQE", "ISPH",
-  "RMDA", "VLMRA", "HRHO", "ADIB", "CANA", "EFIH", "SKPC", "RAYA", "EFID", "CLHO", "ALCN",
-  "VLMR",
+  "RMDA", "VLMRA", "HRHO", "ADIB", "EFIH", "SKPC", "RAYA", "EFID", "CLHO", "ALCN",
 ]
 
 /** EGX70 constituents (egxbot.com, November 2026). */
@@ -43,10 +47,6 @@ export const EGX70_TICKERS = [
   "DAPH", "OFH", "AMIA", "TAQA", "EXPA", "ELKA", "ACTF", "MOED", "MEPA", "ZEOT",
   "OBRI", "ISMQ", "EHDR", "UNIP", "VALU", "GDWA", "COSG", "CSAG", "ASCM", "CNFN",
 ]
-
-// Nilex constituents — PARTIAL list (egxbot.com, November 2026). The admin
-// sets the remaining Nilex tickers manually via the market-tier API.
-export const NILEX_TICKERS = ["MAAL", "BIGP", "RKAZ"]
 
 /** Type guard: true only for a tier string in MARKET_TIERS. */
 export function isMarketTier(v: unknown): v is MarketTier {

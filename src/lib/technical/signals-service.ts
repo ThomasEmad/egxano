@@ -36,7 +36,7 @@ export interface MarketSignalRow extends CloseSignalOutput {
   nameEn: string
   nameAr: string | null
   sector: string
-  /** EGX30 | EGX70 | MAIN | NILEX | OTC (see src/lib/market/tiers.ts) */
+  /** EGX30 | EGX70 | MAIN | OTC (see src/lib/market/tiers.ts) */
   marketTier: string
 }
 
@@ -203,7 +203,8 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
 
 /** Cached whole-market signal computation (10 min — follows the intraday price refresh). */
 export function getCachedMarketSignals(): Promise<MarketSignalsOutput> {
-  // v2: adjusted series (corporate actions) + EMA metrics + marketTier —
-  // the bump invalidates any stale v1 board payload still in memory.
-  return cached("technical-signals:market:v2", CACHE_MS, () => buildMarketSignalsUncached())
+  // v3: tier model changed — NILEX merged into MAIN, OTC activity sweep,
+  // fresh EGX30 constituents + free-tier board gating copy. The bump
+  // invalidates stale v2 payloads whose tier labels/copy no longer match.
+  return cached("technical-signals:market:v3", CACHE_MS, () => buildMarketSignalsUncached())
 }

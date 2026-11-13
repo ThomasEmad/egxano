@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Crown, Lock } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardTitle } from "@/components/ui/card"
 import { useI18n } from "@/lib/i18n"
 
 interface PremiumGateProps {
@@ -15,59 +15,79 @@ interface PremiumGateProps {
 }
 
 /**
- * Premium gate. Copy rules (docs/brand/audit-trust.md P14):
+ * Premium gate. Copy rules (docs/brand/audit-trust.md P14 — updated to the
+ * برو package naming):
  *  • name the gated section,
- *  • state what Premium adds and what the free account keeps,
- *  • say activation is manual — never imply an instant upgrade,
- *  • reuse the same "Premium" name everywhere (no "Pro").
+ *  • state what the برو packages add and what the free account keeps,
+ *  • mention activation: تفعيل فوري بعد تأكيد التحويل — never imply a hidden catch,
+ *  • use the same "برو / برو بلس" naming everywhere — never "بريميوم".
  */
 export function PremiumGate({ title, description, compact = false }: PremiumGateProps) {
   const { lang } = useI18n()
   const ar = lang === "ar"
 
-  const defaultTitle = ar ? "هذا القسم جزء من Premium" : "This section is part of Premium"
+  const defaultTitle = ar ? "القسم ده من باقات برو وبرو بلس" : "This section is part of Pro and Pro Plus"
   const defaultDescription = ar
-    ? "Premium بيضيف أحداث الشركات، تحليلات ذكية بلا حد، الترتيب الكامل والتقييم الكامل، والتقرير الكامل متعدد السنوات. الحساب المجاني بيفضل فيه التصفح والقوائم والنسب و3 تحليلات شهرياً. التفعيل يدوي بعد مراجعة الدفع."
-    : "Premium adds company events, unlimited Smart Analyses, full rankings and valuation lists, and the full multi-year report. Free accounts keep browsing, statements, ratios and 3 Smart Analyses a month. Activation is manual after payment review."
+    ? "القسم ده متاح لباقات برو وبرو بلس — تفعيل فوري بعد تأكيد التحويل."
+    : "This section is available on Pro and Pro Plus — instant activation after transfer confirmation."
+
+  const upgradeCta = ar ? "ترقية الآن" : "Upgrade now"
 
   if (compact) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-        <Lock className="h-3.5 w-3.5 shrink-0 text-warning" aria-hidden />
-        <span>{title ?? (ar ? "متاح في Premium" : "Part of Premium")}</span>
-        <Button asChild size="sm" variant="link" className="h-auto gap-1 px-0 text-xs">
-          <Link href="/premium">
-            <Crown className="h-3 w-3" aria-hidden />
-            {ar ? "اعرف اللي في Premium" : "See what Premium includes"}
-          </Link>
-        </Button>
+      <div className="relative rounded-lg bg-gradient-to-r from-amber-500/40 via-[var(--brand-accent)]/30 to-emerald-500/40 p-px">
+        <div className="flex items-center gap-2 rounded-[11px] bg-card/90 px-3 py-2 text-xs text-muted-foreground backdrop-blur-sm">
+          <span
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full shadow-sm bg-gradient-to-br from-amber-500 via-[var(--brand-accent)] to-emerald-500"
+            aria-hidden
+          >
+            <Lock className="h-3 w-3 text-white" />
+          </span>
+          <span className="font-medium text-foreground">
+            {title ?? (ar ? "القسم ده من باقات برو وبرو بلس" : "Part of Pro and Pro Plus")}
+          </span>
+          <Button asChild size="sm" variant="link" className="ms-auto h-auto gap-1 px-0 text-xs font-semibold">
+            <Link href="/premium">
+              <Crown className="h-3 w-3" aria-hidden />
+              {upgradeCta}
+            </Link>
+          </Button>
+        </div>
       </div>
     )
   }
 
   return (
-    <Card className="border-dashed border-border bg-muted/10">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-warning/10 text-warning">
-            <Lock className="h-4 w-4" aria-hidden />
-          </span>
-          {title ?? defaultTitle}
-          <Badge variant="outline" className="ms-auto gap-1 border-warning/40 text-warning">
-            <Crown className="h-3 w-3" aria-hidden />
-            {ar ? "بريميوم" : "Premium"}
-          </Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 text-xs text-muted-foreground">
-        <p className="leading-relaxed">{description ?? defaultDescription}</p>
-        <Button asChild size="sm" className="w-full gap-2">
-          <Link href="/premium">
-            <Crown className="h-4 w-4" aria-hidden />
-            {ar ? "اعرف اللي في Premium" : "See what Premium includes"}
-          </Link>
-        </Button>
-      </CardContent>
-    </Card>
+    <div className="relative rounded-xl bg-gradient-to-br from-amber-500/45 via-[var(--brand-accent)]/35 to-emerald-500/45 p-px">
+      <Card className="rounded-[15px] border-none bg-card/90 backdrop-blur-sm">
+        <CardContent className="flex flex-col gap-3 px-5 py-5">
+          <div className="flex items-center gap-3">
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full shadow-md bg-gradient-to-br from-amber-500 via-[var(--brand-accent)] to-emerald-500"
+              aria-hidden
+            >
+              <Lock className="h-5 w-5 text-white" />
+            </span>
+            <div className="min-w-0">
+              <CardTitle className="text-sm font-semibold leading-snug text-foreground">
+                {title ?? defaultTitle}
+              </CardTitle>
+              <Badge variant="outline" className="mt-1 border-primary/40 text-primary">
+                {ar ? "باقة برو وبرو بلس" : "Pro / Pro Plus"}
+              </Badge>
+            </div>
+          </div>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {description ?? defaultDescription}
+          </p>
+          <Button asChild size="sm" className="w-full gap-2 font-semibold">
+            <Link href="/premium">
+              <Crown className="h-4 w-4" aria-hidden />
+              {upgradeCta}
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

@@ -162,7 +162,7 @@ export function scoreQuality(snap: TechnicalSnapshot, inputs: QualityInputs): Qu
 
   // --- 8. Evidence traceability (10) ---
   const traceableSections = [
-    snap.trend.alignment !== null || snap.trend.sma20 !== null,
+    snap.trend.alignment !== null || snap.trend.ema20 !== null,
     snap.momentum.rsi14 !== null || snap.momentum.macd.macd !== null,
     snap.volume.relVol !== null || snap.volume.obv !== null,
     st?.available === true,

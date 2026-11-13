@@ -1,13 +1,18 @@
 import { Metadata } from "next"
+import { Lock } from "lucide-react"
 import { db } from "@/lib/db"
 import { gatherCompanyAnalytics } from "@/lib/analytics/gather"
 import { computeCompanyScores } from "@/lib/financial/scores"
 import { CALC_METRIC_MAP, EVENT_TYPE_MAP } from "@/lib/financial/registry"
-import { isPremiumUser } from "@/lib/subscription"
+import { getActivePlanId } from "@/lib/subscription"
 import { PrintReportButton } from "./print-button"
 
-// /company/[id]/report — print-ready investor report. Free users see the
-// one-page summary; Premium renders the full multi-year document + print/PDF.
+// /company/[id]/report — print-ready investor report.
+// PRO_PLUS gate: the printable PDF report is a برو بلس entitlement
+// (PLANS.*.limits.pdfReport). Anonymous and FREE/PRO users get a locked
+// premium-gate-style panel instead of the document; PRO_PLUS renders the
+// full multi-year report + print/PDF. The plan is resolved server-side via
+// getActivePlanId (NOT the client hook).
 
 export const metadata: Metadata = {
   title: "تقرير الشركة — إيجيكسّانو",
@@ -39,16 +44,41 @@ export default async function CompanyReportPage({ params }: { params: Promise<{ 
   const g = await gatherCompanyAnalytics(id)
   const scores = await computeCompanyScores(id).catch(() => null)
 
-  // premium gate — the full document is a subscriber feature. The session token
-  // is mirrored into a cookie at login (see setUserToken), so server components
-  // can resolve it; users logged in before this change just re-log in once.
+  // PRO_PLUS gate — the printable report is a برو بلس feature. The session
+  // token is mirrored into a cookie at login (see setUserToken), so server
+  // components can resolve it; users logged in before this change just
+  // re-log in once.
   const { cookies } = await import("next/headers")
   const cookieStore = await cookies()
   const token = cookieStore.get("egx-user-token")?.value ?? null
-  let premium = false
-  if (token) {
-    const sessionUserId = await db.session.findUnique({ where: { token }, select: { userId: true } })
-    if (sessionUserId) premium = await isPremiumUser(sessionUserId.userId)
+  const sessionUserId = token
+    ? await db.session.findUnique({ where: { token }, select: { userId: true } })
+    : null
+  const planId = sessionUserId ? await getActivePlanId(sessionUserId.userId) : "FREE"
+  const proPlus = planId === "PRO_PLUS"
+
+  if (!proPlus) {
+    // Locked panel instead of the report — same visual language as the
+    // premium gates elsewhere in the product.
+    return (
+      <main className="mx-auto flex min-h-svh max-w-3xl flex-col items-center justify-center bg-white p-8 text-[13px] text-slate-900">
+        <div className="w-full max-w-md rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 p-8 text-center">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+            <Lock className="h-5 w-5" aria-hidden />
+          </span>
+          <p className="mt-4 text-base font-bold text-amber-800">تقرير PDF القابل للطباعة متاح لباقة برو بلس</p>
+          <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-amber-700">
+            {company.nameAr ?? company.nameEn} ({company.ticker}) — التقرير الكامل متعدد السنوات مع جدول الاتجاهات وأحدث الأحداث المالية وسجل التوزيعات وزر الطباعة/PDF.
+            {planId !== "FREE"
+              ? " باقتك الحالية برو — برو بلس هو اللي بيضم التقرير القابل للطباعة."
+              : ""}
+          </p>
+          <a href="/premium" className="mt-4 inline-block rounded-lg bg-amber-600 px-4 py-2 text-xs font-bold text-white">
+            اطّلع على الباقات
+          </a>
+        </div>
+      </main>
+    )
   }
 
   const latest = g?.latest ?? {}
@@ -57,7 +87,7 @@ export default async function CompanyReportPage({ params }: { params: Promise<{ 
 
   // 4-year annual trend for the full (premium) report
   const trendCodes = ["revenue", "net_profit", "operating_cash_flow", "total_equity", "total_assets"]
-  const trendRows = premium
+  const trendRows = proPlus
     ? (await db.$queryRawUnsafe(
         `SELECT code, "fiscalYear", value FROM (
            SELECT cm.code, cm."fiscalYear", cm.value,
@@ -77,7 +107,7 @@ export default async function CompanyReportPage({ params }: { params: Promise<{ 
     if (years.includes(r.fiscalYear)) trendByCode.get(r.code)!.set(r.fiscalYear, r.value)
   }
 
-  const events = premium
+  const events = proPlus
     ? await db.financialEvent.findMany({
         where: { companyId: id },
         orderBy: [{ detectedAt: "desc" }],
@@ -85,7 +115,7 @@ export default async function CompanyReportPage({ params }: { params: Promise<{ 
         select: { eventType: true, periodLabel: true, explanationAr: true, explanationEn: true },
       })
     : []
-  const dividends = premium
+  const dividends = proPlus
     ? await db.dividend.findMany({ where: { companyId: id }, orderBy: { announcementDate: "desc" }, take: 4, select: { dividendPerShare: true, announcementDate: true, status: true } })
     : []
 
@@ -121,7 +151,7 @@ export default async function CompanyReportPage({ params }: { params: Promise<{ 
             تقرير استثماري من إيجيكسّانو — أحدث قوائم سنوية متحقق منها{fy ? ` (FY${fy})` : ""}. تاريخ التقرير: {new Date().toISOString().slice(0, 10)}
           </p>
         </div>
-        {premium ? <PrintReportButton label="طباعة / PDF" /> : null}
+        {proPlus ? <PrintReportButton label="طباعة / PDF" /> : null}
       </div>
 
       {/* key metrics */}
@@ -152,84 +182,73 @@ export default async function CompanyReportPage({ params }: { params: Promise<{ 
         </section>
       ) : null}
 
-      {!premium ? (
-        <section className="mt-8 rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 p-6 text-center">
-          <p className="text-sm font-bold text-amber-800">هذا ملخص مجاني من التقرير الكامل</p>
-          <p className="mx-auto mt-2 max-w-md text-xs text-amber-700">
-            النسخة الكاملة تضيف: جدول 4 سنوات (إيرادات، أرباح، تدفقات، حقوق ملكية)، أحدث الأحداث المالية المكتشفة، سجل التوزيعات، وطباعة PDF بخط نظيف — لمشتركي Premium.
-          </p>
-          <a href="/premium" className="mt-3 inline-block rounded-lg bg-amber-600 px-4 py-2 text-xs font-bold text-white">ترقية إلى بريميوم</a>
-        </section>
-      ) : (
-        <>
-          {/* multi-year trend (premium) */}
-          {years.length > 0 ? (
-            <section className="mt-6">
-              <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-700">الاتجاه السنوي (EGP)</h2>
-              <table className="w-full border-collapse text-[11px]">
-                <thead>
-                  <tr className="bg-slate-100 text-slate-600">
-                    <th className="border border-slate-300 p-1.5 text-start font-semibold">البند</th>
-                    {years.map((y) => (
-                      <th key={y} className="border border-slate-300 p-1.5 text-end font-semibold">FY{y}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {trendCodes.map((code) => (
-                    <tr key={code}>
-                      <td className="border border-slate-300 p-1.5">{CALC_METRIC_MAP[code]?.labelAr ?? code}</td>
-                      {years.map((y) => (
-                        <td key={y} className="border border-slate-300 p-1.5 text-end tabular">{fmtEgp(trendByCode.get(code)?.get(y) ?? null)}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-          ) : null}
-
-          {/* events (premium) */}
-          {events.length > 0 ? (
-            <section className="mt-6">
-              <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-700">أحدث الأحداث المالية المكتشفة</h2>
-              <ul className="space-y-1.5">
-                {events.map((e, i) => (
-                  <li key={i} className="text-[11px]">
-                    <span className="font-bold">{EVENT_TYPE_MAP[e.eventType]?.labelAr ?? e.eventType}</span>
-                    <span className="text-slate-500"> ({e.periodLabel})</span> — {e.explanationAr ?? e.explanationEn}
-                  </li>
+      {/* multi-year trend + events + dividends — PRO_PLUS only (the gate above
+          returns early for everyone else, so this renders unconditionally) */}
+      {years.length > 0 ? (
+        <section className="mt-6">
+          <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-700">الاتجاه السنوي (EGP)</h2>
+          <table className="w-full border-collapse text-[11px]">
+            <thead>
+              <tr className="bg-slate-100 text-slate-600">
+                <th className="border border-slate-300 p-1.5 text-start font-semibold">البند</th>
+                {years.map((y) => (
+                  <th key={y} className="border border-slate-300 p-1.5 text-end font-semibold">FY{y}</th>
                 ))}
-              </ul>
-            </section>
-          ) : null}
-
-          {/* dividends (premium) */}
-          {dividends.length > 0 ? (
-            <section className="mt-6">
-              <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-700">سجل التوزيعات</h2>
-              <table className="w-full border-collapse text-[11px]">
-                <thead>
-                  <tr className="bg-slate-100 text-slate-600">
-                    <th className="border border-slate-300 p-1.5 text-start font-semibold">السهم (EGP)</th>
-                    <th className="border border-slate-300 p-1.5 text-start font-semibold">الإعلان</th>
-                    <th className="border border-slate-300 p-1.5 text-start font-semibold">الحالة</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dividends.map((d, i) => (
-                    <tr key={i}>
-                      <td className="border border-slate-300 p-1.5 tabular">{d.dividendPerShare ?? "—"}</td>
-                      <td className="border border-slate-300 p-1.5">{d.announcementDate ? d.announcementDate.toISOString().slice(0, 10) : "—"}</td>
-                      <td className="border border-slate-300 p-1.5">{d.status}</td>
-                    </tr>
+              </tr>
+            </thead>
+            <tbody>
+              {trendCodes.map((code) => (
+                <tr key={code}>
+                  <td className="border border-slate-300 p-1.5">{CALC_METRIC_MAP[code]?.labelAr ?? code}</td>
+                  {years.map((y) => (
+                    <td key={y} className="border border-slate-300 p-1.5 text-end tabular">{fmtEgp(trendByCode.get(code)?.get(y) ?? null)}</td>
                   ))}
-                </tbody>
-              </table>
-            </section>
-          ) : null}
-        </>
-      )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
+
+      {/* events */}
+      {events.length > 0 ? (
+        <section className="mt-6">
+          <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-700">أحدث الأحداث المالية المكتشفة</h2>
+          <ul className="space-y-1.5">
+            {events.map((e, i) => (
+              <li key={i} className="text-[11px]">
+                <span className="font-bold">{EVENT_TYPE_MAP[e.eventType]?.labelAr ?? e.eventType}</span>
+                <span className="text-slate-500"> ({e.periodLabel})</span> — {e.explanationAr ?? e.explanationEn}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {/* dividends */}
+      {dividends.length > 0 ? (
+        <section className="mt-6">
+          <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-700">سجل التوزيعات</h2>
+          <table className="w-full border-collapse text-[11px]">
+            <thead>
+              <tr className="bg-slate-100 text-slate-600">
+                <th className="border border-slate-300 p-1.5 text-start font-semibold">السهم (EGP)</th>
+                <th className="border border-slate-300 p-1.5 text-start font-semibold">الإعلان</th>
+                <th className="border border-slate-300 p-1.5 text-start font-semibold">الحالة</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dividends.map((d, i) => (
+                <tr key={i}>
+                  <td className="border border-slate-300 p-1.5 tabular">{d.dividendPerShare ?? "—"}</td>
+                  <td className="border border-slate-300 p-1.5">{d.announcementDate ? d.announcementDate.toISOString().slice(0, 10) : "—"}</td>
+                  <td className="border border-slate-300 p-1.5">{d.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
 
       {/* disclaimer */}
       <footer className="mt-8 border-t border-slate-300 pt-3 text-[10px] leading-relaxed text-slate-500">

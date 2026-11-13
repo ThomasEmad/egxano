@@ -5,21 +5,23 @@ import { checkEndpointRateLimit, getClientIp } from "@/lib/rate-limit"
 import { audit } from "@/lib/audit"
 import { getFreshMarketSnapshot } from "@/lib/market/snapshot"
 import { latestPricesPerCompany } from "@/lib/market/latest-price"
+import { getActivePlanId } from "@/lib/subscription"
+import { PLANS } from "@/lib/plans/entitlements"
 
 // GET    /api/v1/alerts            — list the signed-in user's price alerts
 //                                    (lazily evaluates active alerts against
 //                                    the freshest recorded price and marks
 //                                    newly-triggered ones).
 // POST   /api/v1/alerts            — { companyId, direction: ABOVE|BELOW,
-//                                    targetPrice } — max 20 active per user.
+//                                    targetPrice } — capped per plan
+//                                    (FREE 5 / PRO 30 / PRO_PLUS 100 active
+//                                    alerts, from the plans entitlements).
 // DELETE /api/v1/alerts?id=...     — owner-only removal.
 //
 // Evaluation model: alerts fire against RECORDED market prices (the same
 // 15-minute-delayed snapshot the rest of the platform shows) — never against
 // intraday guesses. Lazy evaluation on read keeps the model simple and the
 // write load zero: the client polls while the session is open.
-
-const MAX_ACTIVE_ALERTS = 20
 
 export async function GET(req: NextRequest) {
   const token = req.headers.get("x-session-token")
@@ -154,11 +156,20 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "NOT_FOUND", message: "Unknown company" }, { status: 404 })
   }
 
+  // per-plan active-alert cap (FREE 5 / PRO 30 / PRO_PLUS 100)
+  const planId = await getActivePlanId(userId)
+  const cap = PLANS[planId].limits.alerts
   const activeCount = await db.priceAlert.count({ where: { userId, active: true } })
-  if (activeCount >= MAX_ACTIVE_ALERTS) {
+  if (cap !== "UNLIMITED" && activeCount >= cap) {
+    const message =
+      planId === "FREE"
+        ? `حد التنبيهات للمجانية ${cap} — متاح أكتر مع باقة برو.`
+        : planId === "PRO"
+          ? "حد التنبيهات لباقة برو 30 — متاح أكتر مع باقة برو بلس."
+          : `وصلت الحد الأقصى للتنبيهات في باقة برو بلس (${cap}).`
     return Response.json(
-      { error: "QUOTA", message: `You can keep up to ${MAX_ACTIVE_ALERTS} active alerts` },
-      { status: 402 }
+      { error: "QUOTA", message, limit: cap, plan: planId },
+      { status: 403 }
     )
   }
 

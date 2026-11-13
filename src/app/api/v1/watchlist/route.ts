@@ -1,12 +1,21 @@
 import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
+import { getSessionUser } from "@/lib/auth"
 import { CALC_METRIC_MAP } from "@/lib/financial/registry"
 import { fetchCalcMany } from "@/lib/financial/statement-pref"
 import { latestAndBaselinePerCompany } from "@/lib/market/latest-price"
+import { getActivePlanId } from "@/lib/subscription"
+import { PLANS } from "@/lib/plans/entitlements"
 
 // GET /api/v1/watchlist?ids=a,b,c — snapshot per watched company: latest recorded
 // price + 1Y change, latest verified ANNUAL metrics. The ids come from the
 // client-side watchlist store (a user preference, not server state).
+//
+// Per-plan watchlist cap (from the plans entitlements): FREE 10 / PRO 50 /
+// PRO_PLUS unlimited. Requests exceeding the caller's cap get a 403 with the
+// upgrade path named. Anonymous visitors get the FREE cap. The unlimited plan
+// still passes a generous abuse bound (500 ids) — there are only ~200 EGX
+// listings, so this never binds for real usage, it just protects the query.
 //
 // Calculated metrics are fetched through the shared statement-preference helper
 // (CONSOLIDATED when a company has consolidated rows, otherwise STANDALONE), so
@@ -14,6 +23,7 @@ import { latestAndBaselinePerCompany } from "@/lib/market/latest-price"
 // instead of one query per company.
 
 const METRICS = ["revenue", "net_profit", "net_margin", "roe", "p_e", "dividend_yield"] as const
+const UNLIMITED_ABUSE_BOUND = 500
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
@@ -21,17 +31,32 @@ export async function GET(req: NextRequest) {
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s.length > 10)
-    .slice(0, 50)
-  if (ids.length === 0) return Response.json({ companies: [] })
+
+  // resolve the caller's plan (anonymous → FREE cap)
+  const token = req.headers.get("x-session-token") ?? req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null
+  const userId = token ? await getSessionUser(token) : null
+  const planId = userId ? await getActivePlanId(userId) : "FREE"
+  const cap = PLANS[planId].limits.watchlist
+
+  if (cap !== "UNLIMITED" && ids.length > cap) {
+    const message =
+      planId === "FREE"
+        ? `حد قائمة المراقبة للمجانية ${cap} سهم — متاح أكتر مع باقة برو.`
+        : `حد قائمة المراقبة لباقة برو ${cap} سهم — القائمة بلا حدود مع باقة برو بلس.`
+    return Response.json({ error: "QUOTA", message, limit: cap, plan: planId }, { status: 403 })
+  }
+
+  const boundedIds = cap === "UNLIMITED" ? ids.slice(0, UNLIMITED_ABUSE_BOUND) : ids.slice(0, cap)
+  if (boundedIds.length === 0) return Response.json({ companies: [] })
 
   const companies = await db.company.findMany({
-    where: { id: { in: ids }, isActive: true },
+    where: { id: { in: boundedIds }, isActive: true },
     select: { id: true, ticker: true, nameEn: true, nameAr: true, sector: true },
   })
 
   // latest ANNUAL metrics per company (each company's own latest year, one
   // statement basis per company)
-  const { filtered } = await fetchCalcMany(ids, {
+  const { filtered } = await fetchCalcMany(boundedIds, {
     periodType: "ANNUAL",
     code: { in: [...METRICS] },
   })
@@ -50,7 +75,7 @@ export async function GET(req: NextRequest) {
 
   // prices: latest + ≈1y-ago baseline for the change badge — two DISTINCT ON
   // queries returning one row per company each (was the full price history).
-  const pricesByCompany = await latestAndBaselinePerCompany(ids, new Date(Date.now() - 365 * 24 * 3600 * 1000))
+  const pricesByCompany = await latestAndBaselinePerCompany(boundedIds, new Date(Date.now() - 365 * 24 * 3600 * 1000))
 
   const result: {
     id: string

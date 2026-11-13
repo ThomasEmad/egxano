@@ -32,7 +32,7 @@ export async function buildMarketContext(companyId: string): Promise<MarketConte
 
   const limitations: string[] = [...intel.limitations]
   if (intel.enrichment === null) {
-    limitations.push("Daily enrichment (true 52-week / SMA200 breadth) has not run yet — those fields are withheld.")
+    limitations.push("Daily enrichment (EMA breadth) has not run yet — those fields are withheld rather than approximated.")
   }
   if (!sectorRow) limitations.push(`No sector row for "${company.sector}" in the current intelligence snapshot.`)
 
@@ -48,8 +48,9 @@ export async function buildMarketContext(companyId: string): Promise<MarketConte
       unchanged: intel.breadth.unchanged,
       ratio: intel.breadth.ratio,
     },
-    pctAboveSma20: intel.breadth.pctAboveSma20,
-    pctAboveSma50: intel.breadth.pctAboveSma50,
+    aboveEma20: intel.breadth.pctAboveEma20 ?? null,
+    aboveEma50: intel.breadth.pctAboveEma50 ?? null,
+    aboveEma200: intel.breadth.pctAboveEma200 ?? null,
     sector: sectorRow
       ? {
           name: sectorRow.sector,

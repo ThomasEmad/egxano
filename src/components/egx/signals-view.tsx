@@ -8,6 +8,8 @@
 // trading-style fit tags, a deterministic TRADE PLAN strip (entry zone / stop /
 // target from src/lib/technical/trade-plan.ts), and live filters. Every number
 // traces to the close-based engine in src/lib/technical/signals.ts.
+// Free-tier gating: free/anonymous users read the first FREE_SIGNALS_ROWS rows
+// fully; the rest render as locked cards with a Pro upgrade CTA.
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
@@ -16,6 +18,7 @@ import {
   Activity,
   ArrowDownRight,
   ArrowUpRight,
+  Lock,
   RefreshCw,
   Search,
   Star,
@@ -26,9 +29,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { api } from "@/lib/client/api"
+import { api, getUserToken } from "@/lib/client/api"
+import { usePlan } from "@/lib/client/subscription"
 import { useI18n } from "@/lib/i18n"
 import { useWatchlist } from "@/lib/client/watchlist"
+import { FREE_SIGNALS_ROWS } from "@/lib/plans/entitlements"
 import { useMarketLive } from "./use-market-live"
 import { SIGNAL_META, STYLE_TAG_HINT_AR, STYLE_TAG_META, type TechSignalType, type TechStyleTag } from "@/lib/technical/signals"
 import type { MarketSignalRow } from "@/lib/technical/signals-service"
@@ -39,7 +44,7 @@ type StyleFilter = "all" | TechStyleTag
 type RsiFilter = "all" | "oversold" | "neutral" | "overbought"
 type LiquidityFilter = "all" | "high" | "normal"
 type DayMoveFilter = "all" | "up" | "down"
-type TierFilter = "all" | "EGX30" | "EGX70" | "MAIN" | "NILEX" | "OTC"
+type TierFilter = "all" | "EGX30" | "EGX70" | "MAIN" | "OTC"
 type MaFilter = "all" | "aboveEma50" | "belowEma50"
 type RangePosFilter = "all" | "top" | "middle" | "bottom"
 type ScoreFilter = "all" | "s70" | "s60"
@@ -72,6 +77,11 @@ export function SignalsView() {
   const { lang } = useI18n()
   const ar = lang === "ar"
   const watch = useWatchlist()
+  // Plan gating (usePlan contract: { plan, isPremium, isLoading }). While the
+  // plan query is still loading we render normal unlocked cards — no
+  // flash-of-locked while data loads.
+  const { isPremium, isLoading: planLoading } = usePlan()
+  const authed = !!getUserToken()
 
   const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ["technical-signals"],
@@ -152,6 +162,14 @@ export function SignalsView() {
     })
     return sorted
   }, [rows, signalFilter, styleFilter, rsiFilter, liquidity, dayMove, tierFilter, maFilter, rangePosFilter, scoreFilter, sector, q, sort, watch.items])
+
+  // Free-tier gating: after filters + sort, free/anonymous users see the first
+  // FREE_SIGNALS_ROWS rows fully; every additional row renders as a locked card.
+  const gateActive = !planLoading && !isPremium
+  const visibleRows = gateActive ? filtered.slice(0, FREE_SIGNALS_ROWS) : filtered
+  const lockedCount = gateActive ? Math.max(filtered.length - FREE_SIGNALS_ROWS, 0) : 0
+  // Cap the placeholder cards so a large locked set doesn't flood the grid.
+  const lockedPlaceholders = Math.min(lockedCount, 4)
 
   if (isLoading) {
     return (
@@ -297,7 +315,7 @@ export function SignalsView() {
         <button className={chip(tierFilter === "all")} onClick={() => setTierFilter("all")}>
           {ar ? "الكل" : "All"}
         </button>
-        {(["EGX30", "EGX70", "MAIN", "NILEX", "OTC"] as Exclude<TierFilter, "all">[]).map((t) => {
+        {(["EGX30", "EGX70", "MAIN", "OTC"] as Exclude<TierFilter, "all">[]).map((t) => {
           const n = rows.filter((r) => (r.marketTier ?? "MAIN") === t).length
           const label = ar ? (TIER_AR as unknown as Record<string, { short?: string }> | undefined)?.[t]?.short ?? t : t
           return (
@@ -429,11 +447,29 @@ export function SignalsView() {
           {ar ? "لا توجد نتائج مطابقة للفلاتر الحالية." : "No matches for the current filters."}
         </Card>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((r) => (
-            <SignalCard key={r.companyId} row={r} ar={ar} fav={watch.has(r.companyId)} onFav={() => watch.toggle({ id: r.companyId, ticker: r.ticker })} />
-          ))}
-        </div>
+        <>
+          {/* Free-tier banner — visible only when rows are actually gated */}
+          {lockedCount > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2">
+              <span className="text-xs font-medium text-foreground">
+                {ar
+                  ? `بتشوف أول ${FREE_SIGNALS_ROWS} شركات من ${filtered.length} — الباقي مع باقة برو`
+                  : `Showing the first ${FREE_SIGNALS_ROWS} of ${filtered.length} companies — the rest with Pro`}
+              </span>
+              <Button asChild size="sm" variant="link" className="h-auto px-0 text-xs font-semibold">
+                <Link href="/premium">{ar ? "ترقية الآن" : "Upgrade now"}</Link>
+              </Button>
+            </div>
+          ) : null}
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {visibleRows.map((r) => (
+              <SignalCard key={r.companyId} row={r} ar={ar} fav={watch.has(r.companyId)} onFav={() => watch.toggle({ id: r.companyId, ticker: r.ticker })} />
+            ))}
+            {Array.from({ length: lockedPlaceholders }).map((_, i) => (
+              <LockedSignalCard key={`locked-${i}`} ar={ar} authed={authed} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   )
@@ -567,6 +603,71 @@ function SignalCard({ row, ar, fav, onFav }: { row: MarketSignalRow; ar: boolean
           </div>
         ) : null}
       </CardContent>
+    </Card>
+  )
+}
+
+function LockedSignalCard({ ar, authed }: { ar: boolean; authed: boolean }) {
+  return (
+    <Card className="relative overflow-hidden border-border/60 p-0">
+      {/* Skeletonized card body — same layout shape as SignalCard, blurred and
+          fully inert (no text selection, no pointer events, hidden from a11y). */}
+      <CardContent className="select-none space-y-2.5 px-4 py-3.5 blur-sm pointer-events-none" aria-hidden>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-3 w-36" />
+          </div>
+          <Skeleton className="h-4 w-4 rounded-md" />
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <Skeleton className="h-6 w-28" />
+          <Skeleton className="h-5 w-20 rounded-full" />
+        </div>
+        <div className="space-y-1.5">
+          <Skeleton className="h-1.5 w-full rounded-full" />
+          <Skeleton className="h-3 w-3/4" />
+        </div>
+        <div className="grid grid-cols-4 gap-1.5">
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-9 rounded-md" />)}
+        </div>
+      </CardContent>
+
+      {/* Dimming gradient (background → transparent → background) + brand-accent glow */}
+      <div className="absolute inset-0 bg-gradient-to-b from-background via-background/70 to-background/95" />
+      <div
+        className="pointer-events-none absolute -top-8 left-1/2 h-24 w-44 -translate-x-1/2 rounded-full opacity-25 blur-2xl"
+        style={{ background: "var(--brand-accent)" }}
+        aria-hidden
+      />
+
+      {/* Lock copy + CTA */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
+        <span
+          className="flex h-10 w-10 items-center justify-center rounded-full shadow-md bg-gradient-to-br from-amber-500 via-[var(--brand-accent)] to-emerald-500"
+          aria-hidden
+        >
+          <Lock className="h-5 w-5 text-white" />
+        </span>
+        <p className="text-xs font-semibold leading-relaxed text-foreground">
+          {ar
+            ? `المتابعة ورا ${FREE_SIGNALS_ROWS} شركات متاحة لباقات برو وبرو بلس`
+            : `Tracking beyond ${FREE_SIGNALS_ROWS} companies is for Pro and Pro Plus`}
+        </p>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">
+          {ar
+            ? "افتح كل الشركات + كل الفلاتر + مناطق الدخول والخروج ووقف الخسارة"
+            : "Unlock every company, every filter, entry/exit zones and stop-loss"}
+        </p>
+        <Button asChild size="sm" className="h-7 gap-1.5 px-3 text-xs font-semibold">
+          <Link href="/premium">{ar ? "ترقية الآن" : "Upgrade now"}</Link>
+        </Button>
+        {!authed ? (
+          <Link href="/login" className="text-[11px] text-muted-foreground underline-offset-2 hover:underline">
+            {ar ? "لديك باقة؟ سجّل دخول" : "Already subscribed? Sign in"}
+          </Link>
+        ) : null}
+      </div>
     </Card>
   )
 }

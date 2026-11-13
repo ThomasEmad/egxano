@@ -441,3 +441,80 @@ export function crossType(closes: number[]): "golden" | "death" | null {
   }
   return null
 }
+
+// ---------------------------------------------------------------------------
+// Trend structure — EMA family (the engine's primary trend lens; the SMA
+// versions above are retained for tests and as internal references only).
+// ---------------------------------------------------------------------------
+
+export interface EmaTrendInfo {
+  priceVsEma20: "above" | "below" | null
+  priceVsEma50: "above" | "below" | null
+  priceVsEma200: "above" | "below" | null
+  ema20VsEma50: "above" | "below" | null
+  ema50VsEma200: "above" | "below" | null
+  /** aligned_uptrend | aligned_downtrend | mixed — null when any component missing */
+  alignment: "aligned_uptrend" | "aligned_downtrend" | "mixed" | null
+  /** sessions since the most recent EMA50/EMA200 cross (null when none found) */
+  crossAge50200: number | null
+}
+
+/** Mirror of trendInfo() over the EMA family (same null-disclosure policy). */
+export function emaTrendInfo(closes: number[]): EmaTrendInfo {
+  const last = closes[closes.length - 1]
+  const e20 = ema(closes, 20).value
+  const e50 = ema(closes, 50).value
+  const e200 = ema(closes, 200).value
+  const cmp = (a: number | null, b: number | null): "above" | "below" | null =>
+    a === null || b === null ? null : a >= b ? "above" : "below"
+  let alignment: EmaTrendInfo["alignment"] = null
+  if (e20 !== null && e50 !== null && e200 !== null) {
+    const up = last > e20 && e20 > e50 && e50 > e200
+    const down = last < e20 && e20 < e50 && e50 < e200
+    alignment = up ? "aligned_uptrend" : down ? "aligned_downtrend" : "mixed"
+  }
+  // Most recent EMA50/EMA200 cross (golden or death) — same scan bounds as the
+  // SMA version: EMA200 exists from index 199 (SMA seed), so i-1 >= 199.
+  let crossAge50200: number | null = null
+  if (closes.length >= 201) {
+    const e50s = emaSeries(closes, 50)
+    const e200s = emaSeries(closes, 200)
+    for (let i = closes.length - 1; i >= 200; i--) {
+      const a = e50s[i]
+      const b = e200s[i]
+      const pa = e50s[i - 1]
+      const pb = e200s[i - 1]
+      if (a === null || b === null || pa === null || pb === null) continue
+      if ((pa <= pb && a > b) || (pa >= pb && a < b)) {
+        crossAge50200 = closes.length - 1 - i
+        break
+      }
+    }
+  }
+  return {
+    priceVsEma20: cmp(last, e20),
+    priceVsEma50: cmp(last, e50),
+    priceVsEma200: cmp(last, e200),
+    ema20VsEma50: cmp(e20, e50),
+    ema50VsEma200: cmp(e50, e200),
+    alignment,
+    crossAge50200,
+  }
+}
+
+/** Type of the most recent EMA50/EMA200 cross: "golden" | "death" | null. */
+export function emaCrossType(closes: number[]): "golden" | "death" | null {
+  if (closes.length < 201) return null
+  const e50s = emaSeries(closes, 50)
+  const e200s = emaSeries(closes, 200)
+  for (let i = closes.length - 1; i >= 200; i--) {
+    const a = e50s[i]
+    const b = e200s[i]
+    const pa = e50s[i - 1]
+    const pb = e200s[i - 1]
+    if (a === null || b === null || pa === null || pb === null) continue
+    if (pa <= pb && a > b) return "golden"
+    if (pa >= pb && a < b) return "death"
+  }
+  return null
+}

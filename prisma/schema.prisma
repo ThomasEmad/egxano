@@ -34,7 +34,7 @@ model Company {
   descriptionEn String?
   descriptionAr String?
   egxCategory   String?  // MAIN | PRIME | NILE | OTC (legacy)
-  marketTier    String   @default("MAIN") // EGX30 | EGX70 | MAIN (main market outside indices) | NILEX | OTC (خارج المقصورة)
+  marketTier    String   @default("MAIN") // EGX30 | EGX70 | MAIN (main market outside indices) | OTC (خارج المقصورة — بورصة النيل دُمجت في الرئيسي)
   sourceUrl     String?
   irUrl         String?
   lastVerifiedAt DateTime?
@@ -65,6 +65,7 @@ model Company {
   confidenceScore       CompanyConfidenceScore?
   watchlistItems        WatchlistItem[]
   priceAlerts           PriceAlert[]
+  briefing              StockBriefing?
 
   @@index([sector])
   @@index([isActive])
@@ -885,6 +886,7 @@ model User {
   resetTokens   PasswordResetToken[]
   watchlistItems WatchlistItem[]
   priceAlerts   PriceAlert[]
+  briefingTrials BriefingTrial[]
 
   @@index([email])
   @@index([role])
@@ -995,8 +997,12 @@ model AdminSession {
 
 model Plan {
   id           String   @id @default(cuid())
-  name         String   // FREE | PREMIUM | ...
+  name         String   // FREE | PRO | PRO_PLUS | ...
   price        Float    @default(0)
+  // First-month promotional price (e.g. 40% off). Null/inactive offer → full price.
+  offerPrice   Float?
+  offerActive  Boolean  @default(false)
+  offerLabel   String?
   currency     String   @default("EGP")
   durationDays Int      @default(30)
   features     String   @default("[]") // JSON array of feature keys
@@ -1076,6 +1082,44 @@ model Setting {
   type        String   @default("string") // string | number | boolean | json
   description String?
   updatedAt   DateTime @updatedAt
+}
+
+// --- Per-stock audio briefing (AI-narrated technical read, "فيديو/بريفينج لكل سهم") ---
+
+/// One cached narration per company. Regenerated when the technical read's
+/// content hash changes; audio stored as bytea (WAV, 24kHz mono) with a
+/// refresh TTL handled by the route (regenerate when older than N days).
+model StockBriefing {
+  id            String   @id @default(cuid())
+  companyId     String   @unique
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  scriptAr      String
+  textHash      String
+  audio         Bytes?
+  audioMime     String?
+  durationSec   Int?
+  voice         String?
+  status        String   @default("READY") // READY | FAILED
+  errorMessage  String?
+  sourceVersion String   @default("briefing@1")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
+/// Free-tier per-stock trial: first play starts a 24h window for that user on
+/// that stock. After the window expires the briefing requires an active paid
+/// plan (PRO / PRO_PLUS).
+model BriefingTrial {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId     String
+  firstPlayedAt DateTime @default(now())
+
+  @@unique([userId, companyId])
+  @@index([companyId])
 }
 
 // =============================================================================

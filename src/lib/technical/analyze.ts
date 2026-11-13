@@ -11,27 +11,30 @@ import { db } from "@/lib/db"
 import {
   atr,
   bollinger,
-  crossType,
+  emaCrossType,
   emaSeries,
+  emaTrendInfo,
   historicalVolatility,
   macd,
   onBalanceVolume,
   perfN,
   round,
   rsi,
-  sma,
   stochastic,
   supportResistance,
-  trendInfo,
   volumeStats,
   type Bar,
 } from "./indicators"
 import { analyzeStructure, type StructureSnapshot } from "./structure"
-import { analyzeVsa, type VsaSnapshot } from "./vsa"
+// VSA and the analytical quality score were REMOVED from the assembled bundle
+// per owner directive (technical@4): the tab no longer renders them and the
+// market-intelligence framing replaced them. The types stay imported so the
+// payload shape keeps tolerating `null` (older cached payloads / compat).
+import type { VsaSnapshot } from "./vsa"
 import { analyzeZones, type ZonesSnapshot } from "./zones"
-import { scoreQuality, type QualityScore } from "./quality"
+import type { QualityScore } from "./quality"
 
-export const TECHNICAL_VERSION = "technical@3"
+export const TECHNICAL_VERSION = "technical@4"
 
 /** Keep the prompt/cache JSON compact and stable: round every float to 2 decimals. */
 function roundReplacer(_key: string, value: unknown): unknown {
@@ -39,7 +42,7 @@ function roundReplacer(_key: string, value: unknown): unknown {
   return value
 }
 
-/** Bars requested from the DB (SMA200 + swing context + cross detection). */
+/** Bars requested from the DB (EMA200 + swing context + cross detection). */
 const MAX_BARS = 400
 /** Median session gap above which the series is "sparse" (not daily). */
 const SPARSE_GAP_DAYS = 7
@@ -63,8 +66,11 @@ export interface MarketContextSection {
   marketRegimeAr: string | null
   marketPulse: number | null
   breadth: { advancing: number; declining: number; unchanged: number; ratio: number | null } | null
-  pctAboveSma20: number | null
-  pctAboveSma50: number | null
+  /** Whole-market share of tickers trading above each EMA (percent) —
+   *  computed by the intelligence enrichment; null when it has not run. */
+  aboveEma20: number | null
+  aboveEma50: number | null
+  aboveEma200: number | null
   sector: {
     name: string | null
     dayChangePct: number | null
@@ -91,21 +97,19 @@ export interface TechnicalSnapshot {
   adjustedActions: number | null
   limitations: string[]
   perf: { d1: number | null; w1: number | null; m1: number | null; m3: number | null; m6: number | null; y1: number | null }
+  /** Trend is EMA-first (technical@4): every exposed reading is EMA-based;
+   *  SMA is kept strictly internal (e.g. Bollinger's middle band). */
   trend: {
-    sma20: number | null
-    sma50: number | null
-    sma100: number | null
-    sma200: number | null
     ema20: number | null
     ema50: number | null
     ema200: number | null
-    priceVsSma20: string | null
-    priceVsSma50: string | null
-    priceVsSma200: string | null
-    sma20VsSma50: string | null
-    sma50VsSma200: string | null
+    priceVsEma20: string | null
+    priceVsEma50: string | null
+    priceVsEma200: string | null
+    ema20VsEma50: string | null
+    ema50VsEma200: string | null
     alignment: string | null
-    cross50200: string | null // golden | death
+    cross50200: string | null // golden | death — EMA50/EMA200 cross
     cross50200Age: number | null
   }
   momentum: {
@@ -132,14 +136,19 @@ export interface TechnicalSnapshot {
     resistances: { price: number; touches: number; distPct: number }[]
   }
   structure: StructureSnapshot | null
+  /** Removed per owner directive (technical@4) — always null; typed for
+   *  payload compatibility with older cached snapshots. */
   vsa: VsaSnapshot | null
   zones: ZonesSnapshot | null
   context: MarketContextSection | null
+  /** Removed per owner directive (technical@4) — always null; typed for
+   *  payload compatibility with older cached snapshots. */
   quality: QualityScore | null
-  high52w: number | null
-  low52w: number | null
-  fromHigh52wPct: number | null
-  fromLow52wPct: number | null
+  /** Observed 60-session range (replaces the removed 52-week block): the
+   *  highest high / lowest low actually printed by the market over the last
+   *  60 stored sessions, and where the last close sits inside that range
+   *  (0 = at the low, 100 = at the high). Raw observed extremes only. */
+  range60: { high: number | null; low: number | null; posPct: number | null; sessions: number }
   signals: TechSignal[]
 }
 
@@ -182,16 +191,16 @@ function technicalSignals(bars: Bar[], snap: Omit<TechnicalSnapshot, "signals" |
   const last = snap.lastClose
   if (last === null) return signals
 
-  // --- Trend ---
+  // --- Trend (EMA family — the engine's primary trend lens) ---
   if (snap.trend.alignment === "aligned_uptrend") {
-    signals.push({ code: "trend_aligned_up", tone: "positive", text: "Price, SMA20, SMA50 and SMA200 are stacked in a full bullish alignment.", textAr: "السعر والمتوسطات 20/50/200 مرصوفة في اتجاه صاعد متكامل." })
+    signals.push({ code: "trend_aligned_up", tone: "positive", text: "Price, EMA20, EMA50 and EMA200 are stacked in a full bullish alignment.", textAr: "السعر متداول فوق EMA20 وEMA50 وEMA200 مع رصيف متوسطات صاعد متكامل." })
   } else if (snap.trend.alignment === "aligned_downtrend") {
-    signals.push({ code: "trend_aligned_down", tone: "negative", text: "Price, SMA20, SMA50 and SMA200 are stacked in a full bearish alignment.", textAr: "السعر والمتوسطات 20/50/200 مرصوفة في اتجاه هابط متكامل." })
+    signals.push({ code: "trend_aligned_down", tone: "negative", text: "Price, EMA20, EMA50 and EMA200 are stacked in a full bearish alignment.", textAr: "السعر متداول تحت EMA20 وEMA50 وEMA200 مع رصيف متوسطات هابط متكامل." })
   }
   if (snap.trend.cross50200 === "golden" && (snap.trend.cross50200Age ?? 99) <= 15) {
-    signals.push({ code: "golden_cross", tone: "positive", text: `Golden cross: SMA50 crossed above SMA200 ${snap.trend.cross50200Age} sessions ago.`, textAr: `تقاطع ذهبي: تجاوز متوسط 50 لمتوسط 200 منذ ${snap.trend.cross50200Age} جلسة.` })
+    signals.push({ code: "golden_cross", tone: "positive", text: `Golden cross: EMA50 crossed above EMA200 ${snap.trend.cross50200Age} sessions ago.`, textAr: `تقاطع ذهبي: تجاوز EMA50 لـ EMA200 منذ ${snap.trend.cross50200Age} جلسة — إشارة صعود طويل المدى.` })
   } else if (snap.trend.cross50200 === "death" && (snap.trend.cross50200Age ?? 99) <= 15) {
-    signals.push({ code: "death_cross", tone: "negative", text: `Death cross: SMA50 crossed below SMA200 ${snap.trend.cross50200Age} sessions ago.`, textAr: `تقاطع سفلي: هبوط متوسط 50 تحت متوسط 200 منذ ${snap.trend.cross50200Age} جلسة.` })
+    signals.push({ code: "death_cross", tone: "negative", text: `Death cross: EMA50 crossed below EMA200 ${snap.trend.cross50200Age} sessions ago.`, textAr: `تقاطع سفلي: هبوط EMA50 تحت EMA200 منذ ${snap.trend.cross50200Age} جلسة — إشارة ضغط بيعي طويل المدى.` })
   }
 
   // --- Momentum ---
@@ -224,13 +233,9 @@ function technicalSignals(bars: Bar[], snap: Omit<TechnicalSnapshot, "signals" |
     else if (pB < 0) signals.push({ code: "bb_below_lower", tone: "positive", text: "Close is below the lower Bollinger band (stretched downside).", textAr: "الإغلاق تحت النطاق السفلي لبولينجر (هبوط ممدد)." })
   }
 
-  // --- 52-week context ---
-  if (snap.fromHigh52wPct !== null && snap.fromHigh52wPct >= -5) {
-    signals.push({ code: "near_52w_high", tone: "positive", text: `Trading within 5% of the 52-week high.`, textAr: "التداول ضمن 5% من أعلى قمة في 52 أسبوعاً." })
-  }
-  if (snap.fromLow52wPct !== null && snap.fromLow52wPct <= 5) {
-    signals.push({ code: "near_52w_low", tone: "negative", text: `Trading within 5% of the 52-week low.`, textAr: "التداول ضمن 5% من أدنى قاع في 52 أسبوعاً." })
-  }
+  // --- Range position (60-session) — the deterministic range-position read
+  //  lives in the signals layer (rangePos60 / atRangeTop); no 52-week signal
+  //  is emitted here anymore (52-week fields were removed per owner directive).
 
   // --- Levels proximity ---
   const nearestRes = snap.levels.resistances[0]
@@ -404,10 +409,9 @@ export function assembleBundle(bars: Bar[], context: MarketContextSection | null
     limitations,
     perf: { d1: null, w1: null, m1: null, m3: null, m6: null, y1: null },
     trend: {
-      sma20: null, sma50: null, sma100: null, sma200: null,
       ema20: null, ema50: null, ema200: null,
-      priceVsSma20: null, priceVsSma50: null, priceVsSma200: null,
-      sma20VsSma50: null, sma50VsSma200: null, alignment: null,
+      priceVsEma20: null, priceVsEma50: null, priceVsEma200: null,
+      ema20VsEma50: null, ema50VsEma200: null, alignment: null,
       cross50200: null, cross50200Age: null,
     },
     momentum: { rsi14: null, macd: { macd: null, signal: null, histogram: null }, stochastic: { k: null, d: null } },
@@ -415,14 +419,11 @@ export function assembleBundle(bars: Bar[], context: MarketContextSection | null
     volatility: { atr14: null, atrPct: null, bollinger: { upper: null, middle: null, lower: null, widthPct: null, percentB: null }, histVol20: null },
     levels: { supports: [], resistances: [] },
     structure: null,
-    vsa: null,
+    vsa: null, // removed per owner directive (technical@4) — kept typed-null for payload compat
     zones: null,
     context: null,
-    quality: null,
-    high52w: null,
-    low52w: null,
-    fromHigh52wPct: null,
-    fromLow52wPct: null,
+    quality: null, // removed per owner directive (technical@4) — kept typed-null for payload compat
+    range60: { high: null, low: null, posPct: null, sessions: 0 },
     signals: [],
   }
 
@@ -452,24 +453,18 @@ export function assembleBundle(bars: Bar[], context: MarketContextSection | null
     y1: perfN(closes, 252),
   }
 
-  // --- Trend (SMAs work whenever the window exists; sparse flag governs interpretation) ---
-  const s20 = sma(closes, 20).value
-  const s50 = sma(closes, 50).value
-  const s100 = sma(closes, 100).value
-  const s200 = sma(closes, 200).value
-  const ti = trendInfo(closes)
-  // EMA family (seeded with SMA, classic convention): null when the window is
-  // too short — same null-disclosure pattern as the SMA fields above.
+  // --- Trend (EMA-first: every exposed trend reading is EMA-based; SMA is
+  //  internal-only from technical@4, e.g. Bollinger's middle band) ---
+  const ti = emaTrendInfo(closes)
   const lastOfSeries = (series: (number | null)[]): number | null => (series.length ? (series[series.length - 1] ?? null) : null)
   base.trend = {
-    sma20: s20, sma50: s50, sma100: s100, sma200: s200,
     ema20: lastOfSeries(emaSeries(closes, 20)),
     ema50: lastOfSeries(emaSeries(closes, 50)),
     ema200: lastOfSeries(emaSeries(closes, 200)),
-    priceVsSma20: ti.priceVsSma20, priceVsSma50: ti.priceVsSma50, priceVsSma200: ti.priceVsSma200,
-    sma20VsSma50: ti.sma20VsSma50, sma50VsSma200: ti.sma50VsSma200,
+    priceVsEma20: ti.priceVsEma20, priceVsEma50: ti.priceVsEma50, priceVsEma200: ti.priceVsEma200,
+    ema20VsEma50: ti.ema20VsEma50, ema50VsEma200: ti.ema50VsEma200,
     alignment: ti.alignment,
-    cross50200: crossType(closes),
+    cross50200: emaCrossType(closes),
     cross50200Age: ti.crossAge50200,
   }
 
@@ -519,22 +514,24 @@ export function assembleBundle(bars: Bar[], context: MarketContextSection | null
     resistances: sr.resistances.map(({ price, touches, distPct }) => ({ price, touches, distPct })),
   }
 
-  // --- 52-week context (needs ~252 sessions; use what exists, label honestly) ---
-  const lastBars = bars.slice(-252)
-  const highs = lastBars.map((b) => b.high)
-  const lows = lastBars.map((b) => b.low)
-  const lastClose = closes[closes.length - 1]
-  base.high52w = round(Math.max(...highs), 2)
-  base.low52w = round(Math.min(...lows), 2)
-  if (lastBars.length < 200) limitations.push(`52-week high/low computed from ${lastBars.length} sessions (less than a full year).`)
-  if (base.high52w !== null) base.fromHigh52wPct = round(((lastClose - base.high52w) / base.high52w) * 100, 2)
-  if (base.low52w !== null && base.low52w > 0) base.fromLow52wPct = round(((lastClose - base.low52w) / base.low52w) * 100, 2)
+  // --- 60-session observed range (replaces the removed 52-week block;
+  //  raw printed highs/lows only, window disclosed when shorter than 60) ---
+  const rangeBars = bars.slice(-60)
+  const rangeHigh = round(Math.max(...rangeBars.map((b) => b.high)), 2)
+  const rangeLow = round(Math.min(...rangeBars.map((b) => b.low)), 2)
+  const rangeLastClose = closes[closes.length - 1]
+  base.range60 = { high: rangeHigh, low: rangeLow, posPct: null, sessions: rangeBars.length }
+  if (rangeBars.length < 60) limitations.push(`60-session range computed from ${rangeBars.length} sessions (less than 60).`)
+  if (rangeHigh > rangeLow) {
+    base.range60.posPct = round(((rangeLastClose - rangeLow) / (rangeHigh - rangeLow)) * 100, 2)
+  }
 
   // --- Market structure (swing map, BOS/CHoCH, multi-timeframe) ---
   base.structure = analyzeStructure(bars)
 
-  // --- Price action: Volume Spread Analysis (needs the volume window) ---
-  base.vsa = volBars.length >= 32 ? analyzeVsa(bars) : { version: "vsa@1", available: false, baselineVolume: null, baselineWindow: 0, events: [], limitations: [], reason: "volume-complete window too short for VSA" }
+  // --- Price action: Volume Spread Analysis — REMOVED per owner directive
+  //  (technical@4). Always null; the type stays for payload compatibility.
+  base.vsa = null
 
   // --- Supply & demand zones ---
   base.zones = analyzeZones(bars)
@@ -542,11 +539,9 @@ export function assembleBundle(bars: Bar[], context: MarketContextSection | null
   // --- Market & sector context (injected; absent → scored as missing) ---
   base.context = context
 
-  // --- Analytical quality score (computed LAST; reads every section) ---
-  base.quality = scoreQuality(
-    { ...base, signals: [] },
-    { contextPresent: !!context && context.available, contextComplete: !!context && context.available && !context.limitations.length },
-  )
+  // --- Analytical quality score — REMOVED per owner directive (technical@4).
+  //  Always null; the type stays for payload compatibility.
+  base.quality = null
 
   // --- Deterministic signals ---
   const stripped: Omit<TechnicalSnapshot, "signals" | "version" | "available" | "limitations"> = {
@@ -555,7 +550,7 @@ export function assembleBundle(bars: Bar[], context: MarketContextSection | null
     perf: base.perf, trend: base.trend, momentum: base.momentum, volume: base.volume,
     volatility: base.volatility, levels: base.levels,
     structure: base.structure, vsa: base.vsa, zones: base.zones, context: base.context, quality: base.quality,
-    high52w: base.high52w, low52w: base.low52w, fromHigh52wPct: base.fromHigh52wPct, fromLow52wPct: base.fromLow52wPct,
+    range60: base.range60,
   }
   base.signals = technicalSignals(bars, stripped)
 

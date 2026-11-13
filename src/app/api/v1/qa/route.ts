@@ -1,26 +1,29 @@
 import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
 import { answerQuestion } from "@/lib/ai/answer-engine"
-import { isPremiumUser } from "@/lib/subscription"
+import { getActivePlanId } from "@/lib/subscription"
+import { PLANS } from "@/lib/plans/entitlements"
 import { hashToken } from "@/lib/secure-compare"
 import { getClientIp } from "@/lib/rate-limit"
 
 // POST /api/v1/qa — grounded Q&A over verified DB data.
-// Quotas (honest, no fake "AI"): anonymous 10/day per IP · free user 20/day · premium 60/day.
+// Quotas (honest, no fake "AI") come from the plans entitlements so the
+// marketing copy can never drift: anonymous 10/day per IP · FREE 20/day ·
+// PRO 60/day · PRO_PLUS 120/day.
 // The engine is deterministic over verified DB rows (no LLM spend per answer),
 // so the generous quotas cost only DB reads; the old 3/day anonymous cap was
 // the #1 "the AI is broken" report — three questions and a 429 reads as breakage.
 //
 // Security notes:
 //   • session tokens are stored SHA-256-hashed (auth.ts) — every lookup must
-//     hash the raw header token first, otherwise premium users silently fall
+//     hash the raw header token first, otherwise logged-in users silently fall
 //     back to the anonymous quota bucket;
 //   • the quota bucket uses getClientIp() (trusted-proxy aware) — reading
 //     x-forwarded-for directly would let a client rotate fake IPs to bypass
 //     the anonymous daily quota.
 
 const RATE = new Map<string, { day: string; count: number }>()
-const LIMITS = { anonymous: 10, free: 20, premium: 60 } as const
+const ANONYMOUS_LIMIT = 10
 
 function headerToken(req: NextRequest): string | null {
   return req.headers.get("x-session-token") ?? req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null
@@ -56,20 +59,20 @@ export async function POST(req: NextRequest) {
     entry.count = 0
   }
 
-  // resolve tier for the limit (token → user → premium?)
+  // resolve tier for the limit (token → user → plan entitlements)
   const token = headerToken(req)
-  let limit: number = LIMITS.anonymous
+  let limit: number = ANONYMOUS_LIMIT
   if (token) {
     // sessions store hashed tokens — hash the raw header token before lookup
     const userId = await db.session
       .findUnique({ where: { token: hashToken(token) }, select: { userId: true } })
       .then((s) => s?.userId ?? null)
-    if (userId) limit = (await isPremiumUser(userId)) ? LIMITS.premium : LIMITS.free
+    if (userId) limit = PLANS[await getActivePlanId(userId)].limits.qaPerDay
   }
 
   if (entry.count >= limit) {
     return Response.json(
-      { error: "QUOTA_EXCEEDED", message: "استهلكت حصة أسئلة اليوم — بريميوم يمنحك حصة أكبر بكثير.", limit, resetAt: `${today}T23:59:59Z` },
+      { error: "QUOTA_EXCEEDED", message: `استهلكت حصة أسئلة اليوم (${limit}) — باقة برو أو برو بلس بتمنحك حصة أكبر بكثير.`, limit, resetAt: `${today}T23:59:59Z` },
       { status: 429 }
     )
   }

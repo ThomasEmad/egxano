@@ -304,13 +304,15 @@ describe("supply/demand zones", () => {
 describe("analytical quality score", () => {
   it("nine explainable dimensions, weights sum to 100, score within 0-100", () => {
     const bundle = assembleBundle(mkBars(uptrendBars(120)))
-    const q = bundle.snapshot.quality
-    expect(q).not.toBeNull()
-    expect(q!.dimensions.length).toBe(9)
-    expect(q!.dimensions.reduce((s, d) => s + d.weight, 0)).toBe(100)
-    expect(q!.score).toBeGreaterThanOrEqual(0)
-    expect(q!.score).toBeLessThanOrEqual(100)
-    for (const d of q!.dimensions) {
+    // Quality scoring is invoked directly since technical@4 no longer ships a
+    // quality section inside the bundle (owner directive) — the scorer itself
+    // is still exercised to keep its behavior pinned.
+    const q = scoreQuality(bundle.snapshot, { contextPresent: false, contextComplete: false })
+    expect(q.dimensions.length).toBe(9)
+    expect(q.dimensions.reduce((s, d) => s + d.weight, 0)).toBe(100)
+    expect(q.score).toBeGreaterThanOrEqual(0)
+    expect(q.score).toBeLessThanOrEqual(100)
+    for (const d of q.dimensions) {
       expect(d.earned).toBeLessThanOrEqual(d.weight)
       expect(d.reason.length).toBeGreaterThan(3)
     }
@@ -318,20 +320,21 @@ describe("analytical quality score", () => {
 
   it("market/sector context raises the context dimension", () => {
     const bars = mkBars(uptrendBars(120))
-    const without = assembleBundle(bars).snapshot.quality!
-    const withCtx = assembleBundle(bars, {
+    const without = scoreQuality(assembleBundle(bars).snapshot, { contextPresent: false, contextComplete: false })
+    const withCtx = scoreQuality(assembleBundle(bars, {
       available: true,
       asOf: bars[bars.length - 1].ts,
       marketRegime: "weak_uptrend",
       marketRegimeAr: "اتجاه صاعد ضعيف",
       marketPulse: 61,
       breadth: { advancing: 120, declining: 80, unchanged: 20, ratio: 1.5 },
-      pctAboveSma20: 55,
-      pctAboveSma50: 48,
+      aboveEma20: 55,
+      aboveEma50: 48,
+      aboveEma200: 40,
       sector: { name: "Banks", dayChangePct: 0.8, advancing: 6, declining: 2, turnoverSharePct: 22.5, turnoverShareDelta5d: 3.1 },
       relVolRankPct: 72,
       limitations: [],
-    }).snapshot.quality!
+    }).snapshot, { contextPresent: true, contextComplete: true })
     const ctxDim = (q: typeof without) => q.dimensions.find((d) => d.key === "market_context")!
     expect(ctxDim(withCtx).earned).toBe(10)
     expect(ctxDim(without).earned).toBe(0)
@@ -341,7 +344,7 @@ describe("analytical quality score", () => {
     const qWithout = scoreQuality(assembleBundle(bars).snapshot, { contextPresent: false, contextComplete: false, nowMs })
     const qWith = scoreQuality(assembleBundle(bars, {
       available: true, asOf: bars[bars.length - 1].ts, marketRegime: "weak_uptrend", marketRegimeAr: null, marketPulse: 61,
-      breadth: null, pctAboveSma20: null, pctAboveSma50: null,
+      breadth: null, aboveEma20: null, aboveEma50: null, aboveEma200: null,
       sector: { name: "Banks", dayChangePct: 0.8, advancing: 6, declining: 2, turnoverSharePct: 22.5, turnoverShareDelta5d: 3.1 },
       relVolRankPct: null, limitations: [],
     }).snapshot, { contextPresent: true, contextComplete: true, nowMs })

@@ -46,7 +46,7 @@ COMI trades at a P/E of 5.5 (FY 2025) while ROE stands at 43.9% — the market p
 Net margin reached 41.7% in FY 2025. Deposit funding remains the engine.
 
 ## Technical Analysis
-The stock is in a mixed trend: price above SMA200 but below SMA20. RSI is neutral at 54. Support zone near 62.5 (1.5% below the last close).
+The stock is in a mixed trend: price above EMA200 but below EMA20. RSI is neutral at 54. Support zone near 62.5 (1.5% below the last close).
 
 ## Combined View
 Fundamentals are strong while the technical picture is neutral — the tension resolves with the next quarterly report.

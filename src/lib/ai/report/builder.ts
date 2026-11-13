@@ -76,7 +76,7 @@ function coveragePct(groups: Record<string, { status: string }>[]): number | nul
 function technicalCoverage(tech: TechnicalBundle): number {
   const s = tech.snapshot
   const checks = [
-    s.trend.sma20 !== null, s.trend.sma50 !== null, s.trend.sma200 !== null,
+    s.trend.ema20 !== null, s.trend.ema50 !== null, s.trend.ema200 !== null,
     s.momentum.rsi14 !== null, s.momentum.macd.macd !== null, s.momentum.stochastic.k !== null,
     s.volatility.atr14 !== null, s.volatility.bollinger.upper !== null, s.volatility.histVol20 !== null,
     s.volume.relVol !== null,

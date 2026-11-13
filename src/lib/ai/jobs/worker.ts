@@ -232,7 +232,7 @@ function technicalSummaryLines(ctx: ReportContext, lang: "ar" | "en"): string[] 
   if (s.lastClose !== null) out.push(lang === "ar" ? `آخر إغلاق: ${s.lastClose} بتاريخ ${s.asOf}` : `Last close ${s.lastClose} on ${s.asOf}`)
   if (s.trend.alignment) out.push(`${lang === "ar" ? "الرصيف" : "Trend"}: ${s.trend.alignment}`)
   if (s.momentum.rsi14 !== null) out.push(`RSI(14): ${s.momentum.rsi14}`)
-  if (s.fromHigh52wPct !== null) out.push(`${lang === "ar" ? "من قمة 52 أسبوعاً" : "From 52w high"}: ${s.fromHigh52wPct}%`)
+  if (s.range60.posPct !== null) out.push(`${lang === "ar" ? `الموقع في نطاق آخر 60 جلسة: ${s.range60.posPct}% (0 عند القاع و100 عند القمة)` : `Position in the 60-session range: ${s.range60.posPct}% (0 at the low, 100 at the high)`}`)
   return out
 }
 

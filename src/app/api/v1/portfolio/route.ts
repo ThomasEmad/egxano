@@ -2,13 +2,16 @@ import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
 import { requireAuth, unauthorizedResponse } from "@/lib/access"
 import { isPremiumUser } from "@/lib/subscription"
+import { PLANS } from "@/lib/plans/entitlements"
 import { withKeyLock } from "@/lib/key-lock"
 
 // GET /api/v1/portfolio — the caller's holdings valued at latest recorded prices.
-// POST — add or update a holding (upsert by company). Free: 2 companies, Premium: unlimited.
+// POST — add or update a holding (upsert by company). Free: 2 companies, PRO/PRO_PLUS: unlimited.
 // PATCH /api/v1/portfolio — update quantity/avgCost/notes. DELETE /api/v1/portfolio?id= — remove.
 
-const FREE_LIMIT = 2
+// Free-tier cap comes from the plans entitlements (single source of truth);
+// PRO and PRO_PLUS are both premium → unlimited.
+const FREE_LIMIT = typeof PLANS.FREE.limits.portfolioHoldings === "number" ? PLANS.FREE.limits.portfolioHoldings : 0
 
 export async function GET(req: NextRequest) {
   const userId = await requireAuth(req)
@@ -139,7 +142,7 @@ export async function POST(req: NextRequest) {
       const count = await db.portfolioHolding.count({ where: { userId } })
       if (count >= FREE_LIMIT && !(await isPremiumUser(userId))) {
         return Response.json(
-          { error: "PORTFOLIO_LIMIT", message: "الخطة المجانية تشمل شركتين فقط — بريميوم بلا حدود.", limit: FREE_LIMIT },
+          { error: "PORTFOLIO_LIMIT", message: `حد المحفظة للمجانية ${FREE_LIMIT} شركات — متاح بلا حدود مع باقة برو أو برو بلس.`, limit: FREE_LIMIT },
           { status: 403 }
         )
       }

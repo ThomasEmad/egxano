@@ -15,8 +15,9 @@
 //
 // HONESTY RULES (mirroring the whole technical engine):
 //   • Missing history is never treated as zero. A dimension that cannot be
-//     computed is excluded from both earned and max (the score rescales), and
-//     the limitation is disclosed.
+//     computed is excluded from the weighted average AND caps the score
+//     ceiling (no volume evidence → 70, no risk evidence → 75) — thin data
+//     can never look excellent. The limitation is still disclosed.
 //   • Every weight change requires bumping SIGNALS_VERSION.
 //   • Two entry points share the same weight table and label maps:
 //       - computeCloseSignal(): light close-based engine over MarketPrice
@@ -31,7 +32,7 @@ import { ema, emaSeries, macd, perfN, rsi } from "./indicators"
 import type { TechnicalSnapshot } from "./analyze"
 import { buildTradePlan, type TradePlan } from "./trade-plan"
 
-export const SIGNALS_VERSION = "tech-signals@2"
+export const SIGNALS_VERSION = "tech-signals@3"
 
 export type TechSignalType = "buy" | "hold" | "sell"
 
@@ -116,6 +117,159 @@ const MIN_SESSIONS = 21
 const WEAK_SESSIONS = 15
 
 // ---------------------------------------------------------------------------
+// Score finalization (shared by BOTH engines) — the @3 calibration layer.
+// ---------------------------------------------------------------------------
+//
+// Owner calibration (tech-signals@3): high scores must be RARE and MEANINGFUL.
+// Under @2 a plain uptrend with RSI 45-65, MACD>0, mid-range position, OBV up
+// and 1-3x volume scored a flat 100/100 — nothing anchored 80 to a small tail.
+// The final score is therefore produced in three ordered steps:
+//   1. Missing-evidence caps — a dimension that cannot be computed (no volume
+//      series with nonzero recent volume, no ATR) earns nothing, is EXCLUDED
+//      from the weighted average, and its absence caps the ceiling:
+//      no volume evidence → cap 70; no risk evidence → cap 75
+//      (both missing → 70). Thin data can never look excellent.
+//   2. Excellence gate — a raw score above 85 additionally requires every
+//      present dimension to earn ≥80% of its own max AND a signal-day
+//      relative volume ≥ 1.2× (relVol unknown = not strong). Otherwise the
+//      raw score is clamped to 85.
+//   3. High-end compression — final = round(100 × (raw/100)^1.25).
+//      Rationale (owner calibration): the convex curve (exponent > 1) is
+//      monotonic and keeps 0→0 and 100→100, but pushes the top tail down so
+//      displayed 80+ demands a raw ≈ 84+ and displayed 90 a raw ≈ 91:
+//      90→88, 85→82, 80→76, 75→70, 70→64. Combined with the caps and the
+//      gate, a high score can only come from broad, volume-confirmed strength.
+//   The BUY_SCORE / SELL_SCORE thresholds (62/35) are applied to the
+//   compressed final, so a buy read now demands raw ≈ 68+ and a sell raw
+//   ≤ ≈ 43 — the printed thresholds are unchanged; the effective bar is
+//   raised by the curve, by design.
+
+export interface FinalizeContext {
+  /** the volume dimension had computable inputs (volMax > 0) */
+  volumeKnown: boolean
+  /** the risk dimension had computable inputs (riskMax > 0) */
+  riskKnown: boolean
+  /** every present (max > 0) dimension earned ≥ 80% of its own max */
+  allDimsStrong: boolean
+  /** signal-day relative volume; null/unknown is treated as NOT strong */
+  relVol: number | null
+}
+
+export function finalizeScore(rawPct: number, ctx: FinalizeContext): number {
+  let s = Math.max(0, Math.min(100, rawPct))
+  // 1. missing-evidence caps (volume missing dominates: 70 wins over 75)
+  if (!ctx.volumeKnown) s = Math.min(s, 70)
+  if (!ctx.riskKnown) s = Math.min(s, 75)
+  // 2. excellence gate — >85 needs full-strength dims + confirmed participation
+  const relVolStrong = ctx.relVol !== null && ctx.relVol >= 1.2
+  if (s > 85 && !(ctx.allDimsStrong && relVolStrong)) s = 85
+  // 3. high-end compression curve (documented above)
+  return Math.round(100 * Math.pow(s / 100, 1.25))
+}
+
+/** One scored dimension in its own (pre-weight) scale. */
+export interface SignalDim {
+  key: "trend" | "momentum" | "volume" | "risk"
+  earned: number
+  max: number
+}
+
+/**
+ * Weighted raw percentage over the dimensions that actually have evidence
+ * (max > 0). A dim without evidence is excluded — not silently rescaled —
+ * and its absence is reported so finalizeScore() can cap the ceiling.
+ */
+function rawWeightedPct(dims: SignalDim[]): {
+  rawPct: number | null
+  allDimsStrong: boolean
+  volumeKnown: boolean
+  riskKnown: boolean
+} {
+  let score = 0
+  let weightSum = 0
+  for (const d of dims) {
+    if (d.max <= 0) continue
+    score += (d.earned / d.max) * SIGNAL_WEIGHTS[d.key]
+    weightSum += SIGNAL_WEIGHTS[d.key]
+  }
+  const present = dims.filter((d) => d.max > 0)
+  const allDimsStrong = present.length > 0 && present.every((d) => d.earned / d.max >= 0.8)
+  return {
+    rawPct: weightSum > 0 ? (score / weightSum) * 100 : null,
+    allDimsStrong,
+    volumeKnown: dims.some((d) => d.key === "volume" && d.max > 0),
+    riskKnown: dims.some((d) => d.key === "risk" && d.max > 0),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shared @3 band scorers — the exact same numbers in BOTH engines, so the
+// whole-market screen and the company technical tab stay in one calibration.
+// ---------------------------------------------------------------------------
+
+/** RSI band credit — full credit ONLY inside 45-60; a hot-but-overextended
+ *  tape (68+) earns almost nothing, so momentum cannot max while stretched. */
+function rsiBandPoints(r: number): number {
+  if (r >= 45 && r <= 60) return 10
+  if (r > 60 && r <= 68) return 6
+  if (r > 68 && r <= 72) return 3
+  if (r > 72) return 2
+  if (r >= 40) return 5
+  if (r >= 30) return 3
+  return 2 // <30 oversold
+}
+
+/** MACD line+histogram credit (identical wording in both engines). */
+function macdPoints(line: number, hist: number): number {
+  return line > 0 && hist > 0 ? 10 : line > 0 && hist <= 0 ? 5 : line <= 0 && hist > 0 ? 7 : 1
+}
+
+/**
+ * Signal-day relative-volume credit. Up-day bands: 2-3× = 10 (strongest
+ * confirmation), 1-2× = 6 (participation), >3× = 4 (climax/distribution risk —
+ * NOT auto-full credit), <1× = 3 (unconfirmed move). A down day earns no
+ * up-band credit at all: heavy down volume is a distribution hint (1), a
+ * quiet drift is mild (3). Volume confirmation beyond these bands still
+ * requires OBV accumulation (the OBV sub-check stays independent).
+ */
+function relVolBandPoints(relVol: number, upDay: boolean): number {
+  if (!upDay) return relVol >= 1.5 ? 1 : 3
+  if (relVol > 2 && relVol <= 3) return 10
+  if (relVol >= 1 && relVol <= 2) return 6
+  if (relVol > 3) return 4
+  return 3
+}
+
+/** Extension-from-the-short-average credit (% above the 20-session average).
+ *  ≤4% = comfortable, 4-8% = stretched, >8% = 0. Below the average counts as
+ *  not-extended (the risk here is being stretched ABOVE it). */
+function extensionPoints(extPct: number): number {
+  return extPct <= 4 ? 8 : extPct <= 8 ? 5 : 0
+}
+
+/** Daily-volatility credit: ≤3% = 7, 3-5% = 4, >5% = 0. */
+function dailyVolPoints(volPct: number): number {
+  return volPct <= 3 ? 7 : volPct <= 5 ? 4 : 0
+}
+
+/** Consecutive rising steps at the END of a series. ≥3 consecutive rises is a
+ *  real slope, not one-session noise. null = not computable (need the last
+ *  two points to exist) — unknown is never scored as false. */
+function risingStreak(series: (number | null)[]): number | null {
+  const n = series.length
+  if (n < 2 || series[n - 1] === null || series[n - 2] === null) return null
+  let streak = 0
+  for (let i = n - 1; i > 0; i--) {
+    const prev = series[i - 1]
+    const cur = series[i]
+    if (prev === null || cur === null) break
+    if (cur > prev) streak++
+    else break
+  }
+  return streak
+}
+
+// ---------------------------------------------------------------------------
 // Shared reason catalogue (bilingual) — reuse the exact line everywhere.
 // ---------------------------------------------------------------------------
 
@@ -126,11 +280,13 @@ const R = {
   belowSma20: { code: "below_sma20", tone: "negative", ar: "السعر يتداول تحت متوسط آخر 20 جلسة.", en: "Price is trading below its 20-session EMA." },
   sma20SlopeUp: { code: "sma20_slope_up", tone: "positive", ar: "متوسط آخر 20 جلسة اتجاهه صاعد.", en: "The 20-session EMA is sloping up." },
   sma20SlopeDown: { code: "sma20_slope_down", tone: "negative", ar: "متوسط آخر 20 جلسة اتجاهه هابط.", en: "The 20-session EMA is sloping down." },
+  smaGoldenCross: { code: "ema_golden_cross", tone: "positive", ar: "تقاطع ذهبي: EMA50 فوق EMA200 — دليل اتجاه صاعد طويل المدى.", en: "Golden cross: EMA50 is above EMA200 — long-horizon uptrend evidence." },
+  smaDeathCross: { code: "ema_death_cross", tone: "negative", ar: "تقاطع هابط: EMA50 تحت EMA200 — دليل ضغط بيعي طويل المدى.", en: "Death cross: EMA50 is below EMA200 — long-horizon sell-pressure evidence." },
   macdBullish: { code: "macd_bullish", tone: "positive", ar: "MACD موجب مع هيستوجرام صاعد — الزخم بيدعم الصعود.", en: "MACD is positive with a rising histogram." },
   macdBearish: { code: "macd_bearish", tone: "negative", ar: "MACD سالب مع هيستوجرام هابط — الزخم بيدعم الهبوط.", en: "MACD is negative with a falling histogram." },
   macdBullCross: { code: "macd_bull_cross", tone: "positive", ar: "تقاطع MACD فوق خط الإشارة — بداية انعكاس محتملة.", en: "MACD crossing above its signal line (possible early reversal)." },
   macdBearCross: { code: "macd_bear_cross", tone: "negative", ar: "تقاطع MACD تحت خط الإشارة — بداية ضعف محتملة.", en: "MACD crossing below its signal line (possible early reversal)." },
-  rsiNeutralUp: { code: "rsi_neutral_up", tone: "positive", ar: `RSI في منطقة الزخم الصح (45-65) من غير تشبع شرائي.`, en: "RSI sits in the healthy momentum band (45-65) without overextension." },
+  rsiNeutralUp: { code: "rsi_neutral_up", tone: "positive", ar: `RSI في منطقة الزخم الصح (45-60) من غير تشبع شرائي.`, en: "RSI sits in the healthy momentum band (45-60) without overextension." },
   rsiOverbought: { code: "rsi_overbought", tone: "negative", ar: "RSI في تشبع شرائي — في خطر تصحيح.", en: "RSI is overbought — correction risk." },
   rsiOversold: { code: "rsi_oversold", tone: "neutral", ar: "RSI في تشبع بيعي — راقب احتمالية الانعكاس.", en: "RSI is oversold — reversal watch." },
   obvUp: { code: "obv_up", tone: "positive", ar: "ميول تجميع في سلوك التداول — OBV صاعد.", en: "Accumulation tendency in volume behavior (OBV rising)." },
@@ -279,37 +435,34 @@ export function computeCloseSignal(rows: CloseRow[]): CloseSignalOutput {
     dailyVolPct: dailyVolPct(closes),
     obvSlope20: obvSlope(rows, 20),
   }
-  if (sessions < MIN_SESSIONS) limitations.push(`A full-score stance needs ${MIN_SESSIONS} sessions — dimensions with insufficient history are excluded and the score rescales.`)
+  if (sessions < MIN_SESSIONS) limitations.push(`A full-score stance needs ${MIN_SESSIONS} sessions — dimensions with insufficient history are excluded and missing evidence caps the score (no volume evidence → 70, no risk evidence → 75).`)
   if (sessions < 50) limitations.push("EMA50 and slower structure checks are excluded below 50 sessions.")
   if (m.relVol === null) limitations.push("Volume history is too thin — volume checks are excluded.")
   if (medianGap(rows) > 7) limitations.push("Sessions are sparse (not daily) — oscillator readings are approximate.")
 
-  // ---------- TREND (max 35 → rescaled over computable checks) ----------
+  // ---------- TREND (max 30 in the 35-weight dim — full credit ONLY when all
+  // four EMA facts align: price>EMA20, price>EMA50, EMA20>EMA50, real slope) ----------
   let trendEarned = 0
   let trendMax = 0
-  if (m.ema20 !== null) {
-    trendMax += 10
-    const ok = lastClose !== null && lastClose > m.ema20
-    if (ok) trendEarned += 10
+  if (m.ema20 !== null && lastClose !== null) {
+    trendMax += 8
+    if (lastClose > m.ema20) trendEarned += 8
   }
   if (m.ema50 !== null && lastClose !== null) {
-    trendMax += 8
-    const ok = lastClose > m.ema50
-    if (ok) trendEarned += 8
+    trendMax += 7
+    if (lastClose > m.ema50) trendEarned += 7
   }
   if (m.ema20 !== null && m.ema50 !== null) {
-    trendMax += 9
-    const ok = m.ema20 > m.ema50
-    if (ok) trendEarned += 9
+    trendMax += 8
+    if (m.ema20 > m.ema50) trendEarned += 8
   }
   const e20series = emaSeries(closes, 20)
-  const e20Now = e20series[e20series.length - 1]
-  const e20Prev = e20series[e20series.length - 6]
+  const slopeStreak = risingStreak(e20series)
   let ema20SlopeUp: boolean | null = null
-  if (e20Now !== null && e20Prev !== null && e20Prev > 0) {
-    trendMax += 8
-    ema20SlopeUp = e20Now > e20Prev
-    if (ema20SlopeUp) trendEarned += 8
+  if (slopeStreak !== null) {
+    trendMax += 7
+    ema20SlopeUp = slopeStreak >= 3 // ≥3 consecutive rising EMA steps = a real slope
+    if (ema20SlopeUp) trendEarned += 7
   }
 
   // ---------- MOMENTUM (max 30) ----------
@@ -317,19 +470,13 @@ export function computeCloseSignal(rows: CloseRow[]): CloseSignalOutput {
   let momMax = 0
   if (m.rsi14 !== null) {
     momMax += 10
-    let pts: number
-    if (m.rsi14 >= 45 && m.rsi14 <= 65) pts = 10
-    else if (m.rsi14 > 65 && m.rsi14 <= 70) pts = 6
-    else if (m.rsi14 > 70) pts = 2
-    else if (m.rsi14 >= 30 && m.rsi14 < 45) pts = (ema20SlopeUp === false ? 3 : 5)
-    else pts = (ema20SlopeUp === false ? 3 : 6) // <30 oversold — contrarian credit only off a falling tape is small
-    momEarned += pts
+    // @3: full credit only inside 45-60 — a hot-but-overextended tape can't max momentum
+    momEarned += rsiBandPoints(m.rsi14)
   }
   if (m.macdHist !== null && m.macdLine !== null) {
     momMax += 10
     // line + histogram together: above zero with rising hist is full credit
-    const pts = m.macdLine > 0 && m.macdHist > 0 ? 10 : m.macdLine > 0 && m.macdHist <= 0 ? 5 : m.macdLine <= 0 && m.macdHist > 0 ? 7 : 1
-    momEarned += pts
+    momEarned += macdPoints(m.macdLine, m.macdHist)
   }
   if (m.rangePos60 !== null) {
     momMax += 10
@@ -343,19 +490,14 @@ export function computeCloseSignal(rows: CloseRow[]): CloseSignalOutput {
   let volMax = 0
   if (m.obvSlope20 !== null) {
     volMax += 10
-    const ok = m.obvSlope20 > 0
-    if (ok) volEarned += 10
+    // accumulation alone is 8, not 10 — OBV is tendency evidence, not proof
+    if (m.obvSlope20 > 0) volEarned += 8
   }
   if (m.relVol !== null && changePct !== null) {
     volMax += 10
-    let pts: number
-    if (m.relVol >= 1.0 && m.relVol <= 3.0 && changePct > 0) pts = 10
-    else if (m.relVol >= 0.7 && m.relVol < 1.0) pts = 5
-    else if (m.relVol > 4) pts = 3
-    else if (m.relVol < 0.5) pts = 4
-    else if (changePct < 0 && m.relVol >= 1.5) pts = 2 // heavy down volume — distribution hint
-    else pts = 6
-    volEarned += pts
+    // signal-day bands; a down day earns no up-band credit regardless of how
+    // heavy the tape is — confirmation beyond bands still requires OBV > 0
+    volEarned += relVolBandPoints(m.relVol, changePct > 0)
   }
 
   // ---------- RISK (max 15) ----------
@@ -364,30 +506,27 @@ export function computeCloseSignal(rows: CloseRow[]): CloseSignalOutput {
   if (m.ema20 !== null && lastClose !== null) {
     riskMax += 8
     const extPct = ((lastClose - m.ema20) / m.ema20) * 100
-    const pts = extPct <= 8 ? 8 : extPct <= 15 ? 4 : 0
-    riskEarned += pts
+    riskEarned += extensionPoints(extPct)
   }
   if (m.dailyVolPct !== null) {
     riskMax += 7
-    const pts = m.dailyVolPct <= 4 ? 7 : m.dailyVolPct <= 7 ? 4 : 1
-    riskEarned += pts
+    riskEarned += dailyVolPoints(m.dailyVolPct)
   }
 
-  const dims = [
+  const dims: SignalDim[] = [
     { key: "trend" as const, earned: trendEarned, max: trendMax },
     { key: "momentum" as const, earned: momEarned, max: momMax },
     { key: "volume" as const, earned: volEarned, max: volMax },
     { key: "risk" as const, earned: riskEarned, max: riskMax },
   ]
-  let score = 0
-  let weightSum = 0
-  for (const d of dims) {
-    if (d.max <= 0) continue
-    const w = SIGNAL_WEIGHTS[d.key]
-    score += (d.earned / d.max) * w
-    weightSum += w
-  }
-  const finalScore = weightSum > 0 ? Math.round((score / weightSum) * 100) : null
+  // @3: dims without evidence are excluded from the average AND cap the
+  // ceiling (70/75) instead of silently rescaling the score upward.
+  // A stance with NO trend evidence at all (trendMax 0 — below 20 sessions)
+  // has no anchor: the score stays null (weak-data bucket), never a fake read.
+  const { rawPct, allDimsStrong, volumeKnown, riskKnown } = rawWeightedPct(dims)
+  const finalScore = rawPct !== null && trendMax > 0
+    ? finalizeScore(rawPct, { volumeKnown, riskKnown, allDimsStrong, relVol: m.relVol })
+    : null
 
   // ---------- signal mapping ----------
   const trendShare = trendMax > 0 ? trendEarned / trendMax : null
@@ -421,17 +560,18 @@ export function computeCloseSignal(rows: CloseRow[]): CloseSignalOutput {
   if (m.rsi14 !== null) {
     if (m.rsi14 > 70) push(reason("rsiOverbought"))
     else if (m.rsi14 < 30) push(reason("rsiOversold"))
-    else if (m.rsi14 >= 45 && m.rsi14 <= 65 && signal === "buy") push(reason("rsiNeutralUp"))
+    else if (m.rsi14 >= 45 && m.rsi14 <= 60 && signal === "buy") push(reason("rsiNeutralUp"))
   }
   if (m.obvSlope20 !== null) push(m.obvSlope20 > 0 ? reason("obvUp") : reason("obvDown"))
   if (m.relVol !== null && changePct !== null) {
-    if (m.relVol > 4) push(reason("volumeChase"))
+    if (m.relVol > 3) push(reason("volumeChase")) // @3: climax band starts above 3x, matching the volume dim
     else if (m.relVol >= 1.0 && m.relVol <= 3.0 && changePct > 0) push(reason("volumeConfirmUp"))
   }
   if (m.ema20 !== null && lastClose !== null) {
     const extPct = ((lastClose - m.ema20) / m.ema20) * 100
-    if (extPct > 15) push(reason("extended"))
-    else if (extPct <= 8 && signal === "buy") push(reason("notExtended"))
+    // thresholds match the @3 risk bands: >8% scores 0 (extended), ≤4% scores full (not extended)
+    if (extPct > 8) push(reason("extended"))
+    else if (extPct <= 4 && signal === "buy") push(reason("notExtended"))
   }
   if (m.rangePos60 !== null && m.rangePos60 > 90) push(reason("atRangeTop"))
   if (m.rsi14 !== null && m.rsi14 < 38 && changePct !== null && changePct > 0) push(reason("oversoldBounce"))
@@ -591,35 +731,43 @@ export function computeStanceFromSnapshot(snap: TechnicalSnapshot): TechStance {
   const v = snap.volume
   const vol = snap.volatility
 
-  // ---------- TREND ----------
+  // ---------- TREND — EMA facts (same 8/7/8/7 component scale as the close
+  // engine; ema200 may be absent — score what's present, defensively) ----------
   let trendEarned = 0
   let trendMax = 0
-  const sma20ok = t.priceVsSma20 === "above"
-  const sma50ok = t.priceVsSma50 === "above"
-  const sma200ok = t.priceVsSma200 === "above"
-  trendMax += 10; if (sma20ok) trendEarned += 10
-  if (t.sma50 !== null) { trendMax += 8; if (sma50ok) trendEarned += 8 }
-  if (t.sma200 !== null) { trendMax += 9; if (sma200ok) trendEarned += 9 }
-  trendMax += 9; if (t.sma20VsSma50 === "above") trendEarned += 9
-  let slopeUp: boolean | null = null
-  if (t.sma20 !== null && t.sma50 !== null) slopeUp = sma20ok // proxy: stance of price vs its short average
-  if (t.alignment === "aligned_uptrend") { trendMax += 4; trendEarned += 4 }
-  else if (t.alignment === "aligned_downtrend") { trendMax += 4 }
+  const emaAvailable = t.ema20 !== null
+  // price vs the short average — drives the flat-tape invalidation and reasons
+  let priceAboveShort: boolean | null = null
+  if (t.ema20 !== null) {
+    trendMax += 8
+    priceAboveShort = last > t.ema20
+    if (priceAboveShort) trendEarned += 8
+  }
+  if (t.ema50 !== null) {
+    trendMax += 7
+    if (last > t.ema50) trendEarned += 7
+  }
+  if (t.ema20 !== null && t.ema50 !== null) {
+    trendMax += 8
+    if (t.ema20 > t.ema50) trendEarned += 8
+  }
+  if (t.ema200 !== null) {
+    trendMax += 7
+    if (last > t.ema200) trendEarned += 7
+  }
+  // No EMA series exists on a point snapshot — the 20-EMA slope is UNKNOWN,
+  // never guessed from price stance (the @2 SMA-flag proxy is gone).
 
   // ---------- MOMENTUM ----------
   let momEarned = 0
   let momMax = 0
   if (mo.rsi14 !== null) {
     momMax += 10
-    const r = mo.rsi14
-    const pts = r >= 45 && r <= 65 ? 10 : r > 65 && r <= 70 ? 6 : r > 70 ? 2 : r >= 30 && r < 45 ? 5 : 6
-    momEarned += pts
+    momEarned += rsiBandPoints(mo.rsi14) // @3 shared bands
   }
   if (mo.macd.histogram !== null && mo.macd.macd !== null) {
     momMax += 10
-    const { macd: line, histogram } = mo.macd
-    const pts = line > 0 && histogram > 0 ? 10 : line > 0 && histogram < 0 ? 5 : line < 0 && histogram > 0 ? 7 : 1
-    momEarned += pts
+    momEarned += macdPoints(mo.macd.macd, mo.macd.histogram)
   }
   if (mo.stochastic.k !== null && mo.stochastic.d !== null) {
     momMax += 10
@@ -628,47 +776,43 @@ export function computeStanceFromSnapshot(snap: TechnicalSnapshot): TechStance {
     momEarned += pts
   }
 
-  // ---------- VOLUME ----------
+  // ---------- VOLUME (signal-day direction = perf.d1, same bands as close engine) ----------
   let volEarned = 0
   let volMax = 0
   if (v.obvSlope20 !== null) {
-    volMax += 10; if (v.obvSlope20 > 0) volEarned += 10
+    volMax += 10; if (v.obvSlope20 > 0) volEarned += 8 // accumulation alone is 8, not 10
   }
-  if (v.relVol !== null) {
+  if (v.relVol !== null && snap.perf.d1 !== null) {
     volMax += 10
-    const rel = v.relVol
-    const pts = rel >= 1 && rel <= 3 ? 10 : rel >= 0.7 && rel < 1 ? 5 : rel > 4 ? 3 : rel < 0.5 ? 4 : 6
-    volEarned += pts
+    volEarned += relVolBandPoints(v.relVol, snap.perf.d1 > 0)
   }
 
   // ---------- RISK ----------
   let riskEarned = 0
   let riskMax = 0
-  if (t.sma20 !== null) {
+  const extBase = t.ema20 // the risk band is defined against the short EMA; null → check excluded
+  if (extBase !== null && extBase > 0) {
     riskMax += 8
-    const extPct = ((last - t.sma20) / t.sma20) * 100
-    riskEarned += extPct <= 8 ? 8 : extPct <= 15 ? 4 : 0
+    riskEarned += extensionPoints(((last - extBase) / extBase) * 100)
   }
   if (vol.atrPct !== null) {
     riskMax += 7
-    riskEarned += vol.atrPct <= 3 ? 7 : vol.atrPct <= 5.5 ? 4 : 1
+    riskEarned += dailyVolPoints(vol.atrPct)
   }
 
-  const dims = [
+  const dims: SignalDim[] = [
     { key: "trend" as const, earned: trendEarned, max: trendMax },
     { key: "momentum" as const, earned: momEarned, max: momMax },
     { key: "volume" as const, earned: volEarned, max: volMax },
     { key: "risk" as const, earned: riskEarned, max: riskMax },
   ]
-  let score = 0
-  let weightSum = 0
-  for (const d of dims) {
-    if (d.max <= 0) continue
-    const w = SIGNAL_WEIGHTS[d.key]
-    score += (d.earned / d.max) * w
-    weightSum += w
-  }
-  const finalScore = weightSum > 0 ? Math.round((score / weightSum) * 100) : null
+  // @3: shared finalize — dims without evidence cap the ceiling (70/75)
+  // instead of silently rescaling the score upward. No trend evidence at all
+  // (trendMax 0) → no anchor → null score, matching the no-mapping rule.
+  const { rawPct, allDimsStrong, volumeKnown, riskKnown } = rawWeightedPct(dims)
+  const finalScore = rawPct !== null && trendMax > 0
+    ? finalizeScore(rawPct, { volumeKnown, riskKnown, allDimsStrong, relVol: v.relVol })
+    : null
 
   const trendShare = trendMax > 0 ? trendEarned / trendMax : null
   let signal: TechSignalType | null = null
@@ -690,7 +834,7 @@ export function computeStanceFromSnapshot(snap: TechnicalSnapshot): TechStance {
         labelEn: `Technical invalidation: a close below the ${sup.price} support.`,
       }
     }
-  } else if (signal === "hold" && sma20ok) {
+  } else if (signal === "hold" && priceAboveShort === true) {
     const sup = snap.levels.supports[0]
     if (sup) {
       invalidation = {
@@ -713,10 +857,18 @@ export function computeStanceFromSnapshot(snap: TechnicalSnapshot): TechStance {
   // ---------- reasons ----------
   const reasons: SignalReason[] = []
   const push = (r: SignalReason) => { if (reasons.length < 4 && !reasons.some((x) => x.code === r.code)) reasons.push(r) }
-  if (t.alignment === "aligned_uptrend") push(reason("fullAlignmentUp"))
-  else if (t.alignment === "aligned_downtrend") push(reason("fullAlignmentDown"))
-  else if (sma20ok) push(reason("aboveSma20"))
-  else push(reason("belowSma20"))
+  // EMA wording only — mirrors what the trend dim actually scored. When NO EMA
+  // fact exists (priceAboveShort null, short history) no trend reason is
+  // pushed at all: an honest gap, disclosed in limitations. The 50/200 cross
+  // reason appears only as a fallback when the short EMA is missing entirely.
+  const upStack = priceAboveShort === true && t.ema20 !== null && (t.ema50 === null || t.ema20 > t.ema50)
+  const downStack = priceAboveShort === false && t.ema20 !== null && (t.ema50 === null || t.ema20 < t.ema50)
+  if (upStack && t.ema50 !== null) push(reason("fullAlignmentUp"))
+  else if (upStack) push(reason("aboveSma20"))
+  else if (downStack && t.ema50 !== null) push(reason("fullAlignmentDown"))
+  else if (downStack) push(reason("belowSma20"))
+  if (!emaAvailable && t.cross50200 === "golden") push(reason("smaGoldenCross"))
+  else if (!emaAvailable && t.cross50200 === "death") push(reason("smaDeathCross"))
   if (mo.macd.macd !== null && mo.macd.histogram !== null) {
     if (mo.macd.macd > 0 && mo.macd.histogram > 0) push(reason("macdBullish"))
     else if (mo.macd.macd < 0 && mo.macd.histogram < 0) push(reason("macdBearish"))
@@ -728,10 +880,11 @@ export function computeStanceFromSnapshot(snap: TechnicalSnapshot): TechStance {
     else if (mo.rsi14 < 30) push(reason("rsiOversold"))
   }
   if (v.obvSlope20 !== null) push(v.obvSlope20 > 0 ? reason("obvUp") : reason("obvDown"))
-  if (t.sma20 !== null) {
-    const extPct = ((last - t.sma20) / t.sma20) * 100
-    if (extPct > 15) push(reason("extended"))
-    else if (extPct <= 8 && signal === "buy") push(reason("notExtended"))
+  if (extBase !== null) {
+    const extPct = ((last - extBase) / extBase) * 100
+    // thresholds match the @3 risk bands: >8% scores 0 (extended), ≤4% scores full (not extended)
+    if (extPct > 8) push(reason("extended"))
+    else if (extPct <= 4 && signal === "buy") push(reason("notExtended"))
   }
 
   // ---------- style fits from full snapshot ----------
@@ -747,12 +900,14 @@ export function computeStanceFromSnapshot(snap: TechnicalSnapshot): TechStance {
     obvSlope20: v.obvSlope20,
     rangePos60: null, // full path has zones instead; range check skipped
     dailyVolPct: vol.atrPct === null ? null : vol.atrPct,
-    ema20SlopeUp: slopeUp,
-    volumePresent: v.relVol !== null,
+    ema20SlopeUp: null, // point snapshot carries no EMA series — slope unknown, never guessed
+    volumePresent: v.relVol !== null || v.obvSlope20 !== null,
   })
 
   if (snap.sparse) limitations.push("Sessions are sparse — oscillator readings are approximate.")
-  if (snap.sessions < MIN_SESSIONS) limitations.push(`Only ${snap.sessions} sessions — several checks are excluded and the score rescales.`)
+  if (snap.sessions < MIN_SESSIONS) limitations.push(`Only ${snap.sessions} sessions — several checks are excluded and missing evidence caps the score (no volume evidence → 70, no risk evidence → 75).`)
+  if (!emaAvailable) limitations.push("Short EMA data unavailable — trend checks are excluded, not guessed.")
+  if (trendMax <= 0) limitations.push("Trend checks could not be computed — no stance mapping.")
 
   return {
     version: SIGNALS_VERSION,

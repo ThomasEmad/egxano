@@ -15,6 +15,7 @@ const links = [
   { href: "/admin/companies", labelEn: "Companies", labelAr: "الشركات" },
   { href: "/admin/actions", labelEn: "Corporate actions", labelAr: "إجراءات الشركات" },
   { href: "/admin/subscriptions", labelEn: "Subscriptions", labelAr: "الاشتراكات" },
+  { href: "/admin/plans", labelEn: "Plans", labelAr: "الباقات" },
   { href: "/admin/payments", labelEn: "Payment Requests", labelAr: "طلبات الدفع" },
 ]
 
