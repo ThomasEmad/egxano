@@ -451,6 +451,54 @@ export async function loadActionsBetween(fromISO: Date, toISO: Date): Promise<Ma
   return byTicker
 }
 
+/**
+ * BATCHED variant of loadCompanySeriesActions for whole-market passes: same
+ * SeriesAction semantics (CorporateAction minus cash_dividend + Dividend
+ * CASH/SPECIAL), but fetched for ALL companies in exactly two indexed
+ * queries and grouped by companyId — the market signals board must not pay
+ * ~2 round trips per company (~500 queries for the full universe) on its
+ * cold compute path.
+ */
+export async function loadSeriesActionsByCompany(
+  companyIds: string[],
+  fromISO: string,
+  toISO: string
+): Promise<Map<string, SeriesAction[]>> {
+  const byCompany = new Map<string, SeriesAction[]>()
+  if (companyIds.length === 0) return byCompany
+  const from = new Date(`${fromISO}T00:00:00.000Z`)
+  const to = new Date(`${toISO}T00:00:00.000Z`)
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to < from) return byCompany
+  const toExclusive = new Date(to.getTime() + 86_400_000)
+  try {
+    const [actions, dividends] = await Promise.all([
+      db.corporateAction.findMany({
+        where: { companyId: { in: companyIds }, exDate: { gte: from, lt: toExclusive }, actionType: { not: "cash_dividend" } },
+        select: { companyId: true, actionType: true, exDate: true, ratioNumerator: true, ratioDenominator: true, cashPerShare: true, subscriptionPrice: true },
+      }),
+      db.dividend.findMany({
+        where: { companyId: { in: companyIds }, exDividendDate: { gte: from, lt: toExclusive }, dividendPerShare: { gt: 0 }, dividendType: { in: ["CASH", "SPECIAL"] } },
+        select: { companyId: true, dividendPerShare: true, exDividendDate: true },
+      }),
+    ])
+    for (const a of actions) {
+      if (!a.exDate) continue
+      const arr = byCompany.get(a.companyId) ?? []
+      arr.push({ exDateISO: a.exDate.toISOString().slice(0, 10), terms: { actionType: a.actionType, ratioNumerator: a.ratioNumerator, ratioDenominator: a.ratioDenominator, cashPerShare: a.cashPerShare, subscriptionPrice: a.subscriptionPrice } })
+      byCompany.set(a.companyId, arr)
+    }
+    for (const d of dividends) {
+      if (!d.exDividendDate) continue
+      const arr = byCompany.get(d.companyId) ?? []
+      arr.push({ exDateISO: d.exDividendDate.toISOString().slice(0, 10), terms: { actionType: "cash_dividend", ratioNumerator: null, ratioDenominator: null, cashPerShare: d.dividendPerShare, subscriptionPrice: null } })
+      byCompany.set(d.companyId, arr)
+    }
+  } catch {
+    byCompany.clear()
+  }
+  return byCompany
+}
+
 // =============================================================================
 // Admin gap detector — pure, no DB.
 //

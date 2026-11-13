@@ -29,7 +29,7 @@ export const TIER_AR: Record<MarketTier, { short: string; full: string; en: stri
 export const EGX30_TICKERS = [
   "ETEL", "EAST", "CCAP", "COMI", "TMGH", "FWRY", "ORAS", "BTFH", "ORHD", "GBCO",
   "AMOC", "ABUK", "EGAL", "PHDC", "JUFO", "MFPC", "EMFD", "HELI", "MCQE", "ISPH",
-  "RMDA", "VLMRA", "HRHO", "ADIB", "EFIH", "SKPC", "RAYA", "EFID", "CLHO", "ALCN",
+  "RMDA", "VLMRA", "HRHO", "ADIB", "CANA", "EFIH", "SKPC", "RAYA", "EFID", "CLHO", "ALCN",
   "VLMR",
 ]
 

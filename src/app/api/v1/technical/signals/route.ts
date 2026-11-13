@@ -10,7 +10,7 @@ import { cachedResponse } from "@/lib/public-cache"
 //
 // Public + edge-cached 10 minutes (same cache window as the computation).
 
-export const maxDuration = 30
+export const maxDuration = 60
 
 export async function GET() {
   return cachedResponse("technical-signals:public", 10 * 60_000, () => getCachedMarketSignals())

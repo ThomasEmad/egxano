@@ -18,12 +18,12 @@
 //
 // Cost shape: ~250 active companies × a 420-calendar-day trailing window —
 // one cached pass every 10 minutes (prices move intraday, the stance follows).
-// The per-company action lookup (2 indexed queries each) rides the same cache.
+// Actions ride ONE batched query for the whole universe (see loadSeriesActionsByCompany).
 // =============================================================================
 
 import { db } from "@/lib/db"
 import { cached } from "@/lib/server-cache"
-import { applyCorporateActionAdjustments, loadCompanySeriesActions, type SeriesBar } from "@/lib/market/corporate-actions"
+import { applyCorporateActionAdjustments, loadSeriesActionsByCompany, type SeriesBar } from "@/lib/market/corporate-actions"
 import { computeCloseSignal, SIGNALS_VERSION, type CloseSignalOutput } from "./signals"
 
 /** Calendar-day cutoff for the trailing window (~280 sessions where history exists). */
@@ -107,6 +107,25 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
   let weakData = 0
   let pricedAsOf: string | null = null
 
+  // BATCHED action load: one pass over the whole universe (2 indexed queries),
+  // replacing the per-company lookups that made the cold compute pay ~500 DB
+  // round trips and blew the function timeout on the new deployment.
+  const allSeries: { companyId: string; firstTs: string; lastTs: string }[] = []
+  for (const [companyId, byDay] of byDayAll) {
+    const days = [...byDay.keys()]
+    if (days.length >= 2 && days.length === byDay.size) {
+      allSeries.push({ companyId, firstTs: days[0], lastTs: days[days.length - 1] })
+    }
+  }
+  const actionsByCompany =
+    allSeries.length > 0
+      ? await loadSeriesActionsByCompany(
+          allSeries.map((s) => s.companyId),
+          allSeries.reduce((min, s) => (s.firstTs < min ? s.firstTs : min), allSeries[0].firstTs),
+          allSeries.reduce((max, s) => (s.lastTs > max ? s.lastTs : max), allSeries[0].lastTs)
+        )
+      : new Map()
+
   for (const [companyId, byDay] of byDayAll) {
     const c = companyById.get(companyId)
     if (!c) continue
@@ -122,17 +141,17 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
     // changePct and every indicator read the REAL market move.
     try {
       if (series.length >= 2) {
-        const bars: SeriesBar[] = series.map((r) => ({
-          ts: r.ts,
-          open: r.close,
-          high: r.close,
-          low: r.close,
-          close: r.close,
-          volume: r.volume,
-          source: "scanner", // PriceBar/scanner rows are RAW prices (documented)
-        }))
-        const actions = await loadCompanySeriesActions(companyId, series[0].ts, series[series.length - 1].ts)
+        const actions = actionsByCompany.get(companyId) ?? []
         if (actions.length > 0) {
+          const bars: SeriesBar[] = series.map((r) => ({
+            ts: r.ts,
+            open: r.close,
+            high: r.close,
+            low: r.close,
+            close: r.close,
+            volume: r.volume,
+            source: "scanner", // PriceBar/scanner rows are RAW prices (documented)
+          }))
           const adjusted = applyCorporateActionAdjustments(bars, actions)
           series = adjusted.bars.map((b) => ({ ts: b.ts, close: b.close, volume: b.volume }))
         }

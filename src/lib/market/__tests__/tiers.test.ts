@@ -33,8 +33,8 @@ describe("constituent seed lists", () => {
     }
   })
 
-  it("EGX30 has 31 entries and EGX70 has 70 entries", () => {
-    expect(EGX30_TICKERS).toHaveLength(31)
+  it("EGX30 has 32 entries and EGX70 has 70 entries", () => {
+    expect(EGX30_TICKERS).toHaveLength(32)
     expect(EGX70_TICKERS).toHaveLength(70)
   })
 })
