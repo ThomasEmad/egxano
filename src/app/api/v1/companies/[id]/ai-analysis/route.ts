@@ -142,7 +142,9 @@ async function postHandler(req: Request, { params }: { params: Promise<{ id: str
       }).catch(() => {})
       // a new artifact invalidates the read cache window
       invalidateServerCache()
-      return Response.json({ analysis: serializeReport(result.report), cached: true })
+      // usage surfaces the free-tier window so the UI can show remaining units
+      const usage = isPremium ? null : await getSmartAnalysisUsage(userId)
+      return Response.json({ analysis: serializeReport(result.report), cached: true, charged: result.charged, usage })
     }
     case "queued": {
       // The requesting invocation carries the generation: it is the ONE
@@ -168,6 +170,7 @@ async function postHandler(req: Request, { params }: { params: Promise<{ id: str
           jobRef: result.job.id,
           reportKey: result.job.reportKey,
           message: "Report generation continues in the background — poll the status endpoint.",
+          usage: isPremium ? null : await getSmartAnalysisUsage(userId),
         },
         { status: 202 }
       )

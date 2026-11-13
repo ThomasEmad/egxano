@@ -7,6 +7,7 @@ import { ServiceWorkerRegistration } from "@/components/sw-registration";
 import { AdSenseScript } from "@/components/egx/ad-slot";
 import { OrganizationSchema, WebSiteSchema } from "@/components/seo/structured-data";
 import { siteConfig } from "@/lib/seo-config";
+import { adsenseClient as getAdsenseClient } from "@/lib/adsense";
 import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
@@ -104,6 +105,9 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // AdSense site-ownership meta tag — required by Google on EVERY page before
+  // the account can serve ads on this domain (site verification).
+  const adsenseClient = getAdsenseClient()
   return (
     <html lang="ar" dir="rtl" className={`${geistSans.variable} ${geistMono.variable} ${plexArabic.variable}`}>
       <head>
@@ -111,6 +115,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="icon" href="/icon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <link rel="manifest" href="/manifest.ts" />
+        {adsenseClient ? <meta name="google-adsense-account" content={adsenseClient} /> : null}
         <OrganizationSchema />
         <WebSiteSchema />
       </head>

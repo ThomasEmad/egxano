@@ -9,7 +9,7 @@ export async function GET() {
     "PREMIUM_CURRENCY",
     "PREMIUM_DURATION_DAYS",
     "PAYMENT_PHONE",
-    "WHATSAPP_NUMBER",
+    "INSTAPAY_QR_URL",
     "PAYMENT_INSTRUCTIONS",
   ]
   const settings = await db.setting.findMany({ where: { key: { in: keys } } })

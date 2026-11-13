@@ -19,6 +19,7 @@
 
 import { useEffect, useRef } from "react"
 import Script from "next/script"
+import { adsenseClient } from "@/lib/adsense"
 
 type AdFormat = "leaderboard" | "in-article" | "sidebar" | "in-feed"
 
@@ -36,7 +37,7 @@ declare global {
 }
 
 export function AdSenseScript(): React.ReactElement | null {
-  const client = process.env.NEXT_PUBLIC_ADSENSE_CLIENT
+  const client = adsenseClient()
   if (!client) return null
   return (
     <Script
@@ -60,7 +61,7 @@ export function AdSlot({
   format?: AdFormat
   className?: string
 }) {
-  const client = process.env.NEXT_PUBLIC_ADSENSE_CLIENT
+  const client = adsenseClient()
   const pushed = useRef(false)
   const geo = GEOMETRY[format]
 

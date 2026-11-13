@@ -6,6 +6,7 @@ import {
   adjustPrevClose,
   adjustedChangePct,
   actionOnSession,
+  applyCorporateActionAdjustments,
   perShareRatio,
   scannerChangeSessions,
   type CorporateActionTerms,
@@ -164,5 +165,108 @@ describe("buildSnapshotFromScanner — ex-date handling end to end", () => {
     const row: ScanRow = { s: "EGX:ZZZ", d: ["ZZZ", "Z Co", 12, -2.5, 9000, "delayed_streaming_900", null, null] }
     const { movers } = buildSnapshotFromScanner([row], [], "2026-11-13T03:00:00Z", undefined, undefined)
     expect(movers[0].changePct).toBe(-2.5)
+  })
+})
+
+// =============================================================================
+// Series continuity — the technical-analysis rebuild (analyze.ts pipeline).
+// =============================================================================
+describe("applyCorporateActionAdjustments — technical series continuity", () => {
+  const bonusAction = { exDateISO: "2026-11-12", terms: bonusHalf }
+
+  it("CANA end-to-end: raw scanner bars read ≈+2.14% after adjustment, not −31.9%", () => {
+    const bars = [
+      { ts: "2026-11-10", open: 50, high: 51.5, low: 49.5, close: 50.5, volume: 1e6, source: "scanner" as const },
+      { ts: "2026-11-11", open: 50.8, high: 51.4, low: 50.2, close: 51.02, volume: 1e6, source: "scanner" as const },
+      { ts: "2026-11-12", open: 34.5, high: 35.1, low: 34.2, close: 34.74, volume: 2e6, source: "scanner" as const },
+    ]
+    const { bars: adj, eventsApplied } = applyCorporateActionAdjustments(bars, [bonusAction])
+    expect(eventsApplied).toHaveLength(1)
+    expect(eventsApplied[0].factor).toBeCloseTo(1 / 1.5, 9)
+    // the latest (post-event) bar keeps its real traded price
+    expect(adj[2].close).toBeCloseTo(34.74, 6)
+    // the pre-event session is rebuilt at 34.01 — no fake crash anywhere
+    expect(adj[1].close).toBeCloseTo(51.02 / 1.5, 3)
+    const d1 = (adj[2].close / adj[1].close - 1) * 100
+    expect(d1).toBeGreaterThan(0)
+    expect(d1).toBeLessThan(5)
+  })
+
+  it("Yahoo-preadjusted bars are de-adjusted then re-adjusted — net idempotent", () => {
+    const bars = [
+      { ts: "2026-11-11", open: 33.9, high: 34.3, low: 33.6, close: 51.02 / 1.5, volume: 1e6, source: "yahoo" as const },
+      { ts: "2026-11-12", open: 34.5, high: 35.1, low: 34.2, close: 34.74, volume: 2e6, source: "scanner" as const },
+    ]
+    const { bars: adj, eventsApplied } = applyCorporateActionAdjustments(bars, [bonusAction])
+    expect(eventsApplied).toHaveLength(1)
+    // phase 1 (×1.5) then phase 2 (÷1.5) cancel exactly on the Yahoo bar
+    expect(adj[0].close).toBeCloseTo(51.02 / 1.5, 3)
+    expect(adj[1].close).toBeCloseTo(34.74, 6)
+  })
+
+  it("cash dividend subtracts from every source (Yahoo close is not cash-adjusted)", () => {
+    const cash = {
+      exDateISO: "2026-11-12",
+      terms: { actionType: "cash_dividend", ratioNumerator: null, ratioDenominator: null, cashPerShare: 1, subscriptionPrice: null } as CorporateActionTerms,
+    }
+    const bars = [
+      { ts: "2026-11-10", open: 40, high: 40.5, low: 39.5, close: 40, volume: null, source: "yahoo" as const },
+      { ts: "2026-11-11", open: 39.2, high: 39.4, low: 38.8, close: 39, volume: 1e6, source: "scanner" as const },
+      { ts: "2026-11-12", open: 38.4, high: 38.8, low: 38.2, close: 38.5, volume: 1e6, source: "scanner" as const },
+    ]
+    const { bars: adj, eventsApplied } = applyCorporateActionAdjustments(bars, [cash])
+    expect(eventsApplied).toHaveLength(1)
+    // base for the ex-date = 39 → 38, so f = 38/39 applies to BOTH older bars
+    expect(adj[1].close).toBeCloseTo(38, 6)
+    expect(adj[0].close).toBeCloseTo(40 * (38 / 39), 3)
+    expect(adj[2].close).toBeCloseTo(38.5, 6)
+  })
+
+  it("compounds two cash dividends newest→oldest with correct bases", () => {
+    const mk = (iso: string, amount: number) => ({
+      exDateISO: iso,
+      terms: { actionType: "cash_dividend", ratioNumerator: null, ratioDenominator: null, cashPerShare: amount, subscriptionPrice: null } as CorporateActionTerms,
+    })
+    const bars = [
+      { ts: "2026-11-18", open: 30, high: 30.2, low: 29.8, close: 30, volume: null },
+      { ts: "2026-11-19", open: 30.1, high: 30.3, low: 29.9, close: 30, volume: null },
+      { ts: "2026-11-20", open: 29.6, high: 29.8, low: 29.4, close: 29.5, volume: null },
+      { ts: "2026-11-30", open: 29.4, high: 29.6, low: 29.2, close: 29.5, volume: null },
+      { ts: "2026-12-01", open: 28.9, high: 29.1, low: 28.7, close: 29, volume: null },
+    ]
+    const { bars: adj } = applyCorporateActionAdjustments(bars, [mk("2026-12-01", 1), mk("2026-11-20", 0.5)])
+    const f1 = (29.5 - 1) / 29.5
+    const base19 = 30 * f1
+    const f2 = (base19 - 0.5) / base19
+    expect(adj[0].close).toBeCloseTo(30 * f1 * f2, 4)
+    expect(adj[1].close).toBeCloseTo(30 * f1 * f2, 4)
+    expect(adj[2].close).toBeCloseTo(29.5 * f1, 4)
+    expect(adj[3].close).toBeCloseTo(29.5 * f1, 4)
+    expect(adj[4].close).toBeCloseTo(29, 6)
+    // true d1 after the two dividends: 29 vs 28.5 → +1.75%, not the raw −1.69%... the raw
+    // series reads 29 vs 29.5 = −1.69% while the adjusted truth is +1.75%.
+    const d1 = (adj[4].close / adj[3].close - 1) * 100
+    expect(d1).toBeCloseTo((29 / (29.5 - 1) - 1) * 100, 4)
+  })
+
+  it("a future ex-date never rescales the current series", () => {
+    const bars = [{ ts: "2026-11-12", open: 34.5, high: 35.1, low: 34.2, close: 34.74, volume: 1e6, source: "scanner" as const }]
+    const { bars: adj, eventsApplied } = applyCorporateActionAdjustments(bars, [{ exDateISO: "2026-11-14", terms: bonusHalf }])
+    expect(eventsApplied).toHaveLength(0)
+    expect(adj[0].close).toBeCloseTo(34.74, 6)
+  })
+
+  it("never mutates the caller's bars", () => {
+    const bars = [{ ts: "2026-11-11", open: 50.8, high: 51.4, low: 50.2, close: 51.02, volume: 1e6, source: "scanner" as const }]
+    const snapshot = JSON.stringify(bars)
+    applyCorporateActionAdjustments(bars, [bonusAction])
+    expect(JSON.stringify(bars)).toBe(snapshot)
+  })
+
+  it("no actions → identical series back", () => {
+    const bars = [{ ts: "2026-11-11", open: 50.8, high: 51.4, low: 50.2, close: 51.02, volume: 1e6, source: "yahoo" as const }]
+    const { bars: adj, eventsApplied } = applyCorporateActionAdjustments(bars, [])
+    expect(eventsApplied).toHaveLength(0)
+    expect(adj[0].close).toBe(51.02)
   })
 })

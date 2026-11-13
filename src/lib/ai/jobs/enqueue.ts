@@ -5,12 +5,12 @@
 
 import { db } from "@/lib/db"
 import { buildReportContext, resolveCompany, type ReportContext } from "@/lib/ai/report/builder"
-import { consumeSmartAnalysisUsage } from "@/lib/smart-analysis-usage"
+import { consumeSmartAnalysisUsage, getSmartAnalysisUsage, hasUsageEntryForReport } from "@/lib/smart-analysis-usage"
 
 export type EnqueueResult =
   | { kind: "not_found" }
   | { kind: "no_data" }
-  | { kind: "cache_hit"; report: ReportRow }
+  | { kind: "cache_hit"; report: ReportRow; charged: boolean }
   | { kind: "generating"; job: { id: string; reportKey: string }; ctx: ReportContext }
   | { kind: "queued"; job: { id: string; reportKey: string }; ctx: ReportContext }
   | { kind: "quota_exhausted"; usage: { usageCount: number; limit: number; remaining: number; resetAt: string | null } }
@@ -39,16 +39,31 @@ export type ReportRow = ReportRowLike
 
 /**
  * Request a report for (company, lang):
+ *  0. free-tier gate — an analysis is an analysis: cached or fresh, a report
+ *     delivered to a free user counts against the monthly window (the old
+ *     cache_hit-before-quota order let free users read unlimited stored
+ *     reports — the exact "عملت تحليلات كتير ومتحسبتش" leak)
  *  1. resolve company
  *  2. build context once (also yields the deterministic reportKey)
- *  3. completed report with that key → cache_hit (zero inference)
- *  4. active job with that key → generating (duplicate prevention)
- *  5. quota (free tier) charged atomically ONLY when a job is about to exist
+ *  3. completed report with that key → cache_hit (zero inference) — charged
+ *     once per user per report identity per month (ENQUEUED/CACHE_HIT event
+ *     ledger), still gated by the quota
+ *  4. active job with that key → generating (duplicate prevention, no charge)
+ *  5. quota charged atomically ONLY when a job is about to exist
  *  6. insert job — UNIQUE(reportKey) closes the last race
  */
 export async function requestReport(rawId: string, lang: "ar" | "en", opts: { isPremium: boolean; requestedBy: string | null; skipQuota?: boolean }): Promise<EnqueueResult> {
+  const quotaUserId = opts.requestedBy ?? "anonymous"
   const company = await resolveCompany(rawId)
   if (!company) return { kind: "not_found" }
+
+  // 0) Free-tier gate BEFORE any expensive context build or cache read.
+  if (!opts.isPremium && !opts.skipQuota) {
+    const usage = await getSmartAnalysisUsage(quotaUserId)
+    if (usage.usageCount >= 3) {
+      return { kind: "quota_exhausted", usage: { usageCount: usage.usageCount, limit: usage.limit, remaining: 0, resetAt: usage.resetAt } }
+    }
+  }
 
   const ctx = await buildReportContext(company, lang)
   if (!ctx.hasFinancialData) return { kind: "no_data" }
@@ -56,7 +71,22 @@ export async function requestReport(rawId: string, lang: "ar" | "en", opts: { is
   // 1) valid artifact?
   const existing = await db.aiAnalysisReport.findUnique({ where: { reportKey: ctx.reportKey } })
   if (existing && existing.status === "COMPLETED" && existing.content) {
-    return { kind: "cache_hit", report: existing }
+    let charged = false
+    if (!opts.isPremium && !opts.skipQuota) {
+      // Charge one unit for a cached delivery — but only the FIRST time this
+      // user receives THIS report identity this month (event ledger dedup),
+      // so re-reading an analysis never burns extra quota.
+      const already = await hasUsageEntryForReport(quotaUserId, ctx.reportKey)
+      if (!already) {
+        const consumed = await consumeSmartAnalysisUsage(quotaUserId, 3)
+        if (!consumed) {
+          const usage = await getSmartAnalysisUsage(quotaUserId)
+          return { kind: "quota_exhausted", usage: { usageCount: usage.usageCount, limit: usage.limit, remaining: 0, resetAt: usage.resetAt } }
+        }
+        charged = true
+      }
+    }
+    return { kind: "cache_hit", report: existing, charged }
   }
 
   // 2) active job?

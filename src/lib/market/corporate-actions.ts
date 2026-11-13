@@ -245,6 +245,178 @@ export function adjustedChangePct(price: number, rawChangePct: number, actions: 
   return ((price - adjPrev) / adjPrev) * 100
 }
 
+// =============================================================================
+// Series adjustment — corporate-action continuity for the technical analysis.
+//
+// The technical bundle merges bars from three sources with DIFFERENT
+// adjustment semantics:
+//   • scanner day-rows (TradingView) and stored PriceBar rows are RAW prices,
+//   • Yahoo chart bars are ALREADY split/bonus-adjusted (Yahoo's chart `close`
+//     for EGX reflects share events — CANA 2026-11-12: the raw Nov 11 close
+//     51.02 comes back as 34.01), but Yahoo does NOT adjust cash dividends.
+//
+// A series that mixes them shows a fake cliff at every ex-date whose bars come
+// from a raw source (exactly the CANA complaint: "التحليل الفني ظاهر انه هابط
+// مع انه في قمة"). The fix is two passes over one merged series:
+//
+//   Phase 1 — de-adjust Yahoo bars back to RAW terms using OUR event ledger
+//   (multiply pre-ex-date Yahoo bars by 1+b / s — the exact inverse of the
+//   adjustment Yahoo already applied). Cash/rights have no phase-1 inverse
+//   because Yahoo never applied them.
+//
+//   Phase 2 — re-adjust the now-uniform RAW series newest→oldest: for each
+//   event, rebuild the session close immediately before its ex-date with
+//   adjustPrevClose() and scale every bar on/before it by the resulting
+//   factor. Because events are processed newest→oldest, older events see the
+//   close already adjusted for newer ones — correct compounding.
+//
+// The result is ONE consistently adjusted series regardless of which source
+// served which session, and it is idempotent for Yahoo-sourced bars (de-adjust
+// + re-adjust cancel out exactly).
+// =============================================================================
+
+export interface SeriesBar {
+  ts: string // YYYY-MM-DD (UTC session day)
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number | null
+  /** Which source produced this bar — decides phase-1 de-adjustment. */
+  source?: "yahoo" | "scanner" | "pricebar"
+}
+
+export interface SeriesAction {
+  exDateISO: string // YYYY-MM-DD
+  terms: CorporateActionTerms
+}
+
+export interface AdjustedSeriesResult {
+  bars: SeriesBar[]
+  /** Events that actually rescaled the series (for honest disclosure). */
+  eventsApplied: { exDateISO: string; actionType: string; factor: number }[]
+}
+
+/** Multiplicative factor a share-type action applies going BACKWARD in time
+ *  (the inverse of the price scale Yahoo bakes into its `close` series). */
+function shareEventInverseFactor(a: CorporateActionTerms): number | null {
+  if (a.actionType === "stock_dividend" || a.actionType === "split") {
+    const ratio = perShareRatio(a)
+    if (ratio === null || ratio <= 0) return null
+    return a.actionType === "split" ? ratio : 1 + ratio
+  }
+  return null
+}
+
+export function applyCorporateActionAdjustments(bars: SeriesBar[], actions: SeriesAction[]): AdjustedSeriesResult {
+  const eventsApplied: AdjustedSeriesResult["eventsApplied"] = []
+  if (bars.length === 0 || actions.length === 0) return { bars: bars.map((b) => ({ ...b })), eventsApplied }
+
+  // Deep copy — never mutate the caller's series.
+  const out: SeriesBar[] = bars.map((b) => ({ ...b }))
+  out.sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0))
+
+  const usable = actions.filter((a) => a.exDateISO.length === 10)
+  if (usable.length === 0) return { bars: out, eventsApplied }
+
+  // Only events whose ex-date has actually ARRIVED (on/before the last bar)
+  // take effect: a future ex-date must not rescale today's cum-event prices.
+  const lastTs = out[out.length - 1].ts
+  const effective = usable.filter((a) => a.exDateISO <= lastTs)
+  if (effective.length === 0) return { bars: out, eventsApplied }
+
+  // ---------- Phase 1: de-adjust Yahoo bars to the raw price universe ----------
+  for (const a of effective) {
+    const inv = shareEventInverseFactor(a.terms)
+    if (inv === null) continue
+    for (const bar of out) {
+      if (bar.source === "yahoo" && bar.ts < a.exDateISO) {
+        bar.open *= inv
+        bar.high *= inv
+        bar.low *= inv
+        bar.close *= inv
+      }
+    }
+  }
+
+  // ---------- Phase 2: re-adjust the raw series, newest event first ----------
+  const desc = [...effective].sort((a, b) => (a.exDateISO > b.exDateISO ? -1 : a.exDateISO < b.exDateISO ? 1 : 0))
+  for (const a of desc) {
+    // Last session STRICTLY before the ex-date — the change base that the
+    // ex-date's mechanical move would corrupt.
+    let idx = -1
+    for (let i = out.length - 1; i >= 0; i--) {
+      if (out[i].ts < a.exDateISO) {
+        idx = i
+        break
+      }
+    }
+    if (idx < 0) continue
+    const base = out[idx].close
+    if (!(base > 0)) continue
+    const adj = adjustPrevClose(base, [a.terms])
+    if (!(adj > 0) || Math.abs(adj - base) < 1e-9) continue
+    const f = adj / base
+    for (let i = 0; i <= idx; i++) {
+      out[i].open *= f
+      out[i].high *= f
+      out[i].low *= f
+      out[i].close *= f
+    }
+    eventsApplied.push({ exDateISO: a.exDateISO, actionType: a.terms.actionType, factor: f })
+  }
+
+  // Tame float noise from repeated scaling (sub-piastre precision is plenty
+  // for EGP prices quoted in piastres).
+  for (const bar of out) {
+    bar.open = Number(bar.open.toFixed(4))
+    bar.high = Number(bar.high.toFixed(4))
+    bar.low = Number(bar.low.toFixed(4))
+    bar.close = Number(bar.close.toFixed(4))
+  }
+  return { bars: out, eventsApplied }
+}
+
+/**
+ * Every adjustment-relevant action for ONE company inside [fromISO, toISO]:
+ * share/rights events from the CorporateAction ledger plus cash dividends
+ * from the Dividend ledger (which reaches back years, while FoudaLens
+ * corporate actions cover ~6 months). Cash_dividend rows are deliberately
+ * excluded from the CorporateAction query — the Dividend table is the single
+ * cash source, so an event recorded in both is never subtracted twice.
+ * Server-only (DB access); empty on any DB hiccup (series stays raw).
+ */
+export async function loadCompanySeriesActions(companyId: string, fromISO: string, toISO: string): Promise<SeriesAction[]> {
+  const from = new Date(`${fromISO}T00:00:00.000Z`)
+  const to = new Date(`${toISO}T00:00:00.000Z`)
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to < from) return []
+  const toExclusive = new Date(to.getTime() + 86_400_000)
+  const out: SeriesAction[] = []
+  try {
+    const [actions, dividends] = await Promise.all([
+      db.corporateAction.findMany({
+        where: { companyId, exDate: { gte: from, lt: toExclusive }, actionType: { not: "cash_dividend" } },
+        select: { actionType: true, exDate: true, ratioNumerator: true, ratioDenominator: true, cashPerShare: true, subscriptionPrice: true },
+      }),
+      db.dividend.findMany({
+        where: { companyId, exDividendDate: { gte: from, lt: toExclusive }, dividendPerShare: { gt: 0 }, dividendType: { in: ["CASH", "SPECIAL"] } },
+        select: { dividendPerShare: true, exDividendDate: true },
+      }),
+    ])
+    for (const a of actions) {
+      if (!a.exDate) continue
+      out.push({ exDateISO: a.exDate.toISOString().slice(0, 10), terms: { actionType: a.actionType, ratioNumerator: a.ratioNumerator, ratioDenominator: a.ratioDenominator, cashPerShare: a.cashPerShare, subscriptionPrice: a.subscriptionPrice } })
+    }
+    for (const d of dividends) {
+      if (!d.exDividendDate) continue
+      out.push({ exDateISO: d.exDividendDate.toISOString().slice(0, 10), terms: { actionType: "cash_dividend", ratioNumerator: null, ratioDenominator: null, cashPerShare: d.dividendPerShare, subscriptionPrice: null } })
+    }
+  } catch {
+    return []
+  }
+  return out
+}
+
 /**
  * Actions whose ex-date falls in the (from, to] UTC window — used by the
  * treemap fallback that compares the two latest durable price rows: the

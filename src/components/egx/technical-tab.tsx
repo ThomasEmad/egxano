@@ -29,6 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/lib/client/api"
 import { useI18n } from "@/lib/i18n"
 import { TradingViewChart } from "@/components/egx/tradingview"
+import { AdjustedPriceChart, type ChartCandle } from "@/components/egx/adjusted-price-chart"
 // Type-only imports from the deterministic lib layer — erased at build time,
 // so no server code ever reaches the client bundle.
 import type { MarketContextSection } from "@/lib/technical/analyze"
@@ -83,6 +84,9 @@ export interface TechSnapshot {
   fromHigh52wPct: number | null
   fromLow52wPct: number | null
   signals: { code: string; tone: "positive" | "negative" | "neutral"; severity?: "warning" | "info"; text: string; textAr: string }[]
+  /** Corporate-action ex-dates the series was rebuilt across (bonus/split/
+   *  cash/rights) — null/undefined when no adjustment applied. */
+  adjustedActions?: number | null
   // --- Newer analysis sections (optional: older cached payloads omit them) ---
   /** Swing map + BOS/CHoCH events (src/lib/technical/structure.ts). */
   structure?: StructureSnapshot | null
@@ -688,6 +692,11 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
   }
 
   const snap = data?.snapshot
+  // Adjusted daily candles from the same server pass that computes the
+  // indicators — the chart and the numbers can never disagree.
+  const candles = ((data?.candles ?? []) as ChartCandle[]).filter(
+    (c) => c && typeof c.t === "string" && [c.o, c.h, c.l, c.c].every((v) => Number.isFinite(v) && v > 0),
+  )
   if (isError || !snap) {
     return (
       <Card className="p-6 text-center text-sm text-muted-foreground">
@@ -731,13 +740,32 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
 
   return (
     <div className="space-y-4">
-      {/* TradingView chart — the only price chart on company pages (the
-          platform stores no candle history; the widget is display-only and
-          EGXANO's own indicators are computed server-side below). */}
+      {/* EGXANO's own chart over the corporate-action-ADJUSTED series — the
+          same bars every indicator below is computed from, so a bonus/cash
+          ex-date never reads as a market crash. */}
+      {candles.length > 1 ? (
+        <Card className="overflow-hidden p-0">
+          <CardContent className="px-2 py-3 sm:px-3">
+            <AdjustedPriceChart candles={candles} height={360} adjustedActions={snap.adjustedActions ?? null} />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* TradingView embed — display-only external view. TradingView draws the
+          RAW series, so on a company with recent corporate actions its chart
+          shows the mechanical ex-date drop; the note makes the difference
+          explicit instead of silently contradicting the adjusted numbers. */}
       {ticker ? (
         <Card className="overflow-hidden p-0">
+          {(snap.adjustedActions ?? 0) > 0 ? (
+            <p className="border-b border-border/60 bg-muted/40 px-4 py-2 text-[11px] leading-relaxed text-muted-foreground">
+              {ar
+                ? "ملحوظة: شارت TradingView أدناه يعرض الأسعار الخام — فيبدو هابطًا شكليًا يوم توزيع الأسهم المجانية أو الأرباح النقدية. الرسم والمؤشرات في EGXANO أعلاه محسوبة على الأسعار المعدلة."
+                : "Note: the TradingView chart below draws RAW prices — it shows a mechanical drop on bonus/cash ex-dates. EGXANO's chart and indicators above use ex-date-adjusted prices."}
+            </p>
+          ) : null}
           <CardContent className="p-0">
-            <TradingViewChart ticker={ticker} height={460} />
+            <TradingViewChart ticker={ticker} height={420} />
           </CardContent>
         </Card>
       ) : null}

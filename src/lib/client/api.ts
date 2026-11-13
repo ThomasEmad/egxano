@@ -505,6 +505,8 @@ export const api = {
         ticker: string
         snapshot: import("@/components/egx/technical-tab").TechSnapshot
         hash: string
+        /** Corporate-action-adjusted daily candles for the client chart. */
+        candles?: { t: string; o: number; h: number; l: number; c: number }[]
       }>(r)
     ),
 

@@ -85,6 +85,9 @@ export interface TechnicalSnapshot {
   lastClose: number | null
   currency: string
   sparse: boolean
+  /** Number of corporate-action ex-dates the series was rebuilt across
+   *  (bonus/split/cash/rights) — null when no adjustment was applied. */
+  adjustedActions: number | null
   limitations: string[]
   perf: { d1: number | null; w1: number | null; m1: number | null; m3: number | null; m6: number | null; y1: number | null }
   trend: {
@@ -243,6 +246,9 @@ export interface TechnicalBundle {
   /** sha256 of the canonical snapshot JSON — part of the report cache identity */
   hash: string
   snapshotJson: string
+  /** Adjusted daily candles (corporate-action continuity) for the client
+   *  chart — compact, ascending, capped server-side before exposure. */
+  candles: { t: string; o: number; h: number; l: number; c: number }[]
 }
 
 /** Build the technical snapshot from the FRESHEST available bars:
@@ -292,11 +298,22 @@ export async function buildTechnicalBundle(companyId: string, context: MarketCon
   }
 
   const byDay = new Map<string, Bar>()
-  for (const b of raw) byDay.set(b.ts.toISOString().slice(0, 10), b as unknown as Bar)
-  for (const [day, bar] of scannerByDay) byDay.set(day, bar)
+  const sourceByDay = new Map<string, "yahoo" | "scanner" | "pricebar">()
+  for (const b of raw) {
+    const day = b.ts.toISOString().slice(0, 10)
+    byDay.set(day, b as unknown as Bar)
+    sourceByDay.set(day, "pricebar")
+  }
+  for (const [day, bar] of scannerByDay) {
+    byDay.set(day, bar)
+    sourceByDay.set(day, "scanner")
+  }
 
   // Yahoo (when reachable) restores real OHLC for older days — but never
   // overrides the most recent day, whose scanner row is authoritative.
+  // NOTE on adjustment semantics: Yahoo's chart `close` for EGX is ALREADY
+  // split/bonus-adjusted while scanner/PriceBar rows are raw — tracked in
+  // sourceByDay so the corporate-action pass below can normalize first.
   const newestDay = [...byDay.keys()].sort().pop() ?? null
   const { fetchRecentBarsForCompany } = await import("./live-bars")
   const live = await fetchRecentBarsForCompany(companyId)
@@ -305,6 +322,7 @@ export async function buildTechnicalBundle(companyId: string, context: MarketCon
       const day = b.ts.toISOString().slice(0, 10)
       if (day === newestDay) continue // the freshest scanner row stays authoritative
       byDay.set(day, { ts: day, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume })
+      sourceByDay.set(day, "yahoo")
       syntheticCount = Math.max(0, syntheticCount - 1)
     }
   }
@@ -312,7 +330,35 @@ export async function buildTechnicalBundle(companyId: string, context: MarketCon
   const merged = [...byDay.values()].sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime()).slice(-MAX_BARS)
   const bars = sanitizeBars(merged)
   if (bars.length > 0) {
-    const bundle = assembleBundle(bars, context)
+    // Corporate-action continuity: a bonus/split/cash ex-date mechanically
+    // moves the price — without the rebuild below the series shows a fake
+    // cliff (CANA 2026-11-12: −31.9% displayed for a real ≈ +2% session).
+    // The pass normalizes the mixed-source series to raw terms, then applies
+    // our own ex-date math — source-agnostic and Yahoo-independent.
+    let adjustedBars = bars
+    let eventsApplied: { exDateISO: string; actionType: string; factor: number }[] = []
+    try {
+      const { applyCorporateActionAdjustments, loadCompanySeriesActions } = await import("@/lib/market/corporate-actions")
+      const actions = await loadCompanySeriesActions(companyId, bars[0].ts, bars[bars.length - 1].ts)
+      if (actions.length > 0) {
+        const result = applyCorporateActionAdjustments(
+          bars.map((b) => ({ ...b, source: sourceByDay.get(b.ts) ?? "pricebar" })),
+          actions,
+        )
+        adjustedBars = result.bars.map(({ source: _s, ...rest }) => rest)
+        eventsApplied = result.eventsApplied
+      }
+    } catch {
+      // Adjustment is best-effort — the raw series remains the honest fallback.
+    }
+    const bundle = assembleBundle(adjustedBars, context)
+    if (eventsApplied.length > 0) {
+      bundle.snapshot.adjustedActions = eventsApplied.length
+      bundle.snapshot.limitations.push(
+        `${eventsApplied.length} corporate-action ex-date${eventsApplied.length === 1 ? "" : "s"} (bonus/split/cash/rights) rescaled the series so ex-date mechanical moves are not read as market losses.`,
+      )
+    }
+    bundle.candles = adjustedBars.slice(-260).map((b) => ({ t: b.ts, o: b.open, h: b.high, l: b.low, c: b.close }))
     // Honest disclosure: how many of the trailing sessions are close-only
     // scanner bars (no intraday high/low), and whether the freshest bar is
     // intraday data from today's scanner pull.
@@ -332,7 +378,9 @@ export async function buildTechnicalBundle(companyId: string, context: MarketCon
   }
 
   const fallback = sanitizeBars(raw)
-  return assembleBundle(fallback, context)
+  const bundle = assembleBundle(fallback, context)
+  bundle.candles = fallback.slice(-260).map((b) => ({ t: b.ts, o: b.open, h: b.high, l: b.low, c: b.close }))
+  return bundle
 }
 
 /** Pure assembly (also used by tests): bars must be ascending by ts.
@@ -348,6 +396,7 @@ export function assembleBundle(bars: Bar[], context: MarketContextSection | null
     lastClose: bars.length ? bars[bars.length - 1].close : null,
     currency: "EGP",
     sparse: false,
+    adjustedActions: null,
     limitations,
     perf: { d1: null, w1: null, m1: null, m3: null, m6: null, y1: null },
     trend: {
@@ -491,7 +540,7 @@ export function assembleBundle(bars: Bar[], context: MarketContextSection | null
   // --- Deterministic signals ---
   const stripped: Omit<TechnicalSnapshot, "signals" | "version" | "available" | "limitations"> = {
     asOf: base.asOf, sessions: base.sessions, firstSession: base.firstSession,
-    lastClose: base.lastClose, currency: base.currency, sparse: base.sparse,
+    lastClose: base.lastClose, currency: base.currency, sparse: base.sparse, adjustedActions: base.adjustedActions,
     perf: base.perf, trend: base.trend, momentum: base.momentum, volume: base.volume,
     volatility: base.volatility, levels: base.levels,
     structure: base.structure, vsa: base.vsa, zones: base.zones, context: base.context, quality: base.quality,
@@ -505,5 +554,5 @@ export function assembleBundle(bars: Bar[], context: MarketContextSection | null
 function finalize(snap: TechnicalSnapshot): TechnicalBundle {
   const snapshotJson = JSON.stringify(snap, roundReplacer)
   const hash = createHash("sha256").update(snapshotJson).digest("hex")
-  return { snapshot: snap, hash, snapshotJson }
+  return { snapshot: snap, hash, snapshotJson, candles: [] }
 }

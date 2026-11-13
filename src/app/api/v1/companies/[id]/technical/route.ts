@@ -17,7 +17,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const payload = await cached(`technical-tab:${company.id}`, 10 * 60_000, async () => {
     const bundle = await buildTechnicalBundleWithContext(company.id)
-    return { snapshot: bundle.snapshot, hash: bundle.hash.slice(0, 16) }
+    return {
+      snapshot: bundle.snapshot,
+      hash: bundle.hash.slice(0, 16),
+      // Adjusted daily candles for the client chart (corporate-action
+      // continuity) — compact series, already capped in the bundle.
+      candles: bundle.candles,
+    }
   })
 
   return Response.json({ companyId: company.id, ticker: company.ticker, ...payload })

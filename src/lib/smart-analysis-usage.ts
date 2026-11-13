@@ -19,7 +19,9 @@ export async function getSmartAnalysisUsage(userId: string): Promise<UsageWindow
   })
 
   const usageCount = record?.usageCount ?? 0
-  const resetAt = record?.resetAt ? record.resetAt.toISOString() : new Date(year, month + 1, 1).toISOString()
+  // `month` is 1-based and Date months are 0-based, so new Date(year, month, 1)
+  // is exactly the first day of the NEXT month — the monthly reset point.
+  const resetAt = record?.resetAt ? record.resetAt.toISOString() : new Date(year, month, 1).toISOString()
 
   return {
     year,
@@ -29,6 +31,24 @@ export async function getSmartAnalysisUsage(userId: string): Promise<UsageWindow
     limit: 3,
     resetAt,
   }
+}
+
+/**
+ * Has this user already been counted for THIS report identity in the current
+ * month? The ledger is AiAnalysisEvent: every generation enqueue writes
+ * ENQUEUED(actor=user) and every cached delivery writes CACHE_HIT(actor=user),
+ * so a report requested twice costs one unit, while a DIFFERENT report costs
+ * its own. Keeps the free tier honest ("كل تحليل بيتحسب") without punishing
+ * re-reads of the same analysis.
+ */
+export async function hasUsageEntryForReport(userId: string, reportKey: string): Promise<boolean> {
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const ev = await db.aiAnalysisEvent.findFirst({
+    where: { reportKey, actor: userId, kind: { in: ["CACHE_HIT", "ENQUEUED"] }, createdAt: { gte: monthStart } },
+    select: { id: true },
+  })
+  return ev !== null
 }
 
 export async function incrementSmartAnalysisUsage(userId: string): Promise<void> {

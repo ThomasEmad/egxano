@@ -13,7 +13,7 @@
 // server but true on the client's first fetch — both server and first client
 // render must agree (nothing), and the spinner appears only after mount.
 
-import { useState, useEffect } from "react"
+import { useState, useSyncExternalStore } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   ArrowLeft,
@@ -25,7 +25,8 @@ import {
   Gem,
   Layers,
   Loader2,
-  MessageCircle,
+  Mail,
+  QrCode,
   ShieldCheck,
   Sparkles,
 } from "lucide-react"
@@ -39,9 +40,13 @@ import { getUserToken } from "@/lib/client/api"
 export default function PremiumPage() {
   const { lang } = useI18n()
   const ar = lang === "ar"
-  // Hydration-safety gate (see header comment).
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  // Hydration-safety gate (see header comment) — the canonical isClient
+  // pattern: server snapshot false, client true, no setState-in-effect.
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  )
 
   const { data: settingsData } = useQuery({
     queryKey: ["public-settings"],
@@ -84,20 +89,17 @@ export default function PremiumPage() {
   const currency = typeof settings.PREMIUM_CURRENCY === "string" ? settings.PREMIUM_CURRENCY : "EGP"
   const durationDays = typeof settings.PREMIUM_DURATION_DAYS === "number" ? settings.PREMIUM_DURATION_DAYS : 30
   const phone = typeof settings.PAYMENT_PHONE === "string" ? settings.PAYMENT_PHONE : ""
-  const whatsapp = typeof settings.WHATSAPP_NUMBER === "string" ? settings.WHATSAPP_NUMBER : "01211566147"
+  // InstaPay replaced WhatsApp (2026-11-13): the user scans the QR, transfers
+  // the amount, and writes their REGISTERED EMAIL in the InstaPay note — the
+  // admin matches the payment to the account from that note and activates.
+  const instapayQr = typeof settings.INSTAPAY_QR_URL === "string" && settings.INSTAPAY_QR_URL.trim() !== "" ? settings.INSTAPAY_QR_URL.trim() : "/instapay-qr.png"
   const instructions = typeof settings.PAYMENT_INSTRUCTIONS === "string" ? settings.PAYMENT_INSTRUCTIONS : ""
+  const [qrBroken, setQrBroken] = useState(false)
 
   const subscription = subStatus?.subscription
   const isPremium = !!subStatus?.isPremium
   const status = subscription?.status
-
-  const openWhatsApp = () => {
-    const number = whatsapp.replace(/\D/g, "")
-    const message = ar
-      ? `مرحباً، أريد الاشتراك في Premium لمدة ${durationDays} يوماً.`
-      : `Hello, I would like to subscribe to Premium for ${durationDays} days.`
-    window.open(`https://wa.me/${number}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer")
-  }
+  const usage = subStatus?.smartAnalysisUsage ?? null
 
   const benefits = [
     { icon: Gauge, t: ar ? "مؤشر الصحة المالية" : "Financial Health Score", d: ar ? "درجة 0-100 من 5 محاور موثقة مع تفصيل بكل محور" : "0-100 score across 5 verified axes, each one explained" },
@@ -211,6 +213,29 @@ export default function PremiumPage() {
         {/* ================= STATUS ================= */}
         {statusBlock ? <div className="mt-6">{statusBlock}</div> : null}
 
+        {/* ================= FREE-TIER USAGE (visible counting) ================= */}
+        {mounted && !subLoading && !isPremium && usage ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card p-4">
+            <div>
+              <p className="text-sm font-bold text-foreground">{ar ? "تحليلاتك الذكية هذا الشهر" : "Your Smart Analyses this month"}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {ar ? "كل تحليل جديد يُحسب — يتجدد الرصيد أول كل شهر." : "Every analysis counts — the window resets on the 1st of each month."}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-lg font-extrabold tabular text-foreground" dir="ltr">
+                {usage.usageCount} / {usage.limit}
+              </span>
+              <div className="h-2 w-28 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${Math.min(100, (usage.usageCount / Math.max(1, usage.limit)) * 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {/* ================= BENEFITS ================= */}
         <section className="mt-8">
           <h2 className="text-lg font-bold text-foreground">{ar ? "ماذا يفتح بريميوم؟" : "What Premium unlocks"}</h2>
@@ -277,10 +302,10 @@ export default function PremiumPage() {
               {/* Steps */}
               <div className="space-y-2 lg:col-span-2">
                 {[
-                  { n: 1, t: ar ? "ابعت طلب الاشتراك" : "Submit your request" },
-                  { n: 2, t: ar ? `حوّل ${price} ${currency} على الرقم الظاهر` : `Transfer ${price} ${currency} to the number shown` },
-                  { n: 3, t: ar ? "ابعت إيصال التحويل على واتساب" : "Send the receipt on WhatsApp" },
-                  { n: 4, t: ar ? "المشرف يفعّل حسابك بعد التحقق" : "An admin activates your account after verification" },
+                  { n: 1, t: ar ? "ابعت طلب الاشتراك من الموقع" : "Submit your request from the site" },
+                  { n: 2, t: ar ? `امسح باركود انستاباي وحوّل ${price} ${currency}` : `Scan the InstaPay QR and transfer ${price} ${currency}` },
+                  { n: 3, t: ar ? "اكتب بريدك الإلكتروني في خانة الملاحظة (ملاحظة/Note) على انستاباي" : "Write your registered email in the InstaPay note field" },
+                  { n: 4, t: ar ? "المشرف يطابق الدفع بالبريد ويفعّل حسابك" : "The admin matches the payment to your email and activates" },
                 ].map((step) => (
                   <div key={step.n} className="flex items-center gap-3 rounded-xl border border-border/50 bg-card px-3.5 py-3">
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
@@ -306,16 +331,53 @@ export default function PremiumPage() {
                     ) : null}
                   </div>
 
-                  <div className="rounded-xl border border-success/30 bg-success/10 p-4">
-                    <p className="flex items-center gap-2 text-sm font-bold text-success">
-                      <MessageCircle className="h-4 w-4" aria-hidden />
-                      {ar ? "واتساب — للدفع والاستفسارات" : "WhatsApp — payment & inquiries"}
+                  <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
+                    <p className="flex items-center gap-2 text-sm font-bold text-foreground">
+                      <QrCode className="h-4 w-4 text-primary" aria-hidden />
+                      {ar ? "الدفع عبر انستاباي InstaPay" : "Pay via InstaPay"}
                     </p>
-                    <p className="mt-1 font-mono text-sm font-semibold tabular text-success" dir="ltr">{whatsapp}</p>
-                    <Button size="sm" className="mt-3 w-full gap-2" onClick={openWhatsApp}>
-                      <MessageCircle className="h-4 w-4" aria-hidden />
-                      {ar ? "ابعت على واتساب برسالة جاهزة" : "Message on WhatsApp (pre-filled)"}
-                    </Button>
+                    <div className="mt-3 flex items-start gap-4">
+                      {/* QR — admin-set via the INSTAPAY_QR_URL setting, or the
+                          static /instapay-qr.png placeholder until the owner
+                          drops the real barcode in. */}
+                      {!qrBroken ? (
+                        <div className="shrink-0 rounded-xl border border-border/60 bg-white p-2 shadow-sm">
+                          <img
+                            src={instapayQr}
+                            alt={ar ? "باركود انستاباي للاشتراك" : "InstaPay QR for subscription"}
+                            width={132}
+                            height={132}
+                            className="h-[132px] w-[132px] object-contain"
+                            onError={() => setQrBroken(true)}
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex h-[132px] w-[132px] shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border/70 bg-muted/30 text-center">
+                          <QrCode className="h-6 w-6 text-muted-foreground/50" aria-hidden />
+                          <p className="px-2 text-[10px] leading-snug text-muted-foreground">
+                            {ar ? "باركود انستاباي — هيظهر هنا" : "InstaPay QR appears here"}
+                          </p>
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="rounded-lg border border-warning/40 bg-warning/10 p-3">
+                          <p className="flex items-start gap-2 text-xs font-bold leading-relaxed text-warning-foreground">
+                            <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                            {ar
+                              ? "مهم: اكتب بريدك الإلكتروني المسجَّل في الموقع داخل خانة الملاحظة على انستاباي — به نطابق الدفع بحسابك ونفعّل اشتراكك."
+                              : "Important: write your registered email in the InstaPay note field — we match your payment to your account with it and activate your subscription."}
+                          </p>
+                        </div>
+                        {phone ? (
+                          <div>
+                            <p className="text-[11px] text-muted-foreground">{ar ? "عنوان الدفع (إن وجد)" : "Payment address (if any)"}</p>
+                            <p className="mt-0.5 font-mono text-sm font-semibold tabular text-foreground" dir="ltr">
+                              {phone}
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
 
                   {instructions ? (
@@ -330,8 +392,8 @@ export default function PremiumPage() {
                   </Button>
                   <p className="text-center text-[11px] leading-relaxed text-muted-foreground">
                     {ar
-                      ? "بعد إتمام التحويل، ابعت طلب الاشتراك والإيصال — والمشرف هيفعّل اشتراكك بعد التحقق من الدفع."
-                      : "After the transfer, submit the request with your receipt — an admin verifies payment and activates your subscription."}
+                      ? "بعد التحويل على انستاباي (مع كتابة بريدك في الملاحظة)، ابعت طلب الاشتراك من الموقع — والمشرف هيفعّل اشتراكك بعد مطابقة الدفع."
+                      : "After the InstaPay transfer (with your email in the note), submit the request from the site — an admin verifies the payment and activates your subscription."}
                   </p>
                 </CardContent>
               </Card>
