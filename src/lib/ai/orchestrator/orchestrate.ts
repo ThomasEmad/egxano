@@ -185,15 +185,20 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<GenerateRes
     const adapter = chain[p]
     const remaining = totalBudget - (Date.now() - started)
     if (remaining < 5_000) break
-    // Fair shares: the first provider gets ~60% (reasoning models need time to
-    // think + stream; a hung provider must not eat the fallbacks' window, but
-    // starving the primary defeats the purpose). Every later provider gets an
-    // equal slice of the rest. A provider that finishes early leaves its
-    // remainder to the next.
+    // Budget sharing v7 (2026-11-13): the first provider keeps ~85% of the
+    // remaining budget and later providers share the reserved remainder.
+    // Why: the real production failure (Nov 11-13) was the primary NVIDIA
+    // attempt being squeezed into a 15-27s slice of a 46s inline window while
+    // it demonstrably needs 15-30s on grounded ~40KB report prompts — and the
+    // 40% reserved for the fallback was wasted anyway when the fallback
+    // (anonymous Pollinations) could not serve in its slice. A fixed floor of
+    // 15s keeps small windows (status-kick donations) viable; the reserve
+    // still guarantees the fallback a real shot on large windows.
+    const reserve = p === 0 ? Math.max(10_000, Math.floor(totalBudget * 0.15)) : 0
     const share =
       p === 0
-        ? Math.min(remaining, Math.max(15_000, totalBudget * 0.6))
-        : Math.min(remaining, Math.max(8_000, (totalBudget * 0.4) / Math.max(chain.length - 1, 1)))
+        ? Math.min(remaining, Math.max(15_000, remaining - reserve))
+        : Math.min(remaining, Math.max(8_000, remaining))
     if (!adapter.configured()) continue
     if (!breakerAllows(adapter.id)) {
       errors.push({ providerId: adapter.id, kind: "error", message: "circuit breaker open", at: Date.now() })
@@ -228,6 +233,16 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<GenerateRes
       return result
     } catch (err) {
       breakerRecord(adapter.id, false)
+      // v7: real generation failures MUST land in the error summary — before
+      // this, the thrown message was the misleading "no provider accepted
+      // the request" even when two providers had clearly failed with
+      // timeouts, hiding the actionable reason from the audit trail.
+      errors.push({
+        providerId: adapter.id,
+        kind: classifyError(err),
+        message: (err instanceof Error ? err.message : String(err)).slice(0, 160),
+        at: Date.now(),
+      })
       await recordUsage({
         providerId: adapter.id,
         kind: opts.kind,
