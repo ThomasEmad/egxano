@@ -1,0 +1,45 @@
+# AI job worker scheduler — the durable heartbeat for AI report generation.
+#
+# Why: the inline POST window (60s serverless cap, ~30s of it consumed by the
+# cold-lambda context build) sometimes hands a job back as PENDING with a
+# short retry lease. Without an external clock nothing re-claims it until the
+# user re-clicks — the user-facing "AI analysis never finishes". Vercel Hobby
+# allows 2 daily-granularity crons only, so the heartbeat lives here (public
+# repo, free Actions, 5-minute cadence, generous failure tolerance).
+#
+# The endpoint is idempotent + lease-guarded (conditional claims prevent
+# duplicate processing), so overlapping/missed ticks are harmless.
+name: ai-worker
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-worker
+  cancel-in-progress: false
+
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Drain AI jobs (limit 2) + stale-lease sweep
+        run: |
+          for attempt in 1 2; do
+            code=$(curl -sS -m 280 -o /tmp/worker.json -w "%{http_code}" -X POST \
+              "https://egxano.vercel.app/api/v1/cron/ai-worker?limit=2" \
+              -H "Authorization: Bearer ${{ secrets.EGX_CRON_SECRET }}" || echo "000")
+            echo "attempt $attempt → HTTP $code"
+            cat /tmp/worker.json 2>/dev/null | head -c 400 || true
+            echo
+            # 200 = the window ran to completion; 502/000 (rare cold-start/DB
+            # hiccup) gets one retry. Anything else is logged and tolerated —
+            # the next tick catches it.
+            if [ "$code" = "200" ] || [ "$code" = "503" ]; then break; fi
+            sleep 10
+          done
