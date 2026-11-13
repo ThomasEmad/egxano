@@ -45,6 +45,51 @@ export const MAX_ATTEMPTS = 5
 /** Worker instance id (diagnostics). */
 const WORKER_ID = `w-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
 
+/**
+ * Zombie recovery (2026-11-13): an active job whose attempts are exhausted
+ * AND whose lease died ≥10 min ago is unclaimable FOREVER — the owning
+ * function was killed mid-flight by its serverless window cap, so the
+ * terminal update in releaseJob never ran. Every status poll then answers
+ * "generating", every re-request hits the UNIQUE(reportKey) guard and gets
+ * the same dead row: the user-facing "AI analysis never works" deadlock.
+ * Reset such rows once so the bounded attempt cycle — ending in either a
+ * COMPLETED report or the clearly-labeled degraded artifact — can actually
+ * run. Signature is deliberately strict (≥10 min dead lease) so a live
+ * worker is never disturbed.
+ */
+const ZOMBIE_LEASE_DEAD_MS = 10 * 60_000
+
+export async function resetZombieJob(jobId: string): Promise<boolean> {
+  const r = await db.aiAnalysisJob.updateMany({
+    where: {
+      id: jobId,
+      status: { in: ["PENDING", "PROCESSING"] },
+      attempts: { gte: MAX_ATTEMPTS },
+      OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date(Date.now() - ZOMBIE_LEASE_DEAD_MS) } }],
+    },
+    data: {
+      attempts: 0,
+      status: "PENDING",
+      leasedBy: null,
+      leaseUntil: null,
+      lastError: "reset: exhausted attempts with a dead lease — re-opened for a fresh bounded cycle",
+    },
+  })
+  if (r.count !== 1) return false
+  const j = await db.aiAnalysisJob.findUnique({ where: { id: jobId }, select: { reportKey: true, companyId: true } })
+  await db.aiAnalysisEvent
+    .create({
+      data: {
+        companyId: j?.companyId ?? null,
+        reportKey: j?.reportKey ?? null,
+        kind: "EXHAUSTED_RESET",
+        details: "exhausted job with a dead lease re-opened (zombie recovery)",
+      },
+    })
+    .catch(() => {})
+  return true
+}
+
 export type JobOutcome =
   | { status: "completed"; reportKey: string; degraded: boolean }
   | { status: "in_progress"; leasedByOther: boolean }
@@ -196,7 +241,12 @@ function technicalSummaryLines(ctx: ReportContext, lang: "ar" | "en"): string[] 
  * callers (after(), cron, health kick) can log safely.
  */
 export async function processJob(jobId: string, opts?: { budgetMs?: number }): Promise<JobOutcome> {
-  const claimed = await claimJob(jobId)
+  let claimed = await claimJob(jobId)
+  if (!claimed) {
+    // Dead lease + exhausted attempts → the only unblock path (see
+    // resetZombieJob). One extra claim after the reset keeps this cheap.
+    if (await resetZombieJob(jobId)) claimed = await claimJob(jobId)
+  }
   if (!claimed) return { status: "in_progress", leasedByOther: true }
   const job = await db.aiAnalysisJob.findUnique({ where: { id: jobId } })
   if (!job) return { status: "in_progress", leasedByOther: true }
@@ -335,8 +385,15 @@ export async function processPendingJobs(
   const candidates = await db.aiAnalysisJob.findMany({
     where: {
       status: { in: ["PENDING", "PROCESSING"] },
-      attempts: { lt: MAX_ATTEMPTS },
-      OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }],
+      OR: [
+        {
+          attempts: { lt: MAX_ATTEMPTS },
+          OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }],
+        },
+        // zombies: drained too, claimJob's reset re-opens them
+        { attempts: { gte: MAX_ATTEMPTS }, leaseUntil: { lt: new Date(Date.now() - ZOMBIE_LEASE_DEAD_MS) } },
+        { attempts: { gte: MAX_ATTEMPTS }, leaseUntil: null },
+      ],
     },
     orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
     take: limit,

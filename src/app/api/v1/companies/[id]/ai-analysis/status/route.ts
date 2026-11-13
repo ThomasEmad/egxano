@@ -84,7 +84,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // ended and the nightly drain may be hours away. This poll invocation
     // donates its after() window (~20s) to the job. Conditional claims make
     // concurrent donations safe; the 3s status cache bounds kick frequency.
-    if (job && job.attempts < MAX_ATTEMPTS && (!job.leaseUntil || job.leaseUntil.getTime() <= Date.now())) {
+    // Zombies included (2026-11-13): an exhausted job with a long-dead lease
+    // used to be skipped here forever — the poll would never unstick it.
+    // processJob's resetZombieJob re-opens it on the next donation.
+    if (
+      job &&
+      (job.attempts < MAX_ATTEMPTS ||
+        !job.leaseUntil ||
+        job.leaseUntil.getTime() <= Date.now() - 10 * 60_000) &&
+      (!job.leaseUntil || job.leaseUntil.getTime() <= Date.now())
+    ) {
       const kickId = job.id
       after(async () => {
         try {
