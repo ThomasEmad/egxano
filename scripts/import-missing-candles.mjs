@@ -24,6 +24,10 @@
 //   node scripts/import-missing-candles.mjs                        # dry-run على القائمة الافتراضية
 //   node scripts/import-missing-candles.mjs --apply                # كتابة فعلية
 //   node scripts/import-missing-candles.mjs --tickers=MOPCO,QNBA   # قائمة بديلة (ممكن مع --apply)
+//   node scripts/import-missing-candles.mjs --all --apply          # تحديث السوق كاملاً (كل الشركات النشطة)
+//
+// لماذا --all من محلي؟ Yahoo بيحجب egress الخاص بـ Vercel Lambda (فشل 100% من
+// الإنتاج بتاريخ 2026-11-13) — والاستيراد الكامل من بيئة المكتب شغال 200.
 //
 // يتطلب DATABASE_URL في البيئة (PrismaClient بيقرأه مباشرة). Exit code:
 // 0 لو مفيش أخطاء، 1 لو فيه ERROR (وضع --apply أو dry-run).
@@ -35,7 +39,6 @@ const db = new PrismaClient()
 const UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"
 const FETCH_TIMEOUT_MS = 12_000
-const PACING_MS = 250
 /** الاحتفاظ بآخر N جلسة لكل شركة (نفس KEEP_SESSIONS في candles.ts). */
 const KEEP_SESSIONS = 380
 const SOURCE_NAME = "YAHOO_CANDLES_1Y"
@@ -50,41 +53,54 @@ const DEFAULT_TICKERS = [
 // --- CLI -------------------------------------------------------------------
 const args = process.argv.slice(2)
 const apply = args.includes("--apply")
+const allMode = args.includes("--all")
+const pacingArg = args.find((a) => a.startsWith("--pacing="))
 const tickersArg = args.find((a) => a.startsWith("--tickers="))
-const tickers = tickersArg
+/** تباعد بين التيكرات (ms) — للسوق الكامل استخدم ≥1500 لتفادي 429 من Yahoo. */
+const PACING_MS = pacingArg ? Math.max(100, Number(pacingArg.slice("--pacing=".length)) || 250) : 250
+let tickers = tickersArg
   ? tickersArg
       .slice("--tickers=".length)
       .split(",")
       .map((t) => t.trim().toUpperCase())
       .filter(Boolean)
   : DEFAULT_TICKERS
-if (tickers.length === 0) {
-  console.error("لا يوجد تيكرات للفحص — استخدم --tickers=T1,T2 أو شغّل بدونها للقائمة الافتراضية")
-  process.exit(1)
-}
-
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const shortErr = (e) => String(e?.message || e).slice(0, 120)
 const day = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : "-")
 
 // --- Yahoo fetch + parse (نسخة مطابقة لمنطق candles.ts) ---------------------
 
-/** جلب + تحويل شارت تيكر واحد. يرجع null عند أي فشل شبكة/HTTP. */
-async function fetchYahooChart(ticker) {
-  try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}.CA?range=1y&interval=1d`
-    const res = await fetch(url, {
-      headers: { "User-Agent": UA },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      cache: "no-store",
-    })
-    if (!res.ok) return null
-    const j = await res.json()
-    return j.chart ?? null
-  } catch {
-    return null
+const RETRY_DELAYS = [2_000, 8_000, 20_000]
+
+/** جلب + تحويل شارت تيكر واحد مع تراجع تدريجي للـ 429.
+ * يرجع null عند فشل نهائي بعد كل المحاولات. */
+async function fetchYahooChartWithBackoff(ticker) {
+  for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+    if (attempt > 0) await sleep(RETRY_DELAYS[attempt - 1])
+    try {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}.CA?range=1y&interval=1d`
+      const res = await fetch(url, {
+        headers: { "User-Agent": UA },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        cache: "no-store",
+      })
+      if (res.status === 429) continue // throttled — backoff and try again
+      if (!res.ok) return null
+      const j = await res.json()
+      return j.chart ?? null
+    } catch {
+      // network/timeout — falls through to next attempt
+    }
   }
+  return null
 }
+if (tickers.length === 0) {
+  console.error("لا يوجد تيكرات للفحص — استخدم --tickers=T1,T2 أو شغّل بدونها للقائمة الافتراضية")
+  process.exit(1)
+}
+
+// --- الحلقة الرئيسية ---------------------------------------------------------
 
 /** شمعات OHLC كامل فقط (شمعة ناقصة open/high/low بتتسقط)، الطوابع متحوّلة
  * لتاريخ جلسة UTC منتصف الليل. volume=null يفضل null. مصفوفة فاضية لو
@@ -158,6 +174,16 @@ async function pruneOldSessions(companyId) {
 
 // --- الحلقة الرئيسية ---------------------------------------------------------
 
+// وضع --all: القائمة = كل الشركات النشطة (تحديث شامل للسوق من بيئة المكتب).
+if (allMode) {
+  const rows = await db.company.findMany({
+    where: { isActive: true, listingStatus: { not: "DELISTED" } },
+    select: { ticker: true },
+    orderBy: { ticker: "asc" },
+  })
+  tickers = rows.map((r) => r.ticker)
+}
+
 let mode
 if (apply) mode = "APPLY — الكتابة على PriceBar مفعّلة"
 else mode = "DRY-RUN — عرض فقط، لن يُكتب شيء على الداتابيز"
@@ -187,12 +213,8 @@ for (let i = 0; i < tickers.length; i++) {
     continue
   }
 
-  // إعادة محاولة واحدة عند فشل الـ fetch (الخطأ الشائع: 429/انقطاع شبكة).
-  let chart = await fetchYahooChart(ticker)
-  if (!chart) {
-    await sleep(500)
-    chart = await fetchYahooChart(ticker)
-  }
+  // تراجع تدريجي للـ 429/الانقطاع داخل fetchYahooChartWithBackoff نفسها.
+  const chart = await fetchYahooChartWithBackoff(ticker)
   if (!chart) {
     results.push({ ticker, status: "ERROR", bars: 0, note: "FETCH_FAILED (بعد إعادة المحاولة)" })
     continue
