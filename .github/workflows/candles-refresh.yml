@@ -38,10 +38,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        run: |
+          bun install --frozen-lockfile
+          npx prisma generate
 
       - name: Refresh candles (full market)
         env:
