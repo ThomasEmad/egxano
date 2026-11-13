@@ -52,3 +52,7 @@ dev.pid
 scripts/.cron_secret
 scripts/.turso_url
 download/backups/
+
+# dividends enrichment runtime artifacts (large price-history caches)
+reports/dividends-enrich-charts/
+reports/dividends-enrich-applied.json

@@ -489,6 +489,13 @@ model Dividend {
   currency          String    @default("EGP")
   dividendType      String    @default("CASH") // CASH | STOCK | SPECIAL
   status            String // ANNOUNCED | UPCOMING | ELIGIBLE | PAID | EXPIRED | CANCELLED
+  // Per-distribution yield (this dividend alone): dividendPerShare ÷ last
+  // cum-dividend close × 100. Reference close = trading-day close on
+  // eligibilityDate (EGX: نهاية الحق) or the last trading day before exDate.
+  yieldPct          Float?
+  priceAtEx         Float? // reference close (split-adjusted, not div-adjusted)
+  priceAtExDate     DateTime?
+  priceSource       String? // e.g. YAHOO_CHART
   sourceName        String
   sourceUrl         String?
   isDemoData        Boolean   @default(false)

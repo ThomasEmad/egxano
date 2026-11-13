@@ -1,0 +1,170 @@
+{
+ "generatedAt": "2026-11-13T00:21:21.261Z",
+ "apply": true,
+ "stats": {
+  "rows": 1161,
+  "tickersFetched": 11,
+  "tickersFailed": 1,
+  "eligDerived": 148,
+  "eligOfficial": 1011,
+  "exFilled": 0,
+  "exAdoptedFromYahoo": 12,
+  "yieldComputed": 160,
+  "yieldGated": 6,
+  "yieldNoPrice": 7,
+  "yahooEventMismatches": 1,
+  "oldWindowFixed": 0,
+  "updates": 160
+ },
+ "samples": [
+  {
+   "ticker": "OIH",
+   "dps": 1.05,
+   "ex": "2012-07-17",
+   "patch": {
+    "notes": "announcementDate = ex-date (Yahoo publishes ex-date only); amount follows Yahoo's adjustment convention — consistent with split-adjusted price history used by dividend_yield. | تاريخ الاستحقاق مشتق: آخر يوم تداول قبل بدء التعامل بدون الحق (اصطلاح البورصة المصرية) | عائد التوزيع الواحد غير معقول (>30%) — مراجعة يدوية مطلوبة (غالبًا سعر غير معدل لتقسيم)",
+    "eligibilityDate": null,
+    "priceAtExDate": null
+   }
+  },
+  {
+   "ticker": "OIH",
+   "dps": 0.257,
+   "ex": "2013-04-02",
+   "patch": {
+    "notes": "announcementDate = ex-date (Yahoo publishes ex-date only); amount follows Yahoo's adjustment convention — consistent with split-adjusted price history used by dividend_yield. | تاريخ الاستحقاق مشتق: آخر يوم تداول قبل بدء التعامل بدون الحق (اصطلاح البورصة المصرية) | عائد التوزيع الواحد غير معقول (>30%) — مراجعة يدوية مطلوبة (غالبًا سعر غير معدل لتقسيم)",
+    "eligibilityDate": null,
+    "priceAtExDate": null
+   }
+  },
+  {
+   "ticker": "OCPH",
+   "dps": 0.5,
+   "ex": "2016-05-11",
+   "patch": {
+    "notes": "announcementDate = ex-date (Yahoo publishes ex-date only); amount follows Yahoo's adjustment convention — consistent with split-adjusted price history used by dividend_yield. | تاريخ الاستحقاق مشتق: آخر يوم تداول قبل بدء التعامل بدون الحق (اصطلاح البورصة المصرية) | عائد التوزيع الواحد غير معقول (>30%) — مراجعة يدوية مطلوبة (غالبًا سعر غير معدل لتقسيم)",
+    "eligibilityDate": null,
+    "priceAtExDate": null
+   }
+  },
+  {
+   "ticker": "OIH",
+   "dps": 0.1,
+   "ex": "2017-06-20",
+   "patch": {
+    "notes": "announcementDate = ex-date (Yahoo publishes ex-date only); amount follows Yahoo's adjustment convention — consistent with split-adjusted price history used by dividend_yield. | تاريخ الاستحقاق مشتق: آخر يوم تداول قبل بدء التعامل بدون الحق (اصطلاح البورصة المصرية) | عائد التوزيع الواحد غير معقول (>30%) — مراجعة يدوية مطلوبة (غالبًا سعر غير معدل لتقسيم)",
+    "eligibilityDate": null,
+    "priceAtExDate": null
+   }
+  },
+  {
+   "ticker": "MFSC",
+   "dps": 1.065492,
+   "ex": "2018-08-27",
+   "patch": {
+    "eligibilityDate": "2018-08-26",
+    "notes": "announcementDate = ex-date (Yahoo publishes ex-date only); amount follows Yahoo's adjustment convention — consistent with split-adjusted price history used by dividend_yield. | تاريخ الاستحقاق مشتق: آخر يوم تداول قبل بدء التعامل بدون الحق (اصطلاح البورصة المصرية)",
+    "yieldPct": 14.4,
+    "priceAtEx": 7.4,
+    "priceAtExDate": "2018-08-26",
+    "priceSource": "YAHOO_CHART"
+   }
+  },
+  {
+   "ticker": "FERC",
+   "dps": 2.5,
+   "ex": "2020-04-23",
+   "patch": {
+    "notes": "announcementDate = ex-date (Yahoo publishes ex-date only); amount follows Yahoo's adjustment convention — consistent with split-adjusted price history used by dividend_yield. | تاريخ الاستحقاق مشتق: آخر يوم تداول قبل بدء التعامل بدون الحق (اصطلاح البورصة المصرية) | عائد التوزيع الواحد غير معقول (>30%) — مراجعة يدوية مطلوبة (غالبًا سعر غير معدل لتقسيم)",
+    "eligibilityDate": null,
+    "priceAtExDate": null
+   }
+  },
+  {
+   "ticker": "ATLC",
+   "dps": 0.47,
+   "ex": "2025-04-16",
+   "patch": {
+    "eligibilityDate": "2025-04-13",
+    "notes": "announcementDate = ex-date (Yahoo publishes ex-date only); amount follows Yahoo's adjustment convention — consistent with split-adjusted price history used by dividend_yield. | تاريخ الاستحقاق مشتق: آخر يوم تداول قبل بدء التعامل بدون الحق (اصطلاح البورصة المصرية)",
+    "yieldPct": 11.22,
+    "priceAtEx": 4.19,
+    "priceAtExDate": "2025-04-13",
+    "priceSource": "YAHOO_CHART"
+   }
+  },
+  {
+   "ticker": "DTPP",
+   "dps": 2.25,
+   "ex": "2025-04-17",
+   "patch": {
+    "eligibilityDate": "2025-04-16",
+    "notes": "announcementDate = ex-date (Yahoo publishes ex-date only); amount follows Yahoo's adjustment convention — consistent with split-adjusted price history used by dividend_yield. | تاريخ الاستحقاق مشتق: آخر يوم تداول قبل بدء التعامل بدون الحق (اصطلاح البورصة المصرية)",
+    "yieldPct": 2.93,
+    "priceAtEx": 76.85,
+    "priceAtExDate": "2025-04-16",
+    "priceSource": "YAHOO_CHART"
+   }
+  }
+ ],
+ "remainingNoPrice": [
+  {
+   "ticker": "OIH",
+   "kind": "gated",
+   "target": "2012-07-16",
+   "y": 277.23
+  },
+  {
+   "ticker": "OIH",
+   "kind": "gated",
+   "target": "2013-04-01",
+   "y": 138.58
+  },
+  {
+   "ticker": "OCPH",
+   "kind": "gated",
+   "target": "2016-05-10",
+   "y": 37.31
+  },
+  {
+   "ticker": "OIH",
+   "kind": "gated",
+   "target": "2017-06-19",
+   "y": 47.85
+  },
+  {
+   "ticker": "FERC",
+   "kind": "gated",
+   "target": "2020-04-19",
+   "y": 39.62
+  },
+  {
+   "ticker": "MEGM",
+   "kind": "gated",
+   "target": "2018-04-11",
+   "y": 51.83
+  },
+  {
+   "ticker": "EGBE",
+   "kind": "yahoo-match-miss",
+   "dps": 0.786952,
+   "ann": "2026-07-12",
+   "dist": "2026-07-15"
+  },
+  {
+   "ticker": "GOUR",
+   "kind": "no-cache",
+   "target": "2026-07-26"
+  }
+ ],
+ "noPriceByYear": {
+  "2012": 1,
+  "2013": 1,
+  "2016": 1,
+  "2017": 1,
+  "2018": 1,
+  "2020": 1,
+  "2026": 1,
+  "----": 1
+ }
+}
