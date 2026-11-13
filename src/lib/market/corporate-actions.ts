@@ -128,6 +128,51 @@ interface ActionRowLite {
   subscriptionPrice: number | null
 }
 
+/**
+ * Adjusted previous-session close from Yahoo's daily bars (split-adjusted
+ * `close` series — current trading units), strictly before the given ex-date.
+ *
+ * Why not the scanner's own change field: across an ex-date TradingView's
+ * `change` is unreliable in BOTH directions — CANA 2026-11-12 showed −31.9%
+ * (unadjusted) at the close, then +53.2% (bonus factor applied TWICE to the
+ * base) the next day. Yahoo's back-adjusted close (34.01 vs the raw 51.02)
+ * is the honest base: 34.74 vs 34.01 = the market's real +2.15%.
+ *
+ * Returns null on any failure — callers then fall back to scanner math.
+ */
+export async function yahooPrevCloseBefore(ticker: string, exDate: Date, timeoutMs = 9_000): Promise<number | null> {
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}.CA?range=1mo&interval=1d`
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" },
+      signal: AbortSignal.timeout(timeoutMs),
+      cache: "no-store",
+    })
+    if (!res.ok) return null
+    const j = (await res.json()) as {
+      chart?: { result?: { timestamp?: number[]; indicators?: { quote?: { close?: (number | null)[] }[] } }[] }
+    }
+    const r = j.chart?.result?.[0]
+    const ts = r?.timestamp
+    const close = r?.indicators?.quote?.[0]?.close
+    if (!ts || !close) return null
+    const exStart = new Date(Date.UTC(exDate.getUTCFullYear(), exDate.getUTCMonth(), exDate.getUTCDate())).getTime()
+    let best: number | null = null
+    let bestTs = -1
+    for (let i = 0; i < ts.length; i++) {
+      if (ts[i] * 1000 >= exStart) continue
+      const c = close[i]
+      if (typeof c === "number" && Number.isFinite(c) && c > 0 && ts[i] > bestTs) {
+        bestTs = ts[i]
+        best = c
+      }
+    }
+    return best
+  } catch {
+    return null
+  }
+}
+
 let sessionActionsCache: { at: number; sessions: { latest: string; previous: string }; byTicker: Map<string, CorporateActionTerms[]> } | null = null
 const SESSION_CACHE_MS = 5 * 60_000
 

@@ -10,6 +10,7 @@ import {
   scannerChangeSessions,
   type CorporateActionTerms,
 } from "@/lib/market/corporate-actions"
+import { buildSnapshotFromScanner, type ScanRow } from "@/lib/market/refresh"
 
 const bonusHalf: CorporateActionTerms = {
   actionType: "stock_dividend",
@@ -106,5 +107,62 @@ describe("actionOnSession", () => {
     expect(actionOnSession({ exDate: ex }, "2026-11-12")).toBe(true)
     expect(actionOnSession({ exDate: ex }, "2026-11-11")).toBe(false)
     expect(actionOnSession({ exDate: ex }, "2026-11-13")).toBe(false)
+  })
+})
+
+describe("buildSnapshotFromScanner — ex-date handling end to end", () => {
+  const canaRow: ScanRow = { s: "EGX:CANA", d: ["CANA", "Suez Canal Bank SAE", 34.74, 53.20493579292055, 739024, "delayed_streaming_900", 51020024786, 1500000000] }
+
+  it("uses Yahoo's adjusted prev close (34.01) — TV's +53.2% double-adjusted change is overridden", () => {
+    const actions = new Map([["CANA", [bonusHalf]]])
+    const prevs = new Map([["CANA", 34.01333236694336]])
+    const { movers } = buildSnapshotFromScanner([canaRow], [], "2026-11-13T03:00:00Z", actions, prevs)
+    expect(movers).toHaveLength(1)
+    expect(movers[0].changePct).toBeGreaterThan(1.5)
+    expect(movers[0].changePct).toBeLessThan(3)
+  })
+
+  it("fallback: scanner −31.9% unadjusted with our action terms → ≈+2%", () => {
+    const raw: ScanRow = { s: "EGX:CANA", d: ["CANA", "Suez Canal Bank SAE", 34.74, -31.909055272442178, 739024, "delayed_streaming_900", 51020024786, 1500000000] }
+    const actions = new Map([["CANA", [bonusHalf]]])
+    const { movers } = buildSnapshotFromScanner([raw], [], "2026-11-13T00:00:00Z", actions, undefined)
+    expect(movers).toHaveLength(1)
+    expect(movers[0].changePct).toBeGreaterThan(-1)
+    expect(movers[0].changePct).toBeLessThan(5)
+  })
+
+  it("1:1 bonus raw −50% survives the plausibility gate via Yahoo prev", () => {
+    const row: ScanRow = { s: "EGX:XXX", d: ["XXX", "X Co", 10, -50, 1000, "delayed_streaming_900", null, null] }
+    const oneToOne: CorporateActionTerms = { ...bonusHalf, ratioNumerator: BigInt(1), ratioDenominator: BigInt(1) }
+    const actions = new Map([["XXX", [oneToOne]]])
+    const prevs = new Map([["XXX", 10]]) // Yahoo adjusted prev in current units
+    const { movers } = buildSnapshotFromScanner([row], [], "2026-11-13T03:00:00Z", actions, prevs)
+    expect(movers).toHaveLength(1)
+    expect(movers[0].changePct).toBeCloseTo(0, 6)
+  })
+
+  it("cash dividend on ex-date: Yahoo cum-dividend prev minus the amount", () => {
+    const row: ScanRow = { s: "EGX:YYY", d: ["YYY", "Y Co", 19, -5, 5000, "delayed_streaming_900", null, null] }
+    const cash: CorporateActionTerms = { actionType: "cash_dividend", ratioNumerator: null, ratioDenominator: null, cashPerShare: 1, subscriptionPrice: null }
+    const actions = new Map([["YYY", [cash]]])
+    const prevs = new Map([["YYY", 20]]) // cum-dividend close
+    const { movers } = buildSnapshotFromScanner([row], [], "2026-11-13T03:00:00Z", actions, prevs)
+    expect(movers).toHaveLength(1)
+    expect(movers[0].changePct).toBeCloseTo(0, 6) // 19 vs (20−1)
+  })
+
+  it("bonus already in Yahoo prev is NOT re-applied (cash/rights only adjust the base)", () => {
+    const row: ScanRow = { s: "EGX:CANA", d: ["CANA", "Suez Canal Bank SAE", 34.74, 53.20493579292055, 739024, "delayed_streaming_900", 51020024786, 1500000000] }
+    const actions = new Map([["CANA", [bonusHalf]]])
+    const prevs = new Map([["CANA", 34.01333236694336]])
+    const { movers } = buildSnapshotFromScanner([row], [], "2026-11-13T03:00:00Z", actions, prevs)
+    // 34.74 vs 34.01 ≈ +2.1% — if the bonus were re-applied it would be +53%.
+    expect(movers[0].changePct).toBeLessThan(5)
+  })
+
+  it("non-action companies keep the scanner change untouched", () => {
+    const row: ScanRow = { s: "EGX:ZZZ", d: ["ZZZ", "Z Co", 12, -2.5, 9000, "delayed_streaming_900", null, null] }
+    const { movers } = buildSnapshotFromScanner([row], [], "2026-11-13T03:00:00Z", undefined, undefined)
+    expect(movers[0].changePct).toBe(-2.5)
   })
 })

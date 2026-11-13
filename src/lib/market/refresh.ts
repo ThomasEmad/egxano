@@ -22,7 +22,13 @@
 
 import { db } from "@/lib/db"
 import type { MarketSnapshot } from "./snapshot"
-import { adjustedChangePct, type CorporateActionTerms } from "./corporate-actions"
+import {
+  adjustedChangePct,
+  adjustPrevClose,
+  loadSessionActionsByTicker,
+  yahooPrevCloseBefore,
+  type CorporateActionTerms,
+} from "./corporate-actions"
 
 const SCANNER = "https://scanner.tradingview.com/egypt/scan"
 const SCANNER_SOURCE = "TRADINGVIEW_SCANNER"
@@ -88,16 +94,20 @@ function str(v: unknown): string | null {
  * Validation mirrors scripts/refresh-market-snapshot.mjs exactly.
  *
  * `actionsByTicker` — corporate actions whose ex-date equals the session the
- * scanner currently prices (see corporate-actions.ts). Their mechanical drop
- * is divided out BEFORE the |change|≤50 validation, so a 1:1 bonus (−50% raw)
- * reaches the board as the market's real move instead of being discarded or
- * reported as a crash.
+ * scanner currently prices (see corporate-actions.ts).
+ * `prevCloseByTicker` — the adjusted previous-session close from Yahoo's
+ * split-adjusted bars for those same tickers: across an ex-date TradingView's
+ * own `change` is unreliable in both directions (CANA: −31.9% unadjusted at
+ * the close, then +53.2% with the factor applied twice), so the honest base
+ * for action companies is Yahoo's back-adjusted close — the scanner's change
+ * field is the FALLBACK (adjusted by our action terms), never the truth.
  */
 export function buildSnapshotFromScanner(
   stockRows: ScanRow[],
   indexRows: ScanRow[],
   fetchedAt: string,
   actionsByTicker?: Map<string, CorporateActionTerms[]>,
+  prevCloseByTicker?: Map<string, number>,
 ): { snapshot: MarketSnapshot; movers: SnapshotMoverRow[] } {
   const movers: SnapshotMoverRow[] = []
   for (const row of stockRows) {
@@ -109,10 +119,22 @@ export function buildSnapshotFromScanner(
     const volume = num(d[4])
     const cap = num(d[6]) // market_cap_basic (added to the column list)
     if (!ticker || price === null || price <= 0 || changePct === null) continue
-    // Ex-date adjustment FIRST (bonus/split/rights/cash are mechanical moves,
-    // not losses) — then the plausibility cap applies to the real move.
-    const actions = actionsByTicker?.get(ticker.toUpperCase())
-    const realChangePct = adjustedChangePct(price, changePct, actions)
+    const key = ticker.toUpperCase()
+    const actions = actionsByTicker?.get(key)
+    let realChangePct: number
+    const yahooPrev = prevCloseByTicker?.get(key)
+    if (actions && actions.length && yahooPrev !== undefined && yahooPrev > 0) {
+      // Authoritative path: Yahoo's adjusted prev (current trading units) —
+      // only cash/rights still move that base (Yahoo does not adjust for them).
+      const cashRights = actions.filter((a) => a.actionType === "cash_dividend" || a.actionType === "rights")
+      const base = cashRights.length ? adjustPrevClose(yahooPrev, cashRights) : yahooPrev
+      realChangePct = ((price - base) / base) * 100
+    } else {
+      // Fallback: scanner change with our own ex-date terms divided out.
+      realChangePct = adjustedChangePct(price, changePct, actions)
+    }
+    // The plausibility cap applies to the REAL move (after adjustment), so a
+    // 1:1 bonus (−50% raw) reaches the board instead of being discarded.
     if (Math.abs(realChangePct) > 50) continue
     movers.push({
       ticker,
@@ -188,15 +210,29 @@ async function runRefresh(): Promise<MarketRefreshSummary> {
 
   const fetchedAt = new Date().toISOString()
   // Ex-date adjustments for the session the scanner prices (bonus/split/
-  // rights/cash): CANA-style mechanical drops must not reach the board.
+  // rights/cash): CANA-style mechanical drops must not reach the board. For
+  // action companies the previous close comes from Yahoo's adjusted bars
+  // (the scanner's change field double-adjusts across ex-dates); Yahoo is
+  // best-effort — on failure the scanner math with our action terms applies.
   let actionsByTicker: Map<string, CorporateActionTerms[]> | undefined
+  let prevCloseByTicker: Map<string, number> | undefined
   try {
-    const { loadSessionActionsByTicker } = await import("./corporate-actions")
-    actionsByTicker = (await loadSessionActionsByTicker()).byTicker
+    const loaded = await loadSessionActionsByTicker()
+    actionsByTicker = loaded.byTicker
+    if (actionsByTicker.size > 0) {
+      const exDay = new Date(`${loaded.sessions.latest}T00:00:00.000Z`)
+      const tickers = [...actionsByTicker.keys()].slice(0, 8)
+      const prevs = await Promise.all(tickers.map((t) => yahooPrevCloseBefore(t, exDay)))
+      prevCloseByTicker = new Map()
+      for (let i = 0; i < tickers.length; i++) {
+        const v = prevs[i]
+        if (v !== null && v > 0) prevCloseByTicker.set(tickers[i], v)
+      }
+    }
   } catch {
     actionsByTicker = undefined // raw change — never fabricated
   }
-  const { snapshot, movers } = buildSnapshotFromScanner(stockRows, indexRows, fetchedAt, actionsByTicker)
+  const { snapshot, movers } = buildSnapshotFromScanner(stockRows, indexRows, fetchedAt, actionsByTicker, prevCloseByTicker)
   if (movers.length === 0 && snapshot.indices.length === 0) {
     // Never wipe a good snapshot with an empty scanner answer.
     return { ok: false, reason: "scanner-empty" }
