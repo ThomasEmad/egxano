@@ -46,6 +46,7 @@ model Company {
   calculatedMetrics CalculatedMetric[]
   events            FinancialEvent[]
   dividends         Dividend[]
+  corporateActions  CorporateAction[]
   marketPrices      MarketPrice[]
   aiAnalyses        AiAnalysis[]
   priceBars         PriceBar[]
@@ -475,6 +476,38 @@ model FinancialEvent {
   @@unique([companyId, eventType, currentPeriodKey])
   @@index([eventType])
   @@index([companyId])
+}
+
+// Corporate actions that mechanically move the share price on the ex-date:
+// bonus issues (stock_dividend), splits, rights issues, cash dividends.
+// The daily-change engine divides/subtracts them out so an ex-date drop is
+// never reported as a market loss (e.g. CANA 0.5-share bonus 2026-11-12).
+model CorporateAction {
+  id               String   @id @default(cuid())
+  companyId        String
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ticker           String? // EGX ticker at import time (display/debug only)
+  actionType       String // stock_dividend | cash_dividend | split | rights | other
+  exDate           DateTime // the day the price mechanically drops — the adjustment day
+  recordDate       DateTime?
+  distributionDate DateTime?
+  announcementDate DateTime?
+  ratioNumerator   BigInt? // shares distributed (numerator/denominator = per-share ratio)
+  ratioDenominator BigInt?
+  cashPerShare     Float? // EGP per share for cash dividends
+  subscriptionPrice Float? // rights issue subscription price (EGP)
+  currency         String   @default("EGP")
+  status           String? // announced | upcoming | executed ...
+  sourceName       String // FOUDALENS_CORPORATE_ACTIONS | MANUAL_ADMIN
+  sourceId         String? // upstream unique id for idempotent re-imports
+  isDemoData       Boolean  @default(false)
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([companyId, sourceName, sourceId])
+  @@index([exDate])
+  @@index([companyId, exDate])
 }
 
 model Dividend {

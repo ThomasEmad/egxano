@@ -22,6 +22,7 @@
 
 import { db } from "@/lib/db"
 import type { MarketSnapshot } from "./snapshot"
+import { adjustedChangePct, type CorporateActionTerms } from "./corporate-actions"
 
 const SCANNER = "https://scanner.tradingview.com/egypt/scan"
 const SCANNER_SOURCE = "TRADINGVIEW_SCANNER"
@@ -85,11 +86,18 @@ function str(v: unknown): string | null {
 /**
  * Pure: scanner rows -> validated snapshot + per-company price rows.
  * Validation mirrors scripts/refresh-market-snapshot.mjs exactly.
+ *
+ * `actionsByTicker` — corporate actions whose ex-date equals the session the
+ * scanner currently prices (see corporate-actions.ts). Their mechanical drop
+ * is divided out BEFORE the |change|≤50 validation, so a 1:1 bonus (−50% raw)
+ * reaches the board as the market's real move instead of being discarded or
+ * reported as a crash.
  */
 export function buildSnapshotFromScanner(
   stockRows: ScanRow[],
   indexRows: ScanRow[],
   fetchedAt: string,
+  actionsByTicker?: Map<string, CorporateActionTerms[]>,
 ): { snapshot: MarketSnapshot; movers: SnapshotMoverRow[] } {
   const movers: SnapshotMoverRow[] = []
   for (const row of stockRows) {
@@ -100,11 +108,16 @@ export function buildSnapshotFromScanner(
     const changePct = num(d[3])
     const volume = num(d[4])
     const cap = num(d[6]) // market_cap_basic (added to the column list)
-    if (!ticker || price === null || price <= 0 || changePct === null || Math.abs(changePct) > 50) continue
+    if (!ticker || price === null || price <= 0 || changePct === null) continue
+    // Ex-date adjustment FIRST (bonus/split/rights/cash are mechanical moves,
+    // not losses) — then the plausibility cap applies to the real move.
+    const actions = actionsByTicker?.get(ticker.toUpperCase())
+    const realChangePct = adjustedChangePct(price, changePct, actions)
+    if (Math.abs(realChangePct) > 50) continue
     movers.push({
       ticker,
       price,
-      changePct,
+      changePct: realChangePct,
       ...(volume !== null && volume > 0 ? { volume } : {}),
       ...(cap !== null && cap > 0 ? { cap } : {}),
     })
@@ -174,7 +187,16 @@ async function runRefresh(): Promise<MarketRefreshSummary> {
   }
 
   const fetchedAt = new Date().toISOString()
-  const { snapshot, movers } = buildSnapshotFromScanner(stockRows, indexRows, fetchedAt)
+  // Ex-date adjustments for the session the scanner prices (bonus/split/
+  // rights/cash): CANA-style mechanical drops must not reach the board.
+  let actionsByTicker: Map<string, CorporateActionTerms[]> | undefined
+  try {
+    const { loadSessionActionsByTicker } = await import("./corporate-actions")
+    actionsByTicker = (await loadSessionActionsByTicker()).byTicker
+  } catch {
+    actionsByTicker = undefined // raw change — never fabricated
+  }
+  const { snapshot, movers } = buildSnapshotFromScanner(stockRows, indexRows, fetchedAt, actionsByTicker)
   if (movers.length === 0 && snapshot.indices.length === 0) {
     // Never wipe a good snapshot with an empty scanner answer.
     return { ok: false, reason: "scanner-empty" }

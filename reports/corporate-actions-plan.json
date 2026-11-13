@@ -1,0 +1,132 @@
+{
+ "at": "2026-11-13T02:44:05.691Z",
+ "mode": "apply",
+ "total": 19,
+ "fresh": 19,
+ "skips": [
+  {
+   "symbol": "DEIN.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "CSAG.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "PRDC.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "NIPH.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "BIOC.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "MPCI.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "ADCI.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "AXPH.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "FERC.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "CPCI.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "AFMC.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "ISMQ.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "ZEOT.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "EGAL.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "GDWA.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "MILS.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "POUL.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "EDFM.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "CEFM.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "SUGR.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "MICH.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "MHOT.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "WCDF.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "ISPH.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "MFSC.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "CICH.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "MIPH.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "ACAMD.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "ETRS.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "GOUR.CA",
+   "reason": "no ex_date"
+  },
+  {
+   "symbol": "BINV.CA",
+   "reason": "no ex_date"
+  }
+ ]
+}

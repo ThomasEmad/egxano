@@ -35,6 +35,8 @@ export interface MarketSnapshotMover {
   price: number
   changePct: number
   volume?: number
+  /** scanner market_cap_basic when present (tracks share-count changes) */
+  cap?: number
 }
 
 export interface MarketSnapshotIndex {
@@ -85,10 +87,11 @@ export function parseSnapshot(raw: unknown): MarketSnapshot | null {
             const price = asNumber(row.price)
             const changePct = asNumber(row.changePct)
             const volume = asNumber(row.volume)
+            const cap = asNumber(row.cap)
             if (!ticker || price === null || price <= 0 || changePct === null || Math.abs(changePct) > 50) {
               return null
             }
-            return { ticker, price, changePct, ...(volume !== null ? { volume } : {}) }
+            return { ticker, price, changePct, ...(volume !== null ? { volume } : {}), ...(cap !== null && cap > 0 ? { cap } : {}) }
           })
           .filter((v): v is MarketSnapshotMover => v !== null)
       : []

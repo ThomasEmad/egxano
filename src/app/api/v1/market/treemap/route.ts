@@ -42,10 +42,19 @@ export async function GET() {
 
     // Fallback: when the scanner snapshot is missing or suspiciously thin
     // (upstream outage / throttling), derive today's change from the two
-    // latest durable MarketPrice rows so the map never freezes.
+    // latest durable MarketPrice rows so the map never freezes. The window
+    // between the two rows is checked for corporate actions (bonus/split/
+    // rights/cash): a CANA-style mechanical ex-date drop is divided out
+    // before the change is computed.
     const fallbackPrices = !snapshot || snapshot.movers.length < 50
       ? await latestTwoPerCompany(companies.map((c) => c.id), { includeDemo: false })
       : null
+    const actionsBetween = fallbackPrices
+      ? await import("@/lib/market/corporate-actions").then((m) =>
+          m.loadActionsBetween(new Date(Date.now() - 10 * 86_400_000), new Date())
+        )
+      : null
+    const { adjustPrevClose } = await import("@/lib/market/corporate-actions")
 
     // stored market_cap metric as fallback sizing for companies without shares
     const capRows = await db.calculatedMetric.findMany({
@@ -71,14 +80,23 @@ export async function GET() {
         const p = fallbackPrices.get(c.id)
         if (p?.prev && p.prev.price > 0 && p.last.price > 0) {
           price = p.last.price
-          const ch = ((p.last.price - p.prev.price) / p.prev.price) * 100
+          // Corporate actions between the two rows: adjust the base close so
+          // the ex-date mechanical drop is not reported as a loss.
+          const acts = actionsBetween?.get(c.ticker.toUpperCase())
+          const base = acts && acts.length ? adjustPrevClose(p.prev.price, acts) : p.prev.price
+          const ch = ((p.last.price - base) / base) * 100
           changePct = Math.abs(ch) <= 50 ? ch : null
         }
       }
+      // Market cap: the scanner's market_cap_basic tracks share-count changes
+      // (e.g. bonus issues) at the source — it outranks our stored
+      // sharesOutstanding × price, which goes stale after such actions.
       const cap =
-        price !== null && c.sharesOutstanding && c.sharesOutstanding > 0
-          ? price * c.sharesOutstanding
-          : (capByCompany.get(c.id) ?? null)
+        mover?.cap && mover.cap > 0
+          ? mover.cap
+          : price !== null && c.sharesOutstanding && c.sharesOutstanding > 0
+            ? price * c.sharesOutstanding
+            : (capByCompany.get(c.id) ?? null)
       if (cap === null && price === null) continue // nothing to draw
       tiles.push({
         ticker: c.ticker,

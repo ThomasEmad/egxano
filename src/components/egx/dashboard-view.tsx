@@ -34,6 +34,7 @@ import { DemoBadge, EventBadge } from "./shared"
 import { QaBox } from "./qa-box"
 import { LiveMarketBadge } from "./live-market-badge"
 import { MarketIntelligencePanel } from "./market-intelligence-panel"
+import { AdSlot } from "./ad-slot"
 import { useMarketLive } from "./use-market-live"
 import { EVENT_TYPE_MAP } from "@/lib/financial/registry"
 import type { ViewKey } from "@/lib/view-keys"
@@ -324,6 +325,9 @@ export function DashboardView({
       {/* ===== WHOLE-MARKET INTELLIGENCE (regime, pulse, breadth, rotation,
            anomalies, radars) — mounted above the sector / movers panels ===== */}
       <MarketIntelligencePanel />
+
+      {/* AdSense — leaderboard strip between the market board and analytics */}
+      <AdSlot slot="dashboard-leaderboard" format="leaderboard" />
 
       {/* ===== ANALYTICS ROW ===== */}
       <div className="grid gap-6 lg:grid-cols-12">

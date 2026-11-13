@@ -176,11 +176,66 @@ async function buildReportContextUncached(
   }
 }
 
+/**
+ * Compact PROMPT-ONLY projection of the financial snapshot.
+ *
+ * The stored snapshot (and its dataHash / reportKey identity) is untouched —
+ * this projection only feeds the model. Cuts the AMOC-class prompt from
+ * ~13K tokens to ~6-7K so the inline POST window can actually finish a
+ * generation:
+ *   1. `"unavailable"` placeholder strings are dropped from calculatedMetrics
+ *      (absence already means unavailable — one encoding note says so);
+ *   2. unitsLegend keeps only codes that actually appear with a number;
+ *   3. encodingNotes shrink to the two load-bearing lines;
+ *   4. events are capped at 6 (the snapshot keeps 8).
+ */
+export function compactSnapshotForPrompt(snap: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...snap }
+  if (Array.isArray(out.periods)) {
+    out.periods = (out.periods as Record<string, unknown>[]).map((p) => {
+      const cm = p.calculatedMetrics
+      if (cm && typeof cm === "object") {
+        const kept: Record<string, unknown> = {}
+        for (const [k, v] of Object.entries(cm as Record<string, unknown>)) {
+          if (typeof v === "number" && Number.isFinite(v)) kept[k] = v
+        }
+        return { ...p, calculatedMetrics: kept }
+      }
+      return p
+    })
+  }
+  if (Array.isArray(out.events) && (out.events as unknown[]).length > 6) {
+    out.events = (out.events as unknown[]).slice(0, 6)
+  }
+  // unitsLegend: keep only codes that still appear as numbers in any period.
+  const units = out.unitsLegend as Record<string, string> | undefined
+  if (units && typeof units === "object") {
+    const used = new Set<string>()
+    for (const p of (out.periods as Record<string, unknown>[]) ?? []) {
+      const cm = p.calculatedMetrics as Record<string, unknown> | undefined
+      const rv = p.rawValues as Record<string, unknown> | undefined
+      for (const src of [cm, rv]) {
+        if (!src) continue
+        for (const [k, v] of Object.entries(src)) if (typeof v === "number") used.add(k)
+      }
+    }
+    const keptUnits: Record<string, string> = {}
+    for (const [k, v] of Object.entries(units)) if (used.has(k)) keptUnits[k] = v
+    if (Object.keys(keptUnits).length) out.unitsLegend = keptUnits
+    else delete out.unitsLegend
+  }
+  out.encodingNotes = [
+    "calculatedMetrics/rawValues: a number is a verified value; a metric that is absent could not be computed — never treat absence as zero.",
+    "units legend maps metric code -> unit. Periods are newest-first; quarterly and annual periods must never be compared directly.",
+  ]
+  return out
+}
+
 /** The exact user-message JSON the model receives (one deterministic string). */
 export function buildPromptPayload(ctx: ReportContext): string {
   return JSON.stringify(
     {
-      financialData: JSON.parse(ctx.financialJson),
+      financialData: compactSnapshotForPrompt(JSON.parse(ctx.financialJson) as Record<string, unknown>),
       extendedMetrics: JSON.parse(ctx.extendedMetricsJson),
       technicalData: ctx.technical ? ctx.technical.snapshot : null,
     },

@@ -14,9 +14,11 @@ import { cachedResponse } from "@/lib/public-cache"
 // is never fabricated into a number.
 
 export async function GET() {
-  // Prices change at most once per trading day; the snapshot row updates on
-  // the market cron. 10 minutes is invisible to users and cuts cold builds ~10x.
-  return cachedResponse("dashboard-summary", 10 * 60 * 1000, buildSummary)
+  // The read is a light window query (~550 rows) — a 60s window keeps the
+  // summary honest after admin company changes (the old 10-min TTL + CDN
+  // s-maxage + 50-min stale-while-revalidate made a deleted company's count
+  // linger for up to an hour).
+  return cachedResponse("dashboard-summary", 60 * 1000, buildSummary)
 }
 
 interface SummaryRow {

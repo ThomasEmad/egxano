@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Providers } from "./providers";
 import { ServiceWorkerRegistration } from "@/components/sw-registration";
+import { AdSenseScript } from "@/components/egx/ad-slot";
 import { OrganizationSchema, WebSiteSchema } from "@/components/seo/structured-data";
 import { siteConfig } from "@/lib/seo-config";
 import { Analytics } from "@vercel/analytics/next";
@@ -114,6 +115,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <WebSiteSchema />
       </head>
       <body className="bg-background text-foreground antialiased">
+        <AdSenseScript />
         <Providers>
           {children}
           <Toaster />

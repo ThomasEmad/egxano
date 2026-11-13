@@ -37,6 +37,7 @@ import {
   UnavailableNote,
 } from "@/components/brand/data-trust"
 import { MetricTip } from "@/components/brand/metric-tip"
+import { AdSlot } from "@/components/egx/ad-slot"
 
 function egp(value: number | null | undefined, ar: boolean): string {
   const text = formatEgp(value)
@@ -326,6 +327,11 @@ export default function LandingClient() {
             </div>
           </div>
         </section>
+
+        {/* AdSense — calm strip between the feature sections */}
+        <div className="border-b border-border/70 py-8">
+          <AdSlot slot="landing-in-article" format="leaderboard" />
+        </div>
 
         {/* ---------------------------------------------------------------- */}
         {/* How a research session works                                      */}

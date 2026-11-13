@@ -11,6 +11,7 @@ scripts/.gh_token
 scripts/.gtoken
 scripts/.neon_api_key
 scripts/.nvidia_key
+scripts/.gateway_key
 scripts/.vercel_token
 scripts/.vercel_bypass
 scripts/.env.local.supabase.bak

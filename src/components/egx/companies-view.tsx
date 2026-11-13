@@ -31,6 +31,7 @@ import { useI18n } from "@/lib/i18n"
 import { formatEgp, formatPercent } from "@/lib/financial/units"
 import { SECTORS, SECTOR_AR, sectorLabel } from "@/lib/sectors"
 import { DemoBadge, StarButton } from "./shared"
+import { AdSlot } from "./ad-slot"
 
 // NOTE: dividend surfaces (dividend_yield sort + dyMin filter + "Dividend payers" preset)
 // are intentionally absent — the Dividend table is empty in production, so every
@@ -505,6 +506,11 @@ export function CompaniesView({ onOpenCompany }: { onOpenCompany: (id: string) =
                 </div>
               </div>
             ) : null}
+
+          {/* AdSense — under the companies table, above the fold footer */}
+          <div className="mt-4">
+            <AdSlot slot="companies-leaderboard" format="leaderboard" />
+          </div>
           </Card>
         </>
       )}

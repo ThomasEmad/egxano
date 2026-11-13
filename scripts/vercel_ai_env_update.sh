@@ -18,6 +18,7 @@ upsert() { # key value
 upsert AI_MODELS "nvidia/nemotron-3.5-lightning-30b-a3b,nvidia/nemotron-3.5-bolt-e4b"
 upsert AI_MODEL "nvidia/nemotron-3.5-lightning-30b-a3b"
 upsert AI_MODEL_FALLBACK "nvidia/nemotron-3.5-bolt-e4b"
+upsert AI_REPORT_MAX_WORDS "500"
 upsert AI_PROVIDERS "pollinations,vercel-gateway"
 upsert AI_PROVIDER_VERCEL_GATEWAY_BASE_URL "https://ai-gateway.vercel.sh/v1"
 upsert AI_PROVIDER_VERCEL_GATEWAY_API_KEY "$(cat /home/z/my-project/scripts/.gateway_key)"

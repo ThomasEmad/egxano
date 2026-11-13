@@ -69,7 +69,39 @@ export async function PATCH(req: NextRequest) {
 
   const updated = await db.company.update({ where: { id }, data })
   await audit("COMPANY_UPDATE", { actor: "admin", entityType: "Company", entityId: id, details: `Updated: ${JSON.stringify(data)}` })
+  await invalidateMarketViews()
   return Response.json({ ok: true, company: updated })
+}
+
+/**
+ * A company set changed → every cached market view that counts or tiles
+ * companies must not keep serving the old set. This used to be the bug:
+ * hard-deleting a company removed it from the companies page while the
+ * dashboard summary / heatmap / market intelligence kept the stale count
+ * for up to an hour (10-min process cache + 10-min edge s-maxage + 50-min
+ * stale-while-revalidate + a persisted snapshot/intelligence rebuild that
+ * only runs on in-session refreshes). Invalidate the process caches AND
+ * rebuild the persisted market snapshot from the new DB state.
+ */
+async function invalidateMarketViews(): Promise<void> {
+  try {
+    invalidateServerCache()
+  } catch {
+    // process cache unavailable — reads still expire by TTL
+  }
+  try {
+    const { after } = await import("next/server")
+    const { refreshMarketSnapshot } = await import("@/lib/market/refresh")
+    after(async () => {
+      try {
+        await refreshMarketSnapshot()
+      } catch (e) {
+        console.warn("post-delete market refresh failed:", e instanceof Error ? e.message.slice(0, 160) : String(e))
+      }
+    })
+  } catch {
+    // after() unavailable outside request scope — the next stale-kick refresh repairs the board
+  }
 }
 
 export async function DELETE(req: NextRequest) {
@@ -80,6 +112,7 @@ export async function DELETE(req: NextRequest) {
   if (!co) return Response.json({ error: "not found" }, { status: 404 })
   await db.company.delete({ where: { id: co.id } })
   await audit("COMPANY_DELETE", { actor: "admin", entityType: "Company", entityId: co.id, details: `Deleted ${ticker} (${co.nameEn}) — ${co._count.reports} reports, ${co._count.values} values cascade-deleted` })
+  await invalidateMarketViews()
   return Response.json({ ok: true, deleted: ticker })
 }
 
@@ -131,6 +164,6 @@ export async function POST(req: NextRequest) {
   await audit("MANUAL_DATA_ENTRY", { actor: "admin", entityType: "Company", entityId: co.id, details: `Manual data: ${ticker} ${periodLabel} — ${valueCount} values` })
   await recomputeCompany(co.id)
 
-    invalidateServerCache()
+  invalidateMarketViews()
   return Response.json({ ok: true, reportId: rep.id, valuesEntered: valueCount, periodLabel })
 }
