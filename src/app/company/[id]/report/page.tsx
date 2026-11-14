@@ -60,7 +60,7 @@ export default async function CompanyReportPage({ params }: { params: Promise<{ 
     ? await db.session.findUnique({ where: { token: hashToken(token) }, select: { userId: true } })
     : null
   const planId = sessionUserId ? await getActivePlanId(sessionUserId.userId) : "FREE"
-  const proPlus = planId === "PRO_PLUS"
+  const proPlus = planId === "PRO_3M"
 
   if (!proPlus) {
     // Locked panel instead of the report — same visual language as the

@@ -112,15 +112,19 @@ export async function GET(req: NextRequest) {
   }
 
   // FREE/anonymous: the fixed free set keeps its FULL signal rows (the free
-  // entitlement); every other matched company ships as a locked identity row.
-  // Server sort order is preserved — locked rows are interleaved in position
-  // and capped, unlocked free rows are always kept.
+  // entitlement) and is PINNED FIRST — the free showcase companies lead the
+  // board regardless of the filter/sort order. Locked identity rows follow in
+  // server order, capped at FREE_LOCKED_ROW_LIMIT.
   const rows: MarketSignalsResponse["rows"] = []
   let lockedIncluded = 0
   for (const r of filtered) {
     if (isFreeSignalTicker(r.ticker)) {
       rows.push(r)
-    } else if (lockedIncluded < FREE_LOCKED_ROW_LIMIT) {
+    }
+  }
+  for (const r of filtered) {
+    if (isFreeSignalTicker(r.ticker)) continue
+    if (lockedIncluded < FREE_LOCKED_ROW_LIMIT) {
       lockedIncluded++
       rows.push(gateRowForFree(r))
     }

@@ -1,16 +1,23 @@
-// Single source of truth for the 3 plans and their REAL, enforced entitlements.
+// Single source of truth for the plans and their REAL, enforced entitlements.
 // Every gate in the codebase (signals board rows, portfolio, QA quota, events,
 // scanners, ads, PDF report) MUST derive its limit from this file so that the
 // marketing copy on /premium can never drift from what the app actually enforces.
+//
+// 2026-11-14 pricing restructure (owner decision):
+//   • "Pro Plus" is REMOVED from the sale — existing PRO_PLUS/PREMIUM
+//     subscriptions keep FULL paid access (see LEGACY_PAID_PLAN_IDS) so no
+//     paying user ever silently drops to the free tier.
+//   • New third plan PRO_3M: 3 months, 450 EGP total, promo = 50% off the
+//     FIRST MONTH ONLY (first cycle 375 EGP instead of 450).
 
-export type PlanId = "FREE" | "PRO" | "PRO_PLUS"
+export type PlanId = "FREE" | "PRO" | "PRO_3M"
 
 export interface PlanLimits {
   /** Rows fully visible on the technical signals board (rest locked). */
   signalsRows: number | "ALL"
   /** Tracked portfolio holdings. */
   portfolioHoldings: number | "UNLIMITED"
-  /** AI Q&A per day. */
+  /** AI Q&A per day (enforced, not advertised). */
   qaPerDay: number
   /** Price alerts. */
   alerts: number | "UNLIMITED"
@@ -49,7 +56,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     id: "FREE",
     nameAr: "المجانية",
     nameEn: "Free",
-    taglineAr: "جرّب المنصة قبل ما تدفع",
+    taglineAr: "جرّب المنصة كاملة قبل ما تدفع",
     price: 0,
     offerPrice: null,
     offerActive: false,
@@ -57,10 +64,12 @@ export const PLANS: Record<PlanId, PlanDef> = {
     currency: "EGP",
     durationDays: 0,
     featuresAr: [
-      "كل الشركات وقوائمها وبياناتها المالية الأساسية",
-      "أول 5 شركات في لوحة الإشارات الفنية مع مناطق الدخول والخروج ووقف الخسارة",
-      "تتبع شركتين في المحفظة",
-      "20 سؤال ذكي في اليوم",
+      "كل الشركات ببياناتها المالية الأساسية وقوائمها الربعية",
+      "الخريطة الحرارية وخريطة القطاعات كاملة",
+      "المقارنة حتى 4 شركات + التوزيعات + جداول الترتيب",
+      "أول 5 شركات كاملة في لوحة الإشارات الفنية — دخول/هدف/وقف خسارة",
+      "محفظة لشركتين + قائمة مراقبة 10 أسهم + 5 تنبيهات سعر",
+      "نتائج الفلاتر الحقيقية على السوق كامل — التفاصيل المدفوعة مقفولة",
     ],
     limits: {
       signalsRows: 5,
@@ -82,17 +91,16 @@ export const PLANS: Record<PlanId, PlanDef> = {
     price: 150,
     offerPrice: fortyOff(150),
     offerActive: true,
-    offerLabelAr: "أول شهر بخصم 40%",
+    offerLabelAr: "أول شهر بخصم 40% — 90 ج أول شهر",
     currency: "EGP",
     durationDays: 30,
     featuresAr: [
-      "كل مزايا المجانية، وبدون إعلانات",
-      "لوحة الإشارات الفنية كاملة: كل الشركات + كل الفلاتر",
-      "مناطق الدخول والخروج ووقف الخسارة لكل إشارة",
-      "أحداث الشركات والماسحات المحفوظة",
-      "محفظة بلا حدود",
-      "60 سؤال ذكي في اليوم",
-      "30 تنبيه سعر + 50 سهم في قائمة المراقبة",
+      "كل مزايا المجانية — وبدون إعلانات",
+      "لوحة الإشارات الفنية كاملة: كل الشركات + كل الفلاتر والفرز",
+      "التحليل الفني الشامل لكل شركة (مش أول 5 بس): اتجاه وزخم وحجم ومخاطرة",
+      "مناطق الدخول والأهداف ووقف الخسارة لكل إشارة",
+      "أحداث الشركات الاستثمارية + الماسحات المخصصة المحفوظة",
+      "محفظة بلا حدود + قائمة مراقبة 50 سهم + 30 تنبيه سعر",
     ],
     limits: {
       signalsRows: "ALL",
@@ -106,29 +114,29 @@ export const PLANS: Record<PlanId, PlanDef> = {
       ads: false,
     },
   },
-  PRO_PLUS: {
-    id: "PRO_PLUS",
-    nameAr: "برو بلس",
-    nameEn: "Pro Plus",
-    taglineAr: "للمحلل اللي عايز كل حاجة على أعلى مستوى",
-    price: 300,
-    offerPrice: fortyOff(300),
+  PRO_3M: {
+    id: "PRO_3M",
+    nameAr: "برو — 3 شهور",
+    nameEn: "Pro Quarterly",
+    taglineAr: "للتابع المستمر اللي مش عايز يفكر في التجديد كل شهر",
+    price: 450,
+    offerPrice: 375,
     offerActive: true,
-    offerLabelAr: "أول شهر بخصم 40%",
+    offerLabelAr: "خصم 50% على أول شهر — أول دورة 375 ج بدل 450",
     currency: "EGP",
-    durationDays: 30,
+    durationDays: 90,
     featuresAr: [
-      "كل مزايا برو، وبدون إعلانات",
-      "تقرير PDF احترافي قابل للطباعة لكل شركة",
-      "120 سؤال ذكي في اليوم",
-      "100 تنبيه سعر + قائمة مراقبة بلا حدود",
+      "نفس كل مزايا باقة برو بالظبط — ما بينها أي فرق",
+      "اشتراك 3 شهور كاملة بدفعة واحدة",
+      "خصم 50% على أول شهر بس — أول دورة 375 ج بدل 450",
+      "بدون تجديد شهري وبدون انقطاع في الإشارات والتنبيهات",
     ],
     limits: {
       signalsRows: "ALL",
       portfolioHoldings: "UNLIMITED",
-      qaPerDay: 120,
-      alerts: 100,
-      watchlist: "UNLIMITED",
+      qaPerDay: 60,
+      alerts: 30,
+      watchlist: 50,
       events: true,
       scanners: true,
       pdfReport: true,
@@ -146,10 +154,20 @@ export function effectiveFirstMonthPrice(plan: PlanDef): number {
 }
 
 /** Which plans count as "paid/premium" for isPremiumUser-style checks. */
-export const PAID_PLAN_IDS: PlanId[] = ["PRO", "PRO_PLUS"]
+export const PAID_PLAN_IDS: PlanId[] = ["PRO", "PRO_3M"]
+
+/**
+ * Retired plan names that still map to FULL paid access. Any subscriber whose
+ * row predates the pricing restructure (PRO_PLUS / legacy PREMIUM) keeps every
+ * paid entitlement — a legacy name must never resolve to the free tier.
+ */
+const LEGACY_PAID_PLAN_IDS: readonly string[] = ["PRO_PLUS", "PRO PLUS", "PROPLUS", "PREMIUM", "PREMIUM_PLUS", "PREMIUMPLUS"]
 
 export function isPaidPlanId(name: string): boolean {
-  return PAID_PLAN_IDS.includes(name as PlanId)
+  const normalized = name.trim().toUpperCase()
+  return (
+    (PAID_PLAN_IDS as string[]).includes(normalized) || LEGACY_PAID_PLAN_IDS.includes(normalized)
+  )
 }
 
 // =============================================================================

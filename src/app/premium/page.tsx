@@ -2,22 +2,22 @@ import type { Metadata } from "next"
 import { siteConfig } from "@/lib/seo-config"
 import PremiumClient from "./client"
 
-// The pricing page promises exactly the 3 real plans (المجانية / برو / برو بلس)
-// with the first-month 40% offer on the paid tiers — the same numbers the
-// backend enforces (see src/lib/plans/entitlements.ts), so the copy can't drift.
+// The pricing page promises exactly the 3 real plans (المجانية / برو / برو 3 شهور)
+// with the first-month offers — the same numbers the backend enforces
+// (see src/lib/plans/entitlements.ts), so the copy can't drift.
 export const metadata: Metadata = {
-  title: "الباقات — المجانية وبرو وبرو بلس | EGXANO",
+  title: "الباقات — المجانية وبرو وخطة الـ 3 شهور | EGXANO",
   description:
-    "ثلاث باقات على EGXANO: المجانية للتجربة، برو 150 جنيه/شهر للتابع اليومي للسوق، وبرو بلس 300 جنيه/شهر مع تقرير PDF القابل للطباعة — وأول شهر بخصم 40% على برو وبرو بلس. لوحة الإشارات الفنية كاملة، أحداث الشركات والماسحات والأسئلة الذكية. الدفع عبر انستاباي وتفعيل يدوي بعد مطابقة الحوالة — بدون اشتراك تلقائي.",
+    "ثلاث باقات على EGXANO: المجانية للتجربة بكل الشركات والخريطة الحرارية، وبرو 150 جنيه/شهر للتابع اليومي للسوق، وخطة الـ 3 شهور بـ 450 جنيه مع خصم 50% على أول شهر. لوحة الإشارات الفنية كاملة، المقارنة والترتيبات، الماسحات المخصصة، التحليل الفني الشامل، التوزيعات والتنبيهات. الدفع عبر انستاباي وتفعيل يدوي بعد مطابقة الحوالة — بدون اشتراك تلقائي.",
   keywords: ["EGX premium", "اشتراك البورصة المصرية", "باقات EGXANO", "تقارير مالية"],
   alternates: {
     canonical: "/premium",
     languages: { en: "/premium", "ar-EG": "/premium" },
   },
   openGraph: {
-    title: "باقات EGXANO — المجانية وبرو وبرو بلس",
+    title: "باقات EGXANO — المجانية وبرو وخطة الـ 3 شهور",
     description:
-      "ثلاث باقات لبحث البورصة المصرية: لوحة إشارات كاملة وأحداث الشركات والماسحات وتقرير PDF. أول شهر بخصم 40% على برو وبرو بلس.",
+      "لوحة إشارات كاملة وأحداث الشركات والماسحات والتنبيهات. خطة 3 شهور بـ 450 ج — أول شهر بخصم 50%.",
     url: "/premium",
     type: "website",
     images: [{ url: siteConfig.ogImage, width: 1200, height: 630, alt: "باقات EGXANO" }],

@@ -55,7 +55,7 @@ interface SubscribeResult {
   currency: string
 }
 
-const PLAN_ORDER: PlanId[] = ["FREE", "PRO", "PRO_PLUS"]
+const PLAN_ORDER: PlanId[] = ["FREE", "PRO", "PRO_3M"]
 
 /** Numeric/string limit → Arabic display ("الكل" / "غير محدود" / count). */
 function fmtRangeLimit(v: number | "ALL" | "UNLIMITED", allAr: string, unAr: string): string {
@@ -153,7 +153,7 @@ export default function PremiumPage() {
   const qc = useQueryClient()
   const [successPanel, setSuccessPanel] = useState<SubscribeResult | null>(null)
   const requestSub = useMutation({
-    mutationFn: async (planId: "PRO" | "PRO_PLUS"): Promise<SubscribeResult> => {
+    mutationFn: async (planId: "PRO" | "PRO_3M"): Promise<SubscribeResult> => {
       const res = await fetch("/api/v1/subscription/request", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-session-token": getUserToken() ?? "" },
@@ -179,7 +179,10 @@ export default function PremiumPage() {
   // InstaPay is the only payment channel: the user scans the QR, transfers the
   // amount, and writes their REGISTERED EMAIL in the InstaPay note — the admin
   // matches the payment to the account from that note and activates.
-  const instapayQr = typeof settings.INSTAPAY_QR_URL === "string" && settings.INSTAPAY_QR_URL.trim() !== "" ? settings.INSTAPAY_QR_URL.trim() : null
+  // The real barcode ships with the app at /payment/instapay-qr.png; the
+  // INSTAPAY_QR_URL setting can override it without a redeploy.
+  const staticQr = "/payment/instapay-qr.png"
+  const instapayQr = typeof settings.INSTAPAY_QR_URL === "string" && settings.INSTAPAY_QR_URL.trim() !== "" ? settings.INSTAPAY_QR_URL.trim() : staticQr
   const instructions = typeof settings.PAYMENT_INSTRUCTIONS === "string" ? settings.PAYMENT_INSTRUCTIONS : ""
   const subscription = subStatus?.subscription
   const isPremium = !!subStatus?.isPremium
@@ -201,24 +204,27 @@ export default function PremiumPage() {
       values: {
         FREE: fmtRangeLimit(PLANS.FREE.limits.signalsRows, ar ? "الكل" : "All", ar ? "غير محدود" : "Unlimited"),
         PRO: fmtRangeLimit(PLANS.PRO.limits.signalsRows, ar ? "الكل" : "All", ar ? "غير محدود" : "Unlimited"),
-        PRO_PLUS: fmtRangeLimit(PLANS.PRO_PLUS.limits.signalsRows, ar ? "الكل" : "All", ar ? "غير محدود" : "Unlimited"),
+        PRO_3M: fmtRangeLimit(PLANS.PRO_3M.limits.signalsRows, ar ? "الكل" : "All", ar ? "غير محدود" : "Unlimited"),
       },
     },
     {
-      label: ar ? "أحداث الشركات" : "Company events", values: { FREE: PLANS.FREE.limits.events, PRO: PLANS.PRO.limits.events, PRO_PLUS: PLANS.PRO_PLUS.limits.events } },
-    { label: ar ? "الماسحات المحفوظة" : "Saved scanners", values: { FREE: PLANS.FREE.limits.scanners, PRO: PLANS.PRO.limits.scanners, PRO_PLUS: PLANS.PRO_PLUS.limits.scanners } },
-    { label: ar ? "تقرير PDF قابل للطباعة" : "Printable PDF report", values: { FREE: PLANS.FREE.limits.pdfReport, PRO: PLANS.PRO.limits.pdfReport, PRO_PLUS: PLANS.PRO_PLUS.limits.pdfReport } },
-    { label: ar ? "الإعلانات" : "Ads", values: { FREE: PLANS.FREE.limits.ads, PRO: PLANS.PRO.limits.ads, PRO_PLUS: PLANS.PRO_PLUS.limits.ads } },
+      label: ar ? "أحداث الشركات" : "Company events", values: { FREE: PLANS.FREE.limits.events, PRO: PLANS.PRO.limits.events, PRO_3M: PLANS.PRO_3M.limits.events } },
+    { label: ar ? "الماسحات المحفوظة" : "Saved scanners", values: { FREE: PLANS.FREE.limits.scanners, PRO: PLANS.PRO.limits.scanners, PRO_3M: PLANS.PRO_3M.limits.scanners } },
+    { label: ar ? "الإعلانات" : "Ads", values: { FREE: PLANS.FREE.limits.ads, PRO: PLANS.PRO.limits.ads, PRO_3M: PLANS.PRO_3M.limits.ads } },
     {
-      label: ar ? "الأسئلة الذكية يوميًا" : "Daily smart Q&A",
-      values: { FREE: String(PLANS.FREE.limits.qaPerDay), PRO: String(PLANS.PRO.limits.qaPerDay), PRO_PLUS: String(PLANS.PRO_PLUS.limits.qaPerDay) },
+      label: ar ? "الخريطة الحرارية وخريطة القطاعات" : "Sector heatmap",
+      values: { FREE: true, PRO: true, PRO_3M: true },
+    },
+    {
+      label: ar ? "التحليل الفني الشامل لكل الشركات" : "Full technical coverage",
+      values: { FREE: false, PRO: true, PRO_3M: true },
     },
     {
       label: ar ? "تنبيهات الأسعار" : "Price alerts",
       values: {
         FREE: fmtRangeLimit(PLANS.FREE.limits.alerts, ar ? "الكل" : "All", ar ? "بلا حدود" : "Unlimited"),
         PRO: fmtRangeLimit(PLANS.PRO.limits.alerts, ar ? "الكل" : "All", ar ? "بلا حدود" : "Unlimited"),
-        PRO_PLUS: fmtRangeLimit(PLANS.PRO_PLUS.limits.alerts, ar ? "الكل" : "All", ar ? "بلا حدود" : "Unlimited"),
+        PRO_3M: fmtRangeLimit(PLANS.PRO_3M.limits.alerts, ar ? "الكل" : "All", ar ? "بلا حدود" : "Unlimited"),
       },
     },
   ]
@@ -269,7 +275,7 @@ export default function PremiumPage() {
           size="sm"
           variant="outline"
           className="mt-3"
-          onClick={() => requestSub.mutate(subscription?.planName === "PRO_PLUS" ? "PRO_PLUS" : "PRO")}
+          onClick={() => requestSub.mutate("PRO")}
           disabled={requestSub.isPending}
         >
           {requestSub.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : ar ? "إعادة المحاولة" : "Try again"}
@@ -329,7 +335,7 @@ export default function PremiumPage() {
       <Button
         size="lg"
         className="w-full gap-2"
-        onClick={() => requestSub.mutate(plan.id as "PRO" | "PRO_PLUS")}
+        onClick={() => requestSub.mutate(plan.id as "PRO" | "PRO_3M")}
         disabled={requestSub.isPending}
       >
         {requestSub.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowLeft className="h-4 w-4 rtl-flip" aria-hidden />}
@@ -350,13 +356,15 @@ export default function PremiumPage() {
       )
     }
     const offerOn = plan.offerActive && plan.offerPrice != null
+    const periodLabel =
+      plan.durationDays >= 90 ? (ar ? "جنيه / 3 شهور" : "EGP / 3 months") : ar ? "جنيه/شهر" : "EGP / month"
     return (
       <div className="space-y-2">
         <div className="flex items-baseline gap-2">
           <span className="text-4xl font-extrabold tabular text-foreground" dir="ltr">
             {offerOn ? plan.offerPrice : plan.price}
           </span>
-          <span className="text-sm font-semibold text-muted-foreground">{ar ? "جنيه/شهر" : "EGP / month"}</span>
+          <span className="text-sm font-semibold text-muted-foreground">{periodLabel}</span>
         </div>
         {offerOn ? (
           <div className="flex flex-wrap items-center gap-2">
@@ -365,7 +373,7 @@ export default function PremiumPage() {
             </span>
             <Badge variant="outline" className="border-success/40 bg-success/10 text-[10px] text-success">
               <Crown className="me-1 h-3 w-3" aria-hidden />
-              {plan.offerLabelAr ?? (ar ? "أول شهر بخصم 40%" : "First month 40% off")}
+              {plan.offerLabelAr ?? (ar ? "خصم أول شهر" : "First-month offer")}
             </Badge>
           </div>
         ) : null}
@@ -389,12 +397,12 @@ export default function PremiumPage() {
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
               {ar
-                ? "ثلاث باقات بسيطة: ابدأ مجانًا، وبعد كده افتح لوحة الإشارات الفنية كاملة بأدوات الفلترة والفرز — وبرو بلس بيضيف تقرير PDF القابل للطباعة."
-                : "Three simple plans: start free, then unlock the full signals board with filtering and sorting — Pro Plus adds the printable PDF report."}
+                ? "ثلاث باقات بسيطة: ابدأ مجانًا بكل الشركات والخريطة الحرارية، وافتح بعدها لوحة الإشارات الفنية كاملة والتحليل الشامل — وخطة الـ 3 شهور توفّر عليك تجديد كل شهر."
+                : "Three simple plans: start free, then unlock the full signals board — or take the 3-month plan and forget monthly renewals."}
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary">
-                {ar ? "أول شهر بخصم 40% على برو وبرو بلس" : "First month 40% off on Pro and Pro Plus"}
+                {ar ? "خطة الـ 3 شهور: 450 ج — أول شهر بخصم 50% (375 ج)" : "3-month plan: 450 EGP — first month 50% off"}
               </Badge>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <ShieldCheck className="h-4 w-4 text-success" aria-hidden />
@@ -491,7 +499,7 @@ export default function PremiumPage() {
                   const p = PLANS[successPanel.plan.id as PlanId]
                   return p && p.offerActive && p.offerPrice != null && successPanel.amountToPay === p.offerPrice ? (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {ar ? `ده سعر أول شهر بعد خصم 40% — الشهور التالية ${p.price} جنيه.` : `First-month offer price — later months ${p.price} EGP.`}
+                      {ar ? `ده سعر أول الدورة بعد الخصم — التجديدات القادمة ${p.price} جنيه.` : `Discounted first-cycle price — renewals ${p.price} EGP.`}
                     </p>
                   ) : null
                 })()}

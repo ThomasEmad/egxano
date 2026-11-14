@@ -7,7 +7,7 @@ import { withKeyLock } from "@/lib/key-lock"
 import { planFirstMonthAmount } from "@/lib/subscription"
 
 // POST /api/v1/subscription/request — user requests a paid subscription
-// (body { planId: "PRO" | "PRO_PLUS" }; a missing planId defaults to PRO for
+// (body { planId: "PRO" | "PRO_3M" }; a missing planId defaults to PRO for
 // back-compat with old clients that only knew the single paid plan).
 //
 // Race safety: the whole flow runs under a per-user key lock, so parallel
@@ -20,7 +20,7 @@ import { planFirstMonthAmount } from "@/lib/subscription"
 // Pricing integrity: the amount to transfer is ALWAYS computed server-side
 // from the Plan row (offer price when the first-month offer is active, full
 // price otherwise). The client never sends or edits an amount.
-const REQUESTABLE_PLAN_NAMES = ["PRO", "PRO_PLUS"] as const
+const REQUESTABLE_PLAN_NAMES = ["PRO", "PRO_3M"] as const
 
 export async function POST(req: NextRequest) {
   const userId = await requireAuth(req)

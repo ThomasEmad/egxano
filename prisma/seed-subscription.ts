@@ -11,7 +11,7 @@ const db = buildPrismaClient()
 const PLAN_IDS: Record<string, string> = {
   FREE: "free",
   PRO: "pro",
-  PRO_PLUS: "pro-plus",
+  PRO_3M: "pro-3m",
 }
 
 async function main() {
@@ -41,8 +41,10 @@ async function main() {
     console.log(`Seeded plan: ${row.name} (${row.price} ${row.currency})`)
   }
 
-  // Exactly 3 plans are sellable — any legacy row (e.g. the old "PREMIUM"
-  // 99 EGP plan) keeps its FK references but is no longer offered/active.
+  // The sellable plans come from PLANS — the retired PRO_PLUS row (and any
+  // legacy row like the old "PREMIUM" plan) keeps its FK references but is no
+  // longer offered/active. Existing subscribers on retired plans still get
+  // FULL paid access via LEGACY_PAID_PLAN_IDS in entitlements.ts.
   const legacy = await db.plan.updateMany({
     where: { name: { notIn: Object.keys(PLANS) } },
     data: { isActive: false },

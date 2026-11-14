@@ -211,7 +211,7 @@ export function TopHeader({ className }: TopHeaderProps = {}) {
           aria-label="EGXANO — Home"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.svg" alt="" className="h-7 w-7 rounded-md" width={28} height={28} />
+          <img src="/icon-192.png" alt="" className="h-7 w-7 rounded-md" width={28} height={28} />
           <span className="hidden text-sm font-bold tracking-tight text-foreground sm:inline">EGXANO</span>
         </Link>
 

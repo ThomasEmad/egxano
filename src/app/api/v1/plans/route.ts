@@ -31,7 +31,7 @@ export async function GET() {
   return Response.json(
     {
       ok: true,
-      offerNoteAr: "أول شهر بخصم 40% على برو وبرو بلس",
+      offerNoteAr: "خصم 50% على أول شهر لخطة الـ 3 شهور (أول دورة 375 بدل 450) — وأول شهر بخصم 40% على برو",
       plans,
     },
     { headers: { "Cache-Control": publicCacheControl(TTL_SECONDS) } },

@@ -14,22 +14,22 @@ describe("resolvePlanIdFromRow", () => {
   it("resolves the three canonical plan names", () => {
     expect(resolvePlanIdFromRow({ name: "FREE", price: 0 })).toBe("FREE")
     expect(resolvePlanIdFromRow({ name: "PRO", price: 150 })).toBe("PRO")
-    expect(resolvePlanIdFromRow({ name: "PRO_PLUS", price: 300 })).toBe("PRO_PLUS")
+    expect(resolvePlanIdFromRow({ name: "PRO_3M", price: 450 })).toBe("PRO_3M")
   })
 
   it("normalizes case, whitespace and hyphens before matching", () => {
     expect(resolvePlanIdFromRow({ name: "  pro  ", price: 150 })).toBe("PRO")
-    expect(resolvePlanIdFromRow({ name: "pro-plus", price: 300 })).toBe("PRO_PLUS")
-    expect(resolvePlanIdFromRow({ name: "Pro Plus", price: 300 })).toBe("PRO_PLUS")
+    expect(resolvePlanIdFromRow({ name: "pro-plus", price: 300 })).toBe("PRO")
+    expect(resolvePlanIdFromRow({ name: "Pro Plus", price: 300 })).toBe("PRO")
     expect(resolvePlanIdFromRow({ name: "free", price: 0 })).toBe("FREE")
   })
 
   it("maps legacy and alias plan names to the canonical paid tiers", () => {
     expect(resolvePlanIdFromRow({ name: "PREMIUM", price: 99 })).toBe("PRO")
     expect(resolvePlanIdFromRow({ name: "premium", price: 99 })).toBe("PRO")
-    expect(resolvePlanIdFromRow({ name: "PROPLUS", price: 300 })).toBe("PRO_PLUS")
-    expect(resolvePlanIdFromRow({ name: "PLUS", price: 300 })).toBe("PRO_PLUS")
-    expect(resolvePlanIdFromRow({ name: "PREMIUM_PLUS", price: 300 })).toBe("PRO_PLUS")
+    expect(resolvePlanIdFromRow({ name: "PROPLUS", price: 300 })).toBe("PRO")
+    expect(resolvePlanIdFromRow({ name: "PLUS", price: 300 })).toBe("PRO")
+    expect(resolvePlanIdFromRow({ name: "PREMIUM_PLUS", price: 300 })).toBe("PRO")
   })
 
   it("any unknown name with a positive price still means a paying user", () => {

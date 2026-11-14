@@ -56,11 +56,14 @@ export async function getUserSubscription(userId: string): Promise<SubscriptionI
 /** Canonical plan names + the legacy aliases that must keep resolving (paid). */
 const PLAN_NAME_ALIASES: Record<string, PlanId> = {
   PRO: "PRO",
-  PRO_PLUS: "PRO_PLUS",
-  PROPLUS: "PRO_PLUS",
-  PLUS: "PRO_PLUS",
+  // Retired paid tiers keep resolving to a PAID plan so existing subscribers
+  // never silently drop to the free tier and PLANS[...] lookups never miss.
+  PRO_PLUS: "PRO",
+  PROPLUS: "PRO",
+  PLUS: "PRO",
+  PRO_3M: "PRO_3M",
   PREMIUM: "PRO",
-  PREMIUM_PLUS: "PRO_PLUS",
+  PREMIUM_PLUS: "PRO",
   FREE: "FREE",
 }
 
