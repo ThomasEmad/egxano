@@ -18,6 +18,7 @@ import {
   BarChart3,
   Boxes,
   ChevronDown,
+  Eye,
   Gauge,
   Globe,
   Info,
@@ -48,7 +49,7 @@ import type { StructureSnapshot } from "@/lib/technical/structure"
 import type { VsaSnapshot } from "@/lib/technical/vsa"
 import type { ZonesSnapshot } from "@/lib/technical/zones"
 import type { QualityScore } from "@/lib/technical/quality"
-import { SIGNAL_META, STYLE_TAG_META, type TechStance } from "@/lib/technical/signals"
+import { SIGNAL_META, STYLE_TAG_META, type TechStance, type WatchingSetup } from "@/lib/technical/signals"
 
 export interface TechSnapshot {
   version: string
@@ -376,7 +377,206 @@ function TradePlanBlock({ plan, ar }: { plan: TradePlanFields; ar: boolean }) {
   )
 }
 
-function StanceCard({ stance, verdict, pos, neg, boardSignal, ar }: { stance: StanceWithPlan; verdict: string; pos: number; neg: number; boardSignal?: BoardSignal | null; ar: boolean }) {
+/**
+ * Three-state publication badge (engine contract: confirmed / watching / wait
+ * — a directional read is never naked). Falls back to the legacy signal badge
+ * for payloads computed before the layer shipped.
+ */
+function stanceStateBadge(stance: StanceWithPlan, ar: boolean): { label: string; cls: string } | null {
+  const st = stance.signalState
+  if (!st) return null
+  if (st === "confirmed" && (stance.signal === "buy" || stance.signal === "sell")) {
+    return {
+      label: ar ? (stance.signal === "buy" ? "شراء مؤكد" : "بيع مؤكد") : stance.signal === "buy" ? "Confirmed buy" : "Confirmed sell",
+      cls: STANCE_CLS[stance.signal].badge,
+    }
+  }
+  if (st === "watching" && stance.setup) {
+    const buy = stance.setup.direction === "buy"
+    return {
+      label: ar ? (buy ? "فرصة شراء تحت المراقبة" : "فرصة بيع تحت المراقبة") : buy ? "Buy setup — watching" : "Sell setup — watching",
+      cls: STANCE_CLS.hold.badge,
+    }
+  }
+  if (st === "wait" && stance.signal !== "buy" && stance.signal !== "sell") {
+    return { label: ar ? "انتظار" : "Wait", cls: STANCE_CLS.hold.badge }
+  }
+  return null
+}
+
+/**
+ * Watched-setup card — the full pre-entry contract of a blocked candidate:
+ * the close-based ACTIVATION (never an intraday touch), the PROVISIONAL
+ * levels (each labeled تقديري with its structural basis, recomputed at
+ * activation with RR re-validated ≥ 1.5), the PRE-ENTRY invalidation
+ * (separate from the post-entry stop) and the veto reasons that raised the
+ * block. Rendered only when the engine attached a setup.
+ */
+function WatchingSetupBlock({ setup, ar }: { setup: WatchingSetup; ar: boolean }) {
+  const fmt = (v: number): string => (Number.isFinite(v) ? v.toFixed(2) : "—")
+  const zone = (lo: number | null | undefined, hi: number | null | undefined): string =>
+    lo === null || lo === undefined || hi === null || hi === undefined ? "—" : lo === hi ? lo.toFixed(2) : `${lo.toFixed(2)} – ${hi.toFixed(2)}`
+  const above = setup.activation.kind === "close_above"
+  const buy = setup.direction === "buy"
+  return (
+    <div className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 text-xs font-bold">
+          <Eye className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" aria-hidden />
+          {ar ? `فرصة تحت المراقبة — ${buy ? "شراء" : "بيع"} بعد تفعيل هيكلي` : `Watched ${setup.direction} setup — structural activation`}
+        </span>
+        <Badge variant="outline" className={STANCE_CLS.hold.badge}>
+          {ar ? (buy ? "فرصة شراء تحت المراقبة" : "فرصة بيع تحت المراقبة") : buy ? "Buy setup — watching" : "Sell setup — watching"}
+        </Badge>
+      </div>
+
+      {/* شروط التفعيل — close-based level + volume condition + basis */}
+      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+          {ar ? "شروط التفعيل (بالإغلاق اليومي فقط — لا لمسة داخلية)" : "Activation (daily close only — never an intraday touch)"}
+        </p>
+        <p className="mt-1 text-sm font-bold" dir="ltr">
+          {above ? "≥ " : "≤ "}{fmt(setup.activation.level)}
+        </p>
+        <p className="mt-0.5 text-[11px] leading-relaxed text-foreground">
+          {ar
+            ? `إغلاق يومي ${above ? "فوق" : "تحت"} ${fmt(setup.activation.level)} + ${setup.activation.volumeConditionAr}`
+            : `Daily close ${above ? "above" : "below"} ${fmt(setup.activation.level)} + volume ≥ 1.5× the 20-session average`}
+        </p>
+        <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{ar ? `أساس المستوى: ${setup.activation.basisAr}` : setup.activation.basisAr}</p>
+      </div>
+
+      {/* المستويات التقديرية + ملاحظة إعادة الحساب */}
+      <div className="space-y-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {ar ? "المستويات التقديرية (تقديري — تُعاد الحسابات عند التفعيل)" : "Provisional levels (estimates — recomputed at activation)"}
+        </p>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <div className="rounded-lg border border-blue-500/40 bg-blue-500/5 px-3 py-2.5">
+            <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+              {buy ? <TrendingUp className="h-3 w-3" aria-hidden /> : <TrendingDown className="h-3 w-3" aria-hidden />}
+              {ar ? "دخول تقديري" : "Est. entry"}
+            </p>
+            <p className="mt-1 text-sm font-bold tabular" dir="ltr">
+              {zone(setup.provisionalEntry?.low, setup.provisionalEntry?.high)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-positive/40 bg-positive/5 px-3 py-2.5">
+            <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-positive">
+              <Target className="h-3 w-3" aria-hidden />
+              {ar ? "هدف تقديري" : "Est. target"}
+            </p>
+            <p className="mt-1 text-sm font-bold tabular" dir="ltr">
+              {zone(setup.provisionalTarget?.low, setup.provisionalTarget?.high)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-negative/40 bg-negative/5 px-3 py-2.5">
+            <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-negative">
+              <ShieldAlert className="h-3 w-3" aria-hidden />
+              {ar ? "وقف تقديري" : "Est. stop"}
+            </p>
+            <p className="mt-1 text-sm font-bold tabular" dir="ltr">
+              {setup.provisionalStop ? fmt(setup.provisionalStop.level) : "—"}
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs">
+            <span className="font-medium">{ar ? "المخاطرة/العائد التقديرية: " : "Est. risk/reward: "}</span>
+            <span className="tnum font-bold" dir="ltr">{setup.provisionalRiskReward !== null ? String(setup.provisionalRiskReward) : "—"}</span>
+          </p>
+          <span className="text-[10px] text-muted-foreground">{ar ? setup.provisionalBasisAr : setup.provisionalBasisAr}</span>
+        </div>
+        {setup.provisionalEntry?.basisAr || setup.provisionalStop?.basisAr || setup.provisionalTarget?.basisAr ? (
+          <div className="space-y-0.5 rounded-lg border border-border/60 bg-muted/10 px-3 py-2">
+            <p className="text-[10px] font-semibold text-muted-foreground">{ar ? "أساس كل مستوى:" : "Level basis:"}</p>
+            {setup.provisionalEntry?.basisAr ? <p className="text-[10px] leading-relaxed text-muted-foreground">{ar ? "الدخول: " : "Entry: "}{setup.provisionalEntry.basisAr}</p> : null}
+            {setup.provisionalStop?.basisAr ? <p className="text-[10px] leading-relaxed text-muted-foreground">{ar ? "الوقف: " : "Stop: "}{setup.provisionalStop.basisAr}</p> : null}
+            {setup.provisionalTarget?.basisAr ? <p className="text-[10px] leading-relaxed text-muted-foreground">{ar ? "الهدف: " : "Target: "}{setup.provisionalTarget.basisAr}</p> : null}
+          </div>
+        ) : null}
+        <p className="text-[10px] font-medium leading-relaxed text-amber-700 dark:text-amber-400/90">
+          {ar ? setup.recomputeNoteAr : "Provisional (estimates) — all levels are recomputed at activation and R/R re-validated; below 1.5 the setup does NOT confirm."}
+        </p>
+      </div>
+
+      {/* شرط الإلغاء قبل الدخول — منفصل عن وقف الخسارة بعد الدخول */}
+      <div className="rounded-lg border border-negative/30 bg-negative/5 px-3 py-2.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-negative">
+          {ar ? "شرط الإلغاء قبل الدخول (ليس وقف الخسارة)" : "Pre-entry invalidation (not the post-entry stop)"}
+        </p>
+        <p className="mt-1 text-[11px] font-medium leading-relaxed text-foreground">{ar ? setup.preEntryInvalidation.conditionAr : `A daily close ${above ? "below" : "above"} ${fmt(setup.preEntryInvalidation.level)} cancels the setup before entry.`}</p>
+        <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{ar ? setup.preEntryInvalidation.reasonAr : setup.preEntryInvalidation.reasonAr}</p>
+        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{ar ? setup.postEntryNoteAr : "After activation and entry, the trade's exit is the recomputed plan stop — never this pre-entry level."}</p>
+      </div>
+
+      {/* أسباب التوقف — the veto objects that raised the block */}
+      {setup.vetoReasons.length > 0 ? (
+        <div className="space-y-1">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{ar ? "ليه الفرصة مش مؤكدة دلوقتي؟" : "Why is this not confirmed yet?"}</p>
+          {setup.vetoReasons.map((r) => (
+            <div key={r.code} className="flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground">
+              <span
+                className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${r.tone === "negative" ? "bg-negative" : r.tone === "positive" ? "bg-positive" : "bg-muted-foreground/60"}`}
+                aria-hidden
+              />
+              <span>{ar ? r.ar : r.en}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+/** Plan-lifecycle event log — fetched lazily from the lifecycle API (same
+ *  gated contract as the board: the server strips the view for free callers,
+ *  so this renders nothing unless the caller is entitled to the detail). */
+const LIFECYCLE_EVENT_LABEL: Record<string, { ar: string; en: string }> = {
+  activated: { ar: "تفعيل", en: "Activated" },
+  stopped: { ar: "وقف", en: "Stopped" },
+  targeted: { ar: "هدف", en: "Target" },
+  time_stopped: { ar: "وقف زمني", en: "Time stop" },
+  invalidated: { ar: "إلغاء", en: "Invalidated" },
+  expired: { ar: "انتهاء", en: "Expired" },
+}
+
+function LifecycleEventsBlock({ companyId, ar }: { companyId: string; ar: boolean }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["signal-lifecycle", companyId],
+    queryFn: () => api.signalLifecycle(companyId),
+    staleTime: 120_000,
+    retry: false,
+  })
+  const events = data?.lifecycle?.events ?? []
+  if (isLoading || events.length === 0) return null
+  return (
+    <div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {ar ? "سجل دورة الحياة (مشتق من البيانات لحظة الطلب)" : "Lifecycle events (derived on demand)"}
+      </p>
+      <div className="mt-1.5 space-y-1">
+        {events.slice(-6).map((e, i) => (
+          <div key={`${e.type}-${e.date}-${i}`} className="flex items-start gap-2 text-[11px] leading-relaxed">
+            <span className="shrink-0 rounded border border-border/50 bg-muted px-1 py-0.5 text-[9px] font-semibold text-muted-foreground">
+              {ar ? LIFECYCLE_EVENT_LABEL[e.type]?.ar ?? e.type : LIFECYCLE_EVENT_LABEL[e.type]?.en ?? e.type}
+            </span>
+            <span className="text-muted-foreground">
+              <span className="tabular" dir="ltr">{e.date}</span>
+              {e.price !== null ? (
+                <> · <span className="tabular" dir="ltr">{e.price.toFixed(2)}</span></>
+              ) : null}
+              {" — "}
+              {e.noteAr}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function StanceCard({ companyId, stance, verdict, pos, neg, boardSignal, ar }: { companyId: string; stance: StanceWithPlan; verdict: string; pos: number; neg: number; boardSignal?: BoardSignal | null; ar: boolean }) {
   const cls = stance.signal ? STANCE_CLS[stance.signal] : null
   const plan = stance.tradePlan ?? null
   return (
@@ -387,13 +587,19 @@ function StanceCard({ stance, verdict, pos, neg, boardSignal, ar }: { stance: St
             <Gauge className="h-3.5 w-3.5 text-primary" aria-hidden />
             {ar ? "الخلاصة الفنية" : "Technical stance"}
           </span>
-          {stance.signal && cls ? (
-            <Badge variant="outline" className={cls.badge}>
-              {ar ? SIGNAL_META[stance.signal].ar : SIGNAL_META[stance.signal].en}
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="border-border/40 text-muted-foreground/70">{ar ? "بيانات غير كافية" : "Weak data"}</Badge>
-          )}
+          {(() => {
+            const sb = stanceStateBadge(stance, ar)
+            if (sb) {
+              return <Badge variant="outline" className={sb.cls}>{sb.label}</Badge>
+            }
+            return stance.signal && cls ? (
+              <Badge variant="outline" className={cls.badge}>
+                {ar ? SIGNAL_META[stance.signal].ar : SIGNAL_META[stance.signal].en}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="border-border/40 text-muted-foreground/70">{ar ? "بيانات غير كافية" : "Weak data"}</Badge>
+            )
+          })()}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 px-5 pb-5">
@@ -470,14 +676,23 @@ function StanceCard({ stance, verdict, pos, neg, boardSignal, ar }: { stance: St
           )
         ) : null}
 
-        {/* trade plan — prominent when the engine can form one */}
-        {plan ? (
+        {/* trade plan (confirmed) or the watched-setup contract (watching) —
+            a directional read is never published without one of them */}
+        {stance.signalState === "watching" && stance.setup ? (
+          <WatchingSetupBlock setup={stance.setup} ar={ar} />
+        ) : plan ? (
           <TradePlanBlock plan={plan} ar={ar} />
+        ) : stance.setup ? (
+          <WatchingSetupBlock setup={stance.setup} ar={ar} />
         ) : (
           <p className="text-xs leading-relaxed text-muted-foreground">
             {ar ? "مفيش منطقة دخول واضحة دلوقتي — القراءة استنتاجية والانتظار أفضل." : "No clear entry zone right now — the read is inconclusive and waiting is better."}
           </p>
         )}
+
+        {(stance.signalState === "watching" || stance.signalState === "confirmed") ? (
+          <LifecycleEventsBlock companyId={companyId} ar={ar} />
+        ) : null}
 
         {stance.styleFits.length > 0 ? (
           <div className="flex flex-wrap items-center gap-1.5">
@@ -1124,7 +1339,7 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
       <DisclaimerBanner ar={ar} />
 
       {/* b. rule-based stance hero with the trade plan */}
-      {stance ? <StanceCard stance={stance} verdict={verdict} pos={pos} neg={neg} boardSignal={(data as { boardSignal?: BoardSignal | null }).boardSignal ?? null} ar={ar} /> : null}
+      {stance ? <StanceCard companyId={companyId} stance={stance} verdict={verdict} pos={pos} neg={neg} boardSignal={(data as { boardSignal?: BoardSignal | null }).boardSignal ?? null} ar={ar} /> : null}
 
       {/* c. the story in brief */}
       <StoryList snap={snap} stance={stance} ar={ar} />

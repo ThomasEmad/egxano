@@ -29,14 +29,16 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { api, getUserToken } from "@/lib/client/api"
+import { api, authHeaders, getUserToken } from "@/lib/client/api"
 import { usePlan } from "@/lib/client/subscription"
 import { useI18n } from "@/lib/i18n"
 import { useWatchlist } from "@/lib/client/watchlist"
 import { FREE_SIGNALS_ROWS } from "@/lib/plans/entitlements"
 import { useMarketLive } from "./use-market-live"
-import { SIGNAL_META, STYLE_TAG_HINT_AR, STYLE_TAG_META, type TechSignalType, type TechStyleTag } from "@/lib/technical/signals"
+import { SIGNAL_META, STYLE_TAG_HINT_AR, STYLE_TAG_META, type TechSignalType, type TechStyleTag, type WatchingSetup } from "@/lib/technical/signals"
 import type { GatedSignalRow, MarketSignalRow, MarketSignalsResponse } from "@/lib/technical/signals-service"
+import { lifecycleChipLabel, type LifecycleState } from "@/lib/technical/lifecycle"
+import { OpportunitiesStrip } from "./opportunities-strip"
 import { TIER_AR } from "@/lib/market/tiers"
 
 type SignalFilter = "all" | "buy" | "hold" | "sell" | "fav"
@@ -71,6 +73,102 @@ const SIGNAL_CLS: Record<TechSignalType, { badge: string; ring: string; dot: str
   buy: { badge: "border-positive/40 bg-positive/10 text-positive", ring: "border-positive/40", dot: "bg-positive" },
   hold: { badge: "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400", ring: "border-amber-500/40", dot: "bg-amber-500" },
   sell: { badge: "border-negative/40 bg-negative/10 text-negative", ring: "border-negative/40", dot: "bg-negative" },
+}
+
+const WATCHING_CLS = {
+  badge: "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  dot: "bg-amber-500",
+}
+
+/**
+ * Three-state publication badge (engine contract: every published row is
+ * confirmed / watching / wait — a directional read is never naked). Falls
+ * back to the legacy signal badge for payloads computed before the layer.
+ */
+function stateBadgeInfo(
+  row: { signalState?: "confirmed" | "watching" | "wait"; signal: TechSignalType | null; setup?: WatchingSetup | null },
+  ar: boolean
+): { label: string; cls: string; dot: string } | null {
+  const st = row.signalState
+  if (!st) return null
+  if (st === "confirmed" && (row.signal === "buy" || row.signal === "sell")) {
+    const c = SIGNAL_CLS[row.signal]
+    return {
+      label: ar ? (row.signal === "buy" ? "شراء مؤكد" : "بيع مؤكد") : row.signal === "buy" ? "Confirmed buy" : "Confirmed sell",
+      cls: c.badge,
+      dot: c.dot,
+    }
+  }
+  if (st === "watching" && row.setup) {
+    const buy = row.setup.direction === "buy"
+    return {
+      label: ar ? (buy ? "فرصة شراء تحت المراقبة" : "فرصة بيع تحت المراقبة") : buy ? "Buy setup — watching" : "Sell setup — watching",
+      cls: WATCHING_CLS.badge,
+      dot: WATCHING_CLS.dot,
+    }
+  }
+  // wait — only when no directional read is published (invariant: a buy/sell
+  // row always carries a plan or a setup)
+  if (st === "wait" && row.signal !== "buy" && row.signal !== "sell") {
+    return { label: ar ? "انتظار" : "Wait", cls: SIGNAL_CLS.hold.badge, dot: SIGNAL_CLS.hold.dot }
+  }
+  return null
+}
+
+/** Compact watched-setup strip for board cards: activation (close-based),
+ *  provisional levels (تقديري), recompute note and the pre-entry invalidation. */
+function WatchingSetupStrip({ setup, ar }: { setup: WatchingSetup; ar: boolean }) {
+  const fmt = (v: number): string => (Number.isFinite(v) ? v.toFixed(2) : "—")
+  const zone = (lo: number | null, hi: number | null): string => (lo === null || hi === null ? "—" : lo === hi ? lo.toFixed(2) : `${lo.toFixed(2)}–${hi.toFixed(2)}`)
+  const above = setup.activation.kind === "close_above"
+  return (
+    <div className="space-y-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-1">
+        <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+          {ar ? `شروط التفعيل — ${setup.direction === "buy" ? "فرصة شراء" : "فرصة بيع"}` : `Activation — ${setup.direction} setup`}
+        </p>
+        <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1 py-0.5 text-[9px] font-medium text-amber-600 dark:text-amber-400">
+          {ar ? "بالإغلاق اليومي فقط" : "daily close only"}
+        </span>
+      </div>
+      <p className="text-[11px] font-medium leading-relaxed text-foreground">
+        {ar ? "إغلاق يومي " : "Daily close "}
+        <span className="font-bold" dir="ltr">{above ? ">" : "<"} {fmt(setup.activation.level)}</span>
+        {ar
+          ? ` ${above ? "فوق" : "تحت"} المستوى + ${setup.activation.volumeConditionAr}`
+          : ` ${above ? "above" : "below"} the level + volume ≥ 1.5× the 20-session average`}
+      </p>
+      <p className="text-[10px] leading-relaxed text-muted-foreground">{ar ? `الأساس: ${setup.activation.basisAr}` : setup.activation.basisAr}</p>
+      <div className="flex flex-wrap gap-1.5">
+        <span className="rounded-md border border-blue-500/40 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
+          {ar ? "دخول تقديري: " : "Est. entry: "}
+          <span className="tabular" dir="ltr">{zone(setup.provisionalEntry?.low ?? null, setup.provisionalEntry?.high ?? null)}</span>
+        </span>
+        <span className="rounded-md border border-negative/40 bg-negative/10 px-1.5 py-0.5 text-[10px] font-semibold text-negative">
+          {ar ? "وقف تقديري: " : "Est. stop: "}
+          <span className="tabular" dir="ltr">{setup.provisionalStop ? fmt(setup.provisionalStop.level) : "—"}</span>
+        </span>
+        <span className="rounded-md border border-positive/40 bg-positive/10 px-1.5 py-0.5 text-[10px] font-semibold text-positive">
+          {ar ? "هدف تقديري: " : "Est. target: "}
+          <span className="tabular" dir="ltr">{zone(setup.provisionalTarget?.low ?? null, setup.provisionalTarget?.high ?? null)}</span>
+        </span>
+        {setup.provisionalRiskReward !== null ? (
+          <span className="rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+            {ar ? "م/ع تقديري " : "Est. R/R "}
+            <span className="tabular" dir="ltr">{setup.provisionalRiskReward.toFixed(2)}</span>
+          </span>
+        ) : null}
+      </div>
+      <p className="text-[10px] leading-relaxed text-amber-700 dark:text-amber-400/90">
+        {ar ? setup.recomputeNoteAr : "Provisional (estimates) — recomputed at activation; the setup confirms only if R/R is at least 1.5 then."}
+      </p>
+      <p className="text-[10px] leading-relaxed text-muted-foreground">
+        {ar
+          ? setup.preEntryInvalidation.conditionAr
+          : `Pre-entry invalidation: a daily close ${above ? "below" : "above"} ${fmt(setup.preEntryInvalidation.level)} cancels the setup.`}
+      </p>
+    </div>
+  )
 }
 
 export function SignalsView() {
@@ -309,6 +407,10 @@ export function SignalsView() {
           </Button>
         </div>
       </div>
+
+      {/* "فرص اليوم" strip — the ordered, capped, regime-gated digest
+          (server-built in board-gates.ts; locked cards for free callers). */}
+      <OpportunitiesStrip />
 
       {/* Stats bar */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -577,6 +679,40 @@ function StatCard({ label, value, tone, hint }: { label: string; value: number |
   )
 }
 
+/** Compact plan-lifecycle chip (derived on demand from the lifecycle API).
+ *  Free callers receive only { signalState, lifecycleState } — the chip needs
+ *  exactly that, so it renders for every tier without leaking paid detail. */
+const LIFECYCLE_CLS: Partial<Record<LifecycleState, string>> = {
+  watching: "border-border/60 bg-muted/40 text-muted-foreground",
+  confirmed: "border-positive/40 bg-positive/10 text-positive",
+  invalidated: "border-negative/40 bg-negative/10 text-negative",
+  expired: "border-border/60 bg-muted/40 text-muted-foreground",
+  active: "border-positive/40 bg-positive/10 text-positive",
+  stopped: "border-negative/40 bg-negative/10 text-negative",
+  targeted: "border-positive/40 bg-positive/10 text-positive",
+}
+
+function LifecycleChip({ companyId, ar, signalState }: { companyId: string; ar: boolean; signalState: "confirmed" | "watching" }) {
+  const { data } = useQuery({
+    queryKey: ["signal-lifecycle", companyId],
+    queryFn: () => api.signalLifecycle(companyId),
+    staleTime: 120_000,
+    retry: false,
+  })
+  const state = data?.lifecycleState
+  if (!state) return null
+  const basis = signalState === "confirmed" ? "confirmed" : "watching"
+  const cls = LIFECYCLE_CLS[state] ?? LIFECYCLE_CLS.watching
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center rounded-md border px-1.5 py-0.5 text-[9px] font-semibold ${cls}`}
+      title={ar ? "دورة حياة الفرصة/الخطة" : "Plan lifecycle"}
+    >
+      {lifecycleChipLabel(basis, state, ar, data?.lifecycle?.activation?.date ?? null, data?.lifecycle?.asOf ?? null)}
+    </span>
+  )
+}
+
 function SignalCard({ row, ar, fav, onFav }: { row: MarketSignalRow; ar: boolean; fav: boolean; onFav: () => void }) {
   const m = row.metrics
   const sig = row.signal
@@ -584,6 +720,7 @@ function SignalCard({ row, ar, fav, onFav }: { row: MarketSignalRow; ar: boolean
   const tp = row.tradePlan
   const tier = tierShort(row.marketTier)
   const planZone = (low: number, high: number): string => (low === high ? low.toFixed(2) : `${low.toFixed(2)}–${high.toFixed(2)}`)
+  const stateBadge = stateBadgeInfo(row, ar)
   return (
     <Card className={`group relative p-0 transition-shadow hover:shadow-md ${sigCls?.ring ?? "border-border/60"}`}>
       <CardContent className="space-y-2.5 px-4 py-3.5">
@@ -615,7 +752,15 @@ function SignalCard({ row, ar, fav, onFav }: { row: MarketSignalRow; ar: boolean
               {pctStr(row.changePct)}
             </span>
           </div>
-          {sig && sigCls ? (
+          {(row.signalState === "watching" || row.signalState === "confirmed") ? (
+            <LifecycleChip companyId={row.companyId} ar={ar} signalState={row.signalState} />
+          ) : null}
+          {stateBadge ? (
+            <Badge variant="outline" className={`shrink-0 gap-1.5 ${stateBadge.cls}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${stateBadge.dot}`} aria-hidden />
+              {stateBadge.label}
+            </Badge>
+          ) : sig && sigCls ? (
             <Badge variant="outline" className={`shrink-0 gap-1.5 ${sigCls.badge}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${sigCls.dot}`} aria-hidden />
               {ar ? SIGNAL_META[sig].ar : SIGNAL_META[sig].en}
@@ -646,8 +791,14 @@ function SignalCard({ row, ar, fav, onFav }: { row: MarketSignalRow; ar: boolean
           row.limitations[0] ? <p className="text-[11px] leading-relaxed text-muted-foreground">{row.limitations[0]}</p> : null
         )}
 
-        {/* Trade plan strip — deterministic entry / stop / target zones */}
-        {tp ? (
+        {/* Trade plan strip (confirmed rows) or the watched-setup strip
+            (watching rows) — a directional read is never published without
+            one of them (engine invariant, fix J). A watching state takes
+            precedence: a hysteresis-held plan at a vetoed structure would
+            otherwise read as tradable before the activation. */}
+        {row.signalState === "watching" && row.setup ? (
+          <WatchingSetupStrip setup={row.setup} ar={ar} />
+        ) : tp ? (
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="rounded-md border border-blue-500/40 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
               {ar ? "دخول: " : "Entry: "}
@@ -666,6 +817,8 @@ function SignalCard({ row, ar, fav, onFav }: { row: MarketSignalRow; ar: boolean
               <span className="tabular" dir="ltr">{tp.riskReward.toFixed(2)}</span>
             </span>
           </div>
+        ) : row.setup ? (
+          <WatchingSetupStrip setup={row.setup} ar={ar} />
         ) : sig !== null ? (
           <p className="text-[11px] leading-relaxed text-muted-foreground">
             {ar ? "مفيش منطقة دخول واضحة دلوقتي — استنى إشارة أوضح." : "No clear entry zone right now — wait for a cleaner read."}
