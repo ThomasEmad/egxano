@@ -261,6 +261,87 @@ export interface TechnicalBundle {
   candles: { t: string; o: number; h: number; l: number; c: number }[]
 }
 
+export interface RawPriceBarRow {
+  ts: Date | string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number | null
+}
+
+export interface RawScannerRow {
+  asOf: Date | string
+  price: number
+  volume: number | null
+}
+
+/** Pure merge of the three bar sources into one session series.
+ *
+ *  Precedence per session day: the freshest scanner row is authoritative for
+ *  its own session; Yahoo restores real OHLC for older days; stored PriceBar
+ *  rows fill what neither covers. Off-session (Fri/Sat) quotes are anchored
+ *  onto the Sun–Thu session they restate and only FILL GAPS — a close-only
+ *  flat bar must never flatten a real OHLC bar (2026-11-14 audit).
+ *
+ *  STORED BARS ARE SANITIZED BEFORE THE MERGE: a degenerate imported row
+ *  (0-valued OHLC from a partial import) must not occupy the day bucket —
+ *  otherwise the anchored-skip would preserve it and the post-merge
+ *  sanitizeBars would drop the session entirely (live incident: COMI lost
+ *  its Thursday session exactly this way while ETEL kept it via the quote).
+ */
+export function mergeSessionSeries(
+  priceBars: RawPriceBarRow[],
+  scannerRows: RawScannerRow[],
+  yahooBars: RawPriceBarRow[] | null,
+): { bars: Bar[]; sourceByDay: Map<string, "yahoo" | "scanner" | "pricebar">; syntheticCount: number } {
+  let syntheticCount = 0
+  const scannerByDay = new Map<string, Bar>()
+  const anchoredFromOffSession = new Set<string>()
+  for (const r of scannerRows) {
+    const rawDay = (r.asOf instanceof Date ? r.asOf.toISOString() : new Date(r.asOf).toISOString()).slice(0, 10)
+    const day = effectiveEgxSessionDate(r.asOf)
+    if (day !== rawDay) anchoredFromOffSession.add(day)
+    scannerByDay.set(day, {
+      ts: day,
+      open: r.price,
+      high: r.price,
+      low: r.price,
+      close: r.price,
+      volume: r.volume !== null && Number.isFinite(r.volume) && r.volume > 0 ? r.volume : null,
+    })
+    syntheticCount++
+  }
+
+  const byDay = new Map<string, Bar>()
+  const sourceByDay = new Map<string, "yahoo" | "scanner" | "pricebar">()
+  for (const b of sanitizeBars(priceBars)) {
+    byDay.set(b.ts, b)
+    sourceByDay.set(b.ts, "pricebar")
+  }
+  for (const [day, bar] of scannerByDay) {
+    if (anchoredFromOffSession.has(day) && byDay.has(day)) continue
+    byDay.set(day, bar)
+    sourceByDay.set(day, "scanner")
+  }
+
+  const newestDay = [...byDay.keys()].sort().pop() ?? null
+  if (yahooBars) {
+    for (const b of yahooBars) {
+      const day = (b.ts instanceof Date ? b.ts.toISOString() : new Date(b.ts).toISOString()).slice(0, 10)
+      if (day === newestDay) continue // the freshest scanner row stays authoritative
+      byDay.set(day, { ts: day, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume })
+      sourceByDay.set(day, "yahoo")
+      syntheticCount = Math.max(0, syntheticCount - 1)
+    }
+  }
+
+  const merged = [...byDay.values()]
+    .sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime())
+    .slice(-MAX_BARS)
+  return { bars: sanitizeBars(merged), sourceByDay, syntheticCount }
+}
+
 /** Build the technical snapshot from the FRESHEST available bars:
  *
  *   1. stored PriceBar rows (deep history, frozen fallback),
@@ -293,67 +374,14 @@ export async function buildTechnicalBundle(companyId: string, context: MarketCon
     orderBy: { asOf: "asc" },
     select: { asOf: true, price: true, volume: true },
   })
-  let syntheticCount = 0
-  const scannerByDay = new Map<string, Bar>()
-  // Days whose bar came from an off-session (Fri/Sat) quote anchored back onto
-  // the session it restates — those must only fill gaps, never flatten a real
-  // OHLC bar that already exists for the anchored session.
-  const anchoredFromOffSession = new Set<string>()
-  for (const r of priceRows) {
-    // EGX session anchoring (2026-11-14 audit): a quote pulled on Friday or
-    // Saturday restates the previous close — it must NOT become a new session.
-    // Without this anchor every weekend refresh manufactured a phantom
-    // O=H=L=C session that inflated the session count, zeroed the day change
-    // and shifted every indicator (live incident: COMI buy 71 → wait 50).
-    const rawDay = r.asOf.toISOString().slice(0, 10)
-    const day = effectiveEgxSessionDate(r.asOf)
-    if (day !== rawDay) anchoredFromOffSession.add(day)
-    scannerByDay.set(day, {
-      ts: day, // Bar.ts is an ISO date string (UTC midnight of the session)
-      open: r.price, high: r.price, low: r.price, close: r.price,
-      // Real session volume from the scanner pull (post-migration); null keeps
-      // the volume-aware assembly honest instead of inventing a value.
-      volume: r.volume !== null && Number.isFinite(r.volume) && r.volume > 0 ? r.volume : null,
-    })
-    syntheticCount++
-  }
 
-  const byDay = new Map<string, Bar>()
-  const sourceByDay = new Map<string, "yahoo" | "scanner" | "pricebar">()
-  for (const b of raw) {
-    const day = b.ts.toISOString().slice(0, 10)
-    byDay.set(day, b as unknown as Bar)
-    sourceByDay.set(day, "pricebar")
-  }
-  for (const [day, bar] of scannerByDay) {
-    // Off-session quotes were anchored onto a day that usually already has a
-    // real OHLC bar (the session they restate). A close-only flat bar must
-    // never flatten that bar's real range — only fill a genuine gap.
-    if (anchoredFromOffSession.has(day) && byDay.has(day)) continue
-    byDay.set(day, bar)
-    sourceByDay.set(day, "scanner")
-  }
-
-  // Yahoo (when reachable) restores real OHLC for older days — but never
-  // overrides the most recent day, whose scanner row is authoritative.
-  // NOTE on adjustment semantics: Yahoo's chart `close` for EGX is ALREADY
-  // split/bonus-adjusted while scanner/PriceBar rows are raw — tracked in
-  // sourceByDay so the corporate-action pass below can normalize first.
-  const newestDay = [...byDay.keys()].sort().pop() ?? null
   const { fetchRecentBarsForCompany } = await import("./live-bars")
   const live = await fetchRecentBarsForCompany(companyId)
-  if (live && live.length >= 30) {
-    for (const b of live) {
-      const day = b.ts.toISOString().slice(0, 10)
-      if (day === newestDay) continue // the freshest scanner row stays authoritative
-      byDay.set(day, { ts: day, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume })
-      sourceByDay.set(day, "yahoo")
-      syntheticCount = Math.max(0, syntheticCount - 1)
-    }
-  }
 
-  const merged = [...byDay.values()].sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime()).slice(-MAX_BARS)
-  const bars = sanitizeBars(merged)
+  const merged = mergeSessionSeries(raw, priceRows, live && live.length >= 30 ? live : null)
+  const bars = merged.bars
+  const sourceByDay = merged.sourceByDay
+  let syntheticCount = merged.syntheticCount
   if (bars.length > 0) {
     // Corporate-action continuity: a bonus/split/cash ex-date mechanically
     // moves the price — without the rebuild below the series shows a fake
