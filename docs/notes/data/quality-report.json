@@ -1,0 +1,551 @@
+{
+  "generatedAt": "2026-11-14T16:10:40.131353Z",
+  "marketprice_history": {
+    "COMI": {
+      "source": "/api/v1/market/history COMI (MarketPrice, range=5Y)",
+      "sessions": 16,
+      "first": "2025-11-01",
+      "last": "2026-11-14",
+      "weekday_distribution": {
+        "Sun": 2,
+        "Mon": 2,
+        "Tue": 1,
+        "Wed": 4,
+        "Thu": 2,
+        "Fri": 2,
+        "Sat": 3
+      },
+      "phantom_weekend_sessions": 5,
+      "phantom_weekend_dates": [
+        "2025-11-01",
+        "2026-05-01",
+        "2026-08-01",
+        "2026-11-13",
+        "2026-11-14"
+      ],
+      "duplicate_dates": [],
+      "sorted_ascending": true,
+      "min_price": 98.16280364990234,
+      "max_price": 141,
+      "gaps_beyond_20pct": [
+        {
+          "from": "2025-12-01",
+          "to": "2026-01-01",
+          "prev": 98.16280364990234,
+          "next": 127.7069549560547,
+          "pct": 30.1
+        }
+      ]
+    },
+    "ETEL": {
+      "source": "/api/v1/market/history ETEL (MarketPrice, range=5Y)",
+      "sessions": 16,
+      "first": "2025-11-01",
+      "last": "2026-11-14",
+      "weekday_distribution": {
+        "Sun": 2,
+        "Mon": 2,
+        "Tue": 1,
+        "Wed": 4,
+        "Thu": 2,
+        "Fri": 2,
+        "Sat": 3
+      },
+      "phantom_weekend_sessions": 5,
+      "phantom_weekend_dates": [
+        "2025-11-01",
+        "2026-05-01",
+        "2026-08-01",
+        "2026-11-13",
+        "2026-11-14"
+      ],
+      "duplicate_dates": [],
+      "sorted_ascending": true,
+      "min_price": 63.98065948486328,
+      "max_price": 138.0599975585938,
+      "gaps_beyond_20pct": [
+        {
+          "from": "2026-03-01",
+          "to": "2026-04-01",
+          "prev": 77.35753631591797,
+          "next": 93.5,
+          "pct": 20.87
+        }
+      ]
+    },
+    "ABUK": {
+      "source": "/api/v1/market/history ABUK (MarketPrice, range=5Y)",
+      "sessions": 16,
+      "first": "2025-11-01",
+      "last": "2026-11-14",
+      "weekday_distribution": {
+        "Sun": 2,
+        "Mon": 2,
+        "Tue": 1,
+        "Wed": 4,
+        "Thu": 2,
+        "Fri": 2,
+        "Sat": 3
+      },
+      "phantom_weekend_sessions": 5,
+      "phantom_weekend_dates": [
+        "2025-11-01",
+        "2026-05-01",
+        "2026-08-01",
+        "2026-11-13",
+        "2026-11-14"
+      ],
+      "duplicate_dates": [],
+      "sorted_ascending": true,
+      "min_price": 44.70505523681641,
+      "max_price": 92.87999725341797,
+      "gaps_beyond_20pct": [
+        {
+          "from": "2025-12-01",
+          "to": "2026-01-01",
+          "prev": 49.62903213500977,
+          "next": 62.43527221679688,
+          "pct": 25.8
+        },
+        {
+          "from": "2026-05-01",
+          "to": "2026-06-01",
+          "prev": 86,
+          "next": 67.5999984741211,
+          "pct": -21.4
+        }
+      ]
+    },
+    "TMGH": {
+      "source": "/api/v1/market/history TMGH (MarketPrice, range=5Y)",
+      "sessions": 16,
+      "first": "2025-11-01",
+      "last": "2026-11-14",
+      "weekday_distribution": {
+        "Sun": 2,
+        "Mon": 2,
+        "Tue": 1,
+        "Wed": 4,
+        "Thu": 2,
+        "Fri": 2,
+        "Sat": 3
+      },
+      "phantom_weekend_sessions": 5,
+      "phantom_weekend_dates": [
+        "2025-11-01",
+        "2026-05-01",
+        "2026-08-01",
+        "2026-11-13",
+        "2026-11-14"
+      ],
+      "duplicate_dates": [],
+      "sorted_ascending": true,
+      "min_price": 74.27220916748047,
+      "max_price": 97.30000305175781,
+      "gaps_beyond_20pct": [
+        {
+          "from": "2026-03-01",
+          "to": "2026-04-01",
+          "prev": 74.27220916748047,
+          "next": 93.80965423583984,
+          "pct": 26.31
+        }
+      ]
+    },
+    "HRHO": {
+      "source": "/api/v1/market/history HRHO (MarketPrice, range=5Y)",
+      "sessions": 16,
+      "first": "2025-11-01",
+      "last": "2026-11-14",
+      "weekday_distribution": {
+        "Sun": 2,
+        "Mon": 2,
+        "Tue": 1,
+        "Wed": 4,
+        "Thu": 2,
+        "Fri": 2,
+        "Sat": 3
+      },
+      "phantom_weekend_sessions": 5,
+      "phantom_weekend_dates": [
+        "2025-11-01",
+        "2026-05-01",
+        "2026-08-01",
+        "2026-11-13",
+        "2026-11-14"
+      ],
+      "duplicate_dates": [],
+      "sorted_ascending": true,
+      "min_price": 23.5,
+      "max_price": 28.48552703857422,
+      "gaps_beyond_20pct": []
+    },
+    "HDBK": {
+      "source": "/api/v1/market/history HDBK (MarketPrice, range=5Y)",
+      "sessions": 16,
+      "first": "2025-11-01",
+      "last": "2026-11-14",
+      "weekday_distribution": {
+        "Sun": 2,
+        "Mon": 2,
+        "Tue": 1,
+        "Wed": 4,
+        "Thu": 2,
+        "Fri": 2,
+        "Sat": 3
+      },
+      "phantom_weekend_sessions": 5,
+      "phantom_weekend_dates": [
+        "2025-11-01",
+        "2026-05-01",
+        "2026-08-01",
+        "2026-11-13",
+        "2026-11-14"
+      ],
+      "duplicate_dates": [],
+      "sorted_ascending": true,
+      "min_price": 79.4800033569336,
+      "max_price": 160.3697814941406,
+      "gaps_beyond_20pct": [
+        {
+          "from": "2026-02-01",
+          "to": "2026-03-01",
+          "prev": 110.5861053466797,
+          "next": 160.3697814941406,
+          "pct": 45.02
+        },
+        {
+          "from": "2026-05-01",
+          "to": "2026-06-01",
+          "prev": 143.75,
+          "next": 79.4800033569336,
+          "pct": -44.71
+        },
+        {
+          "from": "2026-07-01",
+          "to": "2026-08-01",
+          "prev": 83,
+          "next": 105.1800003051758,
+          "pct": 26.72
+        }
+      ]
+    },
+    "SWDY": {
+      "source": "/api/v1/market/history SWDY (MarketPrice, range=5Y)",
+      "sessions": 16,
+      "first": "2025-11-01",
+      "last": "2026-11-14",
+      "weekday_distribution": {
+        "Sun": 2,
+        "Mon": 2,
+        "Tue": 1,
+        "Wed": 4,
+        "Thu": 2,
+        "Fri": 2,
+        "Sat": 3
+      },
+      "phantom_weekend_sessions": 5,
+      "phantom_weekend_dates": [
+        "2025-11-01",
+        "2026-05-01",
+        "2026-08-01",
+        "2026-11-13",
+        "2026-11-14"
+      ],
+      "duplicate_dates": [],
+      "sorted_ascending": true,
+      "min_price": 74.46796417236328,
+      "max_price": 125.9499969482422,
+      "gaps_beyond_20pct": [
+        {
+          "from": "2026-07-01",
+          "to": "2026-08-01",
+          "prev": 93,
+          "next": 125.9499969482422,
+          "pct": 35.43
+        }
+      ]
+    },
+    "CANA": {
+      "source": "/api/v1/market/history CANA (MarketPrice, range=5Y)",
+      "sessions": 5,
+      "first": "2026-09-30",
+      "last": "2026-11-14",
+      "weekday_distribution": {
+        "Sun": 0,
+        "Mon": 0,
+        "Tue": 0,
+        "Wed": 2,
+        "Thu": 1,
+        "Fri": 1,
+        "Sat": 1
+      },
+      "phantom_weekend_sessions": 2,
+      "phantom_weekend_dates": [
+        "2026-11-13",
+        "2026-11-14"
+      ],
+      "duplicate_dates": [],
+      "sorted_ascending": true,
+      "min_price": 34.74,
+      "max_price": 45.95999908447266,
+      "gaps_beyond_20pct": [
+        {
+          "from": "2026-11-04",
+          "to": "2026-11-12",
+          "prev": 45.95999908447266,
+          "next": 34.74,
+          "pct": -24.41
+        }
+      ]
+    },
+    "MEPA": {
+      "source": "/api/v1/market/history MEPA (MarketPrice, range=5Y)",
+      "sessions": 16,
+      "first": "2025-11-01",
+      "last": "2026-11-14",
+      "weekday_distribution": {
+        "Sun": 2,
+        "Mon": 2,
+        "Tue": 1,
+        "Wed": 4,
+        "Thu": 2,
+        "Fri": 2,
+        "Sat": 3
+      },
+      "phantom_weekend_sessions": 5,
+      "phantom_weekend_dates": [
+        "2025-11-01",
+        "2026-05-01",
+        "2026-08-01",
+        "2026-11-13",
+        "2026-11-14"
+      ],
+      "duplicate_dates": [],
+      "sorted_ascending": true,
+      "min_price": 1.289999961853027,
+      "max_price": 1.899999976158142,
+      "gaps_beyond_20pct": [
+        {
+          "from": "2026-09-30",
+          "to": "2026-11-04",
+          "prev": 1.62,
+          "next": 1.289999961853027,
+          "pct": -20.37
+        }
+      ]
+    },
+    "ZEOT": {
+      "source": "/api/v1/market/history ZEOT (MarketPrice, range=5Y)",
+      "sessions": 16,
+      "first": "2025-11-01",
+      "last": "2026-11-14",
+      "weekday_distribution": {
+        "Sun": 2,
+        "Mon": 2,
+        "Tue": 1,
+        "Wed": 4,
+        "Thu": 2,
+        "Fri": 2,
+        "Sat": 3
+      },
+      "phantom_weekend_sessions": 5,
+      "phantom_weekend_dates": [
+        "2025-11-01",
+        "2026-05-01",
+        "2026-08-01",
+        "2026-11-13",
+        "2026-11-14"
+      ],
+      "duplicate_dates": [],
+      "sorted_ascending": true,
+      "min_price": 5.269999980926514,
+      "max_price": 13.76000022888184,
+      "gaps_beyond_20pct": [
+        {
+          "from": "2025-11-01",
+          "to": "2025-12-01",
+          "prev": 5.269999980926514,
+          "next": 8.630000114440918,
+          "pct": 63.76
+        },
+        {
+          "from": "2026-05-01",
+          "to": "2026-06-01",
+          "prev": 8.600000381469727,
+          "next": 10.89999961853027,
+          "pct": 26.74
+        }
+      ]
+    }
+  },
+  "technical_candles": {
+    "COMI": {
+      "source": "/api/v1/companies/COMI/technical (adjusted OHLC candles)",
+      "sessions": 172,
+      "first": "2025-11-12",
+      "last": "2026-11-12",
+      "weekday_distribution": {
+        "Sun": 28,
+        "Mon": 44,
+        "Tue": 30,
+        "Wed": 38,
+        "Thu": 32,
+        "Fri": 0,
+        "Sat": 0
+      },
+      "phantom_weekend_sessions": 0,
+      "phantom_weekend_dates": [],
+      "duplicate_dates": [],
+      "sorted_ascending": true,
+      "min_price": 95.7993,
+      "max_price": 143,
+      "gaps_beyond_20pct": [],
+      "ohlc_violations_high_lt_low": [],
+      "ohlc_violations_close_outside": [],
+      "ohlc_violations_open_outside": [
+        "2025-11-23",
+        "2025-12-08",
+        "2025-12-28",
+        "2026-07-06",
+        "2026-11-05"
+      ],
+      "nonpositive_prices": [],
+      "overnight_gaps_2x_signature": [],
+      "has_volume_field": false
+    },
+    "ETEL": {
+      "source": "/api/v1/companies/ETEL/technical (adjusted OHLC candles)",
+      "sessions": 186,
+      "first": "2025-11-17",
+      "last": "2026-11-12",
+      "weekday_distribution": {
+        "Sun": 33,
+        "Mon": 41,
+        "Tue": 36,
+        "Wed": 40,
+        "Thu": 36,
+        "Fri": 0,
+        "Sat": 0
+      },
+      "phantom_weekend_sessions": 0,
+      "phantom_weekend_dates": [],
+      "duplicate_dates": [],
+      "sorted_ascending": true,
+      "min_price": 59.0591,
+      "max_price": 151,
+      "gaps_beyond_20pct": [],
+      "ohlc_violations_high_lt_low": [],
+      "ohlc_violations_close_outside": [],
+      "ohlc_violations_open_outside": [
+        "2026-08-24",
+        "2026-09-21",
+        "2026-09-23",
+        "2026-10-01",
+        "2026-10-06"
+      ],
+      "nonpositive_prices": [],
+      "overnight_gaps_2x_signature": [],
+      "has_volume_field": false
+    },
+    "TMGH": {
+      "source": "/api/v1/companies/TMGH/technical (adjusted OHLC candles)",
+      "sessions": 182,
+      "first": "2025-11-13",
+      "last": "2026-11-12",
+      "weekday_distribution": {
+        "Sun": 33,
+        "Mon": 39,
+        "Tue": 36,
+        "Wed": 39,
+        "Thu": 35,
+        "Fri": 0,
+        "Sat": 0
+      },
+      "phantom_weekend_sessions": 0,
+      "phantom_weekend_dates": [],
+      "duplicate_dates": [],
+      "sorted_ascending": true,
+      "min_price": 70.7734,
+      "max_price": 101.87,
+      "gaps_beyond_20pct": [],
+      "ohlc_violations_high_lt_low": [],
+      "ohlc_violations_close_outside": [],
+      "ohlc_violations_open_outside": [],
+      "nonpositive_prices": [],
+      "overnight_gaps_2x_signature": [],
+      "has_volume_field": false
+    },
+    "ABUK": {
+      "source": "/api/v1/companies/ABUK/technical (adjusted OHLC candles)",
+      "sessions": 183,
+      "first": "2025-11-12",
+      "last": "2026-11-12",
+      "weekday_distribution": {
+        "Sun": 28,
+        "Mon": 41,
+        "Tue": 41,
+        "Wed": 42,
+        "Thu": 31,
+        "Fri": 0,
+        "Sat": 0
+      },
+      "phantom_weekend_sessions": 0,
+      "phantom_weekend_dates": [],
+      "duplicate_dates": [],
+      "sorted_ascending": true,
+      "min_price": 44.1504,
+      "max_price": 95.75,
+      "gaps_beyond_20pct": [],
+      "ohlc_violations_high_lt_low": [],
+      "ohlc_violations_close_outside": [],
+      "ohlc_violations_open_outside": [],
+      "nonpositive_prices": [],
+      "overnight_gaps_2x_signature": [],
+      "has_volume_field": false
+    },
+    "EFID": {
+      "source": "/api/v1/companies/EFID/technical (adjusted OHLC candles)",
+      "sessions": 190,
+      "first": "2025-11-13",
+      "last": "2026-11-12",
+      "weekday_distribution": {
+        "Sun": 35,
+        "Mon": 42,
+        "Tue": 36,
+        "Wed": 42,
+        "Thu": 35,
+        "Fri": 0,
+        "Sat": 0
+      },
+      "phantom_weekend_sessions": 0,
+      "phantom_weekend_dates": [],
+      "duplicate_dates": [],
+      "sorted_ascending": true,
+      "min_price": 12.6356,
+      "max_price": 21.8,
+      "gaps_beyond_20pct": [
+        {
+          "from": "2026-09-17",
+          "to": "2026-09-21",
+          "prev": 20.8,
+          "next": 13.56,
+          "pct": -34.81
+        },
+        {
+          "from": "2026-09-28",
+          "to": "2026-09-29",
+          "prev": 12.6356,
+          "next": 18.75,
+          "pct": 48.39
+        }
+      ],
+      "ohlc_violations_high_lt_low": [],
+      "ohlc_violations_close_outside": [],
+      "ohlc_violations_open_outside": [],
+      "nonpositive_prices": [],
+      "overnight_gaps_2x_signature": [],
+      "has_volume_field": false
+    }
+  }
+}

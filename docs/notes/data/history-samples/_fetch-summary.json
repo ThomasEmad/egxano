@@ -1,0 +1,92 @@
+[
+  {
+    "ticker": "COMI",
+    "httpStatus": 200,
+    "points": 16,
+    "first": "2025-11-01T00:00:00.000Z",
+    "last": "2026-11-14T14:47:00.000Z",
+    "note": null,
+    "error": null
+  },
+  {
+    "ticker": "ETEL",
+    "httpStatus": 200,
+    "points": 16,
+    "first": "2025-11-01T00:00:00.000Z",
+    "last": "2026-11-14T14:47:00.000Z",
+    "note": null,
+    "error": null
+  },
+  {
+    "ticker": "ABUK",
+    "httpStatus": 200,
+    "points": 16,
+    "first": "2025-11-01T00:00:00.000Z",
+    "last": "2026-11-14T14:47:00.000Z",
+    "note": null,
+    "error": null
+  },
+  {
+    "ticker": "TMGH",
+    "httpStatus": 200,
+    "points": 16,
+    "first": "2025-11-01T00:00:00.000Z",
+    "last": "2026-11-14T14:47:00.000Z",
+    "note": null,
+    "error": null
+  },
+  {
+    "ticker": "HRHO",
+    "httpStatus": 200,
+    "points": 16,
+    "first": "2025-11-01T00:00:00.000Z",
+    "last": "2026-11-14T14:47:00.000Z",
+    "note": null,
+    "error": null
+  },
+  {
+    "ticker": "HDBK",
+    "httpStatus": 200,
+    "points": 16,
+    "first": "2025-11-01T00:00:00.000Z",
+    "last": "2026-11-14T14:47:00.000Z",
+    "note": null,
+    "error": null
+  },
+  {
+    "ticker": "SWDY",
+    "httpStatus": 200,
+    "points": 16,
+    "first": "2025-11-01T00:00:00.000Z",
+    "last": "2026-11-14T14:47:00.000Z",
+    "note": null,
+    "error": null
+  },
+  {
+    "ticker": "CANA",
+    "httpStatus": 200,
+    "points": 5,
+    "first": "2026-09-30T11:28:39.000Z",
+    "last": "2026-11-14T14:47:00.000Z",
+    "note": null,
+    "error": null
+  },
+  {
+    "ticker": "MEPA",
+    "httpStatus": 200,
+    "points": 16,
+    "first": "2025-11-01T00:00:00.000Z",
+    "last": "2026-11-14T14:47:00.000Z",
+    "note": null,
+    "error": null
+  },
+  {
+    "ticker": "ZEOT",
+    "httpStatus": 200,
+    "points": 16,
+    "first": "2025-11-01T00:00:00.000Z",
+    "last": "2026-11-14T14:47:00.000Z",
+    "note": null,
+    "error": null
+  }
+]

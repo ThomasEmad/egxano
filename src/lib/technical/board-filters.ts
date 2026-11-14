@@ -57,9 +57,11 @@ const SIGNAL_VALUES: BoardSignalFilter[] = ["all", "buy", "hold", "sell"]
 const RSI_VALUES: BoardRsiFilter[] = ["all", "oversold", "neutral", "overbought"]
 const LIQ_VALUES: BoardLiquidityFilter[] = ["all", "high", "normal"]
 const MOVE_VALUES: BoardDayMoveFilter[] = ["all", "up", "down"]
-// EGX70 is not offered as a tier filter (the term is removed from the site —
-// the constituent list is incomplete); a stale ?tier=EGX70 falls back to "all".
-const TIER_VALUES: BoardTierFilter[] = ["all", "EGX30", "MAIN", "OTC"]
+// Tier filter options: EGX30/EGX70 are INDEX-MEMBERSHIP filters and must stay
+// offered; OTC ("خارج المقصورة") is a listing classification whose filter
+// option is deliberately retired (product decision). A stale ?tier=OTC
+// deep-link falls back to "all" — the underlying data/model is untouched.
+const TIER_VALUES: BoardTierFilter[] = ["all", "EGX30", "EGX70", "MAIN"]
 const MA_VALUES: BoardMaFilter[] = ["all", "aboveEma50", "belowEma50"]
 const RANGE_VALUES: BoardRangePosFilter[] = ["all", "top", "middle", "bottom"]
 const SCORE_VALUES: BoardScoreFilter[] = ["all", "s70", "s60"]

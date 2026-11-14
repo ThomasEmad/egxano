@@ -62,8 +62,6 @@ describe("parseBoardFilterParams", () => {
   })
 
   it("accepts known values and rejects unknown ones (no injection surface)", () => {
-    // EGX70 is retired as a filter value (constituent list incomplete — a
-    // stale ?tier=EGX70 falls back to "all"), so EGX30 is the accepted tier here.
     const p = parseBoardFilterParams(new URLSearchParams("signal=buy&tier=EGX30&sort=change"))
     expect(p.signal).toBe("buy")
     expect(p.tier).toBe("EGX30")
@@ -72,12 +70,28 @@ describe("parseBoardFilterParams", () => {
     expect(bad.signal).toBe("all")
     expect(bad.tier).toBe("all")
     expect(bad.sort).toBe("score")
-    // Stale EGX70 deep-links degrade to the unfiltered board, not an error.
-    const stale = parseBoardFilterParams(new URLSearchParams("tier=EGX70"))
-    expect(stale.tier).toBe("all")
-    expect(hasActiveFilters(stale)).toBe(false)
+    expect(hasActiveFilters(parseBoardFilterParams(new URLSearchParams("tier=EGX70")))).toBe(true)
     expect(hasActiveFilters(p)).toBe(true)
     expect(hasActiveFilters(bad)).toBe(false)
+  })
+
+  // REGRESSION GUARD — listing-classification vs index-membership filters are
+  // different concepts. Retiring the OTC ("خارج المقصورة") filter option must
+  // never silently remove the exchange-index filters (EGX30/EGX70).
+  it("retiring a listing-classification filter cannot remove index filters", () => {
+    // EGX30 + EGX70 (index membership) remain valid, first-class options.
+    expect(parseBoardFilterParams(new URLSearchParams("tier=EGX30")).tier).toBe("EGX30")
+    expect(parseBoardFilterParams(new URLSearchParams("tier=EGX70")).tier).toBe("EGX70")
+    // OTC (listing classification) is retired as an option: stale deep-links
+    // degrade to the unfiltered board instead of an error.
+    const staleOtc = parseBoardFilterParams(new URLSearchParams("tier=OTC"))
+    expect(staleOtc.tier).toBe("all")
+    expect(hasActiveFilters(staleOtc)).toBe(false)
+  })
+
+  it("filters by the restored EGX70 index membership", () => {
+    const out = filterMarketRows(rows, { ...BOARD_FILTER_DEFAULTS, tier: "EGX70" })
+    expect(out.map((r) => r.ticker)).toEqual(["ABUK"])
   })
 
   it("bounds free-text params (q/sector)", () => {

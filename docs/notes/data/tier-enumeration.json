@@ -1,0 +1,3214 @@
+{
+  "fetchedAt": "2026-11-14T16:08:26.260Z",
+  "method": "sector × signal slice enumeration; row.marketTier read per row",
+  "productionFilterFacts": {
+    "tierSectorCompose": true,
+    "tierEgx70FilterRetired": "?tier=EGX70 falls back to all (deployed build)",
+    "tierOtcAccepted": "matched 0 rows on 2026-11-14 (no priced OTC rows)",
+    "sectorsFacetTruncated": "deployed facet lists 8 sectors; snapshot has more"
+  },
+  "slices": [
+    {
+      "sector": "Banks",
+      "signal": null,
+      "matched": {
+        "buy": 4,
+        "hold": 9,
+        "sell": 0,
+        "weak": 1,
+        "total": 14
+      },
+      "rowsReturned": 14
+    },
+    {
+      "sector": "Basic Materials",
+      "signal": null,
+      "matched": {
+        "buy": 4,
+        "hold": 11,
+        "sell": 2,
+        "weak": 0,
+        "total": 17
+      },
+      "rowsReturned": 17
+    },
+    {
+      "sector": "Building Materials",
+      "signal": null,
+      "matched": {
+        "buy": 4,
+        "hold": 6,
+        "sell": 2,
+        "weak": 0,
+        "total": 12
+      },
+      "rowsReturned": 12
+    },
+    {
+      "sector": "Construction",
+      "signal": null,
+      "matched": {
+        "buy": 2,
+        "hold": 10,
+        "sell": 1,
+        "weak": 0,
+        "total": 13
+      },
+      "rowsReturned": 13
+    },
+    {
+      "sector": "Consumer",
+      "signal": null,
+      "matched": {
+        "buy": 1,
+        "hold": 0,
+        "sell": 0,
+        "weak": 0,
+        "total": 1
+      },
+      "rowsReturned": 1
+    },
+    {
+      "sector": "Education",
+      "signal": null,
+      "matched": {
+        "buy": 2,
+        "hold": 3,
+        "sell": 0,
+        "weak": 0,
+        "total": 5
+      },
+      "rowsReturned": 5
+    },
+    {
+      "sector": "Energy",
+      "signal": null,
+      "matched": {
+        "buy": 1,
+        "hold": 2,
+        "sell": 1,
+        "weak": 0,
+        "total": 4
+      },
+      "rowsReturned": 4
+    },
+    {
+      "sector": "Financial Services",
+      "signal": null,
+      "matched": {
+        "buy": 7,
+        "hold": 23,
+        "sell": 5,
+        "weak": 0,
+        "total": 35
+      },
+      "rowsReturned": 24
+    },
+    {
+      "sector": "Financial Services",
+      "signal": "buy",
+      "matched": {
+        "buy": 7,
+        "hold": 0,
+        "sell": 0,
+        "weak": 0,
+        "total": 7
+      },
+      "rowsReturned": 7
+    },
+    {
+      "sector": "Financial Services",
+      "signal": "hold",
+      "matched": {
+        "buy": 0,
+        "hold": 23,
+        "sell": 0,
+        "weak": 0,
+        "total": 23
+      },
+      "rowsReturned": 23
+    },
+    {
+      "sector": "Financial Services",
+      "signal": "sell",
+      "matched": {
+        "buy": 0,
+        "hold": 0,
+        "sell": 5,
+        "weak": 0,
+        "total": 5
+      },
+      "rowsReturned": 5
+    },
+    {
+      "sector": "Food",
+      "signal": null,
+      "matched": {
+        "buy": 8,
+        "hold": 19,
+        "sell": 5,
+        "weak": 0,
+        "total": 32
+      },
+      "rowsReturned": 25
+    },
+    {
+      "sector": "Food",
+      "signal": "buy",
+      "matched": {
+        "buy": 8,
+        "hold": 0,
+        "sell": 0,
+        "weak": 0,
+        "total": 8
+      },
+      "rowsReturned": 8
+    },
+    {
+      "sector": "Food",
+      "signal": "hold",
+      "matched": {
+        "buy": 0,
+        "hold": 19,
+        "sell": 0,
+        "weak": 0,
+        "total": 19
+      },
+      "rowsReturned": 19
+    },
+    {
+      "sector": "Food",
+      "signal": "sell",
+      "matched": {
+        "buy": 0,
+        "hold": 0,
+        "sell": 5,
+        "weak": 0,
+        "total": 5
+      },
+      "rowsReturned": 5
+    },
+    {
+      "sector": "Healthcare",
+      "signal": null,
+      "matched": {
+        "buy": 7,
+        "hold": 12,
+        "sell": 0,
+        "weak": 0,
+        "total": 19
+      },
+      "rowsReturned": 19
+    },
+    {
+      "sector": "Industrial",
+      "signal": null,
+      "matched": {
+        "buy": 1,
+        "hold": 9,
+        "sell": 1,
+        "weak": 0,
+        "total": 11
+      },
+      "rowsReturned": 11
+    },
+    {
+      "sector": "Paper",
+      "signal": null,
+      "matched": {
+        "buy": 0,
+        "hold": 3,
+        "sell": 1,
+        "weak": 0,
+        "total": 4
+      },
+      "rowsReturned": 4
+    },
+    {
+      "sector": "Real Estate",
+      "signal": null,
+      "matched": {
+        "buy": 7,
+        "hold": 26,
+        "sell": 3,
+        "weak": 0,
+        "total": 36
+      },
+      "rowsReturned": 25
+    },
+    {
+      "sector": "Real Estate",
+      "signal": "buy",
+      "matched": {
+        "buy": 7,
+        "hold": 0,
+        "sell": 0,
+        "weak": 0,
+        "total": 7
+      },
+      "rowsReturned": 7
+    },
+    {
+      "sector": "Real Estate",
+      "signal": "hold",
+      "matched": {
+        "buy": 0,
+        "hold": 26,
+        "sell": 0,
+        "weak": 0,
+        "total": 26
+      },
+      "rowsReturned": 25
+    },
+    {
+      "sector": "Real Estate",
+      "signal": "sell",
+      "matched": {
+        "buy": 0,
+        "hold": 0,
+        "sell": 3,
+        "weak": 0,
+        "total": 3
+      },
+      "rowsReturned": 3
+    },
+    {
+      "sector": "Telecom",
+      "signal": null,
+      "matched": {
+        "buy": 1,
+        "hold": 7,
+        "sell": 2,
+        "weak": 0,
+        "total": 10
+      },
+      "rowsReturned": 10
+    },
+    {
+      "sector": "Textiles",
+      "signal": null,
+      "matched": {
+        "buy": 3,
+        "hold": 6,
+        "sell": 1,
+        "weak": 0,
+        "total": 10
+      },
+      "rowsReturned": 10
+    },
+    {
+      "sector": "Trade",
+      "signal": null,
+      "matched": {
+        "buy": 1,
+        "hold": 5,
+        "sell": 0,
+        "weak": 0,
+        "total": 6
+      },
+      "rowsReturned": 6
+    },
+    {
+      "sector": "Transport",
+      "signal": null,
+      "matched": {
+        "buy": 2,
+        "hold": 1,
+        "sell": 0,
+        "weak": 0,
+        "total": 3
+      },
+      "rowsReturned": 3
+    },
+    {
+      "sector": "Travel & Leisure",
+      "signal": null,
+      "matched": {
+        "buy": 2,
+        "hold": 7,
+        "sell": 2,
+        "weak": 1,
+        "total": 12
+      },
+      "rowsReturned": 12
+    },
+    {
+      "sector": null,
+      "tier": "EGX30",
+      "matched": {
+        "buy": 7,
+        "hold": 19,
+        "sell": 4,
+        "weak": 0,
+        "total": 30
+      },
+      "rowsReturned": 29
+    },
+    {
+      "sector": null,
+      "tier": "MAIN",
+      "matched": {
+        "buy": 33,
+        "hold": 91,
+        "sell": 19,
+        "weak": 2,
+        "total": 145
+      },
+      "rowsReturned": 24
+    },
+    {
+      "sector": null,
+      "tier": "OTC",
+      "matched": {
+        "buy": 0,
+        "hold": 0,
+        "sell": 0,
+        "weak": 0,
+        "total": 0
+      },
+      "rowsReturned": 0
+    }
+  ],
+  "byTicker": {
+    "COMI": {
+      "ticker": "COMI",
+      "marketTier": "EGX30",
+      "sector": "Banks",
+      "locked": false,
+      "signal": "hold",
+      "asOf": "2026-11-12",
+      "slices": [
+        "Banks",
+        null
+      ]
+    },
+    "ADIB": {
+      "ticker": "ADIB",
+      "marketTier": "EGX30",
+      "sector": "Banks",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Banks",
+        null
+      ]
+    },
+    "FAIT": {
+      "ticker": "FAIT",
+      "marketTier": "MAIN",
+      "sector": "Banks",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Banks",
+        null
+      ]
+    },
+    "SAUD": {
+      "ticker": "SAUD",
+      "marketTier": "MAIN",
+      "sector": "Banks",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Banks",
+        null
+      ]
+    },
+    "EXPA": {
+      "ticker": "EXPA",
+      "marketTier": "EGX70",
+      "sector": "Banks",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Banks"
+      ]
+    },
+    "QNBE": {
+      "ticker": "QNBE",
+      "marketTier": "MAIN",
+      "sector": "Banks",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Banks"
+      ]
+    },
+    "UBEE": {
+      "ticker": "UBEE",
+      "marketTier": "MAIN",
+      "sector": "Banks",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Banks"
+      ]
+    },
+    "CIEB": {
+      "ticker": "CIEB",
+      "marketTier": "EGX70",
+      "sector": "Banks",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Banks"
+      ]
+    },
+    "SAIB": {
+      "ticker": "SAIB",
+      "marketTier": "MAIN",
+      "sector": "Banks",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Banks"
+      ]
+    },
+    "HDBK": {
+      "ticker": "HDBK",
+      "marketTier": "EGX70",
+      "sector": "Banks",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Banks"
+      ]
+    },
+    "NBKE": {
+      "ticker": "NBKE",
+      "marketTier": "MAIN",
+      "sector": "Banks",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Banks"
+      ]
+    },
+    "CANA": {
+      "ticker": "CANA",
+      "marketTier": "MAIN",
+      "sector": "Banks",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Banks"
+      ]
+    },
+    "EGBE": {
+      "ticker": "EGBE",
+      "marketTier": "MAIN",
+      "sector": "Banks",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Banks"
+      ]
+    },
+    "BQDC": {
+      "ticker": "BQDC",
+      "marketTier": "MAIN",
+      "sector": "Banks",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Banks"
+      ]
+    },
+    "ABUK": {
+      "ticker": "ABUK",
+      "marketTier": "EGX30",
+      "sector": "Basic Materials",
+      "locked": false,
+      "signal": "sell",
+      "asOf": "2026-11-12",
+      "slices": [
+        "Basic Materials",
+        null
+      ]
+    },
+    "KZPC": {
+      "ticker": "KZPC",
+      "marketTier": "MAIN",
+      "sector": "Basic Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Basic Materials",
+        null
+      ]
+    },
+    "EGAL": {
+      "ticker": "EGAL",
+      "marketTier": "EGX30",
+      "sector": "Basic Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Basic Materials",
+        null
+      ]
+    },
+    "EFIC": {
+      "ticker": "EFIC",
+      "marketTier": "MAIN",
+      "sector": "Basic Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Basic Materials"
+      ]
+    },
+    "MICH": {
+      "ticker": "MICH",
+      "marketTier": "MAIN",
+      "sector": "Basic Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Basic Materials"
+      ]
+    },
+    "BIDI": {
+      "ticker": "BIDI",
+      "marketTier": "MAIN",
+      "sector": "Basic Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Basic Materials"
+      ]
+    },
+    "FERC": {
+      "ticker": "FERC",
+      "marketTier": "MAIN",
+      "sector": "Basic Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Basic Materials"
+      ]
+    },
+    "ASCM": {
+      "ticker": "ASCM",
+      "marketTier": "EGX70",
+      "sector": "Basic Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Basic Materials"
+      ]
+    },
+    "ICFC": {
+      "ticker": "ICFC",
+      "marketTier": "EGX70",
+      "sector": "Basic Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Basic Materials"
+      ]
+    },
+    "IRON": {
+      "ticker": "IRON",
+      "marketTier": "MAIN",
+      "sector": "Basic Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Basic Materials"
+      ]
+    },
+    "ISMQ": {
+      "ticker": "ISMQ",
+      "marketTier": "EGX70",
+      "sector": "Basic Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Basic Materials"
+      ]
+    },
+    "ALUM": {
+      "ticker": "ALUM",
+      "marketTier": "MAIN",
+      "sector": "Basic Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Basic Materials"
+      ]
+    },
+    "ATQA": {
+      "ticker": "ATQA",
+      "marketTier": "EGX70",
+      "sector": "Basic Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Basic Materials"
+      ]
+    },
+    "EGCH": {
+      "ticker": "EGCH",
+      "marketTier": "EGX70",
+      "sector": "Basic Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Basic Materials"
+      ]
+    },
+    "SKPC": {
+      "ticker": "SKPC",
+      "marketTier": "EGX30",
+      "sector": "Basic Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Basic Materials",
+        null
+      ]
+    },
+    "PACH": {
+      "ticker": "PACH",
+      "marketTier": "MAIN",
+      "sector": "Basic Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Basic Materials"
+      ]
+    },
+    "MFPC": {
+      "ticker": "MFPC",
+      "marketTier": "EGX30",
+      "sector": "Basic Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Basic Materials"
+      ]
+    },
+    "ARCC": {
+      "ticker": "ARCC",
+      "marketTier": "EGX70",
+      "sector": "Building Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Building Materials"
+      ]
+    },
+    "ECAP": {
+      "ticker": "ECAP",
+      "marketTier": "MAIN",
+      "sector": "Building Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Building Materials",
+        null
+      ]
+    },
+    "RUBX": {
+      "ticker": "RUBX",
+      "marketTier": "MAIN",
+      "sector": "Building Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Building Materials",
+        null
+      ]
+    },
+    "SCEM": {
+      "ticker": "SCEM",
+      "marketTier": "EGX70",
+      "sector": "Building Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Building Materials"
+      ]
+    },
+    "MBSC": {
+      "ticker": "MBSC",
+      "marketTier": "EGX70",
+      "sector": "Building Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Building Materials"
+      ]
+    },
+    "LCSW": {
+      "ticker": "LCSW",
+      "marketTier": "EGX70",
+      "sector": "Building Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Building Materials"
+      ]
+    },
+    "SVCE": {
+      "ticker": "SVCE",
+      "marketTier": "EGX70",
+      "sector": "Building Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Building Materials"
+      ]
+    },
+    "MCQE": {
+      "ticker": "MCQE",
+      "marketTier": "EGX30",
+      "sector": "Building Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Building Materials",
+        null
+      ]
+    },
+    "ALEX": {
+      "ticker": "ALEX",
+      "marketTier": "MAIN",
+      "sector": "Building Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Building Materials"
+      ]
+    },
+    "CERA": {
+      "ticker": "CERA",
+      "marketTier": "MAIN",
+      "sector": "Building Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Building Materials"
+      ]
+    },
+    "PRCL": {
+      "ticker": "PRCL",
+      "marketTier": "EGX70",
+      "sector": "Building Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Building Materials"
+      ]
+    },
+    "MISR": {
+      "ticker": "MISR",
+      "marketTier": "MAIN",
+      "sector": "Building Materials",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Building Materials"
+      ]
+    },
+    "NCCW": {
+      "ticker": "NCCW",
+      "marketTier": "EGX70",
+      "sector": "Construction",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Construction"
+      ]
+    },
+    "GPIM": {
+      "ticker": "GPIM",
+      "marketTier": "EGX70",
+      "sector": "Construction",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Construction"
+      ]
+    },
+    "KORA": {
+      "ticker": "KORA",
+      "marketTier": "MAIN",
+      "sector": "Construction",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Construction"
+      ]
+    },
+    "CRST": {
+      "ticker": "CRST",
+      "marketTier": "MAIN",
+      "sector": "Construction",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Construction"
+      ]
+    },
+    "AALR": {
+      "ticker": "AALR",
+      "marketTier": "MAIN",
+      "sector": "Construction",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Construction"
+      ]
+    },
+    "ENGC": {
+      "ticker": "ENGC",
+      "marketTier": "EGX70",
+      "sector": "Construction",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Construction"
+      ]
+    },
+    "IEEC": {
+      "ticker": "IEEC",
+      "marketTier": "EGX70",
+      "sector": "Construction",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Construction"
+      ]
+    },
+    "WKOL": {
+      "ticker": "WKOL",
+      "marketTier": "MAIN",
+      "sector": "Construction",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Construction"
+      ]
+    },
+    "FNAR": {
+      "ticker": "FNAR",
+      "marketTier": "MAIN",
+      "sector": "Construction",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Construction"
+      ]
+    },
+    "EALR": {
+      "ticker": "EALR",
+      "marketTier": "MAIN",
+      "sector": "Construction",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Construction"
+      ]
+    },
+    "ORAS": {
+      "ticker": "ORAS",
+      "marketTier": "EGX30",
+      "sector": "Construction",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Construction",
+        null
+      ]
+    },
+    "COPR": {
+      "ticker": "COPR",
+      "marketTier": "MAIN",
+      "sector": "Construction",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Construction"
+      ]
+    },
+    "GGCC": {
+      "ticker": "GGCC",
+      "marketTier": "MAIN",
+      "sector": "Construction",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Construction"
+      ]
+    },
+    "GOUR": {
+      "ticker": "GOUR",
+      "marketTier": "EGX70",
+      "sector": "Consumer",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Consumer"
+      ]
+    },
+    "TALM": {
+      "ticker": "TALM",
+      "marketTier": "MAIN",
+      "sector": "Education",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Education",
+        null
+      ]
+    },
+    "CIRA": {
+      "ticker": "CIRA",
+      "marketTier": "MAIN",
+      "sector": "Education",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Education",
+        null
+      ]
+    },
+    "CAED": {
+      "ticker": "CAED",
+      "marketTier": "MAIN",
+      "sector": "Education",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Education"
+      ]
+    },
+    "MOED": {
+      "ticker": "MOED",
+      "marketTier": "EGX70",
+      "sector": "Education",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Education"
+      ]
+    },
+    "SCTS": {
+      "ticker": "SCTS",
+      "marketTier": "MAIN",
+      "sector": "Education",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Education"
+      ]
+    },
+    "EGAS": {
+      "ticker": "EGAS",
+      "marketTier": "MAIN",
+      "sector": "Energy",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Energy",
+        null
+      ]
+    },
+    "AMOC": {
+      "ticker": "AMOC",
+      "marketTier": "EGX30",
+      "sector": "Energy",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Energy",
+        null
+      ]
+    },
+    "TAQA": {
+      "ticker": "TAQA",
+      "marketTier": "EGX70",
+      "sector": "Energy",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Energy"
+      ]
+    },
+    "NDRL": {
+      "ticker": "NDRL",
+      "marketTier": "MAIN",
+      "sector": "Energy",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Energy"
+      ]
+    },
+    "NAHO": {
+      "ticker": "NAHO",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services",
+        null
+      ]
+    },
+    "EOSB": {
+      "ticker": "EOSB",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services",
+        null
+      ]
+    },
+    "CNFN": {
+      "ticker": "CNFN",
+      "marketTier": "EGX70",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services"
+      ]
+    },
+    "CPME": {
+      "ticker": "CPME",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services",
+        null
+      ]
+    },
+    "EGREF": {
+      "ticker": "EGREF",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services",
+        null
+      ]
+    },
+    "HRHO": {
+      "ticker": "HRHO",
+      "marketTier": "EGX30",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services",
+        null
+      ]
+    },
+    "SEIG": {
+      "ticker": "SEIG",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services"
+      ]
+    },
+    "TWSA": {
+      "ticker": "TWSA",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services"
+      ]
+    },
+    "ADRI": {
+      "ticker": "ADRI",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services"
+      ]
+    },
+    "PRMH": {
+      "ticker": "PRMH",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services"
+      ]
+    },
+    "RAYA": {
+      "ticker": "RAYA",
+      "marketTier": "EGX30",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services",
+        null
+      ]
+    },
+    "CCAP": {
+      "ticker": "CCAP",
+      "marketTier": "EGX30",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services",
+        null
+      ]
+    },
+    "AFDI": {
+      "ticker": "AFDI",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services"
+      ]
+    },
+    "MOIN": {
+      "ticker": "MOIN",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services"
+      ]
+    },
+    "ODIN": {
+      "ticker": "ODIN",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services"
+      ]
+    },
+    "ASPI": {
+      "ticker": "ASPI",
+      "marketTier": "EGX70",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services"
+      ]
+    },
+    "ATLC": {
+      "ticker": "ATLC",
+      "marketTier": "EGX70",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services"
+      ]
+    },
+    "KWIN": {
+      "ticker": "KWIN",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services"
+      ]
+    },
+    "OFH": {
+      "ticker": "OFH",
+      "marketTier": "EGX70",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services"
+      ]
+    },
+    "GRCA": {
+      "ticker": "GRCA",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services"
+      ]
+    },
+    "DAPH": {
+      "ticker": "DAPH",
+      "marketTier": "EGX70",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services"
+      ]
+    },
+    "EASB": {
+      "ticker": "EASB",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services"
+      ]
+    },
+    "EBSC": {
+      "ticker": "EBSC",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services"
+      ]
+    },
+    "BINV": {
+      "ticker": "BINV",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        "Financial Services"
+      ]
+    },
+    "TYCN": {
+      "ticker": "TYCN",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services"
+      ]
+    },
+    "UTOP": {
+      "ticker": "UTOP",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services"
+      ]
+    },
+    "AIDC": {
+      "ticker": "AIDC",
+      "marketTier": "EGX70",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services"
+      ]
+    },
+    "ACTF": {
+      "ticker": "ACTF",
+      "marketTier": "EGX70",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services"
+      ]
+    },
+    "BTFH": {
+      "ticker": "BTFH",
+      "marketTier": "EGX30",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        null
+      ]
+    },
+    "VALU": {
+      "ticker": "VALU",
+      "marketTier": "EGX70",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services"
+      ]
+    },
+    "AMIA": {
+      "ticker": "AMIA",
+      "marketTier": "EGX70",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services"
+      ]
+    },
+    "CICH": {
+      "ticker": "CICH",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services"
+      ]
+    },
+    "DEIN": {
+      "ticker": "DEIN",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services"
+      ]
+    },
+    "VLMRA": {
+      "ticker": "VLMRA",
+      "marketTier": "EGX30",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services",
+        null
+      ]
+    },
+    "ICLE": {
+      "ticker": "ICLE",
+      "marketTier": "MAIN",
+      "sector": "Financial Services",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Financial Services"
+      ]
+    },
+    "EFID": {
+      "ticker": "EFID",
+      "marketTier": "EGX30",
+      "sector": "Food",
+      "locked": false,
+      "signal": "hold",
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food",
+        null
+      ]
+    },
+    "EDFM": {
+      "ticker": "EDFM",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food",
+        null
+      ]
+    },
+    "SNFC": {
+      "ticker": "SNFC",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food",
+        null
+      ]
+    },
+    "LUTS": {
+      "ticker": "LUTS",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food",
+        null
+      ]
+    },
+    "ELNA": {
+      "ticker": "ELNA",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food",
+        null
+      ]
+    },
+    "CEFM": {
+      "ticker": "CEFM",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food"
+      ]
+    },
+    "GSSC": {
+      "ticker": "GSSC",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food"
+      ]
+    },
+    "WCDF": {
+      "ticker": "WCDF",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food"
+      ]
+    },
+    "DOMT": {
+      "ticker": "DOMT",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food"
+      ]
+    },
+    "EPCO": {
+      "ticker": "EPCO",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food"
+      ]
+    },
+    "EAST": {
+      "ticker": "EAST",
+      "marketTier": "EGX30",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food",
+        null
+      ]
+    },
+    "OLFI": {
+      "ticker": "OLFI",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food"
+      ]
+    },
+    "MPCO": {
+      "ticker": "MPCO",
+      "marketTier": "EGX70",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food"
+      ]
+    },
+    "UEFM": {
+      "ticker": "UEFM",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food"
+      ]
+    },
+    "AJWA": {
+      "ticker": "AJWA",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food"
+      ]
+    },
+    "MOSC": {
+      "ticker": "MOSC",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food"
+      ]
+    },
+    "SCFM": {
+      "ticker": "SCFM",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food"
+      ]
+    },
+    "JUFO": {
+      "ticker": "JUFO",
+      "marketTier": "EGX30",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food",
+        null
+      ]
+    },
+    "COSG": {
+      "ticker": "COSG",
+      "marketTier": "EGX70",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food"
+      ]
+    },
+    "ISMA": {
+      "ticker": "ISMA",
+      "marketTier": "EGX70",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food"
+      ]
+    },
+    "AFMC": {
+      "ticker": "AFMC",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food"
+      ]
+    },
+    "ZEOT": {
+      "ticker": "ZEOT",
+      "marketTier": "EGX70",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food"
+      ]
+    },
+    "INFI": {
+      "ticker": "INFI",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food"
+      ]
+    },
+    "MILS": {
+      "ticker": "MILS",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food"
+      ]
+    },
+    "SUGR": {
+      "ticker": "SUGR",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food",
+        "Food"
+      ]
+    },
+    "KRDI": {
+      "ticker": "KRDI",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food"
+      ]
+    },
+    "ADPC": {
+      "ticker": "ADPC",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food"
+      ]
+    },
+    "GGRN": {
+      "ticker": "GGRN",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food"
+      ]
+    },
+    "POUL": {
+      "ticker": "POUL",
+      "marketTier": "EGX70",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food"
+      ]
+    },
+    "NEDA": {
+      "ticker": "NEDA",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food"
+      ]
+    },
+    "MKIT": {
+      "ticker": "MKIT",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-04",
+      "slices": [
+        "Food"
+      ]
+    },
+    "SNFI": {
+      "ticker": "SNFI",
+      "marketTier": "MAIN",
+      "sector": "Food",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Food"
+      ]
+    },
+    "MIPH": {
+      "ticker": "MIPH",
+      "marketTier": "MAIN",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare",
+        null
+      ]
+    },
+    "SIPC": {
+      "ticker": "SIPC",
+      "marketTier": "EGX70",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare"
+      ]
+    },
+    "ADCI": {
+      "ticker": "ADCI",
+      "marketTier": "MAIN",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare",
+        null
+      ]
+    },
+    "RMDA": {
+      "ticker": "RMDA",
+      "marketTier": "EGX30",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare",
+        null
+      ]
+    },
+    "CPCI": {
+      "ticker": "CPCI",
+      "marketTier": "MAIN",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare"
+      ]
+    },
+    "PHAR": {
+      "ticker": "PHAR",
+      "marketTier": "EGX70",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare"
+      ]
+    },
+    "AXPH": {
+      "ticker": "AXPH",
+      "marketTier": "MAIN",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare"
+      ]
+    },
+    "MCRO": {
+      "ticker": "MCRO",
+      "marketTier": "EGX70",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare"
+      ]
+    },
+    "OCPH": {
+      "ticker": "OCPH",
+      "marketTier": "MAIN",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare"
+      ]
+    },
+    "CLHO": {
+      "ticker": "CLHO",
+      "marketTier": "EGX30",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare",
+        null
+      ]
+    },
+    "MPCI": {
+      "ticker": "MPCI",
+      "marketTier": "EGX70",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare"
+      ]
+    },
+    "ISPH": {
+      "ticker": "ISPH",
+      "marketTier": "EGX30",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare",
+        null
+      ]
+    },
+    "NIPH": {
+      "ticker": "NIPH",
+      "marketTier": "EGX70",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare"
+      ]
+    },
+    "BIOC": {
+      "ticker": "BIOC",
+      "marketTier": "MAIN",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare"
+      ]
+    },
+    "NINH": {
+      "ticker": "NINH",
+      "marketTier": "MAIN",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare"
+      ]
+    },
+    "MEPA": {
+      "ticker": "MEPA",
+      "marketTier": "EGX70",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare"
+      ]
+    },
+    "AMES": {
+      "ticker": "AMES",
+      "marketTier": "MAIN",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare"
+      ]
+    },
+    "PHGC": {
+      "ticker": "PHGC",
+      "marketTier": "MAIN",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare"
+      ]
+    },
+    "SPMD": {
+      "ticker": "SPMD",
+      "marketTier": "MAIN",
+      "sector": "Healthcare",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Healthcare"
+      ]
+    },
+    "SWDY": {
+      "ticker": "SWDY",
+      "marketTier": "EGX70",
+      "sector": "Industrial",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Industrial"
+      ]
+    },
+    "ELEC": {
+      "ticker": "ELEC",
+      "marketTier": "EGX70",
+      "sector": "Industrial",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Industrial"
+      ]
+    },
+    "GDWA": {
+      "ticker": "GDWA",
+      "marketTier": "EGX70",
+      "sector": "Industrial",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Industrial"
+      ]
+    },
+    "IBCT": {
+      "ticker": "IBCT",
+      "marketTier": "MAIN",
+      "sector": "Industrial",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Industrial"
+      ]
+    },
+    "DTPP": {
+      "ticker": "DTPP",
+      "marketTier": "MAIN",
+      "sector": "Industrial",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Industrial"
+      ]
+    },
+    "EEII": {
+      "ticker": "EEII",
+      "marketTier": "MAIN",
+      "sector": "Industrial",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Industrial"
+      ]
+    },
+    "RKAZ": {
+      "ticker": "RKAZ",
+      "marketTier": "MAIN",
+      "sector": "Industrial",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Industrial"
+      ]
+    },
+    "INEG": {
+      "ticker": "INEG",
+      "marketTier": "MAIN",
+      "sector": "Industrial",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Industrial"
+      ]
+    },
+    "AMII": {
+      "ticker": "AMII",
+      "marketTier": "MAIN",
+      "sector": "Industrial",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Industrial"
+      ]
+    },
+    "MBEG": {
+      "ticker": "MBEG",
+      "marketTier": "MAIN",
+      "sector": "Industrial",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Industrial"
+      ]
+    },
+    "GBCO": {
+      "ticker": "GBCO",
+      "marketTier": "EGX30",
+      "sector": "Industrial",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Industrial",
+        null
+      ]
+    },
+    "RAKT": {
+      "ticker": "RAKT",
+      "marketTier": "MAIN",
+      "sector": "Paper",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Paper",
+        null
+      ]
+    },
+    "UNIP": {
+      "ticker": "UNIP",
+      "marketTier": "EGX70",
+      "sector": "Paper",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Paper"
+      ]
+    },
+    "MEGM": {
+      "ticker": "MEGM",
+      "marketTier": "MAIN",
+      "sector": "Paper",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Paper"
+      ]
+    },
+    "EPPK": {
+      "ticker": "EPPK",
+      "marketTier": "MAIN",
+      "sector": "Paper",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Paper"
+      ]
+    },
+    "TMGH": {
+      "ticker": "TMGH",
+      "marketTier": "EGX30",
+      "sector": "Real Estate",
+      "locked": false,
+      "signal": "hold",
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate",
+        null
+      ]
+    },
+    "ACAMD": {
+      "ticker": "ACAMD",
+      "marketTier": "MAIN",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate",
+        null
+      ]
+    },
+    "ARAB": {
+      "ticker": "ARAB",
+      "marketTier": "EGX70",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate"
+      ]
+    },
+    "ICID": {
+      "ticker": "ICID",
+      "marketTier": "MAIN",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate",
+        null
+      ]
+    },
+    "ELKA": {
+      "ticker": "ELKA",
+      "marketTier": "EGX70",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate"
+      ]
+    },
+    "EMFD": {
+      "ticker": "EMFD",
+      "marketTier": "EGX30",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate",
+        null
+      ]
+    },
+    "BONY": {
+      "ticker": "BONY",
+      "marketTier": "EGX70",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate"
+      ]
+    },
+    "ELSH": {
+      "ticker": "ELSH",
+      "marketTier": "EGX70",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate"
+      ]
+    },
+    "ORHD": {
+      "ticker": "ORHD",
+      "marketTier": "EGX30",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate",
+        null
+      ]
+    },
+    "FIRE": {
+      "ticker": "FIRE",
+      "marketTier": "MAIN",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate"
+      ]
+    },
+    "MENA": {
+      "ticker": "MENA",
+      "marketTier": "MAIN",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate"
+      ]
+    },
+    "GIHD": {
+      "ticker": "GIHD",
+      "marketTier": "MAIN",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate"
+      ]
+    },
+    "TANM": {
+      "ticker": "TANM",
+      "marketTier": "MAIN",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate"
+      ]
+    },
+    "AIFI": {
+      "ticker": "AIFI",
+      "marketTier": "EGX70",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate"
+      ]
+    },
+    "AREH": {
+      "ticker": "AREH",
+      "marketTier": "MAIN",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate"
+      ]
+    },
+    "EHDR": {
+      "ticker": "EHDR",
+      "marketTier": "EGX70",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate"
+      ]
+    },
+    "HELI": {
+      "ticker": "HELI",
+      "marketTier": "EGX30",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate",
+        null
+      ]
+    },
+    "IDRE": {
+      "ticker": "IDRE",
+      "marketTier": "EGX70",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate"
+      ]
+    },
+    "MASR": {
+      "ticker": "MASR",
+      "marketTier": "EGX70",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate"
+      ]
+    },
+    "OCDI": {
+      "ticker": "OCDI",
+      "marketTier": "EGX70",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate"
+      ]
+    },
+    "PHDC": {
+      "ticker": "PHDC",
+      "marketTier": "EGX30",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate",
+        null
+      ]
+    },
+    "UEGC": {
+      "ticker": "UEGC",
+      "marketTier": "EGX70",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate"
+      ]
+    },
+    "ZMID": {
+      "ticker": "ZMID",
+      "marketTier": "EGX70",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate"
+      ]
+    },
+    "DCRC": {
+      "ticker": "DCRC",
+      "marketTier": "MAIN",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate"
+      ]
+    },
+    "HBCO": {
+      "ticker": "HBCO",
+      "marketTier": "MAIN",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate",
+        "Real Estate"
+      ]
+    },
+    "NHPS": {
+      "ticker": "NHPS",
+      "marketTier": "MAIN",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate"
+      ]
+    },
+    "PRDC": {
+      "ticker": "PRDC",
+      "marketTier": "EGX70",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate"
+      ]
+    },
+    "OBRI": {
+      "ticker": "OBRI",
+      "marketTier": "EGX70",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate"
+      ]
+    },
+    "NARE": {
+      "ticker": "NARE",
+      "marketTier": "MAIN",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate"
+      ]
+    },
+    "ACAP": {
+      "ticker": "ACAP",
+      "marketTier": "MAIN",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate"
+      ]
+    },
+    "UNIT": {
+      "ticker": "UNIT",
+      "marketTier": "MAIN",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate"
+      ]
+    },
+    "CCRS": {
+      "ticker": "CCRS",
+      "marketTier": "MAIN",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate"
+      ]
+    },
+    "UPMS": {
+      "ticker": "UPMS",
+      "marketTier": "MAIN",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate"
+      ]
+    },
+    "RREI": {
+      "ticker": "RREI",
+      "marketTier": "MAIN",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate"
+      ]
+    },
+    "MAAL": {
+      "ticker": "MAAL",
+      "marketTier": "MAIN",
+      "sector": "Real Estate",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Real Estate"
+      ]
+    },
+    "ETEL": {
+      "ticker": "ETEL",
+      "marketTier": "EGX30",
+      "sector": "Telecom",
+      "locked": false,
+      "signal": "hold",
+      "asOf": "2026-11-12",
+      "slices": [
+        "Telecom",
+        null
+      ]
+    },
+    "EFIH": {
+      "ticker": "EFIH",
+      "marketTier": "EGX30",
+      "sector": "Telecom",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Telecom",
+        null
+      ]
+    },
+    "OIH": {
+      "ticker": "OIH",
+      "marketTier": "EGX70",
+      "sector": "Telecom",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Telecom"
+      ]
+    },
+    "RACC": {
+      "ticker": "RACC",
+      "marketTier": "MAIN",
+      "sector": "Telecom",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Telecom"
+      ]
+    },
+    "FWRY": {
+      "ticker": "FWRY",
+      "marketTier": "EGX30",
+      "sector": "Telecom",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Telecom",
+        null
+      ]
+    },
+    "MPRC": {
+      "ticker": "MPRC",
+      "marketTier": "EGX70",
+      "sector": "Telecom",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Telecom"
+      ]
+    },
+    "GTHE": {
+      "ticker": "GTHE",
+      "marketTier": "MAIN",
+      "sector": "Telecom",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Telecom"
+      ]
+    },
+    "AMPI": {
+      "ticker": "AMPI",
+      "marketTier": "MAIN",
+      "sector": "Telecom",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Telecom"
+      ]
+    },
+    "DGTZ": {
+      "ticker": "DGTZ",
+      "marketTier": "MAIN",
+      "sector": "Telecom",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Telecom"
+      ]
+    },
+    "VERT": {
+      "ticker": "VERT",
+      "marketTier": "MAIN",
+      "sector": "Telecom",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Telecom"
+      ]
+    },
+    "ACGC": {
+      "ticker": "ACGC",
+      "marketTier": "MAIN",
+      "sector": "Textiles",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Textiles",
+        null
+      ]
+    },
+    "APSW": {
+      "ticker": "APSW",
+      "marketTier": "MAIN",
+      "sector": "Textiles",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Textiles",
+        null
+      ]
+    },
+    "ORWE": {
+      "ticker": "ORWE",
+      "marketTier": "EGX70",
+      "sector": "Textiles",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Textiles"
+      ]
+    },
+    "GTEX": {
+      "ticker": "GTEX",
+      "marketTier": "MAIN",
+      "sector": "Textiles",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Textiles"
+      ]
+    },
+    "DSCW": {
+      "ticker": "DSCW",
+      "marketTier": "EGX70",
+      "sector": "Textiles",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Textiles"
+      ]
+    },
+    "SPIN": {
+      "ticker": "SPIN",
+      "marketTier": "MAIN",
+      "sector": "Textiles",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Textiles"
+      ]
+    },
+    "CFGH": {
+      "ticker": "CFGH",
+      "marketTier": "MAIN",
+      "sector": "Textiles",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Textiles"
+      ]
+    },
+    "GTWL": {
+      "ticker": "GTWL",
+      "marketTier": "MAIN",
+      "sector": "Textiles",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Textiles"
+      ]
+    },
+    "KABO": {
+      "ticker": "KABO",
+      "marketTier": "EGX70",
+      "sector": "Textiles",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Textiles"
+      ]
+    },
+    "NCGC": {
+      "ticker": "NCGC",
+      "marketTier": "MAIN",
+      "sector": "Textiles",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Textiles"
+      ]
+    },
+    "SMFR": {
+      "ticker": "SMFR",
+      "marketTier": "MAIN",
+      "sector": "Trade",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Trade"
+      ]
+    },
+    "GMCI": {
+      "ticker": "GMCI",
+      "marketTier": "MAIN",
+      "sector": "Trade",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Trade"
+      ]
+    },
+    "BIGP": {
+      "ticker": "BIGP",
+      "marketTier": "MAIN",
+      "sector": "Trade",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Trade"
+      ]
+    },
+    "IFAP": {
+      "ticker": "IFAP",
+      "marketTier": "MAIN",
+      "sector": "Trade",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Trade"
+      ]
+    },
+    "MFSC": {
+      "ticker": "MFSC",
+      "marketTier": "MAIN",
+      "sector": "Trade",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Trade"
+      ]
+    },
+    "MTIE": {
+      "ticker": "MTIE",
+      "marketTier": "EGX70",
+      "sector": "Trade",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Trade"
+      ]
+    },
+    "ETRS": {
+      "ticker": "ETRS",
+      "marketTier": "EGX70",
+      "sector": "Transport",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Transport"
+      ]
+    },
+    "ALCN": {
+      "ticker": "ALCN",
+      "marketTier": "EGX30",
+      "sector": "Transport",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Transport",
+        null
+      ]
+    },
+    "CSAG": {
+      "ticker": "CSAG",
+      "marketTier": "EGX70",
+      "sector": "Transport",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Transport"
+      ]
+    },
+    "SDTI": {
+      "ticker": "SDTI",
+      "marketTier": "EGX70",
+      "sector": "Travel & Leisure",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Travel & Leisure"
+      ]
+    },
+    "PHTV": {
+      "ticker": "PHTV",
+      "marketTier": "MAIN",
+      "sector": "Travel & Leisure",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Travel & Leisure",
+        null
+      ]
+    },
+    "FTNS": {
+      "ticker": "FTNS",
+      "marketTier": "MAIN",
+      "sector": "Travel & Leisure",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Travel & Leisure"
+      ]
+    },
+    "MHOT": {
+      "ticker": "MHOT",
+      "marketTier": "MAIN",
+      "sector": "Travel & Leisure",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Travel & Leisure"
+      ]
+    },
+    "ROTO": {
+      "ticker": "ROTO",
+      "marketTier": "MAIN",
+      "sector": "Travel & Leisure",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Travel & Leisure"
+      ]
+    },
+    "MMAT": {
+      "ticker": "MMAT",
+      "marketTier": "MAIN",
+      "sector": "Travel & Leisure",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Travel & Leisure"
+      ]
+    },
+    "RTVC": {
+      "ticker": "RTVC",
+      "marketTier": "MAIN",
+      "sector": "Travel & Leisure",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Travel & Leisure"
+      ]
+    },
+    "EGTS": {
+      "ticker": "EGTS",
+      "marketTier": "EGX70",
+      "sector": "Travel & Leisure",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Travel & Leisure"
+      ]
+    },
+    "GPPL": {
+      "ticker": "GPPL",
+      "marketTier": "MAIN",
+      "sector": "Travel & Leisure",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Travel & Leisure"
+      ]
+    },
+    "SPHT": {
+      "ticker": "SPHT",
+      "marketTier": "MAIN",
+      "sector": "Travel & Leisure",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Travel & Leisure"
+      ]
+    },
+    "ELWA": {
+      "ticker": "ELWA",
+      "marketTier": "MAIN",
+      "sector": "Travel & Leisure",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Travel & Leisure"
+      ]
+    },
+    "RMTV": {
+      "ticker": "RMTV",
+      "marketTier": "MAIN",
+      "sector": "Travel & Leisure",
+      "locked": true,
+      "signal": null,
+      "asOf": "2026-11-12",
+      "slices": [
+        "Travel & Leisure"
+      ]
+    }
+  },
+  "weakTotalFromSlices": 2,
+  "tierVerify": {
+    "EGX30": {
+      "matched": {
+        "buy": 7,
+        "hold": 19,
+        "sell": 4,
+        "weak": 0,
+        "total": 30
+      },
+      "tiersFacet": {
+        "EGX30": 30
+      },
+      "rowsReturned": 29
+    },
+    "MAIN": {
+      "matched": {
+        "buy": 33,
+        "hold": 91,
+        "sell": 19,
+        "weak": 2,
+        "total": 145
+      },
+      "tiersFacet": {
+        "MAIN": 145
+      },
+      "rowsReturned": 24
+    },
+    "OTC": {
+      "matched": {
+        "buy": 0,
+        "hold": 0,
+        "sell": 0,
+        "weak": 0,
+        "total": 0
+      },
+      "tiersFacet": {},
+      "rowsReturned": 0
+    }
+  }
+}

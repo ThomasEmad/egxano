@@ -1,0 +1,210 @@
+{
+  "generatedAt": "2026-11-14T16:09:30.705Z",
+  "seedSource": "src/lib/market/tiers.ts (egxbot.com + egx.com.eg, November 2026)",
+  "seedSizes": {
+    "EGX30": 30,
+    "EGX70": 70
+  },
+  "seedLists": {
+    "EGX30": [
+      "ETEL",
+      "EAST",
+      "CCAP",
+      "COMI",
+      "TMGH",
+      "FWRY",
+      "ORAS",
+      "BTFH",
+      "ORHD",
+      "GBCO",
+      "AMOC",
+      "ABUK",
+      "EGAL",
+      "PHDC",
+      "JUFO",
+      "MFPC",
+      "EMFD",
+      "HELI",
+      "MCQE",
+      "ISPH",
+      "RMDA",
+      "VLMRA",
+      "HRHO",
+      "ADIB",
+      "EFIH",
+      "SKPC",
+      "RAYA",
+      "EFID",
+      "CLHO",
+      "ALCN"
+    ],
+    "EGX70": [
+      "MPCO",
+      "MPCI",
+      "POUL",
+      "NIPH",
+      "AIHC",
+      "PRCL",
+      "HDBK",
+      "SIPC",
+      "AMER",
+      "PHAR",
+      "ENGC",
+      "ATQA",
+      "NCCW",
+      "EGTS",
+      "SCEM",
+      "ICFC",
+      "GPIM",
+      "ZMID",
+      "BONY",
+      "ATLC",
+      "MCRO",
+      "ETRS",
+      "SWDY",
+      "MPRC",
+      "EGCH",
+      "ARAB",
+      "SVCE",
+      "ISMA",
+      "MBSC",
+      "OIH",
+      "LCSW",
+      "IDRE",
+      "CIEB",
+      "ORWE",
+      "ELSH",
+      "IEEC",
+      "GOUR",
+      "UEGC",
+      "KABO",
+      "AIFI",
+      "ELEC",
+      "ARCC",
+      "AIDC",
+      "DSCW",
+      "MASR",
+      "SDTI",
+      "OCDI",
+      "ASPI",
+      "MTIE",
+      "PRDC",
+      "DAPH",
+      "OFH",
+      "AMIA",
+      "TAQA",
+      "EXPA",
+      "ELKA",
+      "ACTF",
+      "MOED",
+      "MEPA",
+      "ZEOT",
+      "OBRI",
+      "ISMQ",
+      "EHDR",
+      "UNIP",
+      "VALU",
+      "GDWA",
+      "COSG",
+      "CSAG",
+      "ASCM",
+      "CNFN"
+    ]
+  },
+  "a_seedTickersWithNoCompanyRow": {
+    "EGX30": [],
+    "EGX70": []
+  },
+  "b_productionTierNotInSeed": {
+    "EGX30": [],
+    "EGX70": []
+  },
+  "seedVsProductionTierMismatch": [],
+  "c_countsPerTier": {
+    "productionFacet": {
+      "EGX70": 69,
+      "MAIN": 145,
+      "EGX30": 30
+    },
+    "productionUniverse": 246,
+    "productionScored": 242,
+    "productionWeak": 2,
+    "enumeratedByTicker": {
+      "EGX30": 30,
+      "MAIN": 145,
+      "EGX70": 68
+    },
+    "tierVerifySlices": {
+      "EGX30": {
+        "matched": {
+          "buy": 7,
+          "hold": 19,
+          "sell": 4,
+          "weak": 0,
+          "total": 30
+        },
+        "tiersFacet": {
+          "EGX30": 30
+        },
+        "rowsReturned": 29
+      },
+      "MAIN": {
+        "matched": {
+          "buy": 33,
+          "hold": 91,
+          "sell": 19,
+          "weak": 2,
+          "total": 145
+        },
+        "tiersFacet": {
+          "MAIN": 145
+        },
+        "rowsReturned": 24
+      },
+      "OTC": {
+        "matched": {
+          "buy": 0,
+          "hold": 0,
+          "sell": 0,
+          "weak": 0,
+          "total": 0
+        },
+        "tiersFacet": {},
+        "rowsReturned": 0
+      }
+    }
+  },
+  "d_otc": {
+    "productionTierFacetOTC": 0,
+    "enumeratedOTCTickers": [],
+    "snapshotListingStatusCounts": {
+      "LISTED": 246
+    },
+    "activeCompaniesWithNoMarketPrice": [
+      {
+        "ticker": "AIHC",
+        "listingStatus": "LISTED",
+        "sector": "Financial Services",
+        "nameEn": "Arabia Investments Holding SAE"
+      },
+      {
+        "ticker": "MKIT",
+        "listingStatus": "LISTED",
+        "sector": "Food",
+        "nameEn": "Meatello"
+      },
+      {
+        "ticker": "NAPR",
+        "listingStatus": "LISTED",
+        "sector": "Paper",
+        "nameEn": "National Printing Co"
+      }
+    ],
+    "note": "OTC tier filter is accepted by the deployed API and matched 0 rows; OTC companies have no priced row in the signals universe."
+  },
+  "snapshotTickersNeverSeenInSignals": [
+    "AMER",
+    "AIHC",
+    "NAPR"
+  ]
+}

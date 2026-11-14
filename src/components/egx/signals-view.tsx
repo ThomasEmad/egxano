@@ -393,7 +393,7 @@ export function SignalsView() {
         <button className={chip(tierFilter === "all")} onClick={() => setTierFilter("all")}>
           {ar ? "الكل" : "All"}
         </button>
-        {(["EGX30", "MAIN", "OTC"] as Exclude<TierFilter, "all">[]).map((t) => {
+        {(["EGX30", "EGX70", "MAIN"] as Exclude<TierFilter, "all">[]).map((t) => {
           const n = gateActive
             ? serverTiers?.[t] ?? 0
             : rows.filter((r) => !("locked" in r) && (r.marketTier ?? "MAIN") === t).length
