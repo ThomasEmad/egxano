@@ -326,7 +326,11 @@ export function finalizeScore(rawPct: number, ctx: FinalizeContext): number {
   if (!ctx.riskKnown) s = Math.min(s, 75)
   // 2. display excellence gate (kept from @4): anything above 80 needs
   //    full-strength dimensions AND confirmed participation.
-  const relVolStrong = ctx.relVol !== null && ctx.relVol >= 1.3
+  // H-05 remediation: lowered from 1.3 to 1.2. The universal 1.3x threshold
+  // was too strict for many EGX names that rarely achieve 1.3x relVol.
+  // 1.2x still requires confirmed participation while being achievable for
+  // a broader set of liquid names. Calibrated on training/validation periods.
+  const relVolStrong = ctx.relVol !== null && ctx.relVol >= 1.2
   if (s > 80 && !(ctx.allDimsStrong && relVolStrong)) s = 80
   // 3. high-end compression curve (80 → 73, 75 → 67, 70 → 61)
   return Math.round(100 * Math.pow(s / 100, 1.4))

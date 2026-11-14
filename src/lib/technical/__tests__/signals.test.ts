@@ -282,12 +282,12 @@ describe("finalizeScore — calibration layer (unchanged from @4; @5 gates the D
     expect(finalizeScore(60, { ...strong, riskKnown: false })).toBe(49)
   })
 
-  it("raw > 80 requires allDimsStrong AND relVol ≥ 1.3, else clamps to 80 → 73", () => {
+  it("raw > 80 requires allDimsStrong AND relVol ≥ 1.2, else clamps to 80 → 73", () => {
     expect(finalizeScore(95, { ...strong, allDimsStrong: false })).toBe(73)
     expect(finalizeScore(95, { ...strong, relVol: 1.1 })).toBe(73)
     expect(finalizeScore(95, strong)).toBe(93)
-    expect(finalizeScore(95, { ...strong, relVol: 1.3 })).toBe(93)
-    expect(finalizeScore(95, { ...strong, relVol: 1.2 })).toBe(73)
+    expect(finalizeScore(95, { ...strong, relVol: 1.2 })).toBe(93)
+    expect(finalizeScore(95, { ...strong, relVol: 1.15 })).toBe(73)
   })
 })
 

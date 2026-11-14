@@ -542,7 +542,11 @@ export function assembleBundle(bars: Bar[], context: MarketContextSection | null
     }
   }
   const volBars = bars.slice(lastNullIdx + 1)
-  if (volBars.length >= 10) {
+  // H-04 remediation: raised minimum from 10 to 20 sessions. On illiquid EGX
+  // names, 10 sessions may span months with gaps and produce unreliable OBV/
+  // relVol. 20 sessions provides a more statistically meaningful baseline while
+  // still allowing analysis for most actively traded names.
+  if (volBars.length >= 20) {
     const obv = onBalanceVolume(volBars, 20)
     base.volume.obv = obv.obv
     base.volume.obvSlope20 = obv.slopeN
@@ -554,7 +558,7 @@ export function assembleBundle(bars: Bar[], context: MarketContextSection | null
       limitations.push(`Volume indicators computed over the last ${volBars.length} sessions (the volume-complete window) — earlier sessions lack volume.`)
     }
   } else {
-    limitations.push("Fewer than 10 volume-complete sessions — volume indicators are unavailable.")
+    limitations.push("Fewer than 20 volume-complete sessions — volume indicators are unavailable.")
   }
 
   // --- Levels ---
