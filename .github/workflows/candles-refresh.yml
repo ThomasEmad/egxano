@@ -61,6 +61,14 @@ jobs:
             echo
           done
 
+      # MUST run AFTER the stance batches above: it diffs the fresh stances
+      # (confirmed / watching-with-setup) against persisted lifecycle state and
+      # emits transition alerts — stale stances would make it skip everything.
+      - name: Lifecycle transition alerts sweep
+        env:
+          DATABASE_URL: ${{ secrets.CANDLE_DB_URL }}
+        run: npx tsx scripts/daily-lifecycle-sweep.mjs --apply
+
       - name: Storage stats
         env:
           DATABASE_URL: ${{ secrets.CANDLE_DB_URL }}
