@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { getCachedMarketSignals, type MarketSignalsOutput, type MarketSignalsResponse } from "@/lib/technical/signals-service"
 import { readBoardSnapshot } from "@/lib/technical/board-snapshot"
 import { distributionOf, filterMarketRows, gateRowForFree, hasActiveFilters, parseBoardFilterParams } from "@/lib/technical/board-filters"
-import { cached } from "@/lib/server-cache"
+import { cached, peekCacheAgeMs } from "@/lib/server-cache"
 import { getSessionUser } from "@/lib/auth"
 import { getActivePlanId } from "@/lib/subscription"
 import { isPaidPlanId, isFreeSignalTicker, FREE_SIGNAL_TICKERS } from "@/lib/plans/entitlements"
@@ -56,20 +56,24 @@ export async function GET(req: NextRequest) {
   // On a cold instance, prefer the persisted snapshot over blocking the
   // caller for the full compute; the compute runs in the background and
   // repopulates the in-memory cache.
-  let full: MarketSignalsOutput
-  let servedFrom: "memory" | "snapshot" | "compute"
-  try {
-    full = (await cached("technical-signals:served:v1", 10 * 60_000, () =>
-      getCachedMarketSignals(),
-    )) as MarketSignalsOutput
-    servedFrom = "memory"
-  } catch {
+  let full: MarketSignalsOutput | null = null
+  let servedFrom: "memory" | "stale-memory" | "snapshot" | "compute"
+  const cacheKey = "technical-signals:served:v1"
+  const age = peekCacheAgeMs(cacheKey)
+  if (age !== null) {
+    full = (await cached(cacheKey, 10 * 60_000, () => getCachedMarketSignals())) as MarketSignalsOutput
+    servedFrom = age < 10 * 60_000 ? "memory" : "stale-memory"
+  } else {
     const snap = await readBoardSnapshot()
-    if (!snap) throw new Error("board compute failed and no snapshot is available")
-    full = snap
-    servedFrom = "snapshot"
-    // Warm the in-memory cache for subsequent requests (single-flight inside).
-    void getCachedMarketSignals().catch(() => {})
+    if (snap) {
+      full = snap
+      servedFrom = "snapshot"
+      // Warm the in-memory cache for subsequent requests (single-flight inside).
+      void getCachedMarketSignals().catch(() => {})
+    } else {
+      full = (await cached(cacheKey, 10 * 60_000, () => getCachedMarketSignals())) as MarketSignalsOutput
+      servedFrom = "compute"
+    }
   }
   const t2 = Date.now()
 
