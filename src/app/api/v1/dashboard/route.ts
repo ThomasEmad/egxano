@@ -4,7 +4,7 @@ import { getPresetScannerCards } from "@/lib/financial/scan-service"
 import type { ScanCondition } from "@/lib/financial/scanner"
 import { getOptionalUser } from "@/lib/optional-auth"
 import { latestAnnouncedPeriodEnd } from "@/lib/financial/period-validity"
-import { cached } from "@/lib/server-cache"
+import { serveWithSnapshot } from "@/lib/shared-snapshot"
 
 const TRUSTED = ["VALIDATED", "APPROVED", "EXTRACTED"]
 
@@ -27,10 +27,17 @@ export async function GET(req: NextRequest) {
     deletedAt: null,
   }
 
-  // Public, user-independent stats + scanner cards: cached 5min (the four
-  // counts include a large joined value count that took seconds cold; the
-  // pipeline invalidates the process cache on recompute).
-  const base = await cached("dashboard:public", 5 * 60_000, async () => {
+  // Public, user-independent stats + scanner cards: memory cache 5min + a
+  // persisted snapshot for cold instances (measured 36s cold on hosted
+  // Postgres — the joined value count dominates; a cold visitor now gets the
+  // ≤30-min-old snapshot instantly while the real build refreshes in the
+  // background; the pipeline invalidates the process cache on recompute).
+  const { value: base, source } = await serveWithSnapshot({
+    cacheKey: "dashboard:public",
+    ttlMs: 5 * 60_000,
+    settingKey: "dashboard:public:snapshot:v1",
+    snapshotMaxAgeMs: 30 * 60_000,
+    build: async () => {
     const [companyCount, reportCount, valueCount, eventCount, upcomingDividends, scannerCards] = await Promise.all([
       db.company.count({ where: { isActive: true } }),
       db.financialReport.count({ where: trustedReportWhere }),
@@ -67,6 +74,7 @@ export async function GET(req: NextRequest) {
         company: d.company,
       })),
     }
+    },
   })
   const t2 = Date.now()
 
@@ -100,7 +108,7 @@ export async function GET(req: NextRequest) {
     },
     {
       headers: {
-        "server-timing": `auth;dur=${tAuth - t0},base;dur=${t2 - tAuth},events;dur=${tEnd - t2},total;dur=${tEnd - t0}`,
+        "server-timing": `auth;dur=${tAuth - t0},base;dur=${t2 - tAuth},events;dur=${tEnd - t2},total;dur=${tEnd - t0},source=${source}`,
       },
     },
   )

@@ -284,8 +284,10 @@ export function getCachedMarketSignals(): Promise<MarketSignalsOutput> {
   return cached("technical-signals:market:v3", CACHE_MS, async () => {
     const payload = await buildMarketSignalsUncached()
     // Shared read model: every successful compute persists the payload so a
-    // cold instance can serve instantly (write-behind — never fails the board).
-    void persistBoardSnapshot(payload)
+    // cold instance can serve instantly. The write is AWAITED inside the
+    // single-flight build — a fire-and-forget write would be frozen mid-flight
+    // when the serverless function suspends right after the response.
+    await persistBoardSnapshot(payload)
     return payload
   })
 }
