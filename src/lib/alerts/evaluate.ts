@@ -9,7 +9,9 @@ import { sendPushToUser } from "@/lib/web-push"
 //   * GET /api/v1/alerts          — lazy per-user evaluation while the site is open
 //   * src/lib/market/refresh.ts   — every successful snapshot write (the hook
 //                                   that makes alerts fire with the site CLOSED)
-//   * GET /api/v1/cron/alerts-push — safety-net re-run every 10 minutes
+//   * GET /api/v1/cron/alerts-push — daily safety-net re-run (Vercel Hobby
+//                                   allows daily crons only; 14:00 UTC = after
+//                                   EGX close + delayed data has landed)
 //
 // Dedupe (why there is no PushLog table): PriceAlert already models a one-shot
 // trigger lifecycle — `active: true` until it hits, then `active: false` +
