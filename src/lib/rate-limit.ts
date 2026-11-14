@@ -117,6 +117,8 @@ export const RATE_LIMITS = {
   "auth-session": { key: "auth-session", max: 30, windowMs: 10 * 60 * 1000 },
   "watchlist-sync": { key: "watchlist-sync", max: 60, windowMs: 10 * 60 * 1000 },
   "alerts-write": { key: "alerts-write", max: 30, windowMs: 10 * 60 * 1000 },
+  "push-subscribe": { key: "push-subscribe", max: 20, windowMs: 10 * 60 * 1000 },
+  "push-unsubscribe": { key: "push-unsubscribe", max: 20, windowMs: 10 * 60 * 1000 },
   "scanner-run": { key: "scanner-run", max: 20, windowMs: 10 * 60 * 1000 },
   "scanner-create": { key: "scanner-create", max: 10, windowMs: 60 * 60 * 1000 },
   "market-refresh": { key: "market-refresh", max: 4, windowMs: 10 * 60 * 1000 },

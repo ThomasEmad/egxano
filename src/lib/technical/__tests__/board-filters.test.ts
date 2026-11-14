@@ -62,14 +62,20 @@ describe("parseBoardFilterParams", () => {
   })
 
   it("accepts known values and rejects unknown ones (no injection surface)", () => {
-    const p = parseBoardFilterParams(new URLSearchParams("signal=buy&tier=EGX70&sort=change"))
+    // EGX70 is retired as a filter value (constituent list incomplete — a
+    // stale ?tier=EGX70 falls back to "all"), so EGX30 is the accepted tier here.
+    const p = parseBoardFilterParams(new URLSearchParams("signal=buy&tier=EGX30&sort=change"))
     expect(p.signal).toBe("buy")
-    expect(p.tier).toBe("EGX70")
+    expect(p.tier).toBe("EGX30")
     expect(p.sort).toBe("change")
     const bad = parseBoardFilterParams(new URLSearchParams("signal=DROP&tier=../etc&sort=(;--"))
     expect(bad.signal).toBe("all")
     expect(bad.tier).toBe("all")
     expect(bad.sort).toBe("score")
+    // Stale EGX70 deep-links degrade to the unfiltered board, not an error.
+    const stale = parseBoardFilterParams(new URLSearchParams("tier=EGX70"))
+    expect(stale.tier).toBe("all")
+    expect(hasActiveFilters(stale)).toBe(false)
     expect(hasActiveFilters(p)).toBe(true)
     expect(hasActiveFilters(bad)).toBe(false)
   })

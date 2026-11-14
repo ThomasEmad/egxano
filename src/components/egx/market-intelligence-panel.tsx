@@ -5,15 +5,20 @@
 // sparkline, sector rotation matrix, anomalies and the opportunity / risk
 // radars.
 //
-// Data: GET /api/v1/market/intelligence (public, 60s server cache). The
-// endpoint may 503 with INTELLIGENCE_UNAVAILABLE before the first market
-// refresh — that renders a graceful muted state, never an error surface.
-// Every figure comes from the deterministic compute layer (src/lib/market/
-// intelligence/compute.ts); this file only renders what the API returns.
+// Data: passed in as a prop by DashboardView — the page fetches
+// GET /api/v1/market/intelligence ONCE and feeds every breadth surface (hero
+// cells, market summary, this strip) from that single object. This panel used
+// to fetch its own copy while the hero row read /api/v1/market/breadth, and
+// the two rows rendered different snapshots of the same market (different
+// adv/dec, traded value, SMA status and timestamps). Every figure comes from
+// the deterministic compute layer (src/lib/market/intelligence/compute.ts);
+// this file only renders what that snapshot carries. When the endpoint 503s
+// with INTELLIGENCE_UNAVAILABLE (before the first market refresh) the parent
+// passes undefined and this renders a graceful muted state, never an error
+// surface.
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
 import { Info, Radar, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,7 +26,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useI18n } from "@/lib/i18n"
 import { sectorLabel } from "@/lib/sectors"
-import { egxMarketStatus } from "@/lib/market/egx-hours"
 import type { MarketIntelligence } from "@/lib/market/intelligence/compute"
 
 // ---------------------------------------------------------------- helpers
@@ -225,20 +229,17 @@ function RadarColumn({
 
 // ---------------------------------------------------------------- panel
 
-export function MarketIntelligencePanel() {
+export function MarketIntelligencePanel({
+  intel,
+  isLoading = false,
+}: {
+  /** The page's shared intelligence snapshot — one fetch feeds every section. */
+  intel: MarketIntelligence | null | undefined
+  isLoading?: boolean
+}) {
   const { lang } = useI18n()
   const ar = lang === "ar"
   const [visitLines, setVisitLines] = useState<string[]>([])
-
-  const { data: intel, isLoading } = useQuery({
-    queryKey: ["market-intelligence"],
-    queryFn: () =>
-      fetch("/api/v1/market/intelligence").then((r) => (r.ok ? (r.json() as Promise<MarketIntelligence>) : null)),
-    staleTime: 60_000,
-    // 60s while the EGX session can move, 300s outside it (re-evaluated per poll).
-    refetchInterval: () => (egxMarketStatus().live ? 60_000 : 300_000),
-    refetchOnWindowFocus: false,
-  })
 
   // "ماذا تغيّر منذ آخر زيارة؟" — localStorage-based diff. On every data load:
   // compare against the stored last snapshot, highlight regime changes and

@@ -971,6 +971,25 @@ model PriceAlert {
   @@index([companyId, active])
 }
 
+// Web Push subscription (browser endpoint) for delivering price-alert
+// notifications even when the site is closed. One browser install = one row;
+// endpoint is the push-service URL (unique per subscription). Dedupe of alert
+// firings does NOT need a log table: PriceAlert.active/triggeredAt already
+// encode the one-shot trigger lifecycle (see model above).
+//
+// Table is created at runtime by ensurePushTables() (src/lib/db-schema-bootstrap.ts)
+// — production DB is not reachable for migrations from every environment.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
 // Investor portfolio — manual positions valued against recorded MarketPrice
 // snapshots. Quantity/avgCost are user input; everything displayed derives
 // from verified data (latest recorded price, never an estimate).

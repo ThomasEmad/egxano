@@ -28,6 +28,9 @@ const plexArabic = IBM_Plex_Sans_Arabic({
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
+  verification: {
+    google: "WVC2XoWQsUiAc_hwGXXXMhH52cE64ddgJDZeEYJZm0U",
+  },
   applicationName: siteConfig.name,
   title: {
     default: "EGXANO — Egyptian stock market research",

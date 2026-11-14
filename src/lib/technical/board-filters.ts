@@ -57,7 +57,9 @@ const SIGNAL_VALUES: BoardSignalFilter[] = ["all", "buy", "hold", "sell"]
 const RSI_VALUES: BoardRsiFilter[] = ["all", "oversold", "neutral", "overbought"]
 const LIQ_VALUES: BoardLiquidityFilter[] = ["all", "high", "normal"]
 const MOVE_VALUES: BoardDayMoveFilter[] = ["all", "up", "down"]
-const TIER_VALUES: BoardTierFilter[] = ["all", "EGX30", "EGX70", "MAIN", "OTC"]
+// EGX70 is not offered as a tier filter (the term is removed from the site —
+// the constituent list is incomplete); a stale ?tier=EGX70 falls back to "all".
+const TIER_VALUES: BoardTierFilter[] = ["all", "EGX30", "MAIN", "OTC"]
 const MA_VALUES: BoardMaFilter[] = ["all", "aboveEma50", "belowEma50"]
 const RANGE_VALUES: BoardRangePosFilter[] = ["all", "top", "middle", "bottom"]
 const SCORE_VALUES: BoardScoreFilter[] = ["all", "s70", "s60"]

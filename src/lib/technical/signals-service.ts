@@ -330,6 +330,10 @@ export interface MarketSignalsResponse extends Omit<MarketSignalsOutput, "rows">
   tiers?: Record<string, number>
   /** aggregate per-style-tag counts over the FILTERED set */
   styles?: Record<string, number>
+  /** distinct sector names over the FULL filtered universe (before gating) —
+   * the sector dropdown's option list is public metadata, so it must be
+   * complete even when the caller's rows are gated/free-sliced. */
+  sectors?: string[]
   /** locked identity rows omitted by the free slice cap */
   lockedRemaining?: number
   plan?: string

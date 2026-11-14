@@ -5,7 +5,7 @@ import { computeStanceFromSnapshot, type TechStance } from "@/lib/technical/sign
 import { getCachedMarketSignals } from "@/lib/technical/signals-service"
 import { cached } from "@/lib/server-cache"
 import { getCanonicalStance } from "@/lib/technical/stance-store"
-import { getSessionUser } from "@/lib/auth"
+import { getSessionUser, USER_SESSION_COOKIE } from "@/lib/auth"
 import { getActivePlanId } from "@/lib/subscription"
 import { isFreeSignalTicker, isPaidPlanId } from "@/lib/plans/entitlements"
 
@@ -30,8 +30,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!company) return Response.json({ error: "NOT_FOUND" }, { status: 404 })
 
   // ---- entitlement gate (fixed free set) ----
+  // TOKEN SOURCES: header first, then the HttpOnly session cookie (same
+  // fallback rationale as the /signals board — 2026-11-14 live-bug fix: the
+  // client's company-technical fetch ships without the header, which 403'd
+  // paying subscribers on every non-free ticker; the same-origin cookie
+  // restores the real tier, and logout clears the cookie server-side).
   const headerToken = req.headers.get("x-session-token") ?? req.headers.get("authorization")
-  const token = headerToken ? (headerToken.startsWith("Bearer ") ? headerToken.slice(7) : headerToken) : null
+  const token = headerToken
+    ? headerToken.startsWith("Bearer ")
+      ? headerToken.slice(7)
+      : headerToken
+    : (req.cookies.get(USER_SESSION_COOKIE)?.value ?? null)
   const userId = await getSessionUser(token)
   const plan = userId ? await getActivePlanId(userId) : "FREE"
   const paid = isPaidPlanId(plan)

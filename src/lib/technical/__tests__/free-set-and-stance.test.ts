@@ -26,6 +26,22 @@ describe("free-signal fixed set", () => {
     expect(isPaidPlanId("PRO_PLUS")).toBe(true)
     expect(isPaidPlanId("FREE")).toBe(false)
   })
+
+  it("legacy/retired plan names keep FULL paid access (2026-11-14 live-bug contract)", () => {
+    // A retired plan row (Pro Plus removed from sale, the legacy PREMIUM name)
+    // must never resolve to the free tier — these are exactly the names the
+    // production DB rows carry. Case/space variants normalize away in
+    // isPaidPlanId, so "Pro Plus" from a live DB row still counts as paid.
+    expect(isPaidPlanId("PRO PLUS")).toBe(true)
+    expect(isPaidPlanId("PROPLUS")).toBe(true)
+    expect(isPaidPlanId("pro_plus")).toBe(true)
+    expect(isPaidPlanId("PREMIUM")).toBe(true)
+    expect(isPaidPlanId("PREMIUM_PLUS")).toBe(true)
+    expect(isPaidPlanId("PREMIUMPLUS")).toBe(true)
+    expect(isPaidPlanId("PRO_3M")).toBe(true)
+    expect(isPaidPlanId("")).toBe(false)
+    expect(isPaidPlanId("STANDARD")).toBe(false)
+  })
 })
 
 describe("stance-store contract constants", () => {

@@ -18,9 +18,12 @@ export const MARKET_TIERS = ["EGX30", "EGX70", "MAIN", "OTC"] as const
 export type MarketTier = (typeof MARKET_TIERS)[number]
 
 /** Arabic display labels for UI surfaces (short = badges, full = detail rows). */
+// EGX70 is deliberately NOT shown anywhere user-facing: our constituent list
+// is incomplete (a real member sits outside it), so those companies render as
+// plain main-market rows instead of claiming index membership.
 export const TIER_AR: Record<MarketTier, { short: string; full: string; en: string }> = {
   EGX30: { short: "مؤشر 30", full: "ضمن مؤشر EGX30 الثقيل", en: "EGX30 index" },
-  EGX70: { short: "مؤشر 70", full: "ضمن مؤشر EGX70", en: "EGX70 index" },
+  EGX70: { short: "الرئيسي", full: "السوق الرئيسي", en: "Main market" },
   MAIN: { short: "الرئيسي", full: "السوق الرئيسي — خارج المؤشرات", en: "Main market" },
   OTC: { short: "خارج المقصورة", full: "خارج المقصورة — غير مدرج للتداول العادي", en: "OTC / suspended" },
 }

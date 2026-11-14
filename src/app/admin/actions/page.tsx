@@ -690,7 +690,7 @@ export default function AdminActionsPage() {
               disabled={tierSeed.isPending}
               className="h-9 text-xs"
             >
-              {tierSeed.isPending ? "بيحدّث…" : "تحديث التصنيف من القوائم الرسمية (مؤشر 30/70 + النيل + خارج المقصورة)"}
+              {tierSeed.isPending ? "بيحدّث…" : "تحديث التصنيف من القوائم الرسمية (مؤشر 30 + خارج المقصورة)"}
             </Button>
             {tierSeedResult && (
               <div className="flex flex-wrap items-center gap-2 text-[11px]">

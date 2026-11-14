@@ -3,7 +3,7 @@ import { getCachedMarketSignals, type MarketSignalsOutput, type MarketSignalsRes
 import { readBoardSnapshot } from "@/lib/technical/board-snapshot"
 import { distributionOf, filterMarketRows, gateRowForFree, hasActiveFilters, parseBoardFilterParams } from "@/lib/technical/board-filters"
 import { cached, peekCacheAgeMs } from "@/lib/server-cache"
-import { getSessionUser } from "@/lib/auth"
+import { getSessionUser, USER_SESSION_COOKIE } from "@/lib/auth"
 import { getActivePlanId } from "@/lib/subscription"
 import { isPaidPlanId, isFreeSignalTicker, FREE_SIGNAL_TICKERS } from "@/lib/plans/entitlements"
 
@@ -44,9 +44,23 @@ const FREE_LOCKED_ROW_LIMIT = 24
 export async function GET(req: NextRequest) {
   const t0 = Date.now()
   // Resolve the tier FIRST (cheap: cached plan lookup, one session query).
-  const token = req.headers.get("x-session-token")
-  const bearer = req.headers.get("authorization")
-  const rawToken = token ?? (bearer ? (bearer.startsWith("Bearer ") ? bearer.slice(7) : bearer) : null)
+  // TOKEN SOURCES: the x-session-token / Authorization header first (the
+  // explicit client path), then the HttpOnly session cookie (src/lib/auth.ts).
+  // WHY the cookie fallback exists (2026-11-14 live-bug fix): the board fetch
+  // in the shared client layer ships WITHOUT the header, so every browser
+  // caller — including a paying PRO/legacy-PRO_PLUS subscriber — resolved to
+  // FREE here: the API returned the 5-company free slice while the premium
+  // badge (from /subscription/me, which DOES send the header) stayed on —
+  // exactly the "premium badge but only 5 free companies" report. Same-origin
+  // fetches always carry that cookie, so the fallback restores the caller's
+  // real tier without touching the shared client layer (logout invalidates the
+  // cookie server-side, so the fallback can never outlive the session).
+  const headerToken = req.headers.get("x-session-token") ?? req.headers.get("authorization")
+  const rawToken = headerToken
+    ? headerToken.startsWith("Bearer ")
+      ? headerToken.slice(7)
+      : headerToken
+    : (req.cookies.get(USER_SESSION_COOKIE)?.value ?? null)
   const userId = await getSessionUser(rawToken)
   const t1 = Date.now()
   const plan = userId ? await getActivePlanId(userId) : "FREE"
@@ -81,15 +95,21 @@ export async function GET(req: NextRequest) {
   const filters = parseBoardFilterParams(sp)
   const filtered = hasActiveFilters(filters) ? filterMarketRows(full.rows, filters) : full.rows
   const matched = distributionOf(filtered)
-  // Aggregate per-tier and per-style counts over the FILTERED set — the chips
-  // need true counts, and locked rows cannot expose their own values.
+  // Aggregate per-tier, per-style and per-sector facets over the FILTERED set —
+  // the chips and the sector dropdown must reflect the FULL matched universe
+  // BEFORE gating: a locked row cannot expose its own values, but the aggregate
+  // option list is public metadata (sector names already travel on every locked
+  // identity row), so a free caller still gets complete, truthful options.
   const tiers: Record<string, number> = {}
   const styles: Record<string, number> = {}
+  const sectorSet = new Set<string>()
   for (const r of filtered) {
     const tier = r.marketTier ?? "MAIN"
     tiers[tier] = (tiers[tier] ?? 0) + 1
     for (const f of r.styleFits) styles[f.tag] = (styles[f.tag] ?? 0) + 1
+    sectorSet.add(r.sector)
   }
+  const sectors = [...sectorSet].sort((a, b) => a.localeCompare(b))
   const t3 = Date.now()
 
   const serverTiming = `auth;dur=${t1 - t0},payload;dur=${t2 - t1},filter;dur=${t3 - t2},total;dur=${Date.now() - t0},source=${servedFrom}`
@@ -105,6 +125,7 @@ export async function GET(req: NextRequest) {
       matched,
       tiers,
       styles,
+      sectors,
       plan,
       upgradeHint: null,
     }
@@ -140,6 +161,7 @@ export async function GET(req: NextRequest) {
     matched,
     tiers,
     styles,
+    sectors,
     lockedRemaining,
     universe: full.universe,
     scored: full.scored,

@@ -300,6 +300,18 @@ async function runRefresh(): Promise<MarketRefreshSummary> {
       // cache module unavailable in some runtimes — reads still self-heal via TTLs
     }
 
+    // Best-effort: evaluate active price alerts against THIS snapshot and
+    // deliver Web Push — the hook that makes alerts fire even when the site
+    // is closed (runs on every snapshot write). Dedupe is the evaluator's
+    // atomic active→false claim, so the lazy GET path / cron can never
+    // double-notify. Failures here never fail the price refresh itself.
+    try {
+      const { evaluateAndNotifyAllAlerts } = await import("@/lib/alerts/evaluate")
+      await evaluateAndNotifyAllAlerts(snapshot)
+    } catch (e) {
+      console.warn("alert push evaluation failed:", e instanceof Error ? e.message.slice(0, 160) : String(e))
+    }
+
     // Best-effort: rebuild the whole-market intelligence snapshot from the
     // fresh data. Failures here never fail the price refresh itself.
     try {

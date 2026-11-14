@@ -4,14 +4,15 @@ import { getSessionUser } from "@/lib/auth"
 import { checkEndpointRateLimit, getClientIp } from "@/lib/rate-limit"
 import { audit } from "@/lib/audit"
 import { getFreshMarketSnapshot } from "@/lib/market/snapshot"
-import { latestPricesPerCompany } from "@/lib/market/latest-price"
+import { alertHit, deactivateAndNotify, resolveAlertPrices, type TriggeredAlert } from "@/lib/alerts/evaluate"
 import { getActivePlanId } from "@/lib/subscription"
 import { PLANS } from "@/lib/plans/entitlements"
 
 // GET    /api/v1/alerts            — list the signed-in user's price alerts
 //                                    (lazily evaluates active alerts against
-//                                    the freshest recorded price and marks
-//                                    newly-triggered ones).
+//                                    the freshest recorded price, marks
+//                                    newly-triggered ones and delivers their
+//                                    Web Push notification).
 // POST   /api/v1/alerts            — { companyId, direction: ABOVE|BELOW,
 //                                    targetPrice } — capped per plan
 //                                    (FREE 5 / PRO 30 / PRO_PLUS 100 active
@@ -21,7 +22,9 @@ import { PLANS } from "@/lib/plans/entitlements"
 // Evaluation model: alerts fire against RECORDED market prices (the same
 // 15-minute-delayed snapshot the rest of the platform shows) — never against
 // intraday guesses. Lazy evaluation on read keeps the model simple and the
-// write load zero: the client polls while the session is open.
+// write load zero: the client polls while the session is open. The comparison
+// + dedupe + push delivery live in src/lib/alerts/evaluate.ts (shared with
+// the snapshot-write hook and the cron route so they can't drift).
 
 export async function GET(req: NextRequest) {
   const token = req.headers.get("x-session-token")
@@ -42,26 +45,25 @@ export async function GET(req: NextRequest) {
     // Freshest snapshot (DB Setting + opportunistic refresh) — not the frozen
     // build-time file, so alerts evaluate against session-fresh prices.
     const snapshot = await getFreshMarketSnapshot()
-    const moverMap = new Map<string, { price: number; asOf: string | null }>()
-    for (const m of snapshot?.movers ?? []) {
-      moverMap.set(m.ticker.toUpperCase(), { price: m.price, asOf: snapshot?.pricesAsOf ?? snapshot?.asOf ?? null })
-    }
+    const prices = await resolveAlertPrices(
+      active.map((a) => ({ companyId: a.companyId, ticker: a.company.ticker })),
+      snapshot,
+    )
 
-    const ids = [...new Set(active.map((a) => a.companyId))]
-    // only the freshest close per alert company is consumed — one row per
-    // company via DISTINCT ON (was the full price history per company)
-    const dbLatest = await latestPricesPerCompany(ids)
-
-    const triggered: string[] = []
+    const hits: TriggeredAlert[] = []
     const priced = active.map((a) => {
-      const ticker = a.company.ticker.toUpperCase()
-      const snap = moverMap.get(ticker)
-      const price = snap?.price ?? dbLatest.get(a.companyId)?.price ?? null
-      const asOf = snap?.asOf ?? dbLatest.get(a.companyId)?.asOf?.toISOString() ?? null
-      const hit =
-        price !== null &&
-        ((a.direction === "ABOVE" && price >= a.targetPrice) || (a.direction === "BELOW" && price <= a.targetPrice))
-      if (hit) triggered.push(a.id)
+      const p = prices.get(a.companyId) ?? null
+      const hit = p !== null && alertHit(a.direction, a.targetPrice, p.price)
+      if (hit) {
+        hits.push({
+          id: a.id,
+          userId: a.userId,
+          ticker: a.company.ticker,
+          direction: a.direction,
+          targetPrice: a.targetPrice,
+          price: p.price,
+        })
+      }
       return {
         id: a.id,
         companyId: a.companyId,
@@ -73,17 +75,16 @@ export async function GET(req: NextRequest) {
         targetPrice: a.targetPrice,
         active: a.active,
         triggeredAt: a.triggeredAt?.toISOString() ?? null,
-        currentPrice: price,
-        priceAsOf: asOf,
+        currentPrice: p?.price ?? null,
+        priceAsOf: p?.asOf ?? null,
         hitNow: hit,
       }
     })
 
-    if (triggered.length > 0) {
-      await db.priceAlert.updateMany({
-        where: { id: { in: triggered }, userId },
-        data: { active: false, triggeredAt: new Date() },
-      })
+    // Fire the triggered alerts (deactivate + Web Push, deduped by the shared
+    // evaluator's atomic claim — see src/lib/alerts/evaluate.ts).
+    if (hits.length > 0) {
+      await deactivateAndNotify(hits)
     }
 
     const inactive = alerts

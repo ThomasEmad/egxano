@@ -39,6 +39,8 @@ import { useMarketLive } from "./use-market-live"
 import { EVENT_TYPE_MAP } from "@/lib/financial/registry"
 import type { ViewKey } from "@/lib/view-keys"
 import { sectorLabel } from "@/lib/sectors"
+import { egxMarketStatus } from "@/lib/market/egx-hours"
+import type { MarketIntelligence } from "@/lib/market/intelligence/compute"
 
 interface SectorAgg {
   sector: string
@@ -64,14 +66,16 @@ interface SectorAgg {
   pricedCompanyCount: number
 }
 
-interface BreadthData {
+/** The ONE shared breadth object on this page — derived from the market
+ * intelligence snapshot and handed to every breadth surface (hero cells,
+ * market summary, intelligence strip). Shapes that match this contract come
+ * from a single fetch, so no two rows can render different snapshots. */
+interface SharedBreadth {
   advancing: number
   declining: number
   unchanged: number
   tradedValue: number | null
   asOf: string | null
-  pricedCount?: number
-  tradedValueCoverage?: number | null
 }
 
 interface WatchlistItemWithPrice {
@@ -141,7 +145,6 @@ export function DashboardView({
   const live = useMarketLive([
     "dashboard",
     "latest-results",
-    "market-breadth",
     "market-ticker",
     "sector-aggs",
     "market-valuation",
@@ -171,12 +174,33 @@ export function DashboardView({
     staleTime: 120_000,
   })
 
-  const { data: breadth } = useQuery({
-    queryKey: ["market-breadth"],
-    queryFn: () => fetch("/api/v1/market/breadth").then((r) => (r.ok ? (r.json() as Promise<BreadthData>) : null)),
-    staleTime: 300_000,
-    refetchInterval: 600_000,
+  // ONE market snapshot feeds every breadth surface on this page. The
+  // intelligence endpoint carries the shared metrics (adv/dec, traded value,
+  // SMA status) plus ONE asOf — previously the hero row fetched
+  // /api/v1/market/breadth (live pipeline) while the intelligence strip read
+  // the persisted intelligence snapshot, and the dashboard contradicted
+  // itself: two adv/dec counts, two traded values, two timestamps.
+  const { data: intel, isLoading: intelLoading } = useQuery({
+    queryKey: ["market-intelligence"],
+    queryFn: () =>
+      fetch("/api/v1/market/intelligence").then((r) => (r.ok ? (r.json() as Promise<MarketIntelligence>) : null)),
+    staleTime: 60_000,
+    // 60s while the EGX session can move, 300s outside it (re-evaluated per poll).
+    refetchInterval: () => (egxMarketStatus().live ? 60_000 : 300_000),
+    refetchOnWindowFocus: false,
   })
+
+  // Single source of truth: the hero cells, the market summary panel and the
+  // intelligence strip all render THIS object (same numbers, same timestamp).
+  const marketBreadth: SharedBreadth | undefined = intel
+    ? {
+        advancing: intel.breadth.advancing,
+        declining: intel.breadth.declining,
+        unchanged: intel.breadth.unchanged,
+        tradedValue: intel.breadth.tradedValueEgp,
+        asOf: intel.asOf,
+      }
+    : undefined
 
   const isPremium = !!subData?.isPremium
   const watchItems = useWatchlist((s) => s.items)
@@ -261,9 +285,9 @@ export function DashboardView({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <LiveMarketBadge ar={ar} on={[]} status={live.status} lastUpdated={live.lastUpdated} />
-              {breadth?.asOf ? (
+              {marketBreadth?.asOf ? (
                 <span className="text-[11px] text-muted-foreground" dir="ltr">
-                  {new Date(breadth.asOf).toLocaleString(ar ? "ar-EG" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  {new Date(marketBreadth.asOf).toLocaleString(ar ? "ar-EG" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                 </span>
               ) : null}
             </div>
@@ -288,13 +312,14 @@ export function DashboardView({
           </div>
 
           <div className="grid shrink-0 grid-cols-2 gap-2.5 sm:grid-cols-4 lg:w-auto">
-            {/* Breadth: advancing / declining today */}
+            {/* Breadth: advancing / declining today — same snapshot as the
+                intelligence strip below (one fetch, one timestamp). */}
             <div className="rounded-xl border border-border/60 bg-background/60 px-3.5 py-3 min-w-[104px]">
               <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{ar ? "الاتساع السوقي" : "Breadth"}</p>
               <p className="mt-1 flex items-baseline gap-2 text-lg font-bold tabular" dir="ltr">
-                <span className="text-positive">{breadth?.advancing ?? "—"}</span>
+                <span className="text-positive">{marketBreadth?.advancing ?? "—"}</span>
                 <span className="text-[10px] text-muted-foreground">/</span>
-                <span className="text-negative">{breadth?.declining ?? "—"}</span>
+                <span className="text-negative">{marketBreadth?.declining ?? "—"}</span>
               </p>
               <p className="text-[10px] text-muted-foreground">{ar ? "صاعد / هابط" : "adv / dec"}</p>
             </div>
@@ -302,9 +327,26 @@ export function DashboardView({
             <div className="rounded-xl border border-border/60 bg-background/60 px-3.5 py-3 min-w-[104px]">
               <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{ar ? "القيمة المتداولة" : "Traded value"}</p>
               <p className="mt-1 text-lg font-bold tabular" dir="ltr">
-                {breadth?.tradedValue != null ? formatEgp(breadth.tradedValue) : "—"}
+                {marketBreadth?.tradedValue != null ? formatEgp(marketBreadth.tradedValue) : "—"}
               </p>
               <p className="text-[10px] text-muted-foreground">EGP</p>
+            </div>
+            {/* SMA status — rendered from the SAME snapshot as the strip below
+                so the two rows can never disagree (the old bug: this hero read
+                one pipeline while the strip read another). */}
+            <div className="rounded-xl border border-border/60 bg-background/60 px-3.5 py-3 min-w-[104px]">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{ar ? "فوق SMA20" : "Above SMA20"}</p>
+              <p className="mt-1 text-lg font-bold tabular" dir="ltr">
+                {intel?.breadth.pctAboveSma20 != null ? `${intel.breadth.pctAboveSma20.toFixed(0)}%` : "—"}
+              </p>
+              <p className="text-[10px] text-muted-foreground">{ar ? "من شركات السوق" : "of the market"}</p>
+            </div>
+            <div className="rounded-xl border border-border/60 bg-background/60 px-3.5 py-3 min-w-[104px]">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{ar ? "فوق SMA50" : "Above SMA50"}</p>
+              <p className="mt-1 text-lg font-bold tabular" dir="ltr">
+                {intel?.breadth.pctAboveSma50 != null ? `${intel.breadth.pctAboveSma50.toFixed(0)}%` : "—"}
+              </p>
+              <p className="text-[10px] text-muted-foreground">{ar ? "من شركات السوق" : "of the market"}</p>
             </div>
             {/* Companies tracked */}
             <div className="rounded-xl border border-border/60 bg-background/60 px-3.5 py-3 min-w-[104px]">
@@ -323,8 +365,10 @@ export function DashboardView({
       </section>
 
       {/* ===== WHOLE-MARKET INTELLIGENCE (regime, pulse, breadth, rotation,
-           anomalies, radars) — mounted above the sector / movers panels ===== */}
-      <MarketIntelligencePanel />
+           anomalies, radars) — mounted above the sector / movers panels.
+           Receives the page's single shared snapshot as a prop; it must never
+           fetch its own copy (that's how the two-row divergence happened). ===== */}
+      <MarketIntelligencePanel intel={intel} isLoading={intelLoading} />
 
       {/* AdSense — leaderboard strip between the market board and analytics */}
       <AdSlot slot="dashboard-leaderboard" format="leaderboard" />
@@ -341,8 +385,9 @@ export function DashboardView({
           onViewChange={onViewChange}
         />
 
-        {/* Panel B — Market Summary (Real Data) */}
-        <MarketSummaryPanel breadth={breadth} ar={ar} />
+        {/* Panel B — Market Summary (same shared snapshot as the hero and the
+            intelligence strip — one fetch feeds the whole page) */}
+        <MarketSummaryPanel breadth={marketBreadth} ar={ar} />
 
         {/* Panel C — EGX30 Chart (No Synthetic Data) */}
         <Egx30ChartPanel ticker={ticker} ar={ar} onViewChange={onViewChange} router={router} />
@@ -521,7 +566,7 @@ function SectorPerformancePanel({
 }
 
 /* ===== Panel B — Market Summary (Real Data) ===== */
-function MarketSummaryPanel({ breadth, ar }: { breadth: BreadthData | null | undefined; ar: boolean }) {
+function MarketSummaryPanel({ breadth, ar }: { breadth: SharedBreadth | null | undefined; ar: boolean }) {
   const advancing = breadth?.advancing ?? 0
   const declining = breadth?.declining ?? 0
   const unchanged = breadth?.unchanged ?? 0

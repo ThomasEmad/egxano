@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, Bell, BellRing, Loader2, TrendingDown, TrendingUp, Trash2 } from "lucide-react"
+import { AlertTriangle, Bell, BellOff, BellRing, Loader2, TrendingDown, TrendingUp, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -16,9 +16,10 @@ import { useI18n } from "@/lib/i18n"
 // /alerts — price alerts for the signed-in user.
 //
 // Honest model: targets are compared with the latest RECORDED price (the same
-// 15-minute-delayed snapshot the rest of the site shows) when this page is
-// opened or polls. There is no email or push delivery — the copy must never
-// imply one.
+// 15-minute-delayed snapshot the rest of the site shows) by the server on
+// every snapshot write / poll. With browser push enabled (PushToggle below)
+// the alert also arrives as an OS notification even when the site is closed;
+// without it, alerts appear here only when the page is opened.
 
 interface AlertRow {
   id: string
@@ -94,8 +95,8 @@ export default function AlertsPage() {
             </p>
             <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground/80">
               {ar
-                ? "مفيش إيميل ولا إشعارات على الموبايل — التنبيه بيظهر هنا لما تفتح الصفحة."
-                : "No email and no mobile push — alerts appear here when you open this page."}
+                ? "ولما تفعّل إشعارات المتصفح، التنبيه بيوصلك إشعار حتى لو التطبيق مقفول."
+                : "And with browser notifications enabled, an alert reaches you even when the app is closed."}
             </p>
             <div className="mt-6 flex justify-center gap-3">
               <Link href="/login?next=/alerts">
@@ -121,8 +122,8 @@ export default function AlertsPage() {
                 </h1>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                   {ar
-                    ? "طريقة العمل: بنقارن سعرك المستهدف بآخر سعر مسجّل (متأخر 15 دقيقة) عند فتح الصفحة. التنبيهات بتظهر هنا داخل المنصة — مفيش إيميل ولا إشعارات على الموبايل."
-                    : "How it works: we check your target against the latest recorded price (15-minute delayed) when you open this page. Alerts appear here, in the app — we don't send email or push notifications."}
+                    ? "طريقة العمل: بنقارن سعرك المستهدف بآخر سعر مسجّل (متأخر 15 دقيقة). التنبيهات بتظهر هنا داخل المنصة — وفعّل إشعارات المتصفح تحتها علشان توصلك حتى لو التطبيق مقفول."
+                    : "How it works: we check your target against the latest recorded price (15-minute delayed). Alerts appear here, in the app — and enable browser notifications below to get them even when the app is closed."}
                 </p>
               </div>
               <Button
@@ -138,6 +139,10 @@ export default function AlertsPage() {
 
             <div className="mt-5">
               <NewAlertForm onCreated={() => qc.invalidateQueries({ queryKey: ["alerts"] })} />
+            </div>
+
+            <div className="mt-4">
+              <PushToggle />
             </div>
 
             {isLoading ? (
@@ -276,6 +281,186 @@ function AlertCard({ alert: a, fired, onChanged }: { alert: AlertRow; fired?: bo
         </div>
         <Button variant="ghost" size="sm" onClick={remove} disabled={busy} aria-label={ar ? "حذف التنبيه" : "Delete alert"}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" aria-hidden />}
+        </Button>
+      </div>
+    </Card>
+  )
+}
+
+// VAPID application server key: base64url → the Uint8Array pushManager.subscribe()
+// requires. Standard Web Push client-side conversion. (`<ArrayBuffer>` — the
+// BufferSource DOM type requires a plain-ArrayBuffer view, not SharedArrayBuffer.)
+function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/")
+  const raw = atob(base64)
+  const output = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i++) output[i] = raw.charCodeAt(i)
+  return output
+}
+
+// Browser push for price alerts — the toggle that makes alerts reach the user
+// EVEN WHEN the site is closed. Enable flow: ask permission → resolve the
+// server's VAPID public key (inline NEXT_PUBLIC at build time, else the
+// /api/v1/push/public-key route) → register /sw.js → subscribe → store the
+// subscription server-side. The server then evaluates alerts on every price
+// snapshot write and pushes through the service worker.
+function PushToggle() {
+  const { lang } = useI18n()
+  const ar = lang === "ar"
+  const [supported, setSupported] = useState(true)
+  const [permission, setPermission] = useState<NotificationPermission>("default")
+  const [subscribed, setSubscribed] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    // Resolve the CURRENT push state after mount (registration is async and
+    // may live in another tab) — server render can't know it.
+    ;(async () => {
+      if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+        if (!cancelled) {
+          setSupported(false)
+          setSubscribed(false)
+        }
+        return
+      }
+      try {
+        const reg = await navigator.serviceWorker.getRegistration()
+        const sub = reg ? await reg.pushManager.getSubscription() : null
+        if (!cancelled) {
+          setPermission(Notification.permission)
+          setSubscribed(Boolean(sub))
+        }
+      } catch {
+        if (!cancelled) setSubscribed(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Server env WEB_PUSH_VAPID_PUBLIC_KEY is the source of truth; the build-time
+  // NEXT_PUBLIC var (if exposed) just saves the round-trip.
+  const fetchPublicKey = async (): Promise<string | null> => {
+    const inline = process.env.NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY
+    if (inline) return inline
+    const res = await fetch("/api/v1/push/public-key").catch(() => null)
+    if (!res || !res.ok) return null
+    const data = (await res.json().catch(() => null)) as { publicKey?: string | null } | null
+    return typeof data?.publicKey === "string" && data.publicKey ? data.publicKey : null
+  }
+
+  const enable = async () => {
+    setError(null)
+    setBusy(true)
+    try {
+      const perm = await Notification.requestPermission()
+      setPermission(perm)
+      if (perm !== "granted") {
+        setError(ar ? "اترفض إذن الإشعارات — سمحليه من إعدادات المتصفح وبعدين جرّب تاني." : "Notification permission was denied — allow it in browser settings, then try again.")
+        return
+      }
+      const publicKey = await fetchPublicKey()
+      if (!publicKey) {
+        setError(ar ? "الإشعارات مش مفعّلة على السيرفر حالياً — جرّب بعدين." : "Push isn't configured on the server yet — please try again later.")
+        return
+      }
+      const reg = await navigator.serviceWorker.register("/sw.js")
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      })
+      const json = sub.toJSON() as { endpoint?: string; keys?: { p256dh?: string; auth?: string } }
+      if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) throw new Error("incomplete subscription")
+      const res = await fetch("/api/v1/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ endpoint: json.endpoint, keys: { p256dh: json.keys.p256dh, auth: json.keys.auth } }),
+      })
+      if (!res.ok) throw new Error("subscribe failed")
+      setSubscribed(true)
+    } catch {
+      setError(ar ? "تعذّر تشغيل الإشعارات. جرّب تاني." : "Couldn't enable notifications. Please try again.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const disable = async () => {
+    setError(null)
+    setBusy(true)
+    try {
+      const reg = await navigator.serviceWorker.getRegistration()
+      const sub = reg ? await reg.pushManager.getSubscription() : null
+      if (sub) await sub.unsubscribe().catch(() => {})
+      if (sub?.endpoint) {
+        await fetch("/api/v1/push/unsubscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        }).catch(() => {})
+      }
+      setSubscribed(false)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const stateLabel = subscribed ? (ar ? "مشغّل" : "On") : ar ? "متوقف" : "Off"
+
+  return (
+    <Card className="p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <BellRing className="h-4 w-4 text-primary" aria-hidden />
+            {ar ? "إشعارات المتصفح" : "Browser notifications"}
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                subscribed ? "bg-positive/10 text-positive" : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {stateLabel}
+            </span>
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            {ar
+              ? "فعّلها علشان توصلك تنبيهات الأسعار كإشعار على المتصفح حتى وأنت قافل التطبيق."
+              : "Receive price alerts as browser notifications even when the app is closed."}
+          </p>
+          {!supported ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {ar ? "المتصفح ده مش بيدعم إشعارات الويب." : "This browser doesn't support web push."}
+            </p>
+          ) : permission === "denied" ? (
+            <p className="mt-2 text-xs text-warning">
+              {ar ? "الإشعارات متمنعة من إعدادات المتصفح — لازم تسمحليها الأول." : "Notifications are blocked in browser settings — allow them first."}
+            </p>
+          ) : null}
+          {error ? (
+            <p role="alert" className="mt-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              {error}
+            </p>
+          ) : null}
+        </div>
+        <Button
+          size="sm"
+          variant={subscribed ? "outline" : "default"}
+          onClick={subscribed ? disable : enable}
+          disabled={busy || !supported}
+          aria-label={subscribed ? (ar ? "إيقاف إشعارات المتصفح" : "Turn off browser notifications") : ar ? "تشغيل إشعارات المتصفح" : "Turn on browser notifications"}
+        >
+          {busy ? (
+            <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden />
+          ) : subscribed ? (
+            <BellOff className="me-1.5 h-4 w-4" aria-hidden />
+          ) : (
+            <BellRing className="me-1.5 h-4 w-4" aria-hidden />
+          )}
+          {subscribed ? (ar ? "إيقاف الإشعارات" : "Turn off") : ar ? "تشغيل الإشعارات" : "Turn on"}
         </Button>
       </div>
     </Card>

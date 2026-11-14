@@ -141,8 +141,13 @@ export function SignalsView() {
     return sp.toString()
   }, [gateActive, signalFilter, styleFilter, rsiFilter, liquidity, dayMove, tierFilter, maFilter, rangePosFilter, scoreFilter, sector, debouncedQ, sort])
 
+  // The query key carries the resolved gate state: the very first fetch can
+  // complete before the plan query resolves (and in rare cookie-less sessions
+  // the server then answers with the free slice) — once the gate resolves, the
+  // key changes and the board re-fetches instead of sitting on a payload that
+  // was sliced for the wrong tier.
   const { data, isLoading, isError, refetch, isRefetching } = useQuery({
-    queryKey: ["technical-signals", serverQuery || "client"],
+    queryKey: ["technical-signals", gateActive ? `free:${serverQuery}` : "premium"],
     queryFn: () => api.technicalSignals(serverQuery || undefined),
     staleTime: gateActive ? 60_000 : 120_000,
   })
@@ -159,10 +164,15 @@ export function SignalsView() {
 
   const rows = allRows
 
-  const sectors = useMemo(
-    () => [...new Set(rows.map((r) => r.sector))].sort((a, b) => a.localeCompare(b)),
-    [rows]
-  )
+  // Sector dropdown options: the server facet covers the FULL filtered universe
+  // (computed before gating), so a gated/free response still lists every sector
+  // — deriving options from the visible rows alone would starve the dropdown
+  // (the live "empty sector options" bug). Row-derived list stays as fallback
+  // for an older cached payload without the facet.
+  const sectors = useMemo(() => {
+    if (data?.sectors?.length) return [...data.sectors].sort((a, b) => a.localeCompare(b))
+    return [...new Set(rows.map((r) => r.sector))].sort((a, b) => a.localeCompare(b))
+  }, [data?.sectors, rows])
 
   // Chip counts: server aggregates when the server filters (locked rows can't
   // expose their own values), local counts over full rows for premium.
@@ -383,7 +393,7 @@ export function SignalsView() {
         <button className={chip(tierFilter === "all")} onClick={() => setTierFilter("all")}>
           {ar ? "الكل" : "All"}
         </button>
-        {(["EGX30", "EGX70", "MAIN", "OTC"] as Exclude<TierFilter, "all">[]).map((t) => {
+        {(["EGX30", "MAIN", "OTC"] as Exclude<TierFilter, "all">[]).map((t) => {
           const n = gateActive
             ? serverTiers?.[t] ?? 0
             : rows.filter((r) => !("locked" in r) && (r.marketTier ?? "MAIN") === t).length
