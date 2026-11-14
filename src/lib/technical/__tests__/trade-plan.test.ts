@@ -72,8 +72,10 @@ describe("buildTradePlan — structural stop + zone target (buy)", () => {
   })
 
   it("wide ATR pushes RR below 1.5 → NO plan (validated, not fudged)", () => {
-    // stop = 95 − 7.5 = 87.5 → RR 1.31 < 1.5 → rejected
-    expect(buildTradePlan({ signal: "buy", lastClose: 100, closes: zigzagWithZones(), atrPct: 5 })).toBeNull()
+    // @5 plan geometry: entry zone 98.5–100.4 (mid 99.45), structural stop
+    // 95 − 1.5×ATR, measured-move target 119.45. ATR 6 → stop 86 → risk 13.45
+    // vs reward 20 → RR ≈ 1.49 < 1.5 → the plan is REJECTED, never fudged.
+    expect(buildTradePlan({ signal: "buy", lastClose: 100, closes: zigzagWithZones(), atrPct: 6 })).toBeNull()
   })
 
   it("chase with a distant support: measured-move target pays < 1.5R → NO plan", () => {

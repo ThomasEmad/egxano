@@ -20,10 +20,10 @@
 //      available for most names) — forward return from t+1 close over
 //      sellFwdHorizonSessions measures what a BUY-holder would have avoided.
 import { DEFAULT_BACKTEST_CONFIG, type BacktestConfig } from "./constants"
+import type { ReplayResult } from "./replay"
 import type {
   EngineRow,
   ReplayRecord,
-  ReplayResult,
   SellEvidenceRecord,
   SkipReasons,
   TradeRecord,

@@ -1,5 +1,5 @@
 // Backtesting framework — shared data shapes.
-import type { CloseRow, TechSignalType } from "../../.cache/engine-baseline/signals"
+import type { CloseRow, TechSignalType } from "../../../.cache/engine-baseline/signals"
 
 /** Engine input row — structurally identical to the frozen engine's CloseRow
  *  ({ ts, close, volume }); close is the ADJUSTED close (corporate-action

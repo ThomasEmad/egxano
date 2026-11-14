@@ -2,7 +2,8 @@
 import { describe, expect, it } from "vitest"
 import { DEFAULT_BACKTEST_CONFIG, type BacktestConfig } from "../constants"
 import { simulateExecution, type TickerMeta } from "../execution"
-import type { EngineRow, ReplayRecord, ReplayResult } from "../types"
+import type { ReplayResult } from "../replay"
+import type { EngineRow, ReplayRecord } from "../types"
 
 const META: TickerMeta = { ticker: "TEST", sector: "Banks", tier: "EGX30", liquidityTercile: "T2" }
 

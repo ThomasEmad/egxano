@@ -350,9 +350,14 @@ describe("tech-signals@5 indicator fixes", () => {
     const pattern = [10, 12, 15, 12, 9, 12, 15, 12, 9, 12]
     const closes = [...pattern, ...pattern, 12]
     const sr = supportResistance(bars(closes), 2, 1.5, 4)
-    const top = sr.resistances[0]
-    expect(top.price).toBeGreaterThan(14)
-    expect(top.touches).toBeGreaterThanOrEqual(2)
+    // The equal-high fix keeps BOTH 15-highs as pivot candidates → they cluster
+    // into one multi-touch resistance. (Strict pivot comparisons also register
+    // the flat 12-shoulders as minor pivots, and zones sort nearest-first, so
+    // the assertion targets the equal-high cluster itself rather than index 0.)
+    const top = sr.resistances.find((z) => z.price > 14)
+    expect(top).toBeTruthy()
+    expect(top!.price).toBeGreaterThan(14)
+    expect(top!.touches).toBeGreaterThanOrEqual(2)
   })
 
   it("S/R zones effectively AT the close are dropped (0.1% tolerance, not exact equality)", () => {
@@ -379,9 +384,18 @@ describe("tech-signals@5 indicator fixes", () => {
     const closes = Array.from({ length: 40 }, (_, i) => 100 + i)
     const m = macdSeries(closes)
     expect(m.line.length).toBe(40)
-    expect(m.line[24]).not.toBeNull() // both EMAs exist from slow-1
+    // both EMAs exist from index slow−1 (=25, 0-based): a 26-length window first
+    // fits there, so line[24] is still null and line[25] is the first MACD value
+    expect(m.line[24]).toBeNull()
+    expect(m.line[25]).not.toBeNull()
     expect(m.signal[33]).not.toBeNull() // signal needs signalN line points
-    expect(m.histogram[39]!).toBeGreaterThan(0)
+    // a LINEAR ramp has no acceleration: the histogram converges to ~0 in
+    // steady state (float epsilon, sign irrelevant) — not a fake positive
+    expect(Math.abs(m.histogram[39]!)).toBeLessThan(1e-9)
+    // an ACCELERATING series must print a positive, expanding histogram
+    const accel = macdSeries(Array.from({ length: 40 }, (_, i) => 100 + i * i * 0.1))
+    expect(accel.histogram[39]!).toBeGreaterThan(0)
+    expect(accel.histogram[39]!).toBeGreaterThan(accel.histogram[33]!)
     const flatM = macdSeries(Array(40).fill(100))
     expect(flatM.line[39]).toBe(0)
     expect(flatM.histogram[39]).toBe(0)

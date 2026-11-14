@@ -43,14 +43,19 @@ function uptrendCloses(n = 80): number[] {
   return out
 }
 
-/** Healthy uptrend: +0.5% up / −0.4% down alternation — RSI ≈ 55 (full band
- *  credit), mid-range position, MACD positive, relVol ≈ 1.1 with OBV support:
- *  every dimension reaches the decision bar → a genuine buy read. */
+/** Healthy uptrend that reaches the @5 decision bar on EVERY dimension:
+ *  rally → local peak → pullback → modest recovery that stays BELOW the peak.
+ *  The recovery keeps RSI back in the 45–60 full-credit band and the close at
+ *  45–75% of the 60-session range (full range-position credit) while the price
+ *  stays above EMA20/EMA50 with a rising tail — momentum reaches its 80%
+ *  corroboration cap (24/30), so decision-level excellence genuinely passes. */
 function healthyUptrend(n = 80): number[] {
   const out: number[] = []
   let p = 50
   for (let i = 0; i < n; i++) {
-    p *= i % 2 === 0 ? 1.005 : 0.996
+    if (i <= 45) p *= i % 2 === 0 ? 1.006 : 0.9975 // rally with noise
+    else if (i <= 70) p *= i % 2 === 0 ? 0.996 : 1.00125 // pullback
+    else p *= 1.003 // modest recovery, stays below the rally peak
     out.push(Math.round(p * 100) / 100)
   }
   return out
@@ -99,7 +104,9 @@ describe("computeCloseSignal — @5 decision gates and de-duplicated dims", () =
 
   it("healthy confirmed uptrend → buy read (volume gate + excellence both pass)", () => {
     const closes = healthyUptrend(80)
-    const volumes = closes.map((c, i) => (i % 2 === 0 ? 1100 : 1000)) // up days carry more volume
+    // up sessions carry clearly more volume than pullback sessions → OBV
+    // accumulation AND the final up-session relVol ≥ 1 (confirmed participation)
+    const volumes = closes.map((c, i) => (i === 0 ? 1000 : c >= closes[i - 1] ? 1300 : 900))
     const sig = computeCloseSignal(rowsFrom(closes, volumes))
     expect(sig.signal).toBe("buy")
     expect(sig.score!).toBeGreaterThanOrEqual(62)
@@ -113,10 +120,13 @@ describe("computeCloseSignal — @5 decision gates and de-duplicated dims", () =
   })
 
   it("BUY blocked on thin participation: relVol < 1 AND OBV distribution → weak_volume reason", () => {
-    const closes = uptrendCloses(80)
-    // up sessions on thin volume, down sessions heavy → OBV slope negative,
-    // last relVol < 1 — the volume gate rejects the buy candidate explicitly
-    const volumes = closes.map((c, i) => (i % 3 === 2 ? 4000 : 400))
+    // the SAME healthy price structure, but up sessions print on thin volume
+    // while pullback sessions carry heavy volume → OBV slope negative over the
+    // recent window AND the final relVol < 1. The score still clears the buy
+    // threshold (candidate), so the volume gate itself must reject it — with
+    // the explicit bilingual weak-volume reason as the FIRST rejection.
+    const closes = healthyUptrend(80)
+    const volumes = closes.map((c, i) => (i === 0 ? 400 : c >= closes[i - 1] ? 400 : 4000))
     const sig = computeCloseSignal(rowsFrom(closes, volumes))
     expect(sig.signal).toBe("hold")
     expect(sig.reasons.map((r) => r.code)).toContain("weak_volume_no_buy")
