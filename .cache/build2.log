@@ -1,0 +1,257 @@
+▲ Next.js 16.3.2 (Turbopack)
+✓ Running next.config.ts took 50ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 11.7s
+  Skipping validation of types
+  Finished TypeScript config validation in 4ms ...
+  Collecting page data using 1 worker ...
+  Generating static pages using 1 worker (0/123) ...
+  Generating static pages using 1 worker (30/123) 
+  Generating static pages using 1 worker (61/123) 
+  Generating static pages using 1 worker (92/123) 
+✓ Generating static pages using 1 worker (123/123) in 7.4s
+Turbopack build encountered 4 warnings:
+./src/instrumentation.ts:29:3
+Warning: A Node.js API is used (process.on at line: 29) which is not supported in the Edge Runtime.
+    Learn more: https://nextjs.org/docs/api-reference/edge-runtime
+  [90m27 |[0m   [90m// Surface silent background failures (SWR refreshers, SSE timers, spawned[0m
+  [90m28 |[0m   [90m// scripts) — unlogged rejections made production issues undiscoverable.[0m
+[33m[1m>[0m [90m29 |[0m   process.on([32m"unhandledRejection"[0m, (reason) => {
+  [90m   |[0m   [33m[1m^^^^^^^^^^[0m
+  [90m30 |[0m     console.error([32m"[unhandledRejection]"[0m, reason [36minstanceof[0m [33mError[0m ? (reason.stack ?? reaso...
+  [90m31 |[0m   })
+  [90m32 |[0m   process.on([32m"uncaughtException"[0m, (err) => {
+
+Ecmascript file had an error
+
+Import trace:
+  App Route:
+    ./src/instrumentation.ts
+    ./src/lib/admin-ops.ts
+    ./src/app/api/v1/admin/ops/route.ts
+
+
+./src/instrumentation.ts:32:3
+Warning: A Node.js API is used (process.on at line: 32) which is not supported in the Edge Runtime.
+    Learn more: https://nextjs.org/docs/api-reference/edge-runtime
+  [90m30 |[0m     console.error([32m"[unhandledRejection]"[0m, reason [36minstanceof[0m [33mError[0m ? (reason.stack ?? reaso...
+  [90m31 |[0m   })
+[33m[1m>[0m [90m32 |[0m   process.on([32m"uncaughtException"[0m, (err) => {
+  [90m   |[0m   [33m[1m^^^^^^^^^^[0m
+  [90m33 |[0m     console.error([32m"[uncaughtException]"[0m, err?.stack ?? [33mString[0m(err))
+  [90m34 |[0m   })
+  [90m35 |[0m
+
+Ecmascript file had an error
+
+Import trace:
+  App Route:
+    ./src/instrumentation.ts
+    ./src/lib/admin-ops.ts
+    ./src/app/api/v1/admin/ops/route.ts
+
+
+./src/lib/admin-ops.ts:289:70
+Warning: The file pattern (<dynamic> '/' <dynamic> | '/ROOT//' <dynamic> | <dynamic> | '/ROOT/' <dynamic>) matches 13184 files in [project]/
+  [90m287 |[0m ...
+  [90m288 |[0m ...[90mntional for admin job execution[0m
+[33m[1m>[0m [90m289 |[0m ... [[90m/* turbopackIgnore: true */[0m path.join([33mROOT[0m, job.script), ...job.args], {
+  [90m    |[0m                                  [33m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m290 |[0m ...
+  [90m291 |[0m ...
+  [90m292 |[0m ...
+
+Overly broad patterns can lead to build performance issues and over bundling.
+
+Import trace:
+  App Route:
+    ./src/lib/admin-ops.ts
+    ./src/app/api/v1/admin/ops/route.ts
+
+
+./src/lib/admin-ops.ts:289:70
+Warning: Dynamic filesystem access causes tracing of the whole project
+  [90m287 |[0m ...
+  [90m288 |[0m ...[90mntional for admin job execution[0m
+[33m[1m>[0m [90m289 |[0m ... [[90m/* turbopackIgnore: true */[0m path.join([33mROOT[0m, job.script), ...job.args], {
+  [90m    |[0m                                  [33m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m290 |[0m ...
+  [90m291 |[0m ...
+  [90m292 |[0m ...
+
+Static analysis determined that this filesystem access causes the whole project to be traced and included in the output.
+This is usually unintentional and leads to all source files (including the public folder) to be deployed as part of the server code.
+This can slow down deployments or lead to failures when size limits are exceeded.
+To resolve this, you can
+- make sure the path is statically scoped to some subfolder, for example path.join(process.cwd(), 'data', bar), or
+- only use them in development, or
+- opt out by adding an ignore comment to the highlighted call: path.join(/*turbopackIgnore: true*/ ...), or
+- remove them.
+
+Import trace:
+  App Route:
+    ./src/lib/admin-ops.ts
+    ./src/app/api/v1/admin/ops/route.ts
+
+
+  Finalizing page optimization ...
+
+Route (app)                                      Revalidate  Expire
+┌ ○ /
+├ ○ /_not-found
+├ ○ /about
+├ ○ /admin
+├ ○ /admin/actions
+├ ○ /admin/companies
+├ ○ /admin/data-quality
+├ ○ /admin/login
+├ ○ /admin/ops
+├ ○ /admin/payments
+├ ○ /admin/plans
+├ ○ /admin/review
+├ ○ /admin/subscriptions
+├ ƒ /ads.txt
+├ ○ /alerts
+├ ƒ /api
+├ ƒ /api/v1/admin/audit
+├ ƒ /api/v1/admin/audit/[id]
+├ ƒ /api/v1/admin/candles
+├ ƒ /api/v1/admin/company-ops
+├ ƒ /api/v1/admin/corporate-actions
+├ ƒ /api/v1/admin/dashboard
+├ ƒ /api/v1/admin/data-quality
+├ ƒ /api/v1/admin/financial-ops
+├ ƒ /api/v1/admin/ingestion/data-quality-report
+├ ƒ /api/v1/admin/ingestion/run
+├ ƒ /api/v1/admin/ingestion/runs
+├ ƒ /api/v1/admin/login
+├ ƒ /api/v1/admin/market-prices
+├ ƒ /api/v1/admin/market-tier
+├ ƒ /api/v1/admin/me
+├ ƒ /api/v1/admin/ops
+├ ƒ /api/v1/admin/payment-requests
+├ ƒ /api/v1/admin/payment-requests/[id]/reject
+├ ƒ /api/v1/admin/payment-requests/[id]/verify
+├ ƒ /api/v1/admin/plans
+├ ƒ /api/v1/admin/recompute-all
+├ ƒ /api/v1/admin/review
+├ ƒ /api/v1/admin/security-events
+├ ƒ /api/v1/admin/settings
+├ ƒ /api/v1/admin/subscriptions
+├ ƒ /api/v1/admin/subscriptions/[id]/activate
+├ ƒ /api/v1/admin/subscriptions/[id]/cancel
+├ ƒ /api/v1/admin/subscriptions/[id]/reject
+├ ƒ /api/v1/alerts
+├ ƒ /api/v1/auth/change-password
+├ ƒ /api/v1/auth/forgot-password
+├ ƒ /api/v1/auth/login
+├ ƒ /api/v1/auth/logout
+├ ƒ /api/v1/auth/me
+├ ƒ /api/v1/auth/oauth/[provider]/callback
+├ ƒ /api/v1/auth/oauth/[provider]/start
+├ ƒ /api/v1/auth/oauth/providers
+├ ƒ /api/v1/auth/register
+├ ƒ /api/v1/auth/reset-password
+├ ƒ /api/v1/auth/session
+├ ƒ /api/v1/companies
+├ ƒ /api/v1/companies/[id]
+├ ƒ /api/v1/companies/[id]/confidence
+├ ƒ /api/v1/companies/[id]/coverage
+├ ƒ /api/v1/companies/[id]/dividends
+├ ƒ /api/v1/companies/[id]/documents
+├ ƒ /api/v1/companies/[id]/events
+├ ƒ /api/v1/companies/[id]/f-score
+├ ƒ /api/v1/companies/[id]/fact-graph
+├ ƒ /api/v1/companies/[id]/financials
+├ ƒ /api/v1/companies/[id]/investor-signals
+├ ƒ /api/v1/companies/[id]/metrics
+├ ƒ /api/v1/companies/[id]/peers
+├ ƒ /api/v1/companies/[id]/prices
+├ ƒ /api/v1/companies/[id]/reports
+├ ƒ /api/v1/companies/[id]/research-profile
+├ ƒ /api/v1/companies/[id]/scores
+├ ƒ /api/v1/companies/[id]/snowflake
+├ ƒ /api/v1/companies/[id]/technical
+├ ƒ /api/v1/companies/export
+├ ƒ /api/v1/compare
+├ ƒ /api/v1/cron/alerts-push
+├ ƒ /api/v1/cron/audit
+├ ƒ /api/v1/cron/candles
+├ ƒ /api/v1/cron/maintenance
+├ ƒ /api/v1/cron/market
+├ ƒ /api/v1/cron/market-enrich
+├ ƒ /api/v1/cron/recompute
+├ ƒ /api/v1/cron/stance-refresh
+├ ƒ /api/v1/dashboard
+├ ƒ /api/v1/dashboard/latest-results
+├ ƒ /api/v1/dashboard/summary
+├ ƒ /api/v1/dashboard/valuation
+├ ƒ /api/v1/data-quality
+├ ƒ /api/v1/dividends
+├ ƒ /api/v1/events
+├ ƒ /api/v1/health
+├ ƒ /api/v1/market/breadth
+├ ƒ /api/v1/market/history
+├ ƒ /api/v1/market/intelligence
+├ ƒ /api/v1/market/refresh
+├ ƒ /api/v1/market/sync
+├ ƒ /api/v1/market/ticker
+├ ƒ /api/v1/market/treemap
+├ ƒ /api/v1/metrics
+├ ƒ /api/v1/payment-requests
+├ ƒ /api/v1/plans
+├ ƒ /api/v1/portfolio
+├ ƒ /api/v1/push/public-key
+├ ƒ /api/v1/push/subscribe
+├ ƒ /api/v1/push/unsubscribe
+├ ƒ /api/v1/qa
+├ ƒ /api/v1/rankings
+├ ƒ /api/v1/scanners
+├ ƒ /api/v1/scanners/[id]
+├ ƒ /api/v1/scanners/history
+├ ƒ /api/v1/scanners/run
+├ ƒ /api/v1/search
+├ ƒ /api/v1/sectors
+├ ƒ /api/v1/settings/public
+├ ƒ /api/v1/status
+├ ƒ /api/v1/subscription/me
+├ ƒ /api/v1/subscription/request
+├ ƒ /api/v1/technical/signals
+├ ƒ /api/v1/undervalued
+├ ƒ /api/v1/watchlist
+├ ƒ /api/v1/watchlist/sync
+├ ○ /auth/finish
+├ ○ /companies
+├ ƒ /company/[id]
+├ ƒ /company/[id]/report
+├ ○ /compare
+├ ○ /dashboard
+├ ƒ /data-quality
+├ ○ /disclaimer
+├ ○ /dividends
+├ ○ /forgot-password
+├ ○ /login
+├ ○ /manifest.webmanifest
+├ ○ /offline
+├ ○ /portfolio
+├ ○ /premium
+├ ○ /privacy
+├ ○ /rankings
+├ ○ /register
+├ ○ /reset-password
+├ ○ /robots.txt
+├ ○ /scanners
+├ ○ /sectors                                             1h      1y
+├ ƒ /sectors/[sector]
+├ ○ /signals
+├ ○ /sitemap.xml                                         1h      1y
+├ ○ /status                                              1m      1y
+├ ○ /terms
+├ ○ /undervalued
+└ ○ /watchlist
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

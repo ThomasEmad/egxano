@@ -7,3 +7,160 @@ https://nextjs.org/telemetry
 
 
   Creating an optimized production build ...
+✓ Compiled successfully in 34.3s
+  Skipping validation of types
+  Finished TypeScript config validation in 9ms ...
+  Collecting page data using 1 worker ...
+  Generating static pages using 1 worker (0/123) ...
+  Generating static pages using 1 worker (30/123) 
+  Generating static pages using 1 worker (61/123) 
+  Generating static pages using 1 worker (92/123) 
+prisma:error 
+Invalid `prisma.company.findMany()` invocation:
+
+
+error: Environment variable not found: DATABASE_URL.
+  -->  schema.prisma:18
+   | 
+17 |   provider = "postgresql"
+18 |   url      = env("DATABASE_URL")
+   | 
+
+Validation Error Count: 1
+[sitemap] database unavailable — serving static page list only: 
+Invalid `prisma.company.findMany()` invocation:
+
+
+error: Environment variable not found: DATABASE_URL.
+  -->  schema.prisma:18
+   | 
+17 |   provider = "postgresql"
+18 |   url      = env("DATABASE_URL")
+   | 
+
+Validation Error Count: 1
+prisma:error 
+Invalid `prisma.company.groupBy()` invocation:
+
+
+error: Environment variable not found: DATABASE_URL.
+  -->  schema.prisma:18
+   | 
+17 |   provider = "postgresql"
+18 |   url      = env("DATABASE_URL")
+   | 
+
+Validation Error Count: 1
+Error occurred prerendering page "/sectors". Read more: https://nextjs.org/docs/messages/prerender-error
+Error [PrismaClientInitializationError]: 
+Invalid `prisma.company.groupBy()` invocation:
+
+
+error: Environment variable not found: DATABASE_URL.
+  -->  schema.prisma:18
+   | 
+17 |   provider = "postgresql"
+18 |   url      = env("DATABASE_URL")
+   | 
+
+Validation Error Count: 1
+    at <unknown> (-->  schema.prisma:18)
+    at async h (src/app/sectors/page.tsx:28:19)
+  26 |
+  27 | export default async function SectorsPage() {
+> 28 |   const grouped = await db.company.groupBy({
+     |                   ^
+  29 |     by: ["sector"],
+  30 |     where: { isActive: true },
+  31 |     _count: { _all: true }, {
+  clientVersion: '6.19.3',
+  errorCode: undefined,
+  retryable: undefined,
+  digest: '2267827480'
+}
+Export encountered an error on /sectors/page: /sectors, exiting the build.
+⨯ Next.js build worker exited with code: 1 and signal: null
+Turbopack build encountered 4 warnings:
+./src/instrumentation.ts:29:3
+Warning: A Node.js API is used (process.on at line: 29) which is not supported in the Edge Runtime.
+    Learn more: https://nextjs.org/docs/api-reference/edge-runtime
+  [90m27 |[0m   [90m// Surface silent background failures (SWR refreshers, SSE timers, spawned[0m
+  [90m28 |[0m   [90m// scripts) — unlogged rejections made production issues undiscoverable.[0m
+[33m[1m>[0m [90m29 |[0m   process.on([32m"unhandledRejection"[0m, (reason) => {
+  [90m   |[0m   [33m[1m^^^^^^^^^^[0m
+  [90m30 |[0m     console.error([32m"[unhandledRejection]"[0m, reason [36minstanceof[0m [33mError[0m ? (reason.stack ?? reaso...
+  [90m31 |[0m   })
+  [90m32 |[0m   process.on([32m"uncaughtException"[0m, (err) => {
+
+Ecmascript file had an error
+
+Import trace:
+  App Route:
+    ./src/instrumentation.ts
+    ./src/lib/admin-ops.ts
+    ./src/app/api/v1/admin/ops/route.ts
+
+
+./src/instrumentation.ts:32:3
+Warning: A Node.js API is used (process.on at line: 32) which is not supported in the Edge Runtime.
+    Learn more: https://nextjs.org/docs/api-reference/edge-runtime
+  [90m30 |[0m     console.error([32m"[unhandledRejection]"[0m, reason [36minstanceof[0m [33mError[0m ? (reason.stack ?? reaso...
+  [90m31 |[0m   })
+[33m[1m>[0m [90m32 |[0m   process.on([32m"uncaughtException"[0m, (err) => {
+  [90m   |[0m   [33m[1m^^^^^^^^^^[0m
+  [90m33 |[0m     console.error([32m"[uncaughtException]"[0m, err?.stack ?? [33mString[0m(err))
+  [90m34 |[0m   })
+  [90m35 |[0m
+
+Ecmascript file had an error
+
+Import trace:
+  App Route:
+    ./src/instrumentation.ts
+    ./src/lib/admin-ops.ts
+    ./src/app/api/v1/admin/ops/route.ts
+
+
+./src/lib/admin-ops.ts:289:70
+Warning: The file pattern (<dynamic> '/' <dynamic> | '/ROOT//' <dynamic> | <dynamic> | '/ROOT/' <dynamic>) matches 13169 files in [project]/
+  [90m287 |[0m ...
+  [90m288 |[0m ...[90mntional for admin job execution[0m
+[33m[1m>[0m [90m289 |[0m ... [[90m/* turbopackIgnore: true */[0m path.join([33mROOT[0m, job.script), ...job.args], {
+  [90m    |[0m                                  [33m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m290 |[0m ...
+  [90m291 |[0m ...
+  [90m292 |[0m ...
+
+Overly broad patterns can lead to build performance issues and over bundling.
+
+Import trace:
+  App Route:
+    ./src/lib/admin-ops.ts
+    ./src/app/api/v1/admin/ops/route.ts
+
+
+./src/lib/admin-ops.ts:289:70
+Warning: Dynamic filesystem access causes tracing of the whole project
+  [90m287 |[0m ...
+  [90m288 |[0m ...[90mntional for admin job execution[0m
+[33m[1m>[0m [90m289 |[0m ... [[90m/* turbopackIgnore: true */[0m path.join([33mROOT[0m, job.script), ...job.args], {
+  [90m    |[0m                                  [33m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m290 |[0m ...
+  [90m291 |[0m ...
+  [90m292 |[0m ...
+
+Static analysis determined that this filesystem access causes the whole project to be traced and included in the output.
+This is usually unintentional and leads to all source files (including the public folder) to be deployed as part of the server code.
+This can slow down deployments or lead to failures when size limits are exceeded.
+To resolve this, you can
+- make sure the path is statically scoped to some subfolder, for example path.join(process.cwd(), 'data', bar), or
+- only use them in development, or
+- opt out by adding an ignore comment to the highlighted call: path.join(/*turbopackIgnore: true*/ ...), or
+- remove them.
+
+Import trace:
+  App Route:
+    ./src/lib/admin-ops.ts
+    ./src/app/api/v1/admin/ops/route.ts
+
+
