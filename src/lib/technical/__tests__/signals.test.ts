@@ -87,11 +87,11 @@ describe("computeCloseSignal — @5 decision gates and de-duplicated dims", () =
     // 47%) → hold, score 71, rejection reason encoded.
     expect(sig.version).toBe("tech-signals@5")
     expect(sig.signal).toBe("hold")
-    expect(sig.score).toBe(72)
+    expect(sig.score).toBe(73)
     expect(sig.dimensions).toEqual([
       { key: "trend", earned: 30, max: 30 },
-      { key: "momentum", earned: 12, max: 25 }, // rescaled: RSI 2*0.8=2, MACD 10*0.8=8, RangePos 2*0.9=2 → 12
-      { key: "volume", earned: 20, max: 25 }, // OBV 10 + relVol 8*1.3≈10 → capped at 20
+      { key: "momentum", earned: 15, max: 25 }, // RSI ~73.6→6, MACD 8, RangePos 2*0.9=1.8→2 → total 15
+      { key: "volume", earned: 20, max: 25 },
       { key: "risk", earned: 17, max: 20 },
     ])
     expect(sig.reasons.map((r) => r.code)).toContain("not_full_strength")
@@ -309,8 +309,9 @@ describe("computeStanceFromSnapshot — trail path + fallback scorer", () => {
     expect(bundle.snapshot.trail?.length).toBe(24)
     expect(stance.version).toBe("tech-signals@5")
     // hot-RSI range-top tape → hold via decision-level excellence (board parity)
+    // RSI ~73.6 now earns 6 instead of 2 → higher momentum, higher score
     expect(stance.signal).toBe("hold")
-    expect(stance.score).toBe(64)
+    expect(stance.score).toBe(68)
     expect(stance.dimensions.find((d) => d.key === "trend")).toEqual({ key: "trend", earned: 30, max: 30 })
     expect(stance.reasons.map((r) => r.code)).toContain("not_full_strength")
   })

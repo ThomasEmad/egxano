@@ -371,13 +371,16 @@ function rawWeightedPct(dims: SignalDim[]): ReturnType<typeof rawWeightedWith> {
 // Shared band scorers — identical numbers in BOTH engines.
 // ---------------------------------------------------------------------------
 
-/** RSI band credit — full credit ONLY inside 45-60; a hot-but-overextended
- *  tape (68+) earns almost nothing, so momentum cannot max while stretched. */
+/** RSI band credit — widened healthy zone (45-65) with gradual taper above 65.
+ *  This separates momentum strength from extension risk (which is handled in
+ *  the risk dimension via extensionRiskPoints). The @4 engine over-penalized
+ *  strong trends with RSI 65-75 by giving near-zero momentum credit. */
 function rsiBandPoints(r: number): number {
-  if (r >= 45 && r <= 60) return 10
-  if (r > 60 && r <= 68) return 6
-  if (r > 68 && r <= 72) return 3
-  if (r > 72) return 2
+  if (r >= 45 && r <= 65) return 10  // widened from 45-60: healthy momentum
+  if (r > 65 && r <= 70) return 8   // slightly extended but still strong
+  if (r > 70 && r <= 75) return 6   // extended but momentum present
+  if (r > 75 && r <= 78) return 4   // very extended, near veto threshold
+  if (r > 78) return 2              // overbought — vetoed for BUY anyway
   if (r >= 40) return 5
   if (r >= 30) return 3
   return 2 // <30 oversold
