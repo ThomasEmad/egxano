@@ -1751,20 +1751,14 @@ export function computeCloseSignal(rows: CloseRow[], opts: { engineVersion?: Eng
     volumePresent: f.relVol !== null,
   }, false)
 
-  // ---------- deterministic trade plan (structure + ATR proxy) ----------
-  const tradePlan = signal !== null && signal !== "hold" && lastClose !== null
-    ? (() => {
-        const levels = levelsAt(closes, sessions - 1)
-        return buildTradePlan({
-          signal,
-          lastClose,
-          closes,
-          supports: levels.supports.map((z) => ({ price: z.price })),
-          resistances: levels.resistances.map((z) => ({ price: z.price })),
-          volPct: f.dailyVolPct,
-        })
-      })()
-    : null
+  // ---------- NO trade plan from close-only engine (C-01 remediation) ----------
+  // The close-only engine provides directional reads ONLY. Executable trade
+  // plans require OHLC-based structural levels (support/resistance/zones) and
+  // real ATR. The canonical stance overlay (signals-service.ts) supplies the
+  // OHLC-derived plan for companies with a persisted snapshot. Non-canonical
+  // rows get tradePlan = null and signalState = "wait" or "watching" without
+  // fabricated levels — honest disclosure that a validated plan is unavailable.
+  const tradePlan = null
 
   // ---------- three-state publication layer (header fix J — additive) ----------
   const { state, direction, vetoReasons } = deriveSignalState(signal, g, tradePlan !== null)

@@ -113,10 +113,16 @@ describe("computeCloseSignal — @5 decision gates and de-duplicated dims", () =
     const vol = sig.dimensions.find((d) => d.key === "volume")!
     expect(vol.earned).toBe(16) // OBV 8 + relVol ≥1 → 8
     expect(sig.reasons.some((r) => r.tone === "positive")).toBe(true)
-    expect(sig.tradePlan).not.toBeNull()
-    expect(sig.tradePlan!.bias).toBe("buy")
-    expect(sig.tradePlan!.stop).toBeLessThan(sig.tradePlan!.entryLow)
-    expect(sig.tradePlan!.riskReward).toBeGreaterThanOrEqual(1.5)
+    // C-01 fix: close-only engine does NOT generate trade plans.
+    // Trade plans are ONLY produced by the full OHLC canonical stance (computeStanceFromSnapshot).
+    // Without a trade plan, the three-state publication layer publishes as "watching"
+    // with the "noTradablePlan" veto reason — honest disclosure that execution
+    // requires the full OHLC analysis.
+    expect(sig.tradePlan).toBeNull()
+    expect(sig.signalState).toBe("watching")
+    expect(sig.setup).not.toBeNull()
+    expect(sig.setup!.direction).toBe("buy")
+    expect(sig.setup!.vetoReasons.some((r) => r.code === "no_tradable_plan")).toBe(true)
   })
 
   it("BUY blocked on thin participation: relVol < 1 AND OBV distribution → weak_volume reason", () => {

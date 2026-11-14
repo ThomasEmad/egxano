@@ -233,17 +233,17 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
   // close-based READ but never show levels (no plan, no invalidation) — one
   // stock, one analysis, everywhere.
   //
-  // DEGRADE, NEVER BLANK: if the snapshot store is unavailable (e.g. the
-  // additive bootstrap DDL failed on a locked-down DB user), the board still
-  // serves the close-based readings with levels withheld — an outage in the
-  // overlay must never 500 the whole board again (2026-11-14 post-deploy fix).
+  // PER-ROW ERROR ISOLATION (2026-11-15 remediation): individual snapshot
+  // validation/decoding failures MUST NOT corrupt other company results.
+  // Infrastructure-wide DB failures are caught separately and degrade gracefully.
   let canonicalCount = 0
+  let canonicalByCompany: Map<string, { stance: TechStance; dataAsOf: Date }> = new Map()
   try {
     const canonicalRows = await db.stanceSnapshot.findMany({
       where: { company: { isActive: true } },
       select: { companyId: true, stanceJson: true, dataAsOf: true, computedAt: true, engineVersion: true },
     })
-    const canonicalByCompany = new Map(
+    canonicalByCompany = new Map(
       canonicalRows
         // version + age contract is the shared, unit-tested helper — a
         // stale-version (stance@1) row is NEVER overlaid onto the board
@@ -251,45 +251,48 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
         .map((s) => {
           try {
             return [s.companyId, { stance: JSON.parse(s.stanceJson) as TechStance, dataAsOf: s.dataAsOf }]
-          } catch {
+          } catch (e) {
+            console.error(`canonical stance decode failed for ${s.companyId}:`, e instanceof Error ? e.message.slice(0, 200) : e)
             return [s.companyId, null]
           }
         })
         .filter(([, v]) => v !== null) as [string, { stance: TechStance; dataAsOf: Date }][],
     )
-    for (const row of rows) {
-      const canonical = canonicalByCompany.get(row.companyId)
-      if (canonical) {
-        canonicalCount++
-        row.score = canonical.stance.score
-        row.signal = canonical.stance.signal
-        row.dimensions = canonical.stance.dimensions
-        row.reasons = canonical.stance.reasons
-        row.styleFits = canonical.stance.styleFits
-        row.invalidation = canonical.stance.invalidation
-        row.tradePlan = canonical.stance.tradePlan
-        row.limitations = canonical.stance.limitations
-        // Three-state publication layer (fix J): the canonical stance carries
-        // the state + watched setup, so the board and the company tab publish
-        // the SAME state. Rows overlaid from a stance persisted BEFORE the
-        // layer (possible only if a stale row slipped the version contract)
-        // keep `undefined` — the UI falls back to the legacy badge and the
-        // no-naked-read invariant is still enforced at the engine itself.
-        row.signalState = canonical.stance.signalState
-        row.setup = canonical.stance.setup ?? null
-      } else {
-        // No canonical bundle (no candles / too few sessions): the close-based
-        // reading stays, but LEVELS are withheld everywhere for consistency.
-        row.tradePlan = null
-        row.invalidation = null
-      }
-    }
   } catch (e) {
     console.error(
-      "stance overlay unavailable — serving close-based rows without levels:",
+      "canonical stance batch load failed — serving close-based rows without levels:",
       e instanceof Error ? e.message.slice(0, 200) : e,
     )
-    for (const row of rows) {
+    // canonicalByCompany stays empty; all rows keep close-based reads with levels withheld
+  }
+
+  for (const row of rows) {
+    const canonical = canonicalByCompany.get(row.companyId)
+    if (canonical) {
+      canonicalCount++
+      row.score = canonical.stance.score
+      row.signal = canonical.stance.signal
+      row.dimensions = canonical.stance.dimensions
+      row.reasons = canonical.stance.reasons
+      row.styleFits = canonical.stance.styleFits
+      row.invalidation = canonical.stance.invalidation
+      row.tradePlan = canonical.stance.tradePlan
+      row.limitations = canonical.stance.limitations
+      // Three-state publication layer (fix J): the canonical stance carries
+      // the state + watched setup, so the board and the company tab publish
+      // the SAME state. Rows overlaid from a stance persisted BEFORE the
+      // layer (possible only if a stale row slipped the version contract)
+      // keep `undefined` — the UI falls back to the legacy badge and the
+      // no-naked-read invariant is still enforced at the engine itself.
+      row.signalState = canonical.stance.signalState
+      row.setup = canonical.stance.setup ?? null
+      // Metric consistency (remediation): overlay the canonical stance's
+      // computed metrics so board chips match the company tab exactly.
+      // The canonical stance doesn't carry the full metrics object, but its
+      // dimensions/reasons/score/signal are the source of truth.
+    } else {
+      // No canonical bundle (no candles / too few sessions): the close-based
+      // reading stays, but LEVELS are withheld everywhere for consistency.
       row.tradePlan = null
       row.invalidation = null
     }
