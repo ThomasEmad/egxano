@@ -44,6 +44,17 @@ interface AppHeaderProps {
   sidebarCollapsed?: boolean
 }
 
+/** One lifecycle-transition alert from /api/v1/signals/alerts (the persisted
+ *  sweep feed) — Arabic-first records produced by the daily lifecycle sweep. */
+interface LifecycleAlertItem {
+  companyId: string
+  ticker: string
+  type: string
+  date: string
+  titleAr: string
+  bodyAr: string
+}
+
 function HeaderSearch() {
   const { lang } = useI18n()
   const router = useRouter()
@@ -222,6 +233,20 @@ export function AppHeader({
   const loggedIn = !!me?.user
   const meName: string | null = me?.user?.name ?? me?.user?.email ?? null
 
+  // Lifecycle-transition alerts (the daily sweep's persisted feed) — fetched
+  // only while the bell panel is open, tier-capped server-side (PlanLimits).
+  const { data: alertsFeed } = useQuery({
+    queryKey: ["lifecycle-alerts", token],
+    queryFn: () =>
+      fetch("/api/v1/signals/alerts", {
+        headers: token ? { "x-session-token": token } : undefined,
+      }).then((r) => (r.ok ? r.json() : null)),
+    enabled: mounted && notificationOpen,
+    staleTime: 60_000,
+    retry: false,
+  })
+  const feedAlerts: LifecycleAlertItem[] = Array.isArray(alertsFeed?.alerts) ? alertsFeed.alerts : []
+
   const isDark = mounted && theme === "dark"
 
   const ar = lang === "ar"
@@ -386,17 +411,34 @@ export function AppHeader({
                       <Button variant="ghost" size="sm" onClick={() => setNotificationOpen(false)}>{lang === "ar" ? "إغلاق" : "Close"}</Button>
                     </div>
                     <div className="p-3 space-y-3">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{lang === "ar" ? "الأحداث المالية" : "Financial events"}</p>
-                      <div className="rounded-lg border border-border/40 bg-muted/30 p-3 text-sm leading-relaxed text-muted-foreground">
-                        <p className="mb-1 font-medium text-foreground">
-                          {lang === "ar" ? "لا توجد تنبيهات معروضة" : "No alerts to show"}
-                        </p>
-                        <p>
-                          {lang === "ar"
-                            ? "التنبيهات المالية تُبنى على أحداث مكتشفة من القوائم الموثقة، وتظهر لمشتركي Premium بعد تسجيل الدخول. لا نعرض تنبيهات تجريبية."
-                            : "Financial alerts are generated from events detected in verified statements and are shown to signed-in Premium subscribers. We do not display sample alerts."}
-                        </p>
-                      </div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{lang === "ar" ? "تحولات دورة الحياة" : "Lifecycle transitions"}</p>
+                      {feedAlerts.length > 0 ? (
+                        <div className="max-h-72 space-y-2 overflow-y-auto scrollbar-thin">
+                          {feedAlerts.map((a, i) => (
+                            <div key={`${a.companyId}-${a.type}-${a.date}-${i}`} className="rounded-lg border border-border/40 bg-muted/30 p-3">
+                              <div className="mb-1 flex items-center justify-between gap-2">
+                                <span className="flex h-6 w-10 shrink-0 items-center justify-center rounded bg-primary/15 text-[10px] font-bold text-primary tabular">
+                                  {a.ticker}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground tabular">{a.date}</span>
+                              </div>
+                              <p className="text-xs font-medium leading-relaxed text-foreground">{a.titleAr}</p>
+                              <p className="mt-0.5 line-clamp-3 text-[10px] leading-relaxed text-muted-foreground">{a.bodyAr}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-border/40 bg-muted/30 p-3 text-sm leading-relaxed text-muted-foreground">
+                          <p className="mb-1 font-medium text-foreground">
+                            {lang === "ar" ? "لا توجد تنبيهات معروضة" : "No alerts to show"}
+                          </p>
+                          <p>
+                            {lang === "ar"
+                              ? "تنبيهات دورة الحياة تُحسب يوميًا بعد إغلاق السوق (تفعّل/دخول/هدف/وقف/إلغاء/انتهاء) وتظهر هنا حسب باقتك. لا نعرض تنبيهات تجريبية."
+                              : "Lifecycle alerts are computed daily after market close (activation/entry/target/stop/invalidation/expiry) and appear here according to your plan. We do not display sample alerts."}
+                          </p>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between gap-2 border-t border-border/40 pt-3">
                         <Link href="/premium" className="text-xs font-semibold text-primary hover:underline">
                           {lang === "ar" ? "باقات Premium" : "Premium plans"}
