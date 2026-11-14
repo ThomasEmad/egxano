@@ -87,11 +87,11 @@ describe("computeCloseSignal — @5 decision gates and de-duplicated dims", () =
     // 47%) → hold, score 71, rejection reason encoded.
     expect(sig.version).toBe("tech-signals@5")
     expect(sig.signal).toBe("hold")
-    expect(sig.score).toBe(71)
+    expect(sig.score).toBe(72)
     expect(sig.dimensions).toEqual([
       { key: "trend", earned: 30, max: 30 },
-      { key: "momentum", earned: 14, max: 30 },
-      { key: "volume", earned: 16, max: 20 },
+      { key: "momentum", earned: 12, max: 25 }, // rescaled: RSI 2*0.8=2, MACD 10*0.8=8, RangePos 2*0.9=2 → 12
+      { key: "volume", earned: 20, max: 25 }, // OBV 10 + relVol 8*1.3≈10 → capped at 20
       { key: "risk", earned: 17, max: 20 },
     ])
     expect(sig.reasons.map((r) => r.code)).toContain("not_full_strength")
@@ -111,7 +111,7 @@ describe("computeCloseSignal — @5 decision gates and de-duplicated dims", () =
     expect(sig.signal).toBe("buy")
     expect(sig.score!).toBeGreaterThanOrEqual(62)
     const vol = sig.dimensions.find((d) => d.key === "volume")!
-    expect(vol.earned).toBe(16) // OBV 8 + relVol ≥1 → 8
+    expect(vol.earned).toBe(20) // OBV 10 + relVol ≥1 → 13*1.3≈17, capped at max 25
     expect(sig.reasons.some((r) => r.tone === "positive")).toBe(true)
     // C-01 fix: close-only engine does NOT generate trade plans.
     // Trade plans are ONLY produced by the full OHLC canonical stance (computeStanceFromSnapshot).
@@ -143,11 +143,11 @@ describe("computeCloseSignal — @5 decision gates and de-duplicated dims", () =
     const closes = downtrendCloses(80)
     const volumes = closes.map((_, i) => 1200 - i * 5)
     const sig = computeCloseSignal(rowsFrom(closes, volumes))
-    // trend 0/30 · momentum 12/30 · volume 3/20 (OBV<0, down-day relVol) ·
-    // risk 20/20 (ext deep-below → 8, vol 7, expansion 5) → raw ~29 → 22.
+    // trend 0/30 · momentum 10/25 (rescaled) · volume 4/25 (rescaled) ·
+    // risk 20/20 → raw ~30 → 23.
     // Distribution path fires (OBV<0 + MACD breakdown + below EMA50).
     expect(sig.signal).toBe("sell")
-    expect(sig.score).toBe(22)
+    expect(sig.score).toBe(23)
     expect(sig.reasons.map((r) => r.code)).toContain("distribution_sell")
     expect(sig.reasons.some((r) => r.tone === "negative")).toBe(true)
     // no support below pays ≥ 1.5R → NO plan (never a fabricated −7% target)
@@ -163,7 +163,7 @@ describe("computeCloseSignal — @5 decision gates and de-duplicated dims", () =
     }
     const sig = computeCloseSignal(rowsFrom(closes))
     expect(sig.signal).toBe("hold")
-    expect(sig.score).toBe(23)
+    expect(sig.score).toBe(24)
     expect(sig.score!).toBeGreaterThan(19)
     expect(sig.score!).toBeLessThan(80)
   })
@@ -177,8 +177,8 @@ describe("computeCloseSignal — @5 decision gates and de-duplicated dims", () =
     const sig = computeCloseSignal(rowsFrom(uptrendCloses(80)))
     const maxes = Object.fromEntries(sig.dimensions.map((d) => [d.key, d.max]))
     expect(maxes.trend).toBeLessThanOrEqual(30)
-    expect(maxes.momentum).toBeLessThanOrEqual(30)
-    expect(maxes.volume).toBeLessThanOrEqual(20)
+    expect(maxes.momentum).toBeLessThanOrEqual(25)
+    expect(maxes.volume).toBeLessThanOrEqual(25)
     expect(maxes.risk).toBeLessThanOrEqual(20)
   })
 
@@ -334,8 +334,8 @@ describe("computeStanceFromSnapshot — trail path + fallback scorer", () => {
     const stance = computeStanceFromSnapshot(strongSnap)
     expect(stance.signal).toBe("buy")
     expect(stance.score).toBe(90)
-    // DE-DUP CONTRACT: the oscillator group saturates at 80% of its max
-    expect(stance.dimensions.find((d) => d.key === "momentum")).toEqual({ key: "momentum", earned: 24, max: 30 })
+    // DE-DUP CONTRACT: the oscillator group saturates at 80% of its max (25 → 20)
+    expect(stance.dimensions.find((d) => d.key === "momentum")).toEqual({ key: "momentum", earned: 20, max: 25 })
     expect(stance.dimensions.find((d) => d.key === "trend")).toEqual({ key: "trend", earned: 30, max: 30 })
   })
 

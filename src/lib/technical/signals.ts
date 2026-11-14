@@ -1350,18 +1350,20 @@ function scoreReadAt(ctx: SeriesCtx, i: number): TrailRead {
   const trendShare = trendMax > 0 ? trendEarned / trendMax : null
 
   // ---------- MOMENTUM — oscillator GROUP with a corroboration cap (audit B).
+  // Max = 25 (aligned with weight). Components: RSI 8, MACD 8, RangePos 9.
   let momEarned = 0
   let momMax = 0
-  if (rsiV !== null) { momMax += 10; momEarned += rsiBandPoints(rsiV) }
-  if (macdLine !== null && macdHist !== null) { momMax += 10; momEarned += macdPoints(macdLine, macdHist) }
-  if (rangePos !== null) { momMax += 10; momEarned += rangePosPoints(rangePos) }
+  if (rsiV !== null) { momMax += 8; momEarned += Math.round(rsiBandPoints(rsiV) * 0.8) }
+  if (macdLine !== null && macdHist !== null) { momMax += 8; momEarned += Math.round(macdPoints(macdLine, macdHist) * 0.8) }
+  if (rangePos !== null) { momMax += 9; momEarned += Math.round(rangePosPoints(rangePos) * 0.9) }
   if (momMax > 0) momEarned = Math.min(momEarned, Math.round(MOMENTUM_GROUP_STRONG_SHARE * momMax))
 
   // ---------- VOLUME (participation is a required buy confirmation) ----------
+  // Max = 25 (aligned with weight). Components: OBV 12, RelVol 13.
   let volEarned = 0
   let volMax = 0
-  if (obvSlope !== null) { volMax += 10; if (obvSlope > 0) volEarned += 8 }
-  if (relVol !== null && changePct !== null) { volMax += 10; volEarned += relVolBandPoints(relVol, changePct > 0) }
+  if (obvSlope !== null) { volMax += 12; if (obvSlope > 0) volEarned += 10 }
+  if (relVol !== null && changePct !== null) { volMax += 13; volEarned += Math.round(relVolBandPoints(relVol, changePct > 0) * 1.3) }
 
   // ---------- RISK — ONLY risk facts (audit B): two-sided extension,
   // volatility regime, volatility expansion. No trend agreement.
@@ -2247,18 +2249,20 @@ export function computeStanceFromSnapshot(snap: TechnicalSnapshot): TechStance {
   const trendShare = trendMax > 0 ? trendEarned / trendMax : null
 
   // MOMENTUM — corroborated group (RSI + MACD + Stoch with the overbought veto)
+  // Max = 25 (aligned with weight). Components: RSI 8, MACD 8, Stoch 9.
   let momEarned = 0
   let momMax = 0
-  if (mo.rsi14 !== null) { momMax += 10; momEarned += rsiBandPoints(mo.rsi14) }
-  if (mo.macd.histogram !== null && mo.macd.macd !== null) { momMax += 10; momEarned += macdPoints(mo.macd.macd, mo.macd.histogram) }
-  if (mo.stochastic.k !== null && mo.stochastic.d !== null) { momMax += 10; momEarned += stochPoints(mo.stochastic.k, mo.stochastic.d) }
+  if (mo.rsi14 !== null) { momMax += 8; momEarned += Math.round(rsiBandPoints(mo.rsi14) * 0.8) }
+  if (mo.macd.histogram !== null && mo.macd.macd !== null) { momMax += 8; momEarned += Math.round(macdPoints(mo.macd.macd, mo.macd.histogram) * 0.8) }
+  if (mo.stochastic.k !== null && mo.stochastic.d !== null) { momMax += 9; momEarned += Math.round(stochPoints(mo.stochastic.k, mo.stochastic.d) * 0.9) }
   if (momMax > 0) momEarned = Math.min(momEarned, Math.round(MOMENTUM_GROUP_STRONG_SHARE * momMax))
 
   // VOLUME
+  // Max = 25 (aligned with weight). Components: OBV 12, RelVol 13.
   let volEarned = 0
   let volMax = 0
-  if (v.obvSlope20 !== null) { volMax += 10; if (v.obvSlope20 > 0) volEarned += 8 }
-  if (v.relVol !== null && snap.perf.d1 !== null) { volMax += 10; volEarned += relVolBandPoints(v.relVol, snap.perf.d1 > 0) }
+  if (v.obvSlope20 !== null) { volMax += 12; if (v.obvSlope20 > 0) volEarned += 10 }
+  if (v.relVol !== null && snap.perf.d1 !== null) { volMax += 13; volEarned += Math.round(relVolBandPoints(v.relVol, snap.perf.d1 > 0) * 1.3) }
 
   // RISK — two-sided extension + ATR regime (expansion unknown on a point snapshot)
   let riskEarned = 0
