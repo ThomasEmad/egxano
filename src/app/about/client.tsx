@@ -91,10 +91,10 @@ export default function AboutPage() {
                   : "Market prices come from a public delayed source — not live quotes — and we label that next to price figures.",
               },
               {
-                t: ar ? "تحليل الذكاء الاصطناعي تفسير" : "AI analysis is interpretation",
+                t: ar ? "القراءات الفنية شفافة" : "Technical readings are transparent",
                 d: ar
-                  ? "التعليق المولَّد بالذكاء الاصطناعي بيفسّر أرقام منشورة معروضة — مش توصية ولا تنبؤ."
-                  : "AI-generated commentary interprets the published figures shown — not advice and not a prediction.",
+                  ? "كل قراءة فنية محسوبة بمحرك قواعد موثّق من الأسعار المتداولة فعلاً، ومشروحة بأسبابها — مش توصية ولا تنبؤ."
+                  : "Every technical reading is computed by a documented rule engine on real traded prices and shown with its reasons — not advice and not a prediction.",
               },
               {
                 t: ar ? "أدوات بحث، مش وسيط" : "Research tools, not a broker",

@@ -88,18 +88,6 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // Chain the AI job worker: the audit cron is a guaranteed daily invocation
-    // with a large window — use its tail to drain queued report generations.
-    // Budget note: 2 jobs (~80s) + market refresh (~30s) fit the remaining
-    // window; jobs left behind are picked up by the next invocation.
-    let aiWorker: { processed: number } | null = null
-    try {
-      const { processPendingJobs, sweepJobs } = await import("@/lib/ai/jobs/worker")
-      await sweepJobs()
-      aiWorker = await processPendingJobs(2, { budgetMs: 100_000 })
-    } catch (e) {
-      console.error("audit-chained ai-worker failed:", e instanceof Error ? e.message.slice(0, 200) : e)
-    }
     // Chain a market refresh: the audit cron is a guaranteed daily invocation,
     // so this anchors at least one EOD price pull per day even with zero
     // visitors (the DB-based refresh survives serverless, unlike the old file).
@@ -129,7 +117,6 @@ export async function GET(req: NextRequest) {
       companiesChecked: last.checkedSoFar,
       issues: last.issuesSoFar,
       byCategory: last.summary?.byCategory ?? null,
-      aiWorker,
       market,
       enrichment,
     })

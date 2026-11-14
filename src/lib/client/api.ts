@@ -241,58 +241,6 @@ export interface CompanyDocument {
   valueCount: number
 }
 
-export interface AiAnalysisData {
-  analysis: {
-    content: string
-    createdAt: string
-    completedAt?: string | null
-    periodKey: string | null
-    dataHash: string
-    technicalHash?: string | null
-    priceAsOf?: string | null
-    financialAsOf?: string | null
-    model: string | null
-    lang?: string | null
-    degraded?: boolean
-    stance?: string | null
-    wordCount?: number | null
-    completeness?: { financialCoveragePct: number | null; technicalCoveragePct: number | null; limitations: string[] } | null
-    reportKey?: string
-  } | null
-  generation?: { status: string; jobRef: string | null; reportKey: string | null; startedAt?: string } | null
-}
-
-export interface AiAnalysisStatusData {
-  status: "pending" | "processing" | "failed" | "ready" | "none"
-  jobRef: string | null
-  reportKey: string | null
-  attempts?: number
-  lastError?: string | null
-  queuedAt?: string | null
-  report: AiAnalysisData["analysis"]
-}
-
-export interface AiAnalysisGenerateResult {
-  status?: "generating"
-  jobRef?: string
-  reportKey?: string
-  message?: string
-  cached?: boolean
-  analysis?: AiAnalysisData["analysis"]
-  error?: string
-  message2?: string
-}
-
-export interface AiChatMessage {
-  role: "user" | "assistant"
-  content: string
-}
-
-export interface AiChatData {
-  reply: string
-  usage?: { used: number; limit: number }
-}
-
 export interface ReviewData {
   values: {
     id: string
@@ -519,45 +467,6 @@ export const api = {
   companyDocuments: (id: string) =>
     fetch(`/api/v1/companies/${id}/documents`).then((r) => handle<{ documents: CompanyDocument[] }>(r)),
 
-  aiAnalysis: (id: string, lang?: string) =>
-    fetch(`/api/v1/companies/${id}/ai-analysis${lang ? `?lang=${encodeURIComponent(lang)}` : ""}`, { headers: authHeaders() }).then((r) => handle<AiAnalysisData>(r)),
-
-  aiAnalysisStatus: (id: string, lang: string, jobRef?: string | null) =>
-    fetch(`/api/v1/companies/${id}/ai-analysis/status?lang=${lang}${jobRef ? `&jobRef=${encodeURIComponent(jobRef)}` : ""}`, { headers: authHeaders() }).then((r) => handle<AiAnalysisStatusData>(r)),
-
-  aiAnalysisMetadata: (id: string, lang: string) =>
-    fetch(`/api/v1/companies/${id}/ai-analysis/metadata?lang=${lang}`, { headers: authHeaders() }).then(
-      (r) =>
-        handle<{
-          hasFinancialData: boolean
-          priceAsOf: string | null
-          financialAsOf: string | null
-          completeness: { financialCoveragePct: number | null; technicalCoveragePct: number | null; limitations: string[] }
-          technical: { available: boolean; sessions: number; asOf: string | null; sparse: boolean; coveragePct: number | null }
-        }>(r)
-    ),
-
-  refreshAiAnalysis: (id: string, lang: string) =>
-    fetch(`/api/v1/companies/${id}/ai-analysis/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ lang }),
-    }).then((r) => handle<{ status: string; jobRef?: string; reportKey?: string }>(r)),
-
-  generateAiAnalysis: (id: string, lang: string, token?: string | null) =>
-    fetch(`/api/v1/companies/${id}/ai-analysis`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders(token) },
-      body: JSON.stringify({ lang }),
-    }).then((r) => handle<AiAnalysisGenerateResult>(r)),
-
-  aiAnalysisChat: (id: string, messages: AiChatMessage[], lang: string) =>
-    fetch(`/api/v1/companies/${id}/ai-analysis/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ messages, lang }),
-    }).then((r) => handle<AiChatData>(r)),
-
   events: (id: string) =>
     fetch(`/api/v1/companies/${id}/events`, { headers: authHeaders() }).then((r) => handle<{ events: EventItem[] }>(r)),
 
@@ -612,15 +521,14 @@ export const api = {
       return Promise.resolve({
         isPremium: false,
         subscription: null,
-        smartAnalysisUsage: null,
       })
     }
     return fetch("/api/v1/subscription/me", { headers: authHeaders() }).then((r) => {
       if (r.status === 401) {
         clearUserToken()
-        return { isPremium: false, subscription: null, smartAnalysisUsage: null }
+        return { isPremium: false, subscription: null }
       }
-      return handle<{ isPremium: boolean; subscription: { id: string; status: string; planName: string; startDate: string | null; endDate: string | null; activatedAt: string | null; activatedBy: string | null; cancelledAt: string | null; notes: string | null } | null; smartAnalysisUsage: { year: number; month: number; usageCount: number; remaining: number; limit: number; resetAt: string | null } | null }>(r)
+      return handle<{ isPremium: boolean; subscription: { id: string; status: string; planName: string; startDate: string | null; endDate: string | null; activatedAt: string | null; activatedBy: string | null; cancelledAt: string | null; notes: string | null } | null }>(r)
     })
   },
 

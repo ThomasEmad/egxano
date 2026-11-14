@@ -184,38 +184,54 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
   // company tab, same levels, same invalidation). Rows without one keep the
   // close-based READ but never show levels (no plan, no invalidation) — one
   // stock, one analysis, everywhere.
-  const canonicalRows = await db.stanceSnapshot.findMany({
-    where: { company: { isActive: true } },
-    select: { companyId: true, stanceJson: true, dataAsOf: true, computedAt: true, engineVersion: true },
-  })
-  const canonicalByCompany = new Map(
-    canonicalRows
-      .filter((s) => s.engineVersion === STANCE_ENGINE_VERSION && Date.now() - s.computedAt.getTime() <= BOARD_MAX_AGE_MS)
-      .map((s) => {
-        try {
-          return [s.companyId, { stance: JSON.parse(s.stanceJson) as TechStance, dataAsOf: s.dataAsOf }]
-        } catch {
-          return [s.companyId, null]
-        }
-      })
-      .filter(([, v]) => v !== null) as [string, { stance: TechStance; dataAsOf: Date }][],
-  )
+  //
+  // DEGRADE, NEVER BLANK: if the snapshot store is unavailable (e.g. the
+  // additive bootstrap DDL failed on a locked-down DB user), the board still
+  // serves the close-based readings with levels withheld — an outage in the
+  // overlay must never 500 the whole board again (2026-11-14 post-deploy fix).
   let canonicalCount = 0
-  for (const row of rows) {
-    const canonical = canonicalByCompany.get(row.companyId)
-    if (canonical) {
-      canonicalCount++
-      row.score = canonical.stance.score
-      row.signal = canonical.stance.signal
-      row.dimensions = canonical.stance.dimensions
-      row.reasons = canonical.stance.reasons
-      row.styleFits = canonical.stance.styleFits
-      row.invalidation = canonical.stance.invalidation
-      row.tradePlan = canonical.stance.tradePlan
-      row.limitations = canonical.stance.limitations
-    } else {
-      // No canonical bundle (no candles / too few sessions): the close-based
-      // reading stays, but LEVELS are withheld everywhere for consistency.
+  try {
+    const canonicalRows = await db.stanceSnapshot.findMany({
+      where: { company: { isActive: true } },
+      select: { companyId: true, stanceJson: true, dataAsOf: true, computedAt: true, engineVersion: true },
+    })
+    const canonicalByCompany = new Map(
+      canonicalRows
+        .filter((s) => s.engineVersion === STANCE_ENGINE_VERSION && Date.now() - s.computedAt.getTime() <= BOARD_MAX_AGE_MS)
+        .map((s) => {
+          try {
+            return [s.companyId, { stance: JSON.parse(s.stanceJson) as TechStance, dataAsOf: s.dataAsOf }]
+          } catch {
+            return [s.companyId, null]
+          }
+        })
+        .filter(([, v]) => v !== null) as [string, { stance: TechStance; dataAsOf: Date }][],
+    )
+    for (const row of rows) {
+      const canonical = canonicalByCompany.get(row.companyId)
+      if (canonical) {
+        canonicalCount++
+        row.score = canonical.stance.score
+        row.signal = canonical.stance.signal
+        row.dimensions = canonical.stance.dimensions
+        row.reasons = canonical.stance.reasons
+        row.styleFits = canonical.stance.styleFits
+        row.invalidation = canonical.stance.invalidation
+        row.tradePlan = canonical.stance.tradePlan
+        row.limitations = canonical.stance.limitations
+      } else {
+        // No canonical bundle (no candles / too few sessions): the close-based
+        // reading stays, but LEVELS are withheld everywhere for consistency.
+        row.tradePlan = null
+        row.invalidation = null
+      }
+    }
+  } catch (e) {
+    console.error(
+      "stance overlay unavailable — serving close-based rows without levels:",
+      e instanceof Error ? e.message.slice(0, 200) : e,
+    )
+    for (const row of rows) {
       row.tradePlan = null
       row.invalidation = null
     }

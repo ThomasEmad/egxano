@@ -34,23 +34,19 @@ export default function DisclaimerClient() {
           p: "لو القيمة مش منشورة أو مش متوفرة، بتظهر «—». «—» معناها غير متاح — مش صفر، ومش تقدير، ومش قيمة مفترضة.",
         },
         {
-          h: "6. التحليل بالذكاء الاصطناعي",
-          p: "بعض الصفحات فيها تعليق مُولَّد بالذكاء الاصطناعي. التعليق ده بيفسّر الأرقام المنشورة المعروضة في نفس الصفحة، وهو تفسير مساعد — مش نصيحة ولا تنبؤ ولا توصية، وممكن يحتوي على أخطاء في الصياغة. راجع الأرقام المصدرية بنفسك.",
-        },
-        {
-          h: "7. مفيش توصيات",
+          h: "6. مفيش توصيات",
           p: "EGXANO مش بيصدر توصيات شراء أو بيع، ومش بيحدد أهدافاً سعرية بصفة توصية. أي إشارة فنية أو تقييم معروض هو وصف للبيانات وقت حسابها، مش دعوة لتنفيذ صفقة.",
         },
         {
-          h: "8. مسؤولية القرار",
+          h: "7. مسؤولية القرار",
           p: "المستخدم هو المسؤول الوحيد عن قراراته الاستثمارية. استشر مستشاراً مالياً مرخصاً قبل أي قرار. الاستثمار في البورصة ينطوي على مخاطر خسارة رأس المال.",
         },
         {
-          h: "9. حدود الضمان",
+          h: "8. حدود الضمان",
           p: "البيانات مصدرها إفصاحات عامة ومصدر أسعار عام، وممكن تحتوي على أخطاء أو تأخير أو نقص. لا نضمن دقة أو اكتمال أو ملاءمة أي بيانات أو تحليل. لا نتحمل مسؤولية أي خسائر تنتج عن استخدام الموقع أو الاعتماد على محتواه، بالقدر اللي يسمح به القانون.",
         },
         {
-          h: "10. الاستقلال",
+          h: "9. الاستقلال",
           p: "EGXANO منصة مستقلة وغير تابعة للبورصة المصرية أو أي وسيط أو شركة مُصدِرة، ولا تمثلها.",
         },
       ]
@@ -76,23 +72,19 @@ export default function DisclaimerClient() {
           p: "When a value is not published or not available, it shows as “—”. “—” means unavailable — not zero, not an estimate, and not an assumed value.",
         },
         {
-          h: "6. AI-assisted analysis",
-          p: "Some pages include AI-generated commentary. That commentary interprets the published figures shown on the same page. It is assisted interpretation — not advice, not a prediction, and not a recommendation, and its wording may contain mistakes. Verify the source figures yourself.",
-        },
-        {
-          h: "7. No recommendations",
+          h: "6. No recommendations",
           p: "EGXANO does not issue buy or sell recommendations and does not publish price targets as recommendations. Any technical signal or valuation shown describes the data at the time it was calculated; it is not a call to trade.",
         },
         {
-          h: "8. Responsibility for decisions",
+          h: "7. Responsibility for decisions",
           p: "You are solely responsible for your investment decisions. Consult a licensed financial advisor before any decision. Investing in the stock market carries the risk of losing capital.",
         },
         {
-          h: "9. Limits of warranty",
+          h: "8. Limits of warranty",
           p: "Data comes from public disclosures and a public price source, and may contain errors, delays or omissions. We do not guarantee the accuracy, completeness or suitability of any data or analysis. We are not liable for any losses arising from use of the site or reliance on its content, to the extent permitted by law.",
         },
         {
-          h: "10. Independence",
+          h: "9. Independence",
           p: "EGXANO is independent and is not affiliated with, or acting on behalf of, the Egyptian Exchange, any broker or any issuer.",
         },
       ]

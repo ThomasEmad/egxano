@@ -7,8 +7,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Building2, ChevronLeft, ChevronRight, Download, FileText, Scale, Search, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
+import { Building2, ChevronLeft, ChevronRight, Download, FileText, Scale, Search, TrendingDown, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -22,7 +22,6 @@ import { api, getUserToken } from "@/lib/client/api"
 import { BRAND } from "@/lib/brand"
 import { MarketDataLine, UnavailableValue } from "@/components/brand/data-trust"
 import { EmptyState } from "@/components/brand/empty-state"
-import { QuickAiAnalysisDialog, type QuickAiTarget } from "./quick-analysis"
 
 interface SnapshotMetric {
   value: number | null
@@ -71,27 +70,11 @@ export function CompaniesPageShell() {
   const [searchInput, setSearchInput] = useState("")
   const [search, setSearch] = useState("")
   const [sector, setSector] = useState<string | null>(null)
-  const [sort, setSort] = useState<"ticker" | "marketCap">("ticker")
+  // Fixed sort — market cap only (alphabetical filter removed 2026-11-14 by owner request).
+  const [sort] = useState<"ticker" | "marketCap">("marketCap")
   const [page, setPage] = useState(1)
-  const [quickOpen, setQuickOpen] = useState(false)
-  const [quickTarget, setQuickTarget] = useState<QuickAiTarget | null>(null)
   const [compareMode, setCompareMode] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
-  const queryClient = useQueryClient()
-
-  const gen = useMutation({
-    mutationFn: (v: { ticker: string; lang: string }) => api.generateAiAnalysis(v.ticker, v.lang),
-    onSuccess: (res) => {
-      if (!res.cached) queryClient.invalidateQueries({ queryKey: ["my-subscription"] })
-    },
-  })
-
-  function openQuickAnalysis(c: CompanyRow) {
-    setQuickTarget({ ticker: c.ticker, nameEn: c.nameEn, nameAr: c.nameAr })
-    setQuickOpen(true)
-    if (!getUserToken()) return
-    if (gen.variables?.ticker !== c.ticker) gen.mutate({ ticker: c.ticker, lang })
-  }
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -119,11 +102,6 @@ export function CompaniesPageShell() {
   const totalPages = data?.totalPages ?? 1
 
   const sectorOptions = useMemo(() => SECTORS.filter((s) => s !== "Other" || sector === "Other"), [sector])
-
-  function pickSort(next: "ticker" | "marketCap") {
-    setSort(next)
-    setPage(1)
-  }
 
   function pickSector(next: string) {
     setSector(next === "all" ? null : next)
@@ -212,25 +190,6 @@ export function CompaniesPageShell() {
               ))}
             </SelectContent>
           </Select>
-
-          <div className="inline-flex overflow-hidden rounded-xl border border-border/60 bg-surface-secondary/50" role="group" aria-label={ar ? "الترتيب" : "Sort"}>
-            {([
-              ["ticker", ar ? "أبجدياً" : "A–Z"],
-              ["marketCap", ar ? "الأكبر بالقيمة السوقية" : "Market cap"],
-            ] as const).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => pickSort(key)}
-                aria-pressed={sort === key}
-                className={`px-3.5 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                  sort === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
 
           <Button
             variant={compareMode ? "default" : "outline"}
@@ -418,20 +377,6 @@ export function CompaniesPageShell() {
                             ? "لا يوجد سعر مسجل"
                             : "no recorded price"}
                       </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 gap-1 rounded-lg px-2 text-[11px] font-semibold text-primary hover:bg-primary/10"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          e.preventDefault()
-                          openQuickAnalysis(c)
-                        }}
-                        aria-label={ar ? `تحليل ذكي سريع لـ ${name}` : `Quick AI analysis for ${name}`}
-                      >
-                        <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                        {ar ? "تحليل سريع" : "Quick AI"}
-                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -494,16 +439,6 @@ export function CompaniesPageShell() {
             </Button>
           </div>
         ) : null}
-
-        <QuickAiAnalysisDialog
-          open={quickOpen}
-          target={quickTarget}
-          onOpenChange={(o) => {
-            setQuickOpen(o)
-            if (!o) setQuickTarget(null)
-          }}
-          gen={gen}
-        />
       </div>
     </LayoutShell>
   )

@@ -177,12 +177,10 @@ export default function PremiumPage() {
   const subscription = subStatus?.subscription
   const isPremium = !!subStatus?.isPremium
   const status = subscription?.status
-  const usage = subStatus?.smartAnalysisUsage ?? null
   const currentPlanName = typeof subStatus?.plan === "string" ? subStatus.plan : isPremium ? "PRO" : "FREE"
 
   const benefits = [
     { icon: Gauge, t: ar ? "مؤشر الصحة المالية" : "Financial Health Score", d: ar ? "درجة 0-100 من 5 محاور موثقة مع تفصيل بكل محور" : "0-100 score across 5 verified axes, each one explained" },
-    { icon: Sparkles, t: ar ? "أطروحة استثمار بالـ AI" : "AI Investment Thesis", d: ar ? "قوة/ضعف/فرص/مخاطر من البيانات الموثقة فقط — بلا تأليف" : "Strengths, weaknesses, opportunities and risks — from verified data only" },
     { icon: Gem, t: ar ? "فرص التقييم القطاعي" : "Sector Valuation Screen", d: ar ? "الشركات الأقل من وسيط قطاعها في P/E و P/B" : "Companies below their sector median P/E & P/B" },
     { icon: FileCheck2, t: ar ? "أحدث النتائج المعلنة" : "Latest Announced Results", d: ar ? "آخر صافي ربح معلن لكل شركة — الأحدث أولاً" : "Most recent announced net profit per company — newest first" },
     { icon: BellRing, t: ar ? "أحداث استثمارية" : "Investment Events", d: ar ? "انقلاب أرباح، خفض دين، تحسن تدفق نقدي — مع الشرح" : "Profit turns, debt cuts, cash-flow improvements — with explanations" },
@@ -200,14 +198,7 @@ export default function PremiumPage() {
       },
     },
     {
-      label: ar ? "التحليلات الذكية شهريًا" : "Smart Analyses / month",
-      values: {
-        FREE: fmtRangeLimit(PLANS.FREE.limits.smartAnalysesPerMonth, ar ? "الكل" : "All", ar ? "غير محدود" : "Unlimited"),
-        PRO: fmtRangeLimit(PLANS.PRO.limits.smartAnalysesPerMonth, ar ? "الكل" : "All", ar ? "غير محدود" : "Unlimited"),
-        PRO_PLUS: fmtRangeLimit(PLANS.PRO_PLUS.limits.smartAnalysesPerMonth, ar ? "الكل" : "All", ar ? "غير محدود" : "Unlimited"),
-      },
-    },
-    { label: ar ? "أحداث الشركات" : "Company events", values: { FREE: PLANS.FREE.limits.events, PRO: PLANS.PRO.limits.events, PRO_PLUS: PLANS.PRO_PLUS.limits.events } },
+      label: ar ? "أحداث الشركات" : "Company events", values: { FREE: PLANS.FREE.limits.events, PRO: PLANS.PRO.limits.events, PRO_PLUS: PLANS.PRO_PLUS.limits.events } },
     { label: ar ? "الماسحات المحفوظة" : "Saved scanners", values: { FREE: PLANS.FREE.limits.scanners, PRO: PLANS.PRO.limits.scanners, PRO_PLUS: PLANS.PRO_PLUS.limits.scanners } },
     { label: ar ? "تقرير PDF قابل للطباعة" : "Printable PDF report", values: { FREE: PLANS.FREE.limits.pdfReport, PRO: PLANS.PRO.limits.pdfReport, PRO_PLUS: PLANS.PRO_PLUS.limits.pdfReport } },
     { label: ar ? "الإعلانات" : "Ads", values: { FREE: PLANS.FREE.limits.ads, PRO: PLANS.PRO.limits.ads, PRO_PLUS: PLANS.PRO_PLUS.limits.ads } },
@@ -391,8 +382,8 @@ export default function PremiumPage() {
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
               {ar
-                ? "ثلاث باقات بسيطة: ابدأ مجانًا، وبعد كده افتح لوحة الإشارات الفنية كاملة والتحليلات الذكية بلا حد وأحداث الشركات والماسحات — وبرو بلس بيضيف تقرير PDF القابل للطباعة."
-                : "Three simple plans: start free, then unlock the full signals board, unlimited Smart Analyses, company events and scanners — Pro Plus adds the printable PDF report."}
+                ? "ثلاث باقات بسيطة: ابدأ مجانًا، وبعد كده افتح لوحة الإشارات الفنية كاملة بأدوات الفلترة والفرز — وبرو بلس بيضيف تقرير PDF القابل للطباعة."
+                : "Three simple plans: start free, then unlock the full signals board with filtering and sorting — Pro Plus adds the printable PDF report."}
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary">
@@ -408,29 +399,6 @@ export default function PremiumPage() {
 
         {/* ================= STATUS ================= */}
         {statusBlock ? <div className="mt-6">{statusBlock}</div> : null}
-
-        {/* ================= FREE-TIER USAGE (visible counting) ================= */}
-        {mounted && !subLoading && !isPremium && usage ? (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card p-4">
-            <div>
-              <p className="text-sm font-bold text-foreground">{ar ? "تحليلاتك الذكية هذا الشهر" : "Your Smart Analyses this month"}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {ar ? "كل تحليل جديد يُحسب — يتجدد الرصيد أول كل شهر." : "Every analysis counts — the window resets on the 1st of each month."}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-lg font-extrabold tabular text-foreground" dir="ltr">
-                {usage.usageCount} / {usage.limit}
-              </span>
-              <div className="h-2 w-28 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${Math.min(100, (usage.usageCount / Math.max(1, usage.limit)) * 100)}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        ) : null}
 
         {/* ================= ERROR BANNER (subscribe failure) ================= */}
         {requestSub.isError ? (

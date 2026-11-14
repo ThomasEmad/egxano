@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { findCompanyByKey } from "@/lib/company-lookup"
 import { buildTechnicalBundleWithContext } from "@/lib/market/intelligence/context"
-import { computeStanceFromSnapshot } from "@/lib/technical/signals"
+import { computeStanceFromSnapshot, type TechStance } from "@/lib/technical/signals"
 import { getCachedMarketSignals } from "@/lib/technical/signals-service"
 import { cached } from "@/lib/server-cache"
 import { getCanonicalStance } from "@/lib/technical/stance-store"
@@ -50,7 +50,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const bundle = await buildTechnicalBundleWithContext(company.id)
     // THE canonical persisted stance — identical to what the /signals board
     // displays for this ticker (same row, same levels, same invalidation).
-    const canonical = await getCanonicalStance(company.id)
+    // DEGRADE, NEVER 500 (2026-11-14 post-deploy fix): if the snapshot store
+    // is unavailable (bootstrap DDL failed, transient DB error) the SAME
+    // stance is recomputed in-memory from the identical bundle — the tab
+    // keeps rendering instead of dying; the number just isn't persisted.
+    let canonical: { stance: TechStance; dataAsOf: Date; persisted: boolean }
+    try {
+      canonical = await getCanonicalStance(company.id)
+    } catch (e) {
+      console.error(
+        "canonical stance store unavailable — computing in-memory:",
+        e instanceof Error ? e.message.slice(0, 200) : e,
+      )
+      canonical = {
+        stance: computeStanceFromSnapshot(bundle.snapshot),
+        dataAsOf: bundle.snapshot.asOf ? new Date(bundle.snapshot.asOf) : new Date(0),
+        persisted: false,
+      }
+    }
     // The market board read for this ticker (10-min cached whole-market pass —
     // cheap to touch here). Since the board now overlays the same canonical
     // stance, boardSignal and stance agree by construction.

@@ -22,6 +22,53 @@ import { buildTechnicalBundleWithContext } from "@/lib/market/intelligence/conte
 /** Bump whenever the bundle/stance computation changes shape. */
 export const STANCE_ENGINE_VERSION = "stance@1"
 
+let tableEnsured: Promise<void> | null = null
+
+/**
+ * Idempotent runtime bootstrap for the StanceSnapshot table (additive DDL,
+ * exactly the 20261114120000_stance_snapshot migration, postgres dialect).
+ *
+ * WHY: a deploy whose build never ran `prisma migrate deploy` against the
+ * production DB (the 2026-11-14 deploy) left the table missing — every
+ * snapshot query then threw and BOTH the signals board and the company
+ * technical tab went dark. This runs at most once per serverless process,
+ * never caches a failure, and is safe against an already-migrated DB.
+ */
+function ensureStanceSnapshotTable(): Promise<void> {
+  if (!tableEnsured) {
+    tableEnsured = (async () => {
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "StanceSnapshot" (
+          "id" TEXT NOT NULL,
+          "companyId" TEXT NOT NULL,
+          "engineVersion" TEXT NOT NULL,
+          "signalsVersion" TEXT NOT NULL,
+          "dataAsOf" TIMESTAMP(3) NOT NULL,
+          "stanceJson" TEXT NOT NULL,
+          "computedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "StanceSnapshot_pkey" PRIMARY KEY ("id")
+        )`)
+      await db.$executeRawUnsafe(
+        `CREATE UNIQUE INDEX IF NOT EXISTS "StanceSnapshot_companyId_key" ON "StanceSnapshot"("companyId")`,
+      )
+      await db.$executeRawUnsafe(
+        `CREATE INDEX IF NOT EXISTS "StanceSnapshot_computedAt_idx" ON "StanceSnapshot"("computedAt")`,
+      )
+      await db.$executeRawUnsafe(`
+        DO $$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'StanceSnapshot_companyId_fkey') THEN
+            ALTER TABLE "StanceSnapshot" ADD CONSTRAINT "StanceSnapshot_companyId_fkey"
+            FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+          END IF;
+        END $$;`)
+    })().catch((e) => {
+      tableEnsured = null // never cache a failure — retry on the next read
+      throw e
+    })
+  }
+  return tableEnsured
+}
+
 /** A persisted stance older than this is recomputed lazily. */
 export const STALE_AFTER_MS = 20 * 60 * 60 * 1000
 
@@ -55,6 +102,7 @@ function parseStanceJson(row: {
  * Returns null when no fresh-enough row exists.
  */
 export async function readCanonicalStance(companyId: string, maxAgeMs = BOARD_MAX_AGE_MS): Promise<CanonicalStance | null> {
+  await ensureStanceSnapshotTable()
   const row = await db.stanceSnapshot.findUnique({ where: { companyId } })
   if (!row) return null
   if (row.engineVersion !== STANCE_ENGINE_VERSION) return null
@@ -70,6 +118,7 @@ export async function readCanonicalStance(companyId: string, maxAgeMs = BOARD_MA
  * persist it, and return it. The SAME row the signals board reads.
  */
 export async function getCanonicalStance(companyId: string): Promise<{ stance: TechStance; dataAsOf: Date; persisted: boolean }> {
+  await ensureStanceSnapshotTable()
   const row = await db.stanceSnapshot.findUnique({ where: { companyId } })
   if (
     row &&
@@ -107,6 +156,7 @@ export async function getCanonicalStance(companyId: string): Promise<{ stance: T
  * Chunked so a serverless invocation stays inside its time budget.
  */
 export async function refreshOldestStances(limit = 40): Promise<{ recomputed: number; skipped: number }> {
+  await ensureStanceSnapshotTable()
   const companies = await db.company.findMany({
     where: { isActive: true },
     select: { id: true, ticker: true },

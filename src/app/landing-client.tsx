@@ -667,8 +667,8 @@ export default function LandingClient() {
                 icon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />}
                 title={ar ? "بدون توصيات شراء/بيع" : "No buy/sell recommendations"}
                 description={ar
-                  ? "EGXANO منصة بحث ومعلومات. مبيقدمش توصيات استثمارية، والتحليل بالذكاء الاصطناعي مبين بوضوح إنه تفسير مش توصية."
-                  : "EGXANO is a research and information platform. It does not provide investment recommendations, and AI-assisted analysis is clearly labelled as interpretation, not advice."}
+                  ? "EGXANO منصة بحث ومعلومات. مبيقدمش توصيات استثمارية، وكل القراءات الفنية محسوبة بمحرك شفاف وموضحة كوصف للبيانات — مش توصية."
+                  : "EGXANO is a research and information platform. It does not provide investment recommendations; every technical reading is computed by a transparent engine and shown as a description of the data, not advice."}
               />
               <TrustCard
                 icon={<Calculator className="h-4 w-4" aria-hidden="true" />}
@@ -734,8 +734,11 @@ function HeroPreview({
   loading: boolean
   metricsLoading: boolean
 }) {
-  if (!company) return null
+  // Hooks must run unconditionally — the early return below used to sit BEFORE
+  // useI18n (rules-of-hooks violation → hook-order crash when `company`
+  // transitions between null and a value).
   const { lang } = useI18n()
+  if (!company) return null
   const ar = lang === "ar"
 
   return (

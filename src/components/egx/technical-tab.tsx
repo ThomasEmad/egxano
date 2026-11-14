@@ -229,7 +229,7 @@ function DisclaimerBanner({ ar }: { ar: boolean }) {
 
 // ---------------------------------------------------------------------------
 // Technical stance — the rule-based synthesis hero (score gauge / read /
-// dimension bars / trade plan / invalidation). The desk-note summary.
+// dimension bars / trade plan). The desk-note summary.
 // ---------------------------------------------------------------------------
 
 const STANCE_CLS: Record<string, { badge: string; bar: string; stroke: string; text: string }> = {
@@ -487,13 +487,6 @@ function StanceCard({ stance, verdict, pos, neg, boardSignal, ar }: { stance: St
                 <span className="ms-1 tabular opacity-70">{f.earned}/{f.total}</span>
               </Badge>
             ))}
-          </div>
-        ) : null}
-
-        {stance.invalidation ? (
-          <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden />
-            <span>{ar ? stance.invalidation.labelAr : stance.invalidation.labelEn}</span>
           </div>
         ) : null}
 
@@ -985,10 +978,6 @@ function ZonesSection({ zones, ar }: { zones: ZonesSnapshot | null | undefined; 
                 </div>
                 <p className="mt-1.5 text-[11px] text-muted-foreground">
                   {ar ? "الجودة" : "Quality"} · <span className="tnum">{z.tests}×</span> {ar ? "اختبار" : "tests"}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  {z.kind === "demand" ? (ar ? "الإبطال تحت" : "Invalidation below") : (ar ? "الإبطال فوق" : "Invalidation above")}{" "}
-                  <span className="tnum" dir="ltr">{z.invalidation.toFixed(2)}</span>
                 </p>
                 <p className="mt-1 font-medium">
                   {z.kind === "demand"

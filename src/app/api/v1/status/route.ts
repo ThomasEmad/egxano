@@ -8,7 +8,7 @@ import { cachedResponse } from "@/lib/public-cache"
 
 export async function GET() {
   return cachedResponse("platform-status", 5 * 60 * 1000, async () => {
-    const [companies, activeCompanies, reports, prices, latestPrice, latestReport, alerts, analyses] =
+    const [companies, activeCompanies, reports, prices, latestPrice, latestReport, alerts] =
       await Promise.all([
         db.company.count(),
         db.company.count({ where: { isActive: true } }),
@@ -17,7 +17,6 @@ export async function GET() {
         db.marketPrice.findFirst({ orderBy: { asOf: "desc" }, select: { asOf: true } }),
         db.financialReport.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
         db.priceAlert.count({ where: { active: true } }),
-        db.aiAnalysisReport.count({ where: { status: "COMPLETED" } }),
       ])
 
     const snapshot = await getFreshMarketSnapshot()
@@ -35,7 +34,6 @@ export async function GET() {
         companiesActive: activeCompanies,
         financialReports: reports,
         marketPricePoints: prices,
-        aiAnalyses: analyses,
         latestReportImportedAt: latestReport?.createdAt.toISOString() ?? null,
       },
       usage: { activePriceAlerts: alerts },

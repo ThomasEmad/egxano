@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Activity, Building2, FileText, Info, LineChart, RefreshCw, Sparkles, TriangleAlert } from "lucide-react"
+import { Activity, Building2, FileText, Info, LineChart, RefreshCw, TriangleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { BRAND, TRUST } from "@/lib/brand"
@@ -16,7 +16,7 @@ export interface StatusPayload {
     companiesActive: number
     financialReports: number
     marketPricePoints: number
-    aiAnalyses: number
+    aiAnalyses?: number
     latestReportImportedAt: string | null
   }
   usage?: { activePriceAlerts: number }
@@ -63,12 +63,6 @@ export function StatusView({ data }: { data: StatusPayload | null }) {
       label: ar ? "نقاط الأسعار المسجّلة" : "Recorded price points",
       value: loaded ? fmtCount(data.data.marketPricePoints) : "—",
       hint: ar ? "أسعار سوق مسجّلة (متأخرة)" : "recorded market prices (delayed)",
-    },
-    {
-      icon: Sparkles,
-      label: ar ? "تحليلات ذكية محفوظة" : "Cached AI analyses",
-      value: loaded ? fmtCount(data.data.aiAnalyses) : "—",
-      hint: ar ? "تحليل محفوظ — تفسير مساعد" : "stored analysis — assisted interpretation",
     },
   ]
 

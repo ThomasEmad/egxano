@@ -1,16 +1,13 @@
 // Single source of truth for the 3 plans and their REAL, enforced entitlements.
-// Every gate in the codebase (signals board rows, smart analyses,
-// portfolio, QA quota, events, scanners, ads, PDF report) MUST derive its limit
-// from this file so that the marketing copy on /premium can never drift from
-// what the app actually enforces.
+// Every gate in the codebase (signals board rows, portfolio, QA quota, events,
+// scanners, ads, PDF report) MUST derive its limit from this file so that the
+// marketing copy on /premium can never drift from what the app actually enforces.
 
 export type PlanId = "FREE" | "PRO" | "PRO_PLUS"
 
 export interface PlanLimits {
   /** Rows fully visible on the technical signals board (rest locked). */
   signalsRows: number | "ALL"
-  /** AI smart analyses per calendar month. */
-  smartAnalysesPerMonth: number | "UNLIMITED"
   /** Tracked portfolio holdings. */
   portfolioHoldings: number | "UNLIMITED"
   /** AI Q&A per day. */
@@ -62,14 +59,11 @@ export const PLANS: Record<PlanId, PlanDef> = {
     featuresAr: [
       "كل الشركات وقوائمها وبياناتها المالية الأساسية",
       "أول 5 شركات في لوحة الإشارات الفنية مع مناطق الدخول والخروج ووقف الخسارة",
-      "بريفينج صوتي تجريبي لكل سهم لمدة يوم واحد",
-      "3 تحليلات ذكية شهريًا",
       "تتبع شركتين في المحفظة",
       "20 سؤال ذكي في اليوم",
     ],
     limits: {
       signalsRows: 5,
-      smartAnalysesPerMonth: 3,
       portfolioHoldings: 2,
       qaPerDay: 20,
       alerts: 5,
@@ -95,8 +89,6 @@ export const PLANS: Record<PlanId, PlanDef> = {
       "كل مزايا المجانية، وبدون إعلانات",
       "لوحة الإشارات الفنية كاملة: كل الشركات + كل الفلاتر",
       "مناطق الدخول والخروج ووقف الخسارة لكل إشارة",
-      "بريفينج صوتي غير محدود لكل سهم — بدون إعلانات",
-      "تحليلات ذكية غير محدودة لكل شركة",
       "أحداث الشركات والماسحات المحفوظة",
       "محفظة بلا حدود",
       "60 سؤال ذكي في اليوم",
@@ -104,7 +96,6 @@ export const PLANS: Record<PlanId, PlanDef> = {
     ],
     limits: {
       signalsRows: "ALL",
-      smartAnalysesPerMonth: "UNLIMITED",
       portfolioHoldings: "UNLIMITED",
       qaPerDay: 60,
       alerts: 30,
@@ -131,11 +122,9 @@ export const PLANS: Record<PlanId, PlanDef> = {
       "تقرير PDF احترافي قابل للطباعة لكل شركة",
       "120 سؤال ذكي في اليوم",
       "100 تنبيه سعر + قائمة مراقبة بلا حدود",
-      "أولوية معالجة في التحليلات الذكية وقت الضغط",
     ],
     limits: {
       signalsRows: "ALL",
-      smartAnalysesPerMonth: "UNLIMITED",
       portfolioHoldings: "UNLIMITED",
       qaPerDay: 120,
       alerts: 100,
