@@ -28,8 +28,8 @@ export function PremiumGate({ title, description, compact = false }: PremiumGate
 
   const defaultTitle = ar ? "القسم ده من باقات برو وبرو بلس" : "This section is part of Pro and Pro Plus"
   const defaultDescription = ar
-    ? "القسم ده متاح لباقات برو وبرو بلس — تفعيل فوري بعد تأكيد التحويل."
-    : "This section is available on Pro and Pro Plus — instant activation after transfer confirmation."
+    ? "القسم ده متاح لباقات برو وبرو بلس — التفعيل بيتم بعد تأكيد الحوالة."
+    : "This section is available on Pro and Pro Plus — activation happens after the transfer is confirmed."
 
   const upgradeCta = ar ? "ترقية الآن" : "Upgrade now"
 

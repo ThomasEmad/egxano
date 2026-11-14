@@ -9,8 +9,8 @@ const faq = [
     a: "Every figure comes from a company's published financial statements and passes period and consistency checks before entering analytics. Derived values are labelled as calculated; unavailable values show “—” — they are never estimated or invented.",
   },
   {
-    q: "What is the difference between Free and Premium?",
-    a: "Free includes company browsing, financial statements, public rankings and comparisons. Premium adds higher limits on AI-assisted analysis, all detected events, full rankings and valuation screens, and data export. The complete plan comparison is on the Premium page — no fake trial, no countdown.",
+    q: "What is the difference between Free and Pro?",
+    a: "Free includes company browsing, financial statements, public rankings and comparisons, CSV export, and the first five technical signal reads with their entry/exit zones and stop-loss. Pro opens the whole signals board — every company, every filter — plus detected company events, saved scanners, unlimited portfolio tracking and higher daily smart-question limits. The complete plan comparison is on the Premium page — no fake trial, no countdown.",
   },
   {
     q: "How do you compare companies?",
@@ -22,7 +22,7 @@ const faq = [
   },
   {
     q: "Do you provide buy or sell recommendations?",
-    a: "No. EGXANO is a research and information tool: it shows the figures, their interpretation, risks and limitations, and leaves the decision to the user. AI-assisted analysis is a labelled interpretation, not a recommendation.",
+    a: "No. EGXANO is a research and information tool: it shows the figures, their interpretation, risks and limitations, and leaves the decision to the user. Every technical read is a labelled, rule-based interpretation of price data — not a recommendation.",
   },
 ]
 

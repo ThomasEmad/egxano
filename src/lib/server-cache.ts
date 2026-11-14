@@ -63,3 +63,12 @@ export async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>
 export function invalidateServerCache(): void {
   store.clear()
 }
+
+/** Age (ms) of the in-process value for `key`, or null when nothing is stored.
+ *  Lets cold-start helpers decide between serving memory, a persisted
+ *  snapshot, or paying the build. */
+export function peekCacheAgeMs(key: string): number | null {
+  const hit = store.get(key)
+  if (!hit) return null
+  return Date.now() - hit.at
+}

@@ -64,8 +64,6 @@ function fmtRangeLimit(v: number | "ALL" | "UNLIMITED", allAr: string, unAr: str
   return String(v)
 }
 
-/** Briefing entitlement → "تجربة يوم" (24h trial) or "بلا حدود". */
-
 /** InstaPay QR with a hydration-safe broken-image fallback: the 404 error can
  *  fire before React attaches onError (SSR-rendered <img>), so completeness is
  *  also checked on mount. The real barcode is set by the admin via the

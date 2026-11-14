@@ -1,5 +1,6 @@
 import { db } from "@/lib/db"
-import { cachedResponse } from "@/lib/public-cache"
+import { publicCacheControl } from "@/lib/public-cache"
+import { serveWithSnapshot } from "@/lib/shared-snapshot"
 
 // GET /api/v1/dashboard/summary — market breadth and summary statistics.
 //
@@ -15,12 +16,21 @@ import { cachedResponse } from "@/lib/public-cache"
 
 export async function GET() {
   const t0 = Date.now()
-  const res = await cachedResponse("dashboard-summary", 60 * 1000, buildSummary, {
-    // Honest field instrumentation (Server-Timing shows up in devtools + the
-    // Playwright perf probes): cache hit → tiny dur, cache miss → build cost.
-    "server-timing": `summary;dur=${Date.now() - t0}`,
+  // Light window query (~550 rows): memory cache 60s + persisted snapshot
+  // fallback (max 15 min old) so a cold instance never blocks a visitor.
+  const { value: data, source } = await serveWithSnapshot({
+    cacheKey: "dashboard-summary",
+    ttlMs: 60 * 1000,
+    settingKey: "dashboard-summary:snapshot:v1",
+    snapshotMaxAgeMs: 15 * 60_000,
+    build: buildSummary,
   })
-  return res
+  return Response.json(data, {
+    headers: {
+      "Cache-Control": publicCacheControl(60),
+      "server-timing": `summary;dur=${Date.now() - t0},source=${source}`,
+    },
+  })
 }
 
 interface SummaryRow {

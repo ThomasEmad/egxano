@@ -1,6 +1,7 @@
 import { db } from "@/lib/db"
 import { cached } from "@/lib/server-cache"
 import { publicCacheControl } from "@/lib/public-cache"
+import { serveWithSnapshot } from "@/lib/shared-snapshot"
 import { isAuthoritativeValue } from "@/lib/financial/integrity-policy"
 import { isFuturePeriodEnd, latestAnnouncedPeriodEnd } from "@/lib/financial/period-validity"
 
@@ -24,11 +25,20 @@ const TRUSTED = ["VALIDATED", "APPROVED", "EXTRACTED"]
 // (deduped to 12) from running per request.
 export async function GET() {
   const t0 = Date.now()
-  const data = await cached("dashboard:latest-results", 10 * 60_000, buildLatestResults)
+  // Results change only when the pipeline ingests a new filing — a cold
+  // instance may serve the persisted snapshot (max 24h old) instead of
+  // blocking on the 800-row probe; the fresh build runs in the background.
+  const { value: data, source } = await serveWithSnapshot({
+    cacheKey: "dashboard:latest-results",
+    ttlMs: 10 * 60_000,
+    settingKey: "dashboard:latest-results:snapshot:v1",
+    snapshotMaxAgeMs: 24 * 60 * 60_000,
+    build: buildLatestResults,
+  })
   return Response.json(data, {
     headers: {
       "Cache-Control": publicCacheControl(600),
-      "server-timing": `latest-results;dur=${Date.now() - t0}`,
+      "server-timing": `latest-results;dur=${Date.now() - t0},source=${source}`,
     },
   })
 }
