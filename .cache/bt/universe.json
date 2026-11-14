@@ -1,0 +1,300 @@
+{
+ "generatedAt": "2026-11-14",
+ "selectionRule": "12 candidates per bucket; first 10 with >=150 valid sessions win",
+ "candidates": [
+  [
+   {
+    "ticker": "ETEL",
+    "nameEn": "Telecom Egypt",
+    "sector": "Telecom",
+    "tier": "EGX30",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "EAST",
+    "nameEn": "Eastern Company",
+    "sector": "Food",
+    "tier": "EGX30",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "CCAP",
+    "nameEn": "QALA For Financial Investments (formerly CI Capital)",
+    "sector": "Financial Services",
+    "tier": "EGX30",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "COMI",
+    "nameEn": "Commercial International Bank (Egypt)",
+    "sector": "Banks",
+    "tier": "EGX30",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "TMGH",
+    "nameEn": "Talaat Moustafa Group Holding",
+    "sector": "Real Estate",
+    "tier": "EGX30",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "FWRY",
+    "nameEn": "Fawry for Banking Technology and Electronic Payments",
+    "sector": "Telecom",
+    "tier": "EGX30",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "ORAS",
+    "nameEn": "Orascom Construction",
+    "sector": "Construction",
+    "tier": "EGX30",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "BTFH",
+    "nameEn": "Beltone Financial Holding",
+    "sector": "Financial Services",
+    "tier": "EGX30",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "ORHD",
+    "nameEn": "Orascom Development Holding",
+    "sector": "Real Estate",
+    "tier": "EGX30",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "GBCO",
+    "nameEn": "GB Corp (GB Capital)",
+    "sector": "Industrial",
+    "tier": "EGX30",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "AMOC",
+    "nameEn": "Alexandria Mineral Oils Company",
+    "sector": "Energy",
+    "tier": "EGX30",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "ABUK",
+    "nameEn": "Abu Qir Fertilizers & Chemical Industries",
+    "sector": "Basic Materials",
+    "tier": "EGX30",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   }
+  ],
+  [
+   {
+    "ticker": "MPCO",
+    "nameEn": "Mansourah Poultry",
+    "sector": "Food",
+    "tier": "EGX70",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "MPCI",
+    "nameEn": "Memphis Pharmaceuticals",
+    "sector": "Healthcare",
+    "tier": "EGX70",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "POUL",
+    "nameEn": "Cairo Poultry",
+    "sector": "Food",
+    "tier": "EGX70",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "NIPH",
+    "nameEn": "El-Nile Co. For Pharmaceuticals And Chemical Industries",
+    "sector": "Healthcare",
+    "tier": "EGX70",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "AIHC",
+    "nameEn": "Arabia Investments Holding SAE",
+    "sector": "Financial Services",
+    "tier": "EGX70",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "PRCL",
+    "nameEn": "Ceramic & Porcelain",
+    "sector": "Building Materials",
+    "tier": "EGX70",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "HDBK",
+    "nameEn": "Housing & Development Bank",
+    "sector": "Banks",
+    "tier": "EGX70",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "SIPC",
+    "nameEn": "Saba for Pharmaceuticals (SIPC)",
+    "sector": "Healthcare",
+    "tier": "EGX70",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "AMER",
+    "nameEn": "Amer Group",
+    "sector": "Real Estate",
+    "tier": "EGX70",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "PHAR",
+    "nameEn": "EIPICO (Egyptian International Pharmaceutical Industries)",
+    "sector": "Healthcare",
+    "tier": "EGX70",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "ENGC",
+    "nameEn": "Engineering Company for Engineering Industries",
+    "sector": "Construction",
+    "tier": "EGX70",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "ATQA",
+    "nameEn": "Misr National Steel (ATQA)",
+    "sector": "Basic Materials",
+    "tier": "EGX70",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   }
+  ],
+  [
+   {
+    "ticker": "AALR",
+    "nameEn": "General Co. for Land Reclamation Development & Reconstruction",
+    "sector": "Construction",
+    "tier": "MAIN",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "ACAMD",
+    "nameEn": "Arab Co. for Asset Management & Development",
+    "sector": "Real Estate",
+    "tier": "MAIN",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "ACAP",
+    "nameEn": "A Capital Holding",
+    "sector": "Real Estate",
+    "tier": "MAIN",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "ACGC",
+    "nameEn": "Arab Cotton Ginning Co.",
+    "sector": "Textiles",
+    "tier": "MAIN",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "ADCI",
+    "nameEn": "Arab Pharmaceuticals",
+    "sector": "Healthcare",
+    "tier": "MAIN",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "ADPC",
+    "nameEn": "Arab Dairy Products Co. Arab Dairy - Panda",
+    "sector": "Food",
+    "tier": "MAIN",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "ADRI",
+    "nameEn": "Arab Development & Real Estate Investment",
+    "sector": "Financial Services",
+    "tier": "MAIN",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "AFDI",
+    "nameEn": "Alahly For Development & Investment",
+    "sector": "Financial Services",
+    "tier": "MAIN",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "AFMC",
+    "nameEn": "Alexandria Flour Mills Co.",
+    "sector": "Food",
+    "tier": "MAIN",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "ALEX",
+    "nameEn": "Alexandria Cement Co.",
+    "sector": "Building Materials",
+    "tier": "MAIN",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "ALUM",
+    "nameEn": "Arab Aluminum Co. SAE",
+    "sector": "Basic Materials",
+    "tier": "MAIN",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   },
+   {
+    "ticker": "AMES",
+    "nameEn": "Alexandria New Medical Center",
+    "sector": "Healthcare",
+    "tier": "MAIN",
+    "listingStatus": "LISTED",
+    "isDemoData": false
+   }
+  ]
+ ]
+}

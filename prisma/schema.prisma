@@ -974,8 +974,9 @@ model PriceAlert {
 // Web Push subscription (browser endpoint) for delivering price-alert
 // notifications even when the site is closed. One browser install = one row;
 // endpoint is the push-service URL (unique per subscription). Dedupe of alert
-// firings does NOT need a log table: PriceAlert.active/triggeredAt already
-// encode the one-shot trigger lifecycle (see model above).
+// firings is the Transactional Outbox below (see notification-audit.md §5):
+// PriceAlert.active/triggeredAt encodes the one-shot trigger lifecycle and
+// NotificationOutbox is the delivery ledger/retry queue.
 //
 // Table is created at runtime by ensurePushTables() (src/lib/db-schema-bootstrap.ts)
 // — production DB is not reachable for migrations from every environment.
@@ -988,6 +989,40 @@ model PushSubscription {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+// Transactional Outbox for Web Push delivery (notification-audit.md F-01/F-02,
+// design §5). One row per triggered alert, written in the SAME transaction
+// that claims (deactivates) the PriceAlert — so a trigger can never commit
+// without its delivery task, and the delivery task can never duplicate:
+//   * alertId @unique is the EVENT KEY — a second insert for the same alert
+//     is rejected by the DB, making duplicate publishes impossible;
+//   * status PENDING → SENDING (leased) → SENT | DEAD drives retries;
+//   * SENDING rows whose lease expired are re-claimable — that is the
+//     recovery path for serverless kills mid-dispatch.
+// Table is created at runtime by ensureNotificationOutboxTable()
+// (src/lib/db-schema-bootstrap.ts), same self-heal pattern as PushSubscription.
+model NotificationOutbox {
+  id            String    @id @default(cuid())
+  alertId       String    @unique // 1:1 with a triggered PriceAlert — the idempotency/event key
+  userId        String
+  ticker        String
+  direction     String    // ABOVE | BELOW (denormalized for forensics/UI)
+  targetPrice   Float
+  triggerPrice  Float
+  payload       Json      // frozen push content {title, body, url} at trigger time
+  status        String    @default("PENDING") // PENDING | SENDING | SENT | DEAD
+  attempts      Int       @default(0)
+  maxAttempts   Int       @default(6)
+  nextAttemptAt DateTime  @default(now())
+  leaseUntil    DateTime? // while SENDING: dispatch lease; re-claimable once expired
+  lastError     String?   // last failure reason or per-device outcome note (never keys)
+  sentAt        DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status, nextAttemptAt]) // drain query
+  @@index([userId])                // user-scoped drain (GET /api/v1/alerts)
 }
 
 // Investor portfolio — manual positions valued against recorded MarketPrice

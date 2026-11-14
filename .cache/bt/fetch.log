@@ -1,0 +1,42 @@
+fetching 36 tickers, cached=0
+ETEL: OK bars=244 adjclose=true splits=0 divs=1
+EAST: OK bars=244 adjclose=true splits=0 divs=2
+CCAP: OK bars=244 adjclose=true splits=0 divs=0
+COMI: OK bars=244 adjclose=true splits=1 divs=1
+TMGH: OK bars=244 adjclose=true splits=0 divs=1
+FWRY: OK bars=244 adjclose=true splits=0 divs=0
+ORAS: OK bars=244 adjclose=true splits=0 divs=0
+BTFH: OK bars=244 adjclose=true splits=0 divs=0
+ORHD: OK bars=244 adjclose=true splits=1 divs=0
+GBCO: OK bars=244 adjclose=true splits=0 divs=1
+AMOC: OK bars=244 adjclose=true splits=0 divs=1
+ABUK: OK bars=244 adjclose=true splits=0 divs=1
+MPCO: OK bars=244 adjclose=true splits=0 divs=0
+MPCI: OK bars=244 adjclose=true splits=0 divs=0
+POUL: OK bars=244 adjclose=true splits=0 divs=1
+NIPH: OK bars=244 adjclose=true splits=0 divs=0
+  AIHC: HTTP 404 — skipped (no retry)
+AIHC: NO DATA
+PRCL: OK bars=244 adjclose=true splits=0 divs=0
+HDBK: OK bars=244 adjclose=true splits=1 divs=1
+SIPC: OK bars=244 adjclose=true splits=0 divs=0
+AMER: OK bars=244 adjclose=true splits=0 divs=0
+PHAR: OK bars=244 adjclose=true splits=0 divs=1
+ENGC: OK bars=244 adjclose=true splits=0 divs=0
+ATQA: OK bars=244 adjclose=true splits=0 divs=0
+AALR: OK bars=244 adjclose=true splits=0 divs=0
+ACAMD: OK bars=244 adjclose=true splits=0 divs=1
+  ACAP: HTTP 404 — skipped (no retry)
+ACAP: NO DATA
+ACGC: OK bars=244 adjclose=true splits=1 divs=0
+ADCI: OK bars=244 adjclose=true splits=0 divs=0
+ADPC: OK bars=244 adjclose=true splits=0 divs=0
+  ADRI: HTTP 404 — skipped (no retry)
+ADRI: NO DATA
+AFDI: OK bars=244 adjclose=true splits=0 divs=0
+AFMC: OK bars=244 adjclose=true splits=0 divs=0
+  ALEX: HTTP 404 — skipped (no retry)
+ALEX: NO DATA
+ALUM: OK bars=244 adjclose=true splits=0 divs=0
+AMES: OK bars=244 adjclose=true splits=0 divs=0
+done

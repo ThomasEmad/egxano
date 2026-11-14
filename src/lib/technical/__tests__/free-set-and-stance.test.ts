@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { isFreeSignalTicker, FREE_SIGNAL_TICKERS, isPaidPlanId } from "../../plans/entitlements"
-import { STANCE_ENGINE_VERSION, STALE_AFTER_MS, BOARD_MAX_AGE_MS } from "../stance-store"
+import { STANCE_ENGINE_VERSION, STALE_AFTER_MS, BOARD_MAX_AGE_MS, isFreshCanonicalRow } from "../stance-store"
 
 /**
  * FREE-ACCESS UNIVERSE (2026-11-14) — the anti-bypass contract:
@@ -46,8 +46,21 @@ describe("free-signal fixed set", () => {
 
 describe("stance-store contract constants", () => {
   it("versions and staleness bounds are documented values", () => {
-    expect(STANCE_ENGINE_VERSION).toBe("stance@1")
+    expect(STANCE_ENGINE_VERSION).toBe("stance@2")
     expect(STALE_AFTER_MS).toBe(20 * 60 * 60 * 1000)
     expect(BOARD_MAX_AGE_MS).toBeGreaterThan(STALE_AFTER_MS)
+  })
+
+  it("stale-snapshot version filtering (stance@2 contract) — mixed versions impossible", () => {
+    const fresh = new Date(Date.now() - 1000)
+    // matching version + fresh computedAt → trusted
+    expect(isFreshCanonicalRow("stance@2", fresh)).toBe(true)
+    // ANY other engine version (e.g. every persisted stance@1 row after the
+    // bump) is rejected at read time → recomputed → no mixed-version display
+    expect(isFreshCanonicalRow("stance@1", fresh)).toBe(false)
+    expect(isFreshCanonicalRow("stance@3", fresh)).toBe(false)
+    expect(isFreshCanonicalRow("", fresh)).toBe(false)
+    // matching version but older than the board trust window → rejected
+    expect(isFreshCanonicalRow("stance@2", new Date(Date.now() - BOARD_MAX_AGE_MS - 1000))).toBe(false)
   })
 })

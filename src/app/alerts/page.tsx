@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, Bell, BellOff, BellRing, Loader2, TrendingDown, TrendingUp, Trash2 } from "lucide-react"
+import { AlertTriangle, Bell, BellOff, BellRing, CheckCheck, Loader2, RefreshCw, TrendingDown, TrendingUp, Trash2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -21,6 +21,21 @@ import { useI18n } from "@/lib/i18n"
 // the alert also arrives as an OS notification even when the site is closed;
 // without it, alerts appear here only when the page is opened.
 
+// Honest delivery state, joined from the server's NotificationOutbox ledger
+// by GET /api/v1/alerts (null = legacy trigger that predates the outbox —
+// delivery state is then unknown and we show only the trigger timestamp).
+// States: SENT = the push service accepted the notification (provider
+// acceptance is the strongest signal web push exposes — it is not an OS-level
+// delivery acknowledgment); RETRYING = at least one send attempt failed, the
+// server retries automatically; PENDING = triggered, first send not yet
+// attempted; FAILED = dead-lettered after the last retry.
+interface DeliveryInfo {
+  state: "SENT" | "RETRYING" | "PENDING" | "FAILED"
+  attempts: number
+  sentAt: string | null
+  nextRetryAt: string | null
+}
+
 interface AlertRow {
   id: string
   companyId: string
@@ -35,6 +50,7 @@ interface AlertRow {
   currentPrice: number | null
   priceAsOf: string | null
   hitNow: boolean
+  delivery: DeliveryInfo | null
 }
 
 interface SearchRow {
@@ -211,6 +227,53 @@ export default function AlertsPage() {
   )
 }
 
+// Real delivery state badge for a triggered alert (audit: "UI implies delivery
+// on trigger" is no longer true — the state comes from the server's outbox
+// ledger). Arabic-first, styled like the rest of the page's status chips.
+function DeliveryBadge({ delivery, ar }: { delivery: DeliveryInfo; ar: boolean }) {
+  const fmtTime = (iso: string | null) =>
+    iso
+      ? new Date(iso).toLocaleString(ar ? "ar-EG-u-nu-latn" : "en-GB", { dateStyle: "short", timeStyle: "short" })
+      : null
+
+  if (delivery.state === "SENT") {
+    const at = fmtTime(delivery.sentAt)
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-positive/10 px-2 py-0.5 text-[11px] font-semibold text-positive">
+        <CheckCheck className="h-3 w-3" aria-hidden />
+        {ar ? "تم التسليم" : "Delivered"}
+        {at ? <span className="font-normal opacity-80">{at}</span> : null}
+      </span>
+    )
+  }
+  if (delivery.state === "RETRYING") {
+    const next = fmtTime(delivery.nextRetryAt)
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">
+        <RefreshCw className="h-3 w-3" aria-hidden />
+        {ar ? `إعادة محاولة${delivery.attempts > 1 ? ` (${delivery.attempts})` : ""}` : `Retrying${delivery.attempts > 1 ? ` (${delivery.attempts})` : ""}`}
+        {next ? (
+          <span className="font-normal opacity-80">{ar ? `المحاولة الجاية ${next}` : `next try ${next}`}</span>
+        ) : null}
+      </span>
+    )
+  }
+  if (delivery.state === "PENDING") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+        <BellRing className="h-3 w-3" aria-hidden />
+        {ar ? "بانتظار الإرسال" : "Pending send"}
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
+      <XCircle className="h-3 w-3" aria-hidden />
+      {ar ? "فشل التسليم" : "Delivery failed"}
+    </span>
+  )
+}
+
 function AlertCard({ alert: a, fired, onChanged }: { alert: AlertRow; fired?: boolean; onChanged: () => void }) {
   const { lang } = useI18n()
   const ar = lang === "ar"
@@ -277,6 +340,7 @@ function AlertCard({ alert: a, fired, onChanged }: { alert: AlertRow; fired?: bo
                 {new Date(a.triggeredAt).toLocaleString(ar ? "ar-EG-u-nu-latn" : "en-GB", { dateStyle: "short", timeStyle: "short" })}
               </span>
             ) : null}
+            {fired && a.delivery ? <DeliveryBadge delivery={a.delivery} ar={ar} /> : null}
           </div>
         </div>
         <Button variant="ghost" size="sm" onClick={remove} disabled={busy} aria-label={ar ? "حذف التنبيه" : "Delete alert"}>

@@ -1,0 +1,1503 @@
+{
+ "startedAt": "2026-11-14T17:14:55.544Z",
+ "minBars": 500,
+ "targets": 1,
+ "results": [
+  {
+   "ticker": "COMI",
+   "symbol": "COMI.CA",
+   "status": "filled",
+   "got": 2681,
+   "inserted": 2437,
+   "barsBefore": 244,
+   "barsAfter": 2681,
+   "firstYmd": "2016-01-03",
+   "lastYmd": "2026-11-12"
+  }
+ ],
+ "inserted": 2437,
+ "finishedAt": "2026-11-14T17:14:59.794Z",
+ "abortedRateLimited": false,
+ "finalStats": {
+  "totalCompanies": 246,
+  "companiesWithAnyBars": 243,
+  "companiesWith100Plus": 206,
+  "companiesWith150Plus": 206,
+  "companiesWith200Plus": 206,
+  "companiesWith250Plus": 1,
+  "belowBar": [
+   {
+    "id": "cmupv8vut0010bxn0gaql6ckq",
+    "ticker": "NAPR",
+    "listingStatus": "LISTED",
+    "bars": 0
+   },
+   {
+    "id": "cmupv8vve0016bxn0j9jyp56d",
+    "ticker": "RMTV",
+    "listingStatus": "LISTED",
+    "bars": 0
+   },
+   {
+    "id": "cmupv8vrv0006bxn0z0s9e1pn",
+    "ticker": "AIHC",
+    "listingStatus": "LISTED",
+    "bars": 0
+   },
+   {
+    "id": "cmupv8vs30008bxn0fdpsrofm",
+    "ticker": "BQDC",
+    "listingStatus": "LISTED",
+    "bars": 4
+   },
+   {
+    "id": "cmugriqg8000ibx50269oithg",
+    "ticker": "DCRC",
+    "listingStatus": "LISTED",
+    "bars": 23
+   },
+   {
+    "id": "cmupv8vvz001cbxn0knojb8c2",
+    "ticker": "NCGC",
+    "listingStatus": "LISTED",
+    "bars": 26
+   },
+   {
+    "id": "cmui726ha004pbx90kc1d7fjx",
+    "ticker": "PACH",
+    "listingStatus": "LISTED",
+    "bars": 30
+   },
+   {
+    "id": "cmui726d6004abx90hkm9et90",
+    "ticker": "NBKE",
+    "listingStatus": "LISTED",
+    "bars": 30
+   },
+   {
+    "id": "cmui726on005gbx90j0rsrfbq",
+    "ticker": "SNFI",
+    "listingStatus": "LISTED",
+    "bars": 30
+   },
+   {
+    "id": "cmupv8vto000obxn0cfjfuzom",
+    "ticker": "GTHE",
+    "listingStatus": "LISTED",
+    "bars": 31
+   },
+   {
+    "id": "cmui725cn000gbx90xlr2ebhb",
+    "ticker": "ALEX",
+    "listingStatus": "LISTED",
+    "bars": 32
+   },
+   {
+    "id": "cmupv8vtf000mbxn0h55l6w9s",
+    "ticker": "GTEX",
+    "listingStatus": "LISTED",
+    "bars": 74
+   },
+   {
+    "id": "cmui725ms001hbx90088du69t",
+    "ticker": "DGTZ",
+    "listingStatus": "LISTED",
+    "bars": 76
+   },
+   {
+    "id": "cmui726u30061bx90faqd1uzs",
+    "ticker": "VERT",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726cb0048bx90y16nlck9",
+    "ticker": "NARE",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726s5005tbx90txtevhh4",
+    "ticker": "UBEE",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui7259r0005bx90ln39y953",
+    "ticker": "ACAP",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui725b5000abx9028vzhfi9",
+    "ticker": "ADRI",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui725l5001bbx9006fgbw10",
+    "ticker": "CPME",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui725lg001cbx90swnh7qaf",
+    "ticker": "CRST",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726rx005sbx90qi8468h7",
+    "ticker": "TYCN",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmugriqkq001fbx50jmosn6zr",
+    "ticker": "KORA",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui725ym002pbx90gjs6wzf3",
+    "ticker": "GGRN",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmugriqe10003bx50k9jk69s7",
+    "ticker": "ACTF",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmugriqp90025bx501g76pgt9",
+    "ticker": "TAQA",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmugriqjf0016bx50ma3hmant",
+    "ticker": "GOUR",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726uc0062bx90njurrofx",
+    "ticker": "VLMRA",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui7265s003fbx90rp31h1yf",
+    "ticker": "KRDI",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726rn005rbx90nd1d3f4x",
+    "ticker": "TWSA",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726tu0060bx906vdq7mhv",
+    "ticker": "VALU",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui725hs000zbx90jsze5d71",
+    "ticker": "BONY",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui725z7002rbx90izd0nyyf",
+    "ticker": "GPIM",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui725bv000dbx90g9495k9n",
+    "ticker": "AIDC",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726tl005zbx90heo21ykd",
+    "ticker": "UTOP",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726jl004ybx90rlvcoo6b",
+    "ticker": "QNBE",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726ql005nbx905ghtzldh",
+    "ticker": "TANM",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmugriqnh001wbx50twcdmgwa",
+    "ticker": "PHGC",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726tb005ybx90os3wozzd",
+    "ticker": "UPMS",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmugriqjs0019bx50qfxiqiqt",
+    "ticker": "HBCO",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui725ds000kbx90bmsziyb9",
+    "ticker": "AMII",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmvublwrd0003bx7oi2tctn2g",
+    "ticker": "MKIT",
+    "listingStatus": "LISTED",
+    "bars": 204
+   },
+   {
+    "id": "cmui726ge004mbx90qc6idnvt",
+    "ticker": "ODIN",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqmr001ubx50s7g3b8t3",
+    "ticker": "ORAS",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7265b003dbx904vnpwdzi",
+    "ticker": "KABO",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqid000ybx50tfmnw4ke",
+    "ticker": "ENGC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqhf000qbx5092h0rl8m",
+    "ticker": "EGBE",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqll001mbx50ty1cn7nk",
+    "ticker": "MMAT",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqh2000obx5085ojhvyy",
+    "ticker": "EFIH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725m0001ebx906kfki10z",
+    "ticker": "DAPH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725fv000rbx90d2al8ze3",
+    "ticker": "ASCM",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725kn0019bx906gs1z172",
+    "ticker": "COSG",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726iv004vbx90bq0znnli",
+    "ticker": "PRCL",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726er004fbx90hx6axhhi",
+    "ticker": "NHPS",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbjx30020bxn8p8p2ajqd",
+    "ticker": "AMER",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726aw0042bx90gf0hfjqx",
+    "ticker": "MOSC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7259j0004bx90nchbp58y",
+    "ticker": "ACAMD",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqof0021bx5031cermr1",
+    "ticker": "RUBX",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726ut0064bx90oaglpnj3",
+    "ticker": "WCDF",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbk2f002cbxn8qw98g4d7",
+    "ticker": "SUGR",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbjxn0022bxn8ngc9pcnb",
+    "ticker": "SWDY",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726qb005mbx906vftw3xz",
+    "ticker": "TALM",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7264j003abx90mjghbtvj",
+    "ticker": "IRON",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7268n003sbx90pvoji9j6",
+    "ticker": "MFSC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqky001hbx506ea9sd8k",
+    "ticker": "MAAL",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726im004ubx905gerka7d",
+    "ticker": "POUL",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui72673003lbx90d4mbiedm",
+    "ticker": "MBEG",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqig000zbx50yis0o2u8",
+    "ticker": "EOSB",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725bm000cbx90m6s5iwjl",
+    "ticker": "AFMC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725am0008bx90sgi7so6r",
+    "ticker": "ADCI",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725wa002hbx90vgb8rttc",
+    "ticker": "EXPA",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqek0006bx50om32gpaz",
+    "ticker": "AMES",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725if0011bx90m6oxkyic",
+    "ticker": "CCRS",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725aw0009bx90iuwgyzz5",
+    "ticker": "ADPC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqlv001nbx50sucan10c",
+    "ticker": "MOIN",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726dh004bbx90hl6l6t3q",
+    "ticker": "NCCW",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqiy0012bx50sox6s3cz",
+    "ticker": "FAIT",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725uf002abx90y1t13l6p",
+    "ticker": "ELNA",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui72694003ubx90wdc669i2",
+    "ticker": "MICH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui72660003gbx9050qqs6fv",
+    "ticker": "KWIN",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqeb0004bx50e55bf8wl",
+    "ticker": "AIFI",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726sv005wbx90clvtrb95",
+    "ticker": "UNIP",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725h4000wbx90kc9d7lu1",
+    "ticker": "BIGP",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726m60057bx906kpftljj",
+    "ticker": "SCFM",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725oe001nbx90wcqmx5n2",
+    "ticker": "ECAP",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725vg002ebx90jgtghjcj",
+    "ticker": "EPCO",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725ab0007bx902rvrm1xe",
+    "ticker": "ACGC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqef0005bx50nh8b19d2",
+    "ticker": "ALCN",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725u60029bx90q6mlbnui",
+    "ticker": "ELKA",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726p5005ibx90gt9nhh4w",
+    "ticker": "SPIN",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725uv002cbx901op2lbk0",
+    "ticker": "ELWA",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbjus001vbxn86xnnvyzz",
+    "ticker": "ETEL",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726mx005abx9054iq80tw",
+    "ticker": "SEIG",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726v30065bx905h0iakjd",
+    "ticker": "WKOL",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725e2000lbx90r2ethwa4",
+    "ticker": "AMPI",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725be000bbx9039uoxc3e",
+    "ticker": "AFDI",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7263c0036bx90g79aciyh",
+    "ticker": "IEEC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbjw6001zbxn8deenezqv",
+    "ticker": "MASR",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726nu005dbx90oeul23tp",
+    "ticker": "SMFR",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726j3004wbx90ltf6gciz",
+    "ticker": "PRDC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725o5001mbx90lvgar6nc",
+    "ticker": "EBSC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726bb0044bx90y58mcp4q",
+    "ticker": "MPCO",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725ke0018bx90xboqu796",
+    "ticker": "COPR",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726k50050bx90r6xfiu14",
+    "ticker": "RAKT",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725et000obx90gscxy0jh",
+    "ticker": "APSW",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725zg002sbx90yeku82vf",
+    "ticker": "GPPL",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726vu0068bx90kznn7kso",
+    "ticker": "ZMID",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7261d002zbx90popqzk4w",
+    "ticker": "HDBK",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqku001gbx50qgd4p3we",
+    "ticker": "LUTS",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbjup001ubxn8mb28bbot",
+    "ticker": "ADIB",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqou0024bx50y6oj3tkw",
+    "ticker": "SIPC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbjy70024bxn8jqiz9kzp",
+    "ticker": "ABUK",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726f8004hbx90jyyuioyk",
+    "ticker": "NIPH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqob0020bx50u23947a8",
+    "ticker": "RREI",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbk45002ibxn8chzkm2or",
+    "ticker": "EAST",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725w1002gbx9092jvu6g3",
+    "ticker": "ETRS",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbjy40023bxn8zjyx2xhd",
+    "ticker": "ORWE",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725cd000fbx90en9ourkn",
+    "ticker": "AJWA",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725pj001sbx90d2hp4tkz",
+    "ticker": "EFIC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqo0001ybx50b5fns63d",
+    "ticker": "RKAZ",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725ix0013bx90sia90oao",
+    "ticker": "CERA",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqgc000jbx50979neecj",
+    "ticker": "DSCW",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726460039bx90uia1fllt",
+    "ticker": "INFI",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725x8002kbx900bhlrsrb",
+    "ticker": "FNAR",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7262r0034bx90fv1jmjie",
+    "ticker": "ICLE",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726b40043bx90pltdipbh",
+    "ticker": "MPCI",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7263w0038bx90mzpj9zsz",
+    "ticker": "INEG",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726ow005hbx90egiqf6vb",
+    "ticker": "SPHT",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui72667003hbx90ks898fws",
+    "ticker": "KZPC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726af0040bx9007mnfy5z",
+    "ticker": "MOED",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmupv8vsc000abxn00i9yvyob",
+    "ticker": "EGCH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmupv8vu3000sbxn063kwjopl",
+    "ticker": "MEGM",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726hv004rbx90rsj2iisb",
+    "ticker": "PHTV",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7269b003vbx90abm72l6v",
+    "ticker": "MILS",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725i30010bx90q8zhq4gn",
+    "ticker": "CAED",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725xi002lbx90v4isatuv",
+    "ticker": "FTNS",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725qg001vbx90rz4ofq0x",
+    "ticker": "EGREF",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqj70014bx50ta2rbger",
+    "ticker": "GBCO",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7266e003ibx90fg0qiaes",
+    "ticker": "LCSW",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmupv8vt2000ibxn05gotnj0e",
+    "ticker": "EPPK",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7268v003tbx90q7ljp3w3",
+    "ticker": "MHOT",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqme001rbx50j2qvu3a2",
+    "ticker": "OCDI",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbk190029bxn8a8058nco",
+    "ticker": "MFPC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726lc0054bx907qgyy7b1",
+    "ticker": "RTVC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriql3001ibx50ddif7gdk",
+    "ticker": "MCQE",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725v3002dbx90eh2en1zq",
+    "ticker": "EMFD",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725wu002jbx90rgpi1jdg",
+    "ticker": "FIRE",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbk2y002ebxn8roohdxqk",
+    "ticker": "CLHO",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725f4000pbx90ap8ngvdz",
+    "ticker": "ARAB",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqn6001vbx501oegp0xs",
+    "ticker": "PHAR",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725hk000ybx90f1ot80o8",
+    "ticker": "BIOC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbk1m002abxn8g9kbmzcr",
+    "ticker": "JUFO",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7262g0033bx90a859vhy9",
+    "ticker": "ICFC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726lx0056bx90f1hpltrh",
+    "ticker": "SCEM",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqi8000xbx50jkmv957e",
+    "ticker": "ELEC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmvu2glol000lbxg4sy5p28y0",
+    "ticker": "MISR",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui72688003qbx90ogmftk9k",
+    "ticker": "MEPA",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726se005ubx905whdcg28",
+    "ticker": "UEFM",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqfe000cbx50yma1sztz",
+    "ticker": "BTFH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725om001obx90t5jcwx8s",
+    "ticker": "EDFM",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqjb0015bx50kdmtc6vr",
+    "ticker": "GIHD",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726fn004jbx90cwl352v4",
+    "ticker": "OBRI",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725ou001pbx90739wnnrp",
+    "ticker": "EEII",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726jc004xbx90vtpg84lm",
+    "ticker": "PRMH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725mk001gbx909h9lgscc",
+    "ticker": "DEIN",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725j70014bx906okncncn",
+    "ticker": "CFGH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726lo0055bx90kcehtav8",
+    "ticker": "SAUD",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725wl002ibx90u59qpowe",
+    "ticker": "FERC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbjx60021bxn8q8ukw2kv",
+    "ticker": "ORHD",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726l10053bx908eq252mn",
+    "ticker": "ROTO",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7263l0037bx903pwr1p0s",
+    "ticker": "IFAP",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725tc0026bx90iznjlw0d",
+    "ticker": "EGTS",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmupv8vv70014bxn03wuerkkb",
+    "ticker": "OIH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqkd001dbx5033hkq5tv",
+    "ticker": "ICID",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui72607002vbx90qcfsu47d",
+    "ticker": "GSSC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725yw002qbx902e6vtnx5",
+    "ticker": "GMCI",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725jg0015bx909krx5agn",
+    "ticker": "CICH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726ez004gbx903n1vn1zu",
+    "ticker": "NINH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725n1001ibx90wt6gill0",
+    "ticker": "DOMT",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725kw001abx90847f1rta",
+    "ticker": "CPCI",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbjyi0025bxn87aji2us4",
+    "ticker": "SKPC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7267k003nbx902mjdyfp6",
+    "ticker": "MCRO",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui72650003cbx90d92s2884",
+    "ticker": "ISMQ",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqm1001obx50mfign038",
+    "ticker": "MTIE",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725hc000xbx90m7zwtdit",
+    "ticker": "BINV",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbjyz0026bxn8mp6y6vc6",
+    "ticker": "AMOC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmupv8vun000ybxn0igxkyj9o",
+    "ticker": "NDRL",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqfr000fbx50f68joktp",
+    "ticker": "CIEB",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726eg004ebx90vlq39zvc",
+    "ticker": "NEDA",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725lr001dbx90pd504xiw",
+    "ticker": "CSAG",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726jx004zbx90jec74s1t",
+    "ticker": "RACC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqgy000nbx508vwoo57m",
+    "ticker": "EFID",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726bt0046bx900mn6ysf9",
+    "ticker": "NAHO",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726t3005xbx90f8btgbfc",
+    "ticker": "UNIT",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725cw000hbx90s7hqnvr8",
+    "ticker": "ALUM",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbjvm001xbxn8ri66bnyg",
+    "ticker": "TMGH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqok0022bx50vyr7xo1q",
+    "ticker": "SAIB",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726sn005vbx90pux219rb",
+    "ticker": "UEGC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726mf0058bx907ixg8idg",
+    "ticker": "SCTS",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725ge000tbx90q2l1s3jv",
+    "ticker": "ATLC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmupv8vsw000gbxn0zk3purex",
+    "ticker": "EHDR",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuipaqq40000bxhsi2jva9z5",
+    "ticker": "CANA",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqhb000pbx507mpcg0mg",
+    "ticker": "EGAS",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725k20017bx90r38pv1ku",
+    "ticker": "CNFN",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbjw3001ybxn823hjukwx",
+    "ticker": "PHDC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7260s002xbx90vpshzu8d",
+    "ticker": "GTWL",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbk3r002gbxn8hn5haga2",
+    "ticker": "ISPH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbk3u002hbxn8o48zc6nf",
+    "ticker": "RMDA",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7267a003mbx90y8or1rmm",
+    "ticker": "MBSC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725gw000vbx90zv5ownkj",
+    "ticker": "BIDI",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726gw004obx90rkmv4lxg",
+    "ticker": "OLFI",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726py005lbx90zfyun05n",
+    "ticker": "SVCE",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726250032bx90qbn8y2md",
+    "ticker": "IBCT",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqet0007bx507soqc86s",
+    "ticker": "ARCC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726pf005jbx90cmcu92bd",
+    "ticker": "SPMD",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725io0012bx90czz5rfri",
+    "ticker": "CEFM",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725dj000jbx90ef119ql4",
+    "ticker": "AMIA",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725gn000ubx90o6jwje04",
+    "ticker": "AXPH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725980003bx90dffz8etz",
+    "ticker": "AALR",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbk5i002mbxn8nivpitn6",
+    "ticker": "RAYA",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726vj0067bx90j52qw3ou",
+    "ticker": "ZEOT",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqey0008bx507bhabe1w",
+    "ticker": "ATQA",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726mo0059bx909rckwosi",
+    "ticker": "SDTI",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725zp002tbx902gohgxnx",
+    "ticker": "GRCA",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726bk0045bx9037qmi2c4",
+    "ticker": "MPRC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726oc005fbx90wyvcs8nn",
+    "ticker": "SNFC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmujp2xwl0000bxskqas13r4u",
+    "ticker": "CIRA",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqfn000ebx50petdqfzv",
+    "ticker": "CCAP",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726330035bx90ukqvxxkx",
+    "ticker": "IDRE",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725xv002mbx90332spj9n",
+    "ticker": "GDWA",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7261v0031bx90fkppe5vj",
+    "ticker": "HELI",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725g5000sbx90cc3u5ubw",
+    "ticker": "ASPI",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725nk001kbx90nfcqb3ux",
+    "ticker": "EALR",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbk4x002kbxn8d6oh41vj",
+    "ticker": "HRHO",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui72680003pbx908y5nxfxz",
+    "ticker": "MENA",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui726g6004lbx903uq2cj7s",
+    "ticker": "OCPH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7264r003bbx903zog4ys7",
+    "ticker": "ISMA",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmugriqj20013bx50vco6k0sm",
+    "ticker": "FWRY",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui7269j003wbx90s8ossgac",
+    "ticker": "MIPH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725yc002obx90ou4su9zj",
+    "ticker": "GGCC",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725fm000qbx90didsq245",
+    "ticker": "AREH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuicituk0004bxnkcjdaqfxe",
+    "ticker": "OFH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725nb001jbx90u24hixiz",
+    "ticker": "DTPP",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725um002bbx90mz0uw7gb",
+    "ticker": "ELSH",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmuexbjzt0028bxn8b21nwlyf",
+    "ticker": "EGAL",
+    "listingStatus": "LISTED",
+    "bars": 244
+   },
+   {
+    "id": "cmui725nu001lbx90k5d8qkwc",
+    "ticker": "EASB",
+    "listingStatus": "LISTED",
+    "bars": 244
+   }
+  ]
+ },
+ "notFoundSymbols": [],
+ "failedSymbols": []
+}

@@ -27,7 +27,7 @@
 //   zone.low × (1 − 0.5%); supply symmetric. Invalidated zones are dropped.
 // =============================================================================
 
-export const ZONES_VERSION = "zones@1"
+export const ZONES_VERSION = "zones@2"
 
 import type { Bar } from "./structure"
 import { rawPivots } from "./structure"
@@ -187,6 +187,27 @@ export function pivotRejectionZones(bars: Bar[]): Candidate[] {
       const v = bars[q.idx].volume
       if (baseline && v !== null) ratios.push(v / baseline)
     }
+    const lastTouchIdx = near[near.length - 1].idx
+    // F2 REACTION FIX (zones@2): the @1 value was a PLACEHOLDER scoring the
+    // DISTANCE FROM THE CURRENT PRICE (comment even said "provisional; replaced
+    // by real reaction below" — nothing ever replaced it), so far-from-price
+    // zones scored HIGHER "reaction" — inverted semantics. The real reaction is
+    // the favorable excursion within the 10 sessions AFTER the last touch:
+    // demand → how far price rallied above the zone high; supply → how far it
+    // fell below the zone low. Zones formed at the very end measure 0 (honest).
+    const fwd = bars.slice(lastTouchIdx + 1, lastTouchIdx + 11)
+    let reaction = 0
+    if (fwd.length) {
+      const bandHigh = Math.max(...cluster) * 1.006
+      const bandLow = Math.min(...cluster) * 0.994
+      if (p.kind === "low") {
+        const maxHigh = Math.max(...fwd.map((b) => b.high))
+        reaction = ((maxHigh - bandHigh) / bandHigh) * 100
+      } else {
+        const minLow = Math.min(...fwd.map((b) => b.low))
+        reaction = ((bandLow - minLow) / bandLow) * 100
+      }
+    }
     out.push({
       kind: p.kind === "low" ? "demand" : "supply",
       low: round(Math.min(...cluster) * 0.994),
@@ -194,7 +215,7 @@ export function pivotRejectionZones(bars: Bar[]): Candidate[] {
       formedAt: near[near.length - 1].ts,
       tests: near.length,
       lastTestAt: near[near.length - 1].ts,
-      reactionPct: round(Math.abs(price - lastClose) / lastClose * 100, 1), // provisional; replaced by real reaction below
+      reactionPct: round(Math.max(0, reaction), 1),
       avgVolRatio: ratios.length ? round(ratios.reduce((a, b) => a + b, 0) / ratios.length) : null,
     })
     void p

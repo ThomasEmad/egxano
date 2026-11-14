@@ -252,6 +252,28 @@ async function runRefresh(): Promise<MarketRefreshSummary> {
     const dayStart = new Date(startOfUtcDay(asOf.toISOString()))
     const notes = `TradingView public scanner (delayed); fetched ${asOf.toISOString()}`
 
+    // Data timestamp of the PREVIOUSLY stored snapshot, read BEFORE the write
+    // transaction below overwrites it. The weekend guard (F-04) compares the
+    // session of this fetch with the session of what was stored to decide
+    // whether this fetch carries genuinely NEW session data. Best-effort:
+    // a read failure yields null, which the guard treats as "unknown" and
+    // fails CLOSED on weekends (skip evaluation) — the phantom re-stamp is
+    // the audited harm, not a rare missed evaluation.
+    let prevSnapshotAsOf: string | null = null
+    try {
+      const prev = await db.setting.findUnique({
+        where: { key: MARKET_SNAPSHOT_SETTING_KEY },
+        select: { value: true },
+      })
+      if (prev) {
+        const parsed = JSON.parse(prev.value) as { pricesAsOf?: string; asOf?: string }
+        prevSnapshotAsOf = parsed.pricesAsOf ?? parsed.asOf ?? null
+      }
+    } catch {
+      prevSnapshotAsOf = null
+    }
+
+
     const rows = movers
       .map((m) => {
         const companyId = idByTicker.get(m.ticker.toUpperCase())
@@ -302,12 +324,42 @@ async function runRefresh(): Promise<MarketRefreshSummary> {
 
     // Best-effort: evaluate active price alerts against THIS snapshot and
     // deliver Web Push — the hook that makes alerts fire even when the site
-    // is closed (runs on every snapshot write). Dedupe is the evaluator's
-    // atomic active→false claim, so the lazy GET path / cron can never
-    // double-notify. Failures here never fail the price refresh itself.
+    // is closed. Dedupe is the evaluator's atomic active→false claim (now
+    // transactional with the NotificationOutbox event), so the lazy GET path
+    // / cron can never double-notify. Failures here never fail the price
+    // refresh itself.
+    //
+    // WEEKEND GUARD (audit F-04): on Fri/Sat (Cairo) the scanner still answers
+    // — with THURSDAY's close — and fetchedAt stamps it as "fresh". Re-evaluating
+    // would fire alerts on a phantom "new" price that is the already-seen
+    // Thursday close (alerts created Thursday evening / Friday would trigger
+    // instantly on re-stamped data). So: skip the evaluation on non-trading
+    // days UNLESS this fetch carries genuinely NEW session data (the stored
+    // snapshot belongs to an older session — e.g. all Thursday refreshes
+    // failed and this Friday fetch is the FIRST recording of Thursday's
+    // close). Uses the shared egx-session helpers — no invented calendar.
+    // NOTE: this guard only gates the TRIGGER evaluation; the outbox DRAIN
+    // below runs on every refresh regardless of the day (delivering an
+    // already-triggered alert is correct any day of the week).
     try {
-      const { evaluateAndNotifyAllAlerts } = await import("@/lib/alerts/evaluate")
-      await evaluateAndNotifyAllAlerts(snapshot)
+      const { alertEvaluationGate, evaluateAndNotifyAllAlerts } = await import("@/lib/alerts/evaluate")
+      const gate = alertEvaluationGate({
+        now: new Date(),
+        dataAsOf: fetchedAt,
+        prevDataAsOf: prevSnapshotAsOf,
+      })
+      if (gate.evaluate) {
+        await evaluateAndNotifyAllAlerts(snapshot)
+      } else {
+        console.info(`alert evaluation skipped: ${gate.reason} (weekend guard, F-04)`)
+      }
+
+      // Outbox drain — DELIVERY sweep of everything previous instances left
+      // pending (retry ladder + abandoned-SENDING lease recovery). Bounded
+      // and best-effort; honest latency: minutes with traffic, up to ~24 h
+      // between attempts at zero traffic (see outbox-logic.ts).
+      const { drainOutbox, OUTBOX_DRAIN_PRESETS } = await import("@/lib/alerts/outbox-dispatch")
+      await drainOutbox({ ...OUTBOX_DRAIN_PRESETS.refresh })
     } catch (e) {
       console.warn("alert push evaluation failed:", e instanceof Error ? e.message.slice(0, 160) : String(e))
     }

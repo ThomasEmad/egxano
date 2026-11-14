@@ -1,0 +1,583 @@
+{
+ "startedAt": "2026-11-14T17:15:18.395Z",
+ "minBars": 200,
+ "targets": 40,
+ "results": [
+  {
+   "ticker": "VERT",
+   "symbol": "VERT.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "NARE",
+   "symbol": "NARE.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "UBEE",
+   "symbol": "UBEE.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "ACAP",
+   "symbol": "ACAP.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "ADRI",
+   "symbol": "ADRI.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "CPME",
+   "symbol": "CPME.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "CRST",
+   "symbol": "CRST.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "TYCN",
+   "symbol": "TYCN.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "KORA",
+   "symbol": "KORA.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "GGRN",
+   "symbol": "GGRN.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "ACTF",
+   "symbol": "ACTF.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "TAQA",
+   "symbol": "TAQA.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "GOUR",
+   "symbol": "GOUR.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "VLMRA",
+   "symbol": "VLMRA.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "KRDI",
+   "symbol": "KRDI.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "TWSA",
+   "symbol": "TWSA.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "VALU",
+   "symbol": "VALU.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "BONY",
+   "symbol": "BONY.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "GPIM",
+   "symbol": "GPIM.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "AIDC",
+   "symbol": "AIDC.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "UTOP",
+   "symbol": "UTOP.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "QNBE",
+   "symbol": "QNBE.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "TANM",
+   "symbol": "TANM.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "PHGC",
+   "symbol": "PHGC.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "UPMS",
+   "symbol": "UPMS.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "HBCO",
+   "symbol": "HBCO.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "AMII",
+   "symbol": "AMII.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 78
+  },
+  {
+   "ticker": "DGTZ",
+   "symbol": "DGTZ.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 76
+  },
+  {
+   "ticker": "GTEX",
+   "symbol": "GTEX.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 74
+  },
+  {
+   "ticker": "ALEX",
+   "symbol": "ALEX.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 32
+  },
+  {
+   "ticker": "GTHE",
+   "symbol": "GTHE.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 31
+  },
+  {
+   "ticker": "PACH",
+   "symbol": "PACH.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 30
+  },
+  {
+   "ticker": "NBKE",
+   "symbol": "NBKE.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 30
+  },
+  {
+   "ticker": "SNFI",
+   "symbol": "SNFI.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 30
+  },
+  {
+   "ticker": "NCGC",
+   "symbol": "NCGC.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 26
+  },
+  {
+   "ticker": "DCRC",
+   "symbol": "DCRC.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 23
+  },
+  {
+   "ticker": "BQDC",
+   "symbol": "BQDC.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 4
+  },
+  {
+   "ticker": "NAPR",
+   "symbol": "NAPR.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 0
+  },
+  {
+   "ticker": "RMTV",
+   "symbol": "RMTV.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 0
+  },
+  {
+   "ticker": "AIHC",
+   "symbol": "AIHC.CA",
+   "status": "notFound",
+   "detail": "HTTP 404 symbol may be delisted",
+   "bars": 0
+  }
+ ],
+ "inserted": 0,
+ "finishedAt": "2026-11-14T17:15:49.208Z",
+ "abortedRateLimited": false,
+ "finalStats": {
+  "totalCompanies": 246,
+  "companiesWithAnyBars": 243,
+  "companiesWith100Plus": 206,
+  "companiesWith150Plus": 206,
+  "companiesWith200Plus": 206,
+  "companiesWith250Plus": 1,
+  "belowBar": [
+   {
+    "id": "cmupv8vut0010bxn0gaql6ckq",
+    "ticker": "NAPR",
+    "listingStatus": "LISTED",
+    "bars": 0
+   },
+   {
+    "id": "cmupv8vve0016bxn0j9jyp56d",
+    "ticker": "RMTV",
+    "listingStatus": "LISTED",
+    "bars": 0
+   },
+   {
+    "id": "cmupv8vrv0006bxn0z0s9e1pn",
+    "ticker": "AIHC",
+    "listingStatus": "LISTED",
+    "bars": 0
+   },
+   {
+    "id": "cmupv8vs30008bxn0fdpsrofm",
+    "ticker": "BQDC",
+    "listingStatus": "LISTED",
+    "bars": 4
+   },
+   {
+    "id": "cmugriqg8000ibx50269oithg",
+    "ticker": "DCRC",
+    "listingStatus": "LISTED",
+    "bars": 23
+   },
+   {
+    "id": "cmupv8vvz001cbxn0knojb8c2",
+    "ticker": "NCGC",
+    "listingStatus": "LISTED",
+    "bars": 26
+   },
+   {
+    "id": "cmui726ha004pbx90kc1d7fjx",
+    "ticker": "PACH",
+    "listingStatus": "LISTED",
+    "bars": 30
+   },
+   {
+    "id": "cmui726d6004abx90hkm9et90",
+    "ticker": "NBKE",
+    "listingStatus": "LISTED",
+    "bars": 30
+   },
+   {
+    "id": "cmui726on005gbx90j0rsrfbq",
+    "ticker": "SNFI",
+    "listingStatus": "LISTED",
+    "bars": 30
+   },
+   {
+    "id": "cmupv8vto000obxn0cfjfuzom",
+    "ticker": "GTHE",
+    "listingStatus": "LISTED",
+    "bars": 31
+   },
+   {
+    "id": "cmui725cn000gbx90xlr2ebhb",
+    "ticker": "ALEX",
+    "listingStatus": "LISTED",
+    "bars": 32
+   },
+   {
+    "id": "cmupv8vtf000mbxn0h55l6w9s",
+    "ticker": "GTEX",
+    "listingStatus": "LISTED",
+    "bars": 74
+   },
+   {
+    "id": "cmui725ms001hbx90088du69t",
+    "ticker": "DGTZ",
+    "listingStatus": "LISTED",
+    "bars": 76
+   },
+   {
+    "id": "cmui726u30061bx90faqd1uzs",
+    "ticker": "VERT",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726cb0048bx90y16nlck9",
+    "ticker": "NARE",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726s5005tbx90txtevhh4",
+    "ticker": "UBEE",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui7259r0005bx90ln39y953",
+    "ticker": "ACAP",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui725b5000abx9028vzhfi9",
+    "ticker": "ADRI",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui725l5001bbx9006fgbw10",
+    "ticker": "CPME",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui725lg001cbx90swnh7qaf",
+    "ticker": "CRST",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726rx005sbx90qi8468h7",
+    "ticker": "TYCN",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmugriqkq001fbx50jmosn6zr",
+    "ticker": "KORA",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui725ym002pbx90gjs6wzf3",
+    "ticker": "GGRN",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmugriqe10003bx50k9jk69s7",
+    "ticker": "ACTF",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmugriqp90025bx501g76pgt9",
+    "ticker": "TAQA",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmugriqjf0016bx50ma3hmant",
+    "ticker": "GOUR",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726uc0062bx90njurrofx",
+    "ticker": "VLMRA",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui7265s003fbx90rp31h1yf",
+    "ticker": "KRDI",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726rn005rbx90nd1d3f4x",
+    "ticker": "TWSA",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726tu0060bx906vdq7mhv",
+    "ticker": "VALU",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui725hs000zbx90jsze5d71",
+    "ticker": "BONY",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui725z7002rbx90izd0nyyf",
+    "ticker": "GPIM",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui725bv000dbx90g9495k9n",
+    "ticker": "AIDC",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726tl005zbx90heo21ykd",
+    "ticker": "UTOP",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726jl004ybx90rlvcoo6b",
+    "ticker": "QNBE",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726ql005nbx905ghtzldh",
+    "ticker": "TANM",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmugriqnh001wbx50twcdmgwa",
+    "ticker": "PHGC",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui726tb005ybx90os3wozzd",
+    "ticker": "UPMS",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmugriqjs0019bx50qfxiqiqt",
+    "ticker": "HBCO",
+    "listingStatus": "LISTED",
+    "bars": 78
+   },
+   {
+    "id": "cmui725ds000kbx90bmsziyb9",
+    "ticker": "AMII",
+    "listingStatus": "LISTED",
+    "bars": 78
+   }
+  ]
+ },
+ "notFoundSymbols": [
+  "VERT",
+  "NARE",
+  "UBEE",
+  "ACAP",
+  "ADRI",
+  "CPME",
+  "CRST",
+  "TYCN",
+  "KORA",
+  "GGRN",
+  "ACTF",
+  "TAQA",
+  "GOUR",
+  "VLMRA",
+  "KRDI",
+  "TWSA",
+  "VALU",
+  "BONY",
+  "GPIM",
+  "AIDC",
+  "UTOP",
+  "QNBE",
+  "TANM",
+  "PHGC",
+  "UPMS",
+  "HBCO",
+  "AMII",
+  "DGTZ",
+  "GTEX",
+  "ALEX",
+  "GTHE",
+  "PACH",
+  "NBKE",
+  "SNFI",
+  "NCGC",
+  "DCRC",
+  "BQDC",
+  "NAPR",
+  "RMTV",
+  "AIHC"
+ ],
+ "failedSymbols": []
+}

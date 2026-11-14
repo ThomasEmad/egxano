@@ -1,9 +1,10 @@
 import { setVapidDetails, sendNotification, WebPushError } from "web-push"
 import { db } from "@/lib/db"
 import { ensurePushTables } from "@/lib/db-schema-bootstrap"
+import { WEB_PUSH_SEND_TIMEOUT_MS, deviceFailureClass, truncateForLog } from "@/lib/alerts/outbox-logic"
 
 // Web Push delivery for price alerts — the piece that lets notifications
-// reach the user's browser EVEN WHEN the site/app is closed. The service
+// reach the user's browser EVEN WHEN the site is closed. The service
 // worker (public/sw.js) receives the encrypted message and shows the OS
 // notification; this module only stores endpoints and sends payloads.
 //
@@ -13,7 +14,13 @@ import { ensurePushTables } from "@/lib/db-schema-bootstrap"
 //   * The VAPID PRIVATE KEY is read from env here and handed to web-push only.
 //     It is never logged, audited, returned or persisted anywhere.
 //   * 404/410 from the push service mean the subscription is dead (browser
-//     uninstalled / expired) — the row is deleted so sends stay fast.
+//     uninstalled / endpoint expired) and 400 means the subscription's
+//     encryption keys are invalid — all three are terminal for the DEVICE row
+//     and the row is deleted so sends stay fast. 403/429/5xx/network errors
+//     are transient: the row is kept (the outbox retry ladder decides what
+//     happens next — see src/lib/alerts/outbox-dispatch.ts).
+//   * Every send carries a socket timeout: a hung push-service connection
+//     must not eat the drain budget or the caller's request (audit F-12).
 
 export interface PushPayload {
   title: string
@@ -27,6 +34,10 @@ export interface PushSendSummary {
   removed: number
   /** True when push is disabled (env missing) or the send round failed wholesale. */
   skipped: boolean
+  /** Subscription rows found for the user BEFORE sending (0 = no devices). */
+  subscribers: number
+  /** First transient device error message (truncated, no keys/endpoints). */
+  lastError?: string
 }
 
 let configured = false
@@ -60,34 +71,47 @@ export function getVapidPublicKey(): string | null {
 }
 
 /**
- * Send a push payload to every subscription of a user. Dead endpoints
- * (404/410) are pruned. Never throws — callers treat push as best-effort.
+ * Send a push payload to every subscription of a user. Terminal endpoints
+ * (404/410 gone, 400 invalid keys) are pruned. Never throws — callers treat
+ * push as best-effort. Per-device outcomes are aggregated into the summary
+ * (sent / removed / lastError); per-device retry decisions live in the
+ * outbox dispatcher.
  */
 export async function sendPushToUser(userId: string, payload: PushPayload): Promise<PushSendSummary> {
-  if (!ensureConfigured()) return { sent: 0, removed: 0, skipped: true }
+  if (!ensureConfigured()) return { sent: 0, removed: 0, skipped: true, subscribers: 0 }
 
   try {
     await ensurePushTables()
     const subs = await db.pushSubscription.findMany({ where: { userId } })
-    if (subs.length === 0) return { sent: 0, removed: 0, skipped: true }
+    if (subs.length === 0) return { sent: 0, removed: 0, skipped: false, subscribers: 0 }
 
     const json = JSON.stringify(payload)
     let sent = 0
+    let lastError: string | undefined
     const dead: string[] = []
 
     await Promise.allSettled(
       subs.map(async (sub) => {
         try {
-          await sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, json)
+          await sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            json,
+            { timeout: WEB_PUSH_SEND_TIMEOUT_MS }
+          )
           sent++
         } catch (e) {
-          if (e instanceof WebPushError && (e.statusCode === 404 || e.statusCode === 410)) {
-            // Subscription gone (browser cleared it / endpoint expired) — prune.
+          const status = e instanceof WebPushError ? e.statusCode : undefined
+          const failure = deviceFailureClass(status)
+          if (failure === "gone" || failure === "invalid") {
+            // Subscription gone (uninstalled / endpoint expired) or invalid
+            // (push service rejects the encryption keys) — prune the row.
             dead.push(sub.id)
             return
           }
-          // Transient push-service error: keep the row, log compactly.
-          const status = e instanceof WebPushError ? e.statusCode : "?"
+          // Transient push-service error: keep the row, capture compactly.
+          if (!lastError) {
+            lastError = `HTTP ${status ?? "?"}: ${truncateForLog(e instanceof Error ? e.message : String(e), 100)}`
+          }
           console.warn(`push send failed (${status}) endpoint=${sub.endpoint.slice(0, 48)}:`, e instanceof Error ? e.message.slice(0, 120) : String(e))
         }
       })
@@ -98,10 +122,10 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
       const res = await db.pushSubscription.deleteMany({ where: { id: { in: dead }, userId } })
       removed = res.count
     }
-    return { sent, removed, skipped: false }
+    return { sent, removed, skipped: false, subscribers: subs.length, ...(lastError ? { lastError } : {}) }
   } catch (e) {
     // Tables missing / DB hiccup — push silently degrades to the in-app feed.
     console.warn("push delivery skipped:", e instanceof Error ? e.message.slice(0, 160) : String(e))
-    return { sent: 0, removed: 0, skipped: true }
+    return { sent: 0, removed: 0, skipped: true, subscribers: 0 }
   }
 }

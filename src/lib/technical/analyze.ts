@@ -34,8 +34,9 @@ import { effectiveEgxSessionDate } from "@/lib/market/egx-session"
 import type { VsaSnapshot } from "./vsa"
 import { analyzeZones, type ZonesSnapshot } from "./zones"
 import type { QualityScore } from "./quality"
+import { computeSignalTrail, type TrailRead } from "./signals"
 
-export const TECHNICAL_VERSION = "technical@4"
+export const TECHNICAL_VERSION = "technical@5"
 
 /** Keep the prompt/cache JSON compact and stable: round every float to 2 decimals. */
 function roundReplacer(_key: string, value: unknown): unknown {
@@ -138,13 +139,18 @@ export interface TechnicalSnapshot {
   }
   structure: StructureSnapshot | null
   /** Removed per owner directive (technical@4) — always null; typed for
-   *  payload compatibility with older cached snapshots. */
+   *  payload compatibility with older cached payloads. */
   vsa: VsaSnapshot | null
   zones: ZonesSnapshot | null
   context: MarketContextSection | null
   /** Removed per owner directive (technical@4) — always null; typed for
-   *  payload compatibility with older cached snapshots. */
+   *  payload compatibility with older cached payloads. */
   quality: QualityScore | null
+  /** Trailing raw signal reads (tech-signals@5) computed by the SAME
+   *  close-series core the board engine uses — this is what lets the company
+   *  tab apply the same hysteresis as the board and print the SAME reading
+   *  on the same data. Additive, optional for payload compatibility. */
+  trail?: TrailRead[] | null
   /** Observed 60-session range (replaces the removed 52-week block): the
    *  highest high / lowest low actually printed by the market over the last
    *  60 stored sessions, and where the last close sits inside that range
@@ -597,6 +603,11 @@ export function assembleBundle(bars: Bar[], context: MarketContextSection | null
     range60: base.range60,
   }
   base.signals = technicalSignals(bars, stripped)
+
+  // --- Signal trail (tech-signals@5): trailing raw reads from the same
+  //  close-series core as the board engine — the snapshot path's hysteresis
+  //  input (computeStanceFromSnapshot applies enter/exit bands + min-hold). ---
+  base.trail = computeSignalTrail(bars.map((b) => ({ ts: b.ts, close: b.close, volume: b.volume })))
 
   return finalize(base)
 }

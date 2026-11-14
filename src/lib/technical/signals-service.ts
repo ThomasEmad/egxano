@@ -26,7 +26,7 @@ import { cached } from "@/lib/server-cache"
 import { applyCorporateActionAdjustments, loadSeriesActionsByCompany, type SeriesBar } from "@/lib/market/corporate-actions"
 import { effectiveEgxSessionDate } from "@/lib/market/egx-session"
 import { computeCloseSignal, SIGNALS_VERSION, type CloseSignalOutput, type TechStance } from "./signals"
-import { readCanonicalStance, BOARD_MAX_AGE_MS, STANCE_ENGINE_VERSION } from "./stance-store"
+import { readCanonicalStance, BOARD_MAX_AGE_MS, isFreshCanonicalRow, STANCE_ENGINE_VERSION } from "./stance-store"
 import { persistBoardSnapshot } from "./board-snapshot"
 
 /** Calendar-day cutoff for the trailing window. 300 days ≈ 200 EGX sessions —
@@ -207,7 +207,9 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
     })
     const canonicalByCompany = new Map(
       canonicalRows
-        .filter((s) => s.engineVersion === STANCE_ENGINE_VERSION && Date.now() - s.computedAt.getTime() <= BOARD_MAX_AGE_MS)
+        // version + age contract is the shared, unit-tested helper — a
+        // stale-version (stance@1) row is NEVER overlaid onto the board
+        .filter((s) => isFreshCanonicalRow(s.engineVersion, s.computedAt, BOARD_MAX_AGE_MS))
         .map((s) => {
           try {
             return [s.companyId, { stance: JSON.parse(s.stanceJson) as TechStance, dataAsOf: s.dataAsOf }]
@@ -278,10 +280,10 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
 
 /** Cached whole-market signal computation (10 min — follows the intraday price refresh). */
 export function getCachedMarketSignals(): Promise<MarketSignalsOutput> {
-  // v3: tier model changed — NILEX merged into MAIN, OTC activity sweep,
-  // fresh EGX30 constituents + free-tier board gating copy. The bump
-  // invalidates stale v2 payloads whose tier labels/copy no longer match.
-  return cached("technical-signals:market:v3", CACHE_MS, async () => {
+  // v4: tech-signals@5 recalibration (decision gates, de-duplicated weights,
+  // structure veto, hysteresis, structural trade plans) — the bump invalidates
+  // stale v3 payloads whose scoring semantics no longer match the engine.
+  return cached("technical-signals:market:v4", CACHE_MS, async () => {
     const payload = await buildMarketSignalsUncached()
     // Shared read model: every successful compute persists the payload so a
     // cold instance can serve instantly. The write is AWAITED inside the

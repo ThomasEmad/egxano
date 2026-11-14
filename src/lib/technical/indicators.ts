@@ -156,11 +156,56 @@ export function macd(closes: number[], fast = 12, slow = 26, signalN = 9): MacdR
   }
   const macdValue = macdLine[macdLine.length - 1]
   const sig = ema(macdLine, signalN)
+  // tech-signals@5: no rounding here — macd() feeds DECISION inputs, and the
+  // audit flagged round4 inside the decision path as premature. Rounding is
+  // presentation-only (analyze.ts roundReplacer / metrics builders).
   return {
-    macd: round(macdValue),
-    signal: sig.value === null ? null : round(sig.value),
-    histogram: sig.value === null ? null : round(macdValue - sig.value),
+    macd: macdValue,
+    signal: sig.value,
+    histogram: sig.value === null ? null : macdValue - sig.value,
   }
+}
+
+export interface MacdSeriesResult {
+  /** MACD line per session (null before both EMAs exist) */
+  line: (number | null)[]
+  signal: (number | null)[]
+  histogram: (number | null)[]
+}
+
+/**
+ * MACD series aligned to the input (tech-signals@5): the same seeding rules as
+ * macd() (signal = EMA(signalN) of the compact line series), full precision —
+ * the series-based decision core reads values per index without recomputing.
+ */
+export function macdSeries(closes: number[], fast = 12, slow = 26, signalN = 9): MacdSeriesResult {
+  const line: (number | null)[] = new Array(closes.length).fill(null)
+  const signal: (number | null)[] = new Array(closes.length).fill(null)
+  const histogram: (number | null)[] = new Array(closes.length).fill(null)
+  if (closes.length < slow) return { line, signal, histogram }
+  const fastLine = emaSeries(closes, fast)
+  const slowLine = emaSeries(closes, slow)
+  const macdPts: number[] = []
+  const macdIdx: number[] = []
+  for (let i = slow - 1; i < closes.length; i++) {
+    const f = fastLine[i]
+    const s = slowLine[i]
+    if (f === null || s === null) continue
+    line[i] = f - s
+    macdPts.push(f - s)
+    macdIdx.push(i)
+  }
+  if (macdPts.length >= signalN) {
+    const sig = emaSeries(macdPts, signalN)
+    for (let j = 0; j < macdPts.length; j++) {
+      const s = sig[j]
+      if (s !== null) {
+        signal[macdIdx[j]] = s
+        histogram[macdIdx[j]] = macdPts[j] - s
+      }
+    }
+  }
+  return { line, signal, histogram }
 }
 
 export interface BollingerResult {
@@ -194,10 +239,21 @@ export interface StochasticResult {
   reason?: string
 }
 
-/** Stochastic %K over `n` sessions (needs high/low), %D = SMA(dN) of %K. */
+/** Stochastic %K over `n` sessions (needs high/low), %D = SMA(dN) of %K.
+ *
+ *  FLAT-WINDOW FIX (tech-signals@5): the previous implementation SKIPPED flat
+ *  windows (`hh <= ll → continue`), which made %D an SMA over NON-CONSECUTIVE
+ *  sessions — on quiet tapes the smoothed value silently spanned stale bars.
+ *  Now the last valid %K is carried forward through flat windows so %D is
+ *  always an SMA over consecutive sessions (before any valid window exists the
+ *  neutral midpoint 50 is carried). An ALL-flat series still returns null:
+ *  a flat tape carries no stochastic information, and fabricating one would
+ *  violate the engine's null-disclosure policy. */
 export function stochastic(bars: Bar[], n = 14, dN = 3): StochasticResult {
   if (bars.length < n + dN - 1) return { k: null, d: null, reason: `need ${n + dN - 1} bars, have ${bars.length}` }
   const ks: number[] = []
+  let lastK: number | null = null
+  let sawValid = false
   for (let i = n - 1; i < bars.length; i++) {
     let hh = -Infinity
     let ll = Infinity
@@ -205,13 +261,54 @@ export function stochastic(bars: Bar[], n = 14, dN = 3): StochasticResult {
       if (bars[j].high > hh) hh = bars[j].high
       if (bars[j].low < ll) ll = bars[j].low
     }
-    if (!finite(hh) || !finite(ll) || hh <= ll) continue // flat window — skip, never divide by zero
-    ks.push(((bars[i].close - ll) / (hh - ll)) * 100)
+    if (!finite(hh) || !finite(ll) || hh <= ll) {
+      // flat window — carry the last valid %K forward (consecutive-session %D)
+      ks.push(lastK ?? 50)
+      continue
+    }
+    lastK = ((bars[i].close - ll) / (hh - ll)) * 100
+    sawValid = true
+    ks.push(lastK)
   }
-  if (ks.length < dN) return { k: null, d: null, reason: "no valid stochastic windows" }
+  if (!sawValid || ks.length < dN) return { k: null, d: null, reason: "no valid stochastic windows" }
   const k = ks[ks.length - 1]
   const dRes = sma(ks, dN)
-  return { k: round(k), d: dRes.value === null ? null : round(dRes.value) }
+  // no rounding — decision input (see macd() note)
+  return { k, d: dRes.value === null ? null : dRes.value }
+}
+
+/**
+ * RSI series (Wilder), aligned to the input; null before the first `n` changes
+ * and while there is no movement at all. Full precision — decision core input
+ * (tech-signals@5). Same recursion as rsi() but evaluated per session so the
+ * series-based engine can score trailing sessions without recomputation.
+ */
+export function rsiSeries(closes: number[], n = 14): (number | null)[] {
+  const out: (number | null)[] = new Array(closes.length).fill(null)
+  if (closes.length < n + 1) return out
+  let gainSum = 0
+  let lossSum = 0
+  for (let i = 1; i <= n; i++) {
+    const d = closes[i] - closes[i - 1]
+    if (d >= 0) gainSum += d
+    else lossSum -= d
+  }
+  let avgGain = gainSum / n
+  let avgLoss = lossSum / n
+  const val = (g: number, l: number): number | null => {
+    if (g === 0 && l === 0) return null // no movement in window
+    if (l === 0) return 100
+    if (g === 0) return 0
+    return 100 - 100 / (1 + g / l)
+  }
+  out[n] = val(avgGain, avgLoss)
+  for (let i = n + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1]
+    avgGain = (avgGain * (n - 1) + Math.max(d, 0)) / n
+    avgLoss = (avgLoss * (n - 1) + Math.max(-d, 0)) / n
+    out[i] = val(avgGain, avgLoss)
+  }
+  return out
 }
 
 // ---------------------------------------------------------------------------
@@ -290,7 +387,8 @@ export function volumeStats(bars: Bar[], n = 20): VolumeStatsResult {
   const ma = sma(vols.slice(0, -1), n) // average of the PRIOR n sessions (excludes the latest)
   if (ma.value === null || ma.value <= 0) return { volMa: ma.value, relVol: null, reason: ma.reason ?? "volume MA not positive" }
   const last = vols[vols.length - 1]
-  return { volMa: round(ma.value), relVol: round(last / ma.value) }
+  // no rounding — relVol feeds the volume decision gate (tech-signals@5)
+  return { volMa: ma.value, relVol: last / ma.value }
 }
 
 // ---------------------------------------------------------------------------
@@ -324,8 +422,13 @@ export function supportResistance(
     let isLow = true
     for (let j = i - wing; j <= i + wing; j++) {
       if (j === i) continue
-      if (bars[j].high >= bars[i].high) isHigh = false
-      if (bars[j].low <= bars[i].low) isLow = false
+      // EQUAL-EXTREME FIX (tech-signals@5): strict comparisons. An equal high
+      // is a TOUCH of the level, not a rejection of the pivot — the old
+      // `>=`/`<=` made equal-high double tops invisible (a second touch at the
+      // same high killed BOTH pivots, so multi-touch resistance clusters
+      // under-counted exactly where they matter most).
+      if (bars[j].high > bars[i].high) isHigh = false
+      if (bars[j].low < bars[i].low) isLow = false
     }
     if (isHigh) pivots.push(bars[i].high)
     if (isLow) pivots.push(bars[i].low)
@@ -354,7 +457,7 @@ export function supportResistance(
         distPct: round(((price - last) / last) * 100, 2),
       }
     })
-    .filter((z) => z.price !== last)
+    .filter((z) => (last > 0 ? Math.abs(z.price - last) / last > 0.001 : true))
   const supports = zones.filter((z) => z.kind === "support").sort((a, b) => b.price - a.price).slice(0, maxZones)
   const resistances = zones.filter((z) => z.kind === "resistance").sort((a, b) => a.price - b.price).slice(0, maxZones)
   return { supports, resistances }

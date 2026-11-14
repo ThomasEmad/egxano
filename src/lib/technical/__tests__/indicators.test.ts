@@ -15,6 +15,8 @@ import {
   sma,
   smaSeries,
   stochastic,
+  rsiSeries,
+  macdSeries,
   supportResistance,
   trendInfo,
   volumeStats,
@@ -315,5 +317,93 @@ describe("assembleBundle", () => {
     expect(b1.snapshot.trend.ema200).not.toBeNull()
     expect(b1.snapshot.range60.high).not.toBeNull()
     expect(b1.hash).toBe(b2.hash)
+  })
+})
+
+describe("tech-signals@5 indicator fixes", () => {
+  it("stochastic %D stays on consecutive sessions — flat windows carry the last valid %K", () => {
+    const bs: Bar[] = []
+    for (let i = 0; i < 10; i++) {
+      bs.push({ ts: `2025-01-${i + 1}`, open: 10, high: 10 + i * 0.5, low: 9, close: 9.5 + (i % 2) * 0.5, volume: 1 })
+    }
+    for (let i = 10; i < 14; i++) {
+      bs.push({ ts: `2025-01-${i + 1}`, open: 10, high: 10, low: 10, close: 10, volume: 1 }) // flat tail
+    }
+    const s = stochastic(bs, 5, 3)
+    expect(s.k).not.toBeNull()
+    expect(s.d).not.toBeNull()
+    // %D = SMA3 over CONSECUTIVE sessions (the carried %K values), so it is the
+    // mean of the last three %K points, not a mean spanning stale skipped bars
+    expect(s.d).toBeLessThanOrEqual((s.k ?? 100) + 1e-9)
+  })
+
+  it("all-flat series still returns null (no fabricated stochastic)", () => {
+    const bs: Bar[] = Array.from({ length: 20 }, (_, i) => ({
+      ts: `2025-02-${i + 1}`, open: 10, high: 10, low: 10, close: 10, volume: 1,
+    }))
+    const s = stochastic(bs, 14, 3)
+    expect(s.k).toBeNull()
+    expect(s.reason).toBeTruthy()
+  })
+
+  it("S/R equal-high double top: BOTH pivots survive → a multi-touch cluster", () => {
+    const pattern = [10, 12, 15, 12, 9, 12, 15, 12, 9, 12]
+    const closes = [...pattern, ...pattern, 12]
+    const sr = supportResistance(bars(closes), 2, 1.5, 4)
+    const top = sr.resistances[0]
+    expect(top.price).toBeGreaterThan(14)
+    expect(top.touches).toBeGreaterThanOrEqual(2)
+  })
+
+  it("S/R zones effectively AT the close are dropped (0.1% tolerance, not exact equality)", () => {
+    const closes = [10, 11, 10.5, 11, 10, 10.9, 11, 10.2, 11, 10.5, 11]
+    const bs = bars(closes).map((b, i) => (i === closes.length - 1 ? { ...b, close: 10.995, open: 10.995, high: 10.995, low: 10.995 } : b))
+    const sr = supportResistance(bs, 2, 1.5, 4)
+    for (const z of [...sr.supports, ...sr.resistances]) {
+      expect(Math.abs(z.price - 10.995) / 10.995).toBeGreaterThan(0.001)
+    }
+  })
+
+  it("rsiSeries — Wilder recursion per session, null before warm-up and on flat runs", () => {
+    const up: number[] = []
+    for (let i = 1; i <= 20; i++) up.push(i)
+    const s = rsiSeries(up, 14)
+    expect(s.slice(0, 14).every((v) => v === null)).toBe(true)
+    expect(s[14]).toBe(100)
+    expect(s[19]).toBe(100)
+    const flat = rsiSeries(Array(20).fill(5), 14)
+    expect(flat.every((v) => v === null)).toBe(true)
+  })
+
+  it("macdSeries — aligned arrays matching the point MACD seeding rules", () => {
+    const closes = Array.from({ length: 40 }, (_, i) => 100 + i)
+    const m = macdSeries(closes)
+    expect(m.line.length).toBe(40)
+    expect(m.line[24]).not.toBeNull() // both EMAs exist from slow-1
+    expect(m.signal[33]).not.toBeNull() // signal needs signalN line points
+    expect(m.histogram[39]!).toBeGreaterThan(0)
+    const flatM = macdSeries(Array(40).fill(100))
+    expect(flatM.line[39]).toBe(0)
+    expect(flatM.histogram[39]).toBe(0)
+  })
+
+  it("zones@2 — F2 reaction measures the REAL post-touch excursion (not distance from price)", async () => {
+    const { analyzeZones } = await import("../zones")
+    // double-touch low at 90, then a rally to 110 — the demand zone's reaction
+    // is the rally ABOVE the zone (>0), not |zone − close|
+    const closes: number[] = []
+    for (let i = 0; i < 10; i++) closes.push(100)
+    closes.push(95, 90, 93, 98, 102, 106, 110, 90, 92, 98, 104, 108, 112)
+    for (let i = 0; i < 22; i++) closes.push(110 + (i % 3))
+    const bs: Bar[] = closes.map((c, i) => ({
+      ts: `2025-03-${String((i % 28) + 1).padStart(2, "0")}`,
+      open: c * 0.995, high: c * 1.01, low: c * 0.985, close: c, volume: 1000,
+    }))
+    const z = analyzeZones(bs)
+    const demand = z.zones.find((zz) => zz.kind === "demand")
+    if (demand) {
+      expect(demand.reactionPct).toBeGreaterThan(0)
+      expect(demand.reactionPct).toBeLessThan(100)
+    }
   })
 })

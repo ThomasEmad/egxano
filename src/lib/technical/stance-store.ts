@@ -19,8 +19,24 @@ import { db } from "@/lib/db"
 import { computeStanceFromSnapshot, SIGNALS_VERSION, type TechStance } from "@/lib/technical/signals"
 import { buildTechnicalBundleWithContext } from "@/lib/market/intelligence/context"
 
-/** Bump whenever the bundle/stance computation changes shape. */
-export const STANCE_ENGINE_VERSION = "stance@1"
+/** Bump whenever the bundle/stance computation changes shape. stance@2 rides
+ *  the tech-signals@5 recalibration — every persisted stance@1 row is
+ *  REJECTED at read time (engineVersion mismatch) and recomputed, so no
+ *  mixed-version reading can ever be displayed. */
+export const STANCE_ENGINE_VERSION = "stance@2"
+
+/**
+ * Pure freshness/version contract for a persisted StanceSnapshot row (kept
+ * exported and unit-testable — the DB-bound readers call this, so the
+ * stale-snapshot filtering behavior is pinned by tests without a database).
+ * A row is trusted only when its engine version matches the CURRENT engine
+ * and its computedAt is within maxAgeMs.
+ */
+export function isFreshCanonicalRow(engineVersion: string, computedAt: Date, maxAgeMs = BOARD_MAX_AGE_MS): boolean {
+  if (engineVersion !== STANCE_ENGINE_VERSION) return false
+  if (!(Date.now() - computedAt.getTime() <= maxAgeMs)) return false
+  return true
+}
 
 let tableEnsured: Promise<void> | null = null
 
@@ -105,8 +121,7 @@ export async function readCanonicalStance(companyId: string, maxAgeMs = BOARD_MA
   await ensureStanceSnapshotTable()
   const row = await db.stanceSnapshot.findUnique({ where: { companyId } })
   if (!row) return null
-  if (row.engineVersion !== STANCE_ENGINE_VERSION) return null
-  if (Date.now() - row.computedAt.getTime() > maxAgeMs) return null
+  if (!isFreshCanonicalRow(row.engineVersion, row.computedAt, maxAgeMs)) return null
   const stance = parseStanceJson(row)
   if (!stance) return null
   return { stance, dataAsOf: row.dataAsOf, computedAt: row.computedAt, engineVersion: row.engineVersion }
