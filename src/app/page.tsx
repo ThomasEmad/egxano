@@ -50,7 +50,6 @@ export const metadata: Metadata = {
   ],
   alternates: {
     canonical: "/",
-    languages: { en: "/", "ar-EG": "/" },
   },
   openGraph: {
     title: "EGXANO — Egyptian stock market research",

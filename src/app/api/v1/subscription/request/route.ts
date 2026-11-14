@@ -5,6 +5,7 @@ import { audit } from "@/lib/audit"
 import { checkEndpointRateLimit, getClientIp } from "@/lib/rate-limit"
 import { withKeyLock } from "@/lib/key-lock"
 import { planFirstMonthAmount } from "@/lib/subscription"
+import { PLANS, type PlanId } from "@/lib/plans/entitlements"
 
 // POST /api/v1/subscription/request — user requests a paid subscription
 // (body { planId: "PRO" | "PRO_3M" }; a missing planId defaults to PRO for
@@ -46,10 +47,42 @@ export async function POST(req: NextRequest) {
       : "PRO"
 
   const outcome = await withKeyLock(`sub-req:${userId}`, async () => {
-    const plan = await db.plan.findFirst({
+    // Self-healing plan rows: the Plan table can lag behind the code catalog
+    // (fresh database, retired plans, a missed seed run). The pricing truth is
+    // the PLANS constant, so create the missing row from it instead of 404ing
+    // a paid plan the product actually sells.
+    let plan = await db.plan.findFirst({
       where: { name: requestedPlanName, isActive: true },
       select: { id: true, name: true, price: true, offerActive: true, offerPrice: true, currency: true, durationDays: true },
     })
+    if (!plan && requestedPlanName in PLANS) {
+      const def = PLANS[requestedPlanName as PlanId]
+      try {
+        await db.plan.create({
+          data: {
+            id: requestedPlanName.toLowerCase().replace(/_/g, "-"),
+            name: requestedPlanName,
+            price: def.price,
+            offerPrice: def.offerPrice,
+            offerActive: def.offerActive,
+            offerLabel: def.offerLabelAr,
+            currency: def.currency,
+            durationDays: def.durationDays,
+            features: JSON.stringify(def.featuresAr),
+            isActive: true,
+            isDefault: false,
+            sortOrder: 4,
+          },
+        })
+      } catch {
+        // Unique-violation race: another request created the same row — the
+        // re-read below picks it up either way.
+      }
+      plan = await db.plan.findFirst({
+        where: { name: requestedPlanName, isActive: true },
+        select: { id: true, name: true, price: true, offerActive: true, offerPrice: true, currency: true, durationDays: true },
+      })
+    }
     if (!plan) {
       return {
         error: "VALIDATION",

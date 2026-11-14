@@ -9,7 +9,6 @@ export const metadata: Metadata = {
   keywords: ["EGX screener", "Egyptian stock scanner", "ماسحات البورصة المصرية", "فلتر أسهم مصر"],
   alternates: {
     canonical: "/scanners",
-    languages: { en: "/scanners", "ar-EG": "/scanners" },
   },
   openGraph: {
     title: "EGX Financial Screeners — EGXANO",

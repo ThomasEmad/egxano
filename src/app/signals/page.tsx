@@ -9,7 +9,6 @@ export const metadata: Metadata = {
   keywords: ["EGX technical signals", "تحليل فني البورصة المصرية", "إشارات شراء", "technical scanner Egypt", "RSI MACD فلترة"],
   alternates: {
     canonical: "/signals",
-    languages: { en: "/signals", "ar-EG": "/signals" },
   },
   openGraph: {
     title: "EGX Technical Signals — EGXANO",
@@ -21,5 +20,13 @@ export const metadata: Metadata = {
 }
 
 export default function SignalsPage() {
-  return <SignalsPageClient />
+  // Server-rendered H1 for crawlers/LLMs (see companies/page.tsx note).
+  return (
+    <>
+      <h1 className="sr-only">
+        EGX technical signals — الإشارات الفنية والتحليل الفني لأسهم البورصة المصرية
+      </h1>
+      <SignalsPageClient />
+    </>
+  )
 }

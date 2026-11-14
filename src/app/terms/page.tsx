@@ -8,7 +8,6 @@ export const metadata: Metadata = {
     "EGXANO terms: research tool (not a broker), published-filing data with delayed prices, accounts, privacy, one-off 30-day Premium manual activation with no auto-renewal, acceptable use, and governing law.",
   alternates: {
     canonical: "/terms",
-    languages: { en: "/terms", "ar-EG": "/terms" },
   },
   openGraph: {
     title: "Terms of Service — EGXANO",

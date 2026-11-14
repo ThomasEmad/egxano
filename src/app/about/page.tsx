@@ -9,7 +9,6 @@ export const metadata: Metadata = {
   keywords: ["about EGXANO", "Egyptian Exchange data", "من نحن", "البورصة المصرية"],
   alternates: {
     canonical: "/about",
-    languages: { en: "/about", "ar-EG": "/about" },
   },
   openGraph: {
     title: "About EGXANO",

@@ -85,10 +85,6 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: "/",
-    languages: {
-      en: "/",
-      "ar-EG": "/",
-    },
   },
   // Canonical URLs are set per page. A global canonical would point every
   // route at "/" and de-index the whole site.

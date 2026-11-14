@@ -14,7 +14,6 @@ export const metadata: Metadata = {
   keywords: ["EGX sectors", "Egyptian Exchange sectors", "قطاعات البورصة المصرية", "أسهم قطاع البنوك", "أسهم العقارات"],
   alternates: {
     canonical: "/sectors",
-    languages: { en: "/sectors", "ar-EG": "/sectors" },
   },
   openGraph: {
     title: "EGX Sectors — Companies by Egyptian Exchange Sector",

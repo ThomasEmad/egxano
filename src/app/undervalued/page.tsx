@@ -15,7 +15,6 @@ export const metadata: Metadata = {
   ],
   alternates: {
     canonical: "/undervalued",
-    languages: { en: "/undervalued", "ar-EG": "/undervalued" },
   },
   openGraph: {
     title: "Undervalued EGX stocks — EGXANO",
@@ -33,5 +32,12 @@ export const metadata: Metadata = {
 }
 
 export default function UndervaluedPage() {
-  return <UndervaluedClient />
+  return (
+    <>
+      <h1 className="sr-only">
+        Undervalued EGX stocks — فحص التقييم واكتشاف الأسهم المقومة بأقل من قيمتها في البورصة المصرية
+      </h1>
+      <UndervaluedClient />
+    </>
+  )
 }

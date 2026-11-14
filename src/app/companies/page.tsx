@@ -15,7 +15,6 @@ export const metadata: Metadata = {
   ],
   alternates: {
     canonical: "/companies",
-    languages: { en: "/companies", "ar-EG": "/companies" },
   },
   openGraph: {
     title: "EGX Companies — All Listed Egyptian Exchange Companies",
@@ -27,5 +26,15 @@ export const metadata: Metadata = {
 }
 
 export default function CompaniesPage() {
-  return <CompaniesPageShell />
+  // Server-rendered H1: the client shell swaps in its visual heading only after
+  // data loads, so crawlers and LLMs (no JS execution) would otherwise see a
+  // headingless page. sr-only keeps the visual design unchanged.
+  return (
+    <>
+      <h1 className="sr-only">
+        All listed Egyptian Exchange companies — أسعار وقوائم شركات البورصة المصرية
+      </h1>
+      <CompaniesPageShell />
+    </>
+  )
 }

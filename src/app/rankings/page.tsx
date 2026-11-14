@@ -17,7 +17,6 @@ export const metadata: Metadata = {
   ],
     alternates: {
       canonical: "/rankings",
-      languages: { en: "/rankings", "ar-EG": "/rankings" },
     },
   openGraph: {
     title: "EGX company rankings — EGXANO",
@@ -35,5 +34,12 @@ export const metadata: Metadata = {
 }
 
 export default function RankingsPage() {
-  return <RankingsClient />
+  return (
+    <>
+      <h1 className="sr-only">
+        EGX company rankings — ترتيب شركات البورصة المصرية بالقوائم المالية الموثقة
+      </h1>
+      <RankingsClient />
+    </>
+  )
 }

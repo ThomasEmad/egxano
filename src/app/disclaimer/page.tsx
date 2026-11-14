@@ -8,7 +8,6 @@ export const metadata: Metadata = {
     "EGXANO's risk notice: sources are published filings and a delayed public price source (15 minutes), calculated vs reported values, unavailable values shown as “—” (never estimated), AI-assisted interpretation is not advice, and no buy/sell recommendations.",
   alternates: {
     canonical: "/disclaimer",
-    languages: { en: "/disclaimer", "ar-EG": "/disclaimer" },
   },
   openGraph: {
     title: "Risk notice — EGXANO",

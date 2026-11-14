@@ -8,7 +8,6 @@ export const metadata: Metadata = {
     "How EGXANO collects, uses, stores and protects account and usage data, and how to exercise your privacy rights.",
     alternates: {
       canonical: "/privacy",
-      languages: { en: "/privacy", "ar-EG": "/privacy" },
     },
   openGraph: {
     title: "Privacy Policy — EGXANO",

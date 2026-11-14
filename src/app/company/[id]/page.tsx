@@ -78,7 +78,6 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     ],
     alternates: {
       canonical,
-      languages: { en: canonical, "ar-EG": canonical },
     },
     openGraph: {
       title: `${company.ticker} — ${company.nameEn} | EGXANO`,
@@ -134,6 +133,12 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
               { name: `${company.ticker} — ${company.nameEn}`, url: canonical! },
             ]}
           />
+          {/* Server-rendered H1: the client detail view hydrates from API calls,
+              so crawlers and LLMs would otherwise see a headingless profile.
+              sr-only keeps the visual design unchanged. */}
+          <h1 className="sr-only">
+            {`${company.ticker} — ${company.nameEn}${company.nameAr ? ` (${company.nameAr})` : ""} — تحليل فني وقوائم مالية | البورصة المصرية EGX`}
+          </h1>
           <script
             type="application/ld+json"
             dangerouslySetInnerHTML={{

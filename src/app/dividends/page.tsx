@@ -9,7 +9,6 @@ export const metadata: Metadata = {
   keywords: ["EGX dividends", "Egyptian Exchange dividends", "توزيعات أرباح البورصة", "توزيعات الأسهم المصرية"],
   alternates: {
     canonical: "/dividends",
-    languages: { en: "/dividends", "ar-EG": "/dividends" },
   },
   openGraph: {
     title: "EGX Dividend Calendar — EGXANO",

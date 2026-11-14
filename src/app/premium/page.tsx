@@ -6,13 +6,12 @@ import PremiumClient from "./client"
 // with the first-month offers — the same numbers the backend enforces
 // (see src/lib/plans/entitlements.ts), so the copy can't drift.
 export const metadata: Metadata = {
-  title: "الباقات — المجانية وبرو وخطة الـ 3 شهور | EGXANO",
+  title: "الباقات — المجانية وبرو وخطة الـ 3 شهور",
   description:
     "ثلاث باقات على EGXANO: المجانية للتجربة بكل الشركات والخريطة الحرارية، وبرو 150 جنيه/شهر للتابع اليومي للسوق، وخطة الـ 3 شهور بـ 450 جنيه مع خصم 50% على أول شهر. لوحة الإشارات الفنية كاملة، المقارنة والترتيبات، الماسحات المخصصة، التحليل الفني الشامل، التوزيعات والتنبيهات. الدفع عبر انستاباي وتفعيل يدوي بعد مطابقة الحوالة — بدون اشتراك تلقائي.",
   keywords: ["EGX premium", "اشتراك البورصة المصرية", "باقات EGXANO", "تقارير مالية"],
   alternates: {
     canonical: "/premium",
-    languages: { en: "/premium", "ar-EG": "/premium" },
   },
   openGraph: {
     title: "باقات EGXANO — المجانية وبرو وخطة الـ 3 شهور",

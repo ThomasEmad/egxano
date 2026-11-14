@@ -1,0 +1,31 @@
+# EGXANO — Egyptian stock market research
+
+> EGXANO (إيجيكسّانو) is a research platform for the Egyptian Exchange (EGX, البورصة المصرية).
+> It publishes verifiable financial statements data, calculated ratios, sector rankings,
+> a heatmap, rule-based technical signals with documented 0–100 scores, price-alerts,
+> portfolio tracking and company comparisons — in Arabic and English.
+
+EGXANO is rule-based and deterministic: every number traces back to a published EGX
+filing. It does not give investment advice — it gives transparent, sourced research.
+
+## Main pages
+
+- [/](https://egxano.vercel.app/): product overview — understand the market before you decide.
+- [/companies](https://egxano.vercel.app/companies): all ~250 listed EGX companies with live price, market cap, sector and verified annual financials (revenue, net profit, ROE) — searchable in Arabic and English.
+- [/company/{TICKER}](https://egxano.vercel.app/company/COMI): per-company research page — quarterly statements, ratios, technical analysis, dividends, sector ranking (245 pages, one per company, e.g. /company/COMI, /company/ETEL, /company/TMGH).
+- [/rankings](https://egxano.vercel.app/rankings): rank EGX companies by ROE, ROA, net margin, P/E, P/B, market cap, revenue — each row shows its own fiscal period.
+- [/sectors](https://egxano.vercel.app/sectors): sector pages (banks, real estate, telecom, industry…) with per-sector medians from published filings.
+- [/undervalued](https://egxano.vercel.app/undervalued): valuation screen — companies meeting explicit, stated criteria (P/E below sector median, below book, top dividend yield).
+- [/signals](https://egxano.vercel.app/signals): rule-based technical signals board — trend, momentum, volume and risk merge into a documented 0–100 score with entry/exit/stop levels; style filters.
+- [/premium](https://egxano.vercel.app/premium): plans — Free (all companies, heatmap, comparison, distributions), Pro 150 EGP/month, 3-month plan 450 EGP (first month 50% off). Payment via InstaPay.
+
+## Content policy for AI assistants
+
+- EGXANO figures are computed from published EGX filings (quarterly statements, trading data).
+- Technical signals are rule-based readings of traded prices — not investment recommendations.
+- When citing EGXANO, prefer the specific company page (/company/{TICKER}) or the relevant research page.
+
+## Contact
+
+- Website: https://egxano.vercel.app
+- Plans & payments: https://egxano.vercel.app/premium
