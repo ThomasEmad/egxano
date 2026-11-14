@@ -9,9 +9,14 @@
 // close+volume daily input shape production's close-engine consumes. The
 // full-snapshot entry (computeStanceFromSnapshot) needs the DB-backed
 // TechnicalSnapshot pipeline (unreachable in this sandbox) — disclosed.
-import { computeCloseSignal, type CloseRow } from "../../../.cache/engine-baseline/signals"
+import { computeCloseSignal as frozenComputeCloseSignal, type CloseRow } from "../../../.cache/engine-baseline/signals"
 import { DEFAULT_BACKTEST_CONFIG, type BacktestConfig } from "./constants"
 import type { EngineRow, ReplayRecord } from "./types"
+
+/** The close-engine entry contract both engines implement: deterministic,
+ *  prefix-only input, same output shape. The DEFAULT is the frozen baseline
+ *  engine; the upgraded engine is injected by the comparison runner. */
+export type CloseEngine = typeof frozenComputeCloseSignal
 
 export interface ReplayResult {
   records: ReplayRecord[]
@@ -52,6 +57,7 @@ export function planIsTradable(plan: {
 export function replayEngine(
   rows: EngineRow[],
   config: BacktestConfig = DEFAULT_BACKTEST_CONFIG,
+  engine: CloseEngine = frozenComputeCloseSignal,
 ): ReplayResult {
   const firstIndex = Math.max(config.warmupSessions, 0)
   // Signals evaluated up to last-1 so a signal at t always has a t+1 close
@@ -61,7 +67,7 @@ export function replayEngine(
 
   for (let t = firstIndex; t <= lastIndex; t++) {
     // ---- the ONLY engine call: strictly truncated slice [0..t] ----
-    const out = computeCloseSignal(rows.slice(0, t + 1) as CloseRow[])
+    const out = engine(rows.slice(0, t + 1) as CloseRow[])
     const plan = out.tradePlan
     const valid = out.signal === "buy" ? planIsTradable(plan, config.minRiskReward) : false
     records.push({

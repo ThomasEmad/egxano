@@ -29,6 +29,19 @@ import { replayEngine, type ReplayResult } from "../../src/lib/backtesting/repla
 import { segmentByLiquidity, segmentByScoreBand, segmentBySector, segmentByTier, type SegmentRow } from "../../src/lib/backtesting/segments"
 import type { EngineRow, SellEvidenceRecord, SkipReasons, TradeRecord, WindowResult } from "../../src/lib/backtesting/types"
 import { splitWindows, type WindowDates } from "../../src/lib/backtesting/walkforward"
+import { computeCloseSignal as v2ComputeCloseSignal, SIGNALS_VERSION as V2_SIGNALS_VERSION } from "../../src/lib/technical/signals"
+
+// ---- ENGINE SELECTION -------------------------------------------------------
+// default: the frozen baseline engine (.cache/engine-baseline) — reproduces the
+// original baseline run byte-for-byte. `--engine=v2` runs the SAME pipeline
+// (identical cached data, universe, config, execution assumptions, walk-forward
+// split) with the upgraded src/lib/technical engine for the A/B comparison.
+const ENGINE = process.argv.includes("--engine=v2") ? "v2" : "frozen"
+const ENGINE_FN = ENGINE === "v2" ? v2ComputeCloseSignal : undefined // undefined → replay default (frozen)
+const OUT_TAG = ENGINE === "v2" ? "-v2" : ""
+const ENGINE_SOURCE = ENGINE === "v2"
+  ? "src/lib/technical (tech-signals@5 in-tree engine — the upgraded engine under evaluation)"
+  : ".cache/engine-baseline (frozen copy of src/lib/technical + corporate-actions.ts + egx-hours.ts at commit f5e7277)"
 
 const ROOT = path.resolve(import.meta.dirname, "../..")
 const BT = path.join(ROOT, ".cache/bt")
@@ -125,7 +138,7 @@ const windowDatesList: WindowDates[] = []
 
 let totalReplaySessions = 0
 for (const r of retained) {
-  const replay: ReplayResult = replayEngine(r.rows, cfg)
+  const replay: ReplayResult = replayEngine(r.rows, cfg, ENGINE_FN)
   const { counts, dates } = splitWindows(replay)
   windowDatesList.push(dates)
   totalReplaySessions += replay.records.length
@@ -214,7 +227,7 @@ const holdByWindow = { train: 0, validation: 0, test: 0 }
 const buyPlannedByWindow = { train: 0, validation: 0, test: 0 }
 const sessionsByWindow = { train: 0, validation: 0, test: 0 }
 for (const r of retained) {
-  const replay = replayEngine(r.rows, cfg)
+  const replay = replayEngine(r.rows, cfg, ENGINE_FN)
   const { counts } = splitWindows(replay)
   for (const rec of replay.records) {
     const w = windowLabel(rec.index, replay.firstIndex, counts)
@@ -262,7 +275,7 @@ function planValidityForWindow(w: TradeRecord["window"]): number { return 0 }
 const overallSignals = (() => {
   let buy = 0, sell = 0, hold = 0, weak = 0, planned = 0, sessions = 0
   for (const r of retained) {
-    const replay = replayEngine(r.rows, cfg)
+    const replay = replayEngine(r.rows, cfg, ENGINE_FN)
     sessions += replay.records.length
     for (const rec of replay.records) {
       if (rec.signal === "buy") { buy++; if (rec.planValid) planned++ }
@@ -301,15 +314,17 @@ const segments = {
 // Write results + report
 // ---------------------------------------------------------------------------
 
-const frozenSignalsVersion = (() => {
-  const m = readFileSync(path.join(ROOT, ".cache/engine-baseline/signals.ts"), "utf8")
-  return m.match(/SIGNALS_VERSION = "([^"]+)"/)?.[1] ?? "unknown"
-})()
+const frozenSignalsVersion = ENGINE === "v2"
+  ? V2_SIGNALS_VERSION
+  : (() => {
+    const m = readFileSync(path.join(ROOT, ".cache/engine-baseline/signals.ts"), "utf8")
+    return m.match(/SIGNALS_VERSION = "([^"]+)"/)?.[1] ?? "unknown"
+  })()
 
 const results = {
   generatedAt: new Date().toISOString(),
   engine: {
-    source: ".cache/engine-baseline (frozen copy of src/lib/technical + corporate-actions.ts + egx-hours.ts at commit f5e7277)",
+    source: ENGINE_SOURCE,
     signalsVersion: frozenSignalsVersion,
     entryPoint: "computeCloseSignal(rows[0..t]) — close+volume daily rows, identical input shape to production close engine",
   },
@@ -362,7 +377,7 @@ const results = {
 }
 
 mkdirSync(path.join(ROOT, "docs/notes"), { recursive: true })
-writeFileSync(path.join(BT, "baseline-results.json"), JSON.stringify(results, null, 1))
+writeFileSync(path.join(BT, `baseline-results${OUT_TAG}.json`), JSON.stringify(results, null, 1))
 
 // ---- markdown report ----
 const fmt = (x: number | null | undefined, d = 2): string => (x === null || x === undefined || !Number.isFinite(x) ? "—" : x.toFixed(d))
@@ -400,7 +415,7 @@ ${metricsTableRows(w.metrics)}
 
 SELL exit-evidence: ${w.sellEvidence.evaluable}/${w.sellEvidence.signals} evaluable; mean fwd ${pct(w.sellEvidence.meanFwdReturnPct, 2)}, median ${pct(w.sellEvidence.medianFwdReturnPct, 2)}, "SELL correct" (negative fwd) ${pct(w.sellEvidence.correctRatePct)}; all-sessions baseline mean ${pct(w.sellEvidence.baselineMeanFwdReturnPct, 2)}`
 
-const md = `# Backtest baseline — frozen CURRENT technical engine (tech-signals@${frozenSignalsVersion.split("@")[1] ?? "4"})
+const md = `# Backtest ${ENGINE === "v2" ? "UPGRADED engine (tech-signals@5) — same harness as the frozen baseline" : "frozen CURRENT technical engine"} (tech-signals@${frozenSignalsVersion.split("@")[1] ?? "?"})
 
 **Run**: ${results.generatedAt} · commit f5e7277 · engine frozen at \`.cache/engine-baseline/\` · data cached under \`.cache/bt/\`
 **Raw results**: \`.cache/bt/baseline-results.json\` (every number below is generated from it — no hand transcription)
@@ -482,7 +497,7 @@ ${Object.values(perTicker).sort((a, b) => a.ticker.localeCompare(b.ticker)).map(
 8. Yahoo fetch required NO User-Agent header from this sandbox (browser-style UA → persistent 429). Data vendor identical to production (Yahoo chart API) but fetched ${results.generatedAt.slice(0, 10)}.
 `
 
-writeFileSync(path.join(ROOT, "docs/notes/backtest-baseline.md"), md)
+writeFileSync(path.join(ROOT, `docs/notes/backtest-baseline${OUT_TAG}.md`), md)
 
 // ---- stdout summary ----
 console.log("=== BASELINE BACKTEST (frozen CURRENT engine) ===")
@@ -494,4 +509,4 @@ for (const w of ["train", "validation", "test"] as const) {
   console.log(`${w.toUpperCase().padEnd(11)}: trades ${m.completed} | win ${pct(m.winRatePct)} | PF ${m.profitFactor === null ? "null" : fmt(m.profitFactor)} | expectancy ${pct(m.expectancyPct, 2)} | median ${pct(m.medianReturnPct, 2)} (${windows[w].startDate} → ${windows[w].endDate})`)
 }
 console.log(`SELL evidence: ${overallSell.evaluable}/${overallSell.signals} evaluable | mean fwd ${pct(overallSell.meanFwdReturnPct, 2)} vs baseline ${pct(overallSell.baselineMeanFwdReturnPct, 2)} | correct ${pct(overallSell.correctRatePct)}`)
-console.log(`written: .cache/bt/baseline-results.json, docs/notes/backtest-baseline.md`)
+console.log(`engine=${ENGINE} · written: .cache/bt/baseline-results${OUT_TAG}.json, docs/notes/backtest-baseline${OUT_TAG}.md`)

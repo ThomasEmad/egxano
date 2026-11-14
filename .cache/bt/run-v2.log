@@ -1,0 +1,9 @@
+=== BASELINE BACKTEST (frozen CURRENT engine) ===
+universe: 29 tickers (EGX30:10 EGX70:10 MAIN:9) | sessions 244 | 2025-11-12 → 2026-11-12
+signals: buy 409 (plan-valid 95.1%) | sell 1200 | replay sessions 4727
+OVERALL: trades 43 (completed 41, open 2) | win 58.5% | PF 3.63 | expectancy 4.75% | median 1.42% | maxDD -19.9%
+TRAIN      : trades 37 | win 62.2% | PF 4.74 | expectancy 5.31% | median 2.86% (2026-03-09 → 2026-08-09)
+VALIDATION : trades 4 | win 25.0% | PF 0.91 | expectancy -0.48% | median -6.51% (2026-08-10 → 2026-09-23)
+TEST       : trades 0 | win — | PF 0.00 | expectancy — | median — (2026-09-24 → 2026-11-11)
+SELL evidence: 1167/1200 evaluable | mean fwd 0.57% vs baseline 1.20% | correct 46.0%
+engine=v2 · written: .cache/bt/baseline-results-v2.json, docs/notes/backtest-baseline-v2.md
