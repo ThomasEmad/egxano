@@ -1744,19 +1744,15 @@ function DocumentsTable({ companyId }: { companyId: string }) {
               </td>
               <td className="p-2.5">
               <div className="flex items-center justify-end gap-1.5">
-                {doc.hasFile ? (
-                    <a href={api.downloadReportUrl(doc.id)} target="_blank" rel="noreferrer">
-                      <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
-                        <Download className="h-3.5 w-3.5" aria-hidden />
-                        {t("co.downloadDoc")}
-                      </Button>
-                    </a>
-                  ) : (
-                    <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" disabled>
-                      <Download className="h-3.5 w-3.5" aria-hidden />
-                      {t("co.downloadDoc")}
-                    </Button>
-                  )}
+                {/* 2026-11-14 audit fix: this rendered a Download button linking
+                    to /api/v1/reports/[id]/download — a route that does not
+                    exist (and the filing files are not hosted on serverless),
+                    so every click 404'd. The tab is metadata-only now. */}
+                <span className="text-[10px] text-muted-foreground">
+                  {doc.hasFile
+                    ? (lang === "ar" ? "الملف متاح داخل المنصة" : "Filed on-platform")
+                    : t("co.notAvailable")}
+                </span>
                 </div>
               </td>
             </tr>

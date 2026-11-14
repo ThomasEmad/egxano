@@ -355,14 +355,16 @@ function RunHistory() {
                 <Clock className="h-2.5 w-2.5" />
                 {timeAgo(r.ranAt, lang)} · {basisShortLabel(r.periodBasis, lang)}
               </p>
-              {r.matchedCompanyIds.slice(0, 6).length > 0 ? (
+              {r.matchedTickers.length > 0 ? (
                 <p className="flex flex-wrap gap-1 mt-0.5">
-                  {r.matchedCompanyIds.slice(0, 6).map((tid) => (
-                    <span key={tid} className="inline-flex items-center rounded border border-border/40 bg-muted/20 px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                  {r.matchedTickers.map((tid) => (
+                    <span key={tid} className="inline-flex items-center rounded border border-border/40 bg-muted/20 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground">
                       {tid}
                     </span>
                   ))}
-                  {r.matchedCompanyIds.length > 6 && <span className="text-[9px] text-muted-foreground">+{r.matchedCompanyIds.length - 6}</span>}
+                  {r.matchedCount > r.matchedTickers.length && (
+                    <span className="text-[9px] text-muted-foreground">+{r.matchedCount - r.matchedTickers.length}</span>
+                  )}
                 </p>
               ) : null}
             </div>

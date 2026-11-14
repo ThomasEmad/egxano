@@ -37,6 +37,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/lib/client/api"
 import { useI18n } from "@/lib/i18n"
+import { sectorLabel } from "@/lib/sectors"
 import { BRAND } from "@/lib/brand"
 import { TradingViewChart } from "@/components/egx/tradingview"
 import { AdjustedPriceChart, type ChartCandle } from "@/components/egx/adjusted-price-chart"
@@ -724,7 +725,9 @@ function MarketContextStrip({ ctx, ar }: { ctx: MarketContextSection; ar: boolea
       ) : null}
       {sector ? (
         <span className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="font-medium">{sector.name ?? (ar ? "القطاع" : "Sector")}</span>
+          {/* 2026-11-14 audit fix: the sector name used to render raw ("Banks")
+              in Arabic mode — localize it like the rest of the product. */}
+          <span className="font-medium">{sector.name ? sectorLabel(sector.name, ar ? "ar" : "en") : (ar ? "القطاع" : "Sector")}</span>
           <span className={`tnum font-bold ${pctColor(sector.dayChangePct)}`} dir="ltr">{pctStr(sector.dayChangePct)}</span>
           {sector.turnoverSharePct !== null ? (
             <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -1007,10 +1010,13 @@ function ZonesSection({ zones, ar }: { zones: ZonesSnapshot | null | undefined; 
 export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?: string | null }) {
   const { lang } = useI18n()
   const ar = lang === "ar"
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ["company-technical", companyId],
     queryFn: () => api.companyTechnical(companyId),
     staleTime: 120_000,
+    // A 403 (PREMIUM_REQUIRED) is a final answer, not a transient failure —
+    // retrying can never succeed and only spams the endpoint.
+    retry: (attempt, err) => (err as Error & { status?: number })?.status === 403 ? false : attempt < 2,
   })
 
   if (isLoading) {
@@ -1034,12 +1040,38 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
     (c) => c && typeof c.t === "string" && [c.o, c.h, c.l, c.c].every((v) => Number.isFinite(v) && v > 0),
   )
   if (isError || !snap) {
+    // 2026-11-14 audit fix: a locked company (403 PREMIUM_REQUIRED) used to
+    // render the generic "could not be loaded — try again" error, sending free
+    // users into pointless retries on the highest-intent surface. It is a
+    // final entitlement answer — show the upgrade CTA instead.
+    const locked = (error as (Error & { status?: number }) | null)?.status === 403
     return (
       <div className="space-y-4">
         <DisclaimerBanner ar={ar} />
-        <Card className="p-6 text-center text-sm text-muted-foreground">
-          {ar ? "تعذر تحميل التحليل الفني الآن — أعد المحاولة." : "Technical analysis could not be loaded — try again."}
-        </Card>
+        {locked ? (
+          <Card className="p-8 text-center">
+            <div className="mx-auto flex max-w-md flex-col items-center gap-3">
+              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                {ar ? "المحتوى الفني مقفل" : "Locked technical content"}
+              </Badge>
+              <p className="text-sm text-muted-foreground">
+                {ar
+                  ? "التحليل الفني لكل شركات البورصة (مناطق الدخول والخروج ووقف الخسارة) متاح في باقتي Pro و Pro Plus."
+                  : "Technical analysis for every listed company (entry/exit zones and stop levels) is available on Pro and Pro Plus."}
+              </p>
+              <Link
+                href="/premium"
+                className="inline-flex h-9 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+              >
+                {ar ? "ترقية الآن" : "Upgrade now"}
+              </Link>
+            </div>
+          </Card>
+        ) : (
+          <Card className="p-6 text-center text-sm text-muted-foreground">
+            {ar ? "تعذر تحميل التحليل الفني الآن — أعد المحاولة." : "Technical analysis could not be loaded — try again."}
+          </Card>
+        )}
       </div>
     )
   }

@@ -9,6 +9,12 @@ const scriptSrc = [
   ...(isDev ? ["'unsafe-eval'"] : []),
   "https://www.googletagmanager.com",
   "https://www.google-analytics.com",
+  // AdSense loader + the script origins it injects (2026-11-14 audit: the
+  // loader was loaded on every page but blocked by our own CSP — console
+  // violations on every route and ad slots stuck on their placeholders).
+  "https://pagead2.googlesyndication.com",
+  "https://*.googlesyndication.com",
+  "https://googleads.g.doubleclick.net",
   // TradingView embed widgets (public chart/technical-summary iframes on the
   // company page). Presentation only — no platform data leaves the app.
   "https://s3.tradingview.com",
@@ -20,9 +26,11 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
-  "connect-src 'self' https://www.google-analytics.com https://*.tradingview.com wss://*.tradingview.com",
-  // TradingView widgets render inside iframes hosted on these origins.
-  "frame-src https://s3.tradingview.com https://s.tradingview.com https://www.tradingview.com https://tradingview-widget.com",
+  "connect-src 'self' https://www.google-analytics.com https://*.tradingview.com wss://*.tradingview.com https://pagead2.googlesyndication.com https://*.googlesyndication.com https://googleads.g.doubleclick.net",
+  // TradingView widgets render inside iframes hosted on these origins — the
+  // embed page actually lives on the `www.` host (live audit 2026-11-14:
+  // framing https://www.tradingview-widget.com was blocked).
+  "frame-src https://s3.tradingview.com https://s.tradingview.com https://www.tradingview.com https://tradingview-widget.com https://www.tradingview-widget.com https://googleads.g.doubleclick.net https://*.googlesyndication.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

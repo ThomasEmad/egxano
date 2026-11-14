@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { Activity, BellRing, Building2, FileText, LineChart, Sparkles } from "lucide-react"
+import { Activity, BellRing, Building2, FileText, LineChart } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 
@@ -28,7 +28,6 @@ async function loadStatus() {
         companiesActive: number
         financialReports: number
         marketPricePoints: number
-        aiAnalyses: number
         latestReportImportedAt: string | null
       }
       usage: { activePriceAlerts: number }
@@ -65,12 +64,6 @@ export default async function StatusPage() {
       labelAr: "نقاط الأسعار المسجّلة",
       labelEn: "Recorded price points",
       value: s ? s.data.marketPricePoints.toLocaleString("en-EG") : "—",
-    },
-    {
-      icon: Sparkles,
-      labelAr: "تحليلات AI محفوظة",
-      labelEn: "Cached AI analyses",
-      value: s ? s.data.aiAnalyses.toLocaleString("en-EG") : "—",
     },
     {
       icon: BellRing,

@@ -5,6 +5,7 @@ import { gatherCompanyAnalytics } from "@/lib/analytics/gather"
 import { computeCompanyScores } from "@/lib/financial/scores"
 import { CALC_METRIC_MAP, EVENT_TYPE_MAP } from "@/lib/financial/registry"
 import { getActivePlanId } from "@/lib/subscription"
+import { hashToken } from "@/lib/secure-compare"
 import { PrintReportButton } from "./print-button"
 
 // /company/[id]/report — print-ready investor report.
@@ -51,8 +52,12 @@ export default async function CompanyReportPage({ params }: { params: Promise<{ 
   const { cookies } = await import("next/headers")
   const cookieStore = await cookies()
   const token = cookieStore.get("egx-user-token")?.value ?? null
+  // 2026-11-14 audit fix: sessions are stored SHA-256-hashed (auth.ts hashToken
+  // at create time, getSessionUser hashes before lookup). This gate looked the
+  // RAW cookie token up verbatim — the lookup could never match, so every
+  // PRO_PLUS subscriber was served the locked panel.
   const sessionUserId = token
-    ? await db.session.findUnique({ where: { token }, select: { userId: true } })
+    ? await db.session.findUnique({ where: { token: hashToken(token) }, select: { userId: true } })
     : null
   const planId = sessionUserId ? await getActivePlanId(sessionUserId.userId) : "FREE"
   const proPlus = planId === "PRO_PLUS"

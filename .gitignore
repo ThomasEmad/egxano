@@ -69,3 +69,8 @@ download/backups/
 # dividends enrichment runtime artifacts (large price-history caches)
 reports/dividends-enrich-charts/
 reports/dividends-enrich-applied.json
+
+# playwright artifacts
+test-results/
+playwright-report/
+blob-report/

@@ -51,7 +51,11 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "@typescript-eslint/no-require-imports": "off",
   },
 }, {
-  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills"]
+  // `scripts/staging/**` is a frozen backup tree of the pre-rename deployment
+  // (excluded from vitest for the same reason) and `brand-artifacts/**` holds
+  // design-automation scripts — neither ships to production, so linting them
+  // only produces noise errors that mask real ones.
+  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "scripts/staging/**", "brand-artifacts/**", "reports/**", "tool-results/**"]
 }];
 
 export default eslintConfig;

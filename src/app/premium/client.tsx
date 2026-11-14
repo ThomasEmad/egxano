@@ -70,14 +70,18 @@ function fmtRangeLimit(v: number | "ALL" | "UNLIMITED", allAr: string, unAr: str
  *  fire before React attaches onError (SSR-rendered <img>), so completeness is
  *  also checked on mount. The real barcode is set by the admin via the
  *  INSTAPAY_QR_URL setting; until then a dashed placeholder renders. */
-function InstaPayQr({ src, ar }: { src: string; ar: boolean }) {
+function InstaPayQr({ src, ar }: { src: string | null; ar: boolean }) {
   const [broken, setBroken] = useState(false)
   const ref = useRef<HTMLImageElement | null>(null)
   useEffect(() => {
     const el = ref.current
     if (el && el.complete && el.naturalWidth === 0) setBroken(true)
   }, [src])
-  if (broken) {
+  // 2026-11-14 audit fix: when no INSTAPAY_QR_URL setting exists the old code
+  // requested the nonexistent static /instapay-qr.png — a 404 console error on
+  // every premium-page visit — before falling back to this placeholder. Now
+  // the placeholder renders directly and no doomed request is made.
+  if (!src || broken) {
     return (
       <div className="flex h-[132px] w-[132px] shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border/70 bg-muted/30 text-center">
         <QrCode className="h-6 w-6 text-muted-foreground/50" aria-hidden />
@@ -172,7 +176,7 @@ export default function PremiumPage() {
   // InstaPay is the only payment channel: the user scans the QR, transfers the
   // amount, and writes their REGISTERED EMAIL in the InstaPay note — the admin
   // matches the payment to the account from that note and activates.
-  const instapayQr = typeof settings.INSTAPAY_QR_URL === "string" && settings.INSTAPAY_QR_URL.trim() !== "" ? settings.INSTAPAY_QR_URL.trim() : "/instapay-qr.png"
+  const instapayQr = typeof settings.INSTAPAY_QR_URL === "string" && settings.INSTAPAY_QR_URL.trim() !== "" ? settings.INSTAPAY_QR_URL.trim() : null
   const instructions = typeof settings.PAYMENT_INSTRUCTIONS === "string" ? settings.PAYMENT_INSTRUCTIONS : ""
   const subscription = subStatus?.subscription
   const isPremium = !!subStatus?.isPremium

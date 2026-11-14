@@ -5,8 +5,8 @@
 // events, dividend records), states the market-price freshness, and can feed a
 // comparison selection (2–4) that hands off to /compare.
 
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { Building2, ChevronLeft, ChevronRight, Download, FileText, Scale, Search, TrendingDown, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -63,20 +63,58 @@ function usable(metric: SnapshotMetric | undefined): metric is SnapshotMetric & 
 }
 
 export function CompaniesPageShell() {
+  // 2026-11-14 audit fix (B-17): the listing used to ignore every deep-linked
+  // query param — ?search=/?sector=/?page= all rendered the unfiltered page 1,
+  // and a browser refresh lost the visitor's filters entirely. The listing now
+  // hydrates its state from the URL and mirrors state back so share/refresh
+  // keep the exact view. useSearchParams needs a Suspense boundary for the
+  // static prerender pass.
+  return (
+    <Suspense fallback={null}>
+      <CompaniesListing />
+    </Suspense>
+  )
+}
+
+function CompaniesListing() {
   const { lang, pick } = useI18n()
   const ar = lang === "ar"
   const router = useRouter()
+  const searchParams = useSearchParams()
 
-  const [searchInput, setSearchInput] = useState("")
-  const [search, setSearch] = useState("")
-  const [sector, setSector] = useState<string | null>(null)
+  // State hydrates FROM the URL (deep links, refresh) — B-17 regression fix.
+  const [searchInput, setSearchInput] = useState(() => searchParams.get("search") ?? "")
+  const [search, setSearch] = useState(() => searchParams.get("search") ?? "")
+  const [sector, setSector] = useState<string | null>(() => searchParams.get("sector") || null)
   // Fixed sort — market cap only (alphabetical filter removed 2026-11-14 by owner request).
   const [sort] = useState<"ticker" | "marketCap">("marketCap")
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useState(() => {
+    const p = Number(searchParams.get("page") ?? 1)
+    return Number.isFinite(p) && p >= 1 ? Math.floor(p) : 1
+  })
   const [compareMode, setCompareMode] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
 
+  // …and mirrors back TO the URL so refresh / copy-link / share keep the exact
+  // view (replaceState: no history spam from the debounced search).
   useEffect(() => {
+    const u = new URLSearchParams()
+    if (search) u.set("search", search)
+    if (sector) u.set("sector", sector)
+    if (page > 1) u.set("page", String(page))
+    const qs = u.toString()
+    window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`)
+  }, [search, sector, page])
+
+  // Debounce typed search into the applied search — but NOT on the mount pass,
+  // otherwise it would reset a deep-linked ?page=3 back to 1 (B-17 regression
+  // guard).
+  const firstSearchSync = useRef(true)
+  useEffect(() => {
+    if (firstSearchSync.current) {
+      firstSearchSync.current = false
+      return
+    }
     const t = setTimeout(() => {
       setSearch(searchInput.trim())
       setPage(1)

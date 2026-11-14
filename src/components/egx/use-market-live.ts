@@ -14,7 +14,7 @@
 // The manual "تحديث الآن" button stays — this hook is the automatic layer on
 // top, not a replacement.
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { egxMarketStatus, type EgxMarketStatus } from "@/lib/market/egx-hours"
 
@@ -27,7 +27,12 @@ export function useMarketLive(queryKeyPrefixes: string[] = []) {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [tick, setTick] = useState(0)
   const prefixesRef = useRef(queryKeyPrefixes)
-  prefixesRef.current = queryKeyPrefixes
+  // 2026-11-14 audit fix: the mirror used to be assigned during render (ref
+  // write in render — the React Compiler's refs rule fired). Mirror in an
+  // effect instead; callers pass fresh array literals, so this stays current.
+  useEffect(() => {
+    prefixesRef.current = queryKeyPrefixes
+  }, [queryKeyPrefixes])
 
   const refresh = useCallback(
     async (reason: "timer" | "visible" | "manual") => {
@@ -82,12 +87,17 @@ export function useMarketLive(queryKeyPrefixes: string[] = []) {
 
 // A "first load already counts as an update" nicety: dashboards render fresh
 // data on mount; stamp it so the badge never says "آخر تحديث: —" for long.
-export function useStampOnMount() {
-  const [stamped, setStamped] = useState(false)
-  useEffect(() => {
-    if (!stamped) setStamped(true)
-  }, [stamped])
-  return stamped
+// 2026-11-14 audit fix: this used a set-state-in-effect mount flag (lint error
+// + a cascading render on every mount). useSyncExternalStore gives the exact
+// same hydration-safe semantics (false on the server/first paint, true after)
+// with no effect and no cascade.
+const mountedSubscribe = () => () => {}
+export function useStampOnMount(): boolean {
+  return useSyncExternalStore(
+    mountedSubscribe,
+    () => true,
+    () => false,
+  )
 }
 
 /** Relative "آخر تحديث" label in Arabic-friendly short form. */

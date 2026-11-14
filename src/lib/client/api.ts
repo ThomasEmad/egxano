@@ -314,7 +314,8 @@ export interface RunHistoryItem {
   isPreset: boolean
   periodBasis: string
   matchedCount: number
-  matchedCompanyIds: string[]
+  /** Public tickers of the first few matches (internal IDs never leave the server). */
+  matchedTickers: string[]
   ranAt: string
 }
 
@@ -444,7 +445,9 @@ export const api = {
   metrics: (id: string, statementType?: string, periodView?: string) =>
     fetch(`/api/v1/companies/${id}/metrics?${qs({ statementType, period_view: periodView })}`).then((r) => handle<MetricsData>(r)),
 
-  downloadReportUrl: (id: string) => `/api/v1/reports/${id}/download`,
+  // (downloadReportUrl DELETED 2026-11-14: /api/v1/reports/[id]/download does
+  // not exist and the ingested filing files are not hosted on serverless — the
+  // Documents tab now shows metadata only, no broken download button.)
 
   companyTechnical: (id: string) =>
     fetch(`/api/v1/companies/${id}/technical`).then((r) =>
@@ -563,68 +566,7 @@ export const api = {
 }
 
 // ---------------------------------------------------------------------------
-// Per-stock audio briefing ("البريفينج المسموع")
+// (audio briefing client layer DELETED 2026-11-14 — the briefing/TTS feature
+// was removed end-to-end; these functions targeted a nonexistent
+// /api/v1/companies/[id]/briefing route and nothing referenced them.)
 // ---------------------------------------------------------------------------
-
-export interface CompanyBriefingAccess {
-  plan: "FREE" | "PRO" | "PRO_PLUS"
-  allowed: boolean
-  trialExpiresAt: string | null
-  reason: "OK" | "LOGIN_REQUIRED" | "TRIAL_EXPIRED" | "GENERATING" | "FAILED"
-}
-
-export interface CompanyBriefingData {
-  ok: boolean
-  ticker: string
-  nameAr: string
-  /** Narration text — also used for the browser-speech fallback when TTS fails. */
-  scriptAr: string
-  status: "READY" | "FAILED" | "MISSING"
-  hasAudio: boolean
-  durationSec: number | null
-  access: CompanyBriefingAccess
-  updatedAt: string | null
-}
-
-export interface BriefingPlayErrorBody {
-  reason?: "LOGIN_REQUIRED" | "TRIAL_EXPIRED" | "FAILED" | "RATE_LIMITED"
-  message?: string
-  upgradeUrl?: string
-  trialExpiresAt?: string | null
-}
-
-/** GET briefing metadata + access decision (never carries audio bytes). */
-export function getCompanyBriefing(companyId: string): Promise<CompanyBriefingData> {
-  return fetch(`/api/v1/companies/${companyId}/briefing`, { headers: authHeaders() }).then((r) =>
-    handle<CompanyBriefingData>(r),
-  )
-}
-
-/**
- * POST play → the WAV itself as a Blob (Content-Type audio/wav, private
- * no-store). Non-OK responses are JSON — parsed and attached to the thrown
- * error as `status` + `body` (same error style as handle() above) so the
- * player can branch on reason: LOGIN_REQUIRED / TRIAL_EXPIRED / FAILED.
- */
-export async function postCompanyBriefingPlay(companyId: string): Promise<Blob> {
-  const res = await fetch(`/api/v1/companies/${companyId}/briefing`, {
-    method: "POST",
-    headers: authHeaders(),
-  })
-  if (!res.ok) {
-    let body: BriefingPlayErrorBody = {}
-    try {
-      body = (await res.json()) as BriefingPlayErrorBody
-    } catch {
-      // non-JSON error body — fall back to the generic message
-    }
-    const err = new Error(body.message || `Request failed (${res.status})`) as Error & {
-      status?: number
-      body?: BriefingPlayErrorBody
-    }
-    err.status = res.status
-    err.body = body
-    throw err
-  }
-  return res.blob()
-}

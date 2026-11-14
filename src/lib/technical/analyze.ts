@@ -26,6 +26,7 @@ import {
   type Bar,
 } from "./indicators"
 import { analyzeStructure, type StructureSnapshot } from "./structure"
+import { effectiveEgxSessionDate } from "@/lib/market/egx-session"
 // VSA and the analytical quality score were REMOVED from the assembled bundle
 // per owner directive (technical@4): the tab no longer renders them and the
 // market-intelligence framing replaced them. The types stay imported so the
@@ -294,8 +295,19 @@ export async function buildTechnicalBundle(companyId: string, context: MarketCon
   })
   let syntheticCount = 0
   const scannerByDay = new Map<string, Bar>()
+  // Days whose bar came from an off-session (Fri/Sat) quote anchored back onto
+  // the session it restates — those must only fill gaps, never flatten a real
+  // OHLC bar that already exists for the anchored session.
+  const anchoredFromOffSession = new Set<string>()
   for (const r of priceRows) {
-    const day = r.asOf.toISOString().slice(0, 10)
+    // EGX session anchoring (2026-11-14 audit): a quote pulled on Friday or
+    // Saturday restates the previous close — it must NOT become a new session.
+    // Without this anchor every weekend refresh manufactured a phantom
+    // O=H=L=C session that inflated the session count, zeroed the day change
+    // and shifted every indicator (live incident: COMI buy 71 → wait 50).
+    const rawDay = r.asOf.toISOString().slice(0, 10)
+    const day = effectiveEgxSessionDate(r.asOf)
+    if (day !== rawDay) anchoredFromOffSession.add(day)
     scannerByDay.set(day, {
       ts: day, // Bar.ts is an ISO date string (UTC midnight of the session)
       open: r.price, high: r.price, low: r.price, close: r.price,
@@ -314,6 +326,10 @@ export async function buildTechnicalBundle(companyId: string, context: MarketCon
     sourceByDay.set(day, "pricebar")
   }
   for (const [day, bar] of scannerByDay) {
+    // Off-session quotes were anchored onto a day that usually already has a
+    // real OHLC bar (the session they restate). A close-only flat bar must
+    // never flatten that bar's real range — only fill a genuine gap.
+    if (anchoredFromOffSession.has(day) && byDay.has(day)) continue
     byDay.set(day, bar)
     sourceByDay.set(day, "scanner")
   }

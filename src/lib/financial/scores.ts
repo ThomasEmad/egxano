@@ -245,7 +245,18 @@ export async function computeCompanyScores(companyId: string): Promise<CompanySc
   }
 }
 
-/** Market-wide valuation screen: discount vs sector medians, strongest discounts first. */
+/** Market-wide valuation screen: discount vs sector medians, strongest discounts first.
+ *
+ *  2026-11-14 audit fix: this used to await ~200 sequential computeCompanyScores
+ *  calls — each several DB round trips. On production latency that exceeded the
+ *  serverless function budget, so the 5-minute cache never populated and EVERY
+ *  request re-ran the full loop until the function was killed (observed: the
+ *  endpoint never answered within 100s and the dashboard widget hung forever).
+ *  Two bounds now make the worst case finite:
+ *   - bounded concurrency (8 workers) over the screened companies;
+ *   - a wall-clock budget (20s): the loop returns the strongest discounts
+ *     gathered so far instead of never returning.
+ */
 export async function marketValuationScreen(limit = 24) {
   // active filers only: must have REVENUE or NET_PROFIT from the last 2 fiscal years
   const recent = await db.financialValue.findMany({
@@ -260,24 +271,37 @@ export async function marketValuationScreen(limit = 24) {
     pe: number | null; pb: number | null; sectorMedianPe: number | null
     discountPct: number | null; verdict: string
   }[] = []
-  for (const co of screened) {
-    const s = await computeCompanyScores(co.id)
-    if (!s?.valuation || s.valuation.verdict === "no-price") continue
-    const v = s.valuation
-    const discounts = [v.peDiscountPct, v.pbDiscountPct].filter((x): x is number => x !== null)
-    const discountPct = discounts.length ? Math.round((discounts.reduce((a, b) => a + b, 0) / discounts.length) * 10) / 10 : null
-    out.push({
-      companyId: co.id,
-      ticker: co.ticker,
-      name: co.nameAr || co.nameEn,
-      sector: co.sector,
-      pe: v.pe,
-      pb: v.pb,
-      sectorMedianPe: v.sectorMedianPe,
-      discountPct,
-      verdict: v.verdict ?? "fair",
-    })
+  const startedAt = Date.now()
+  const BUDGET_MS = 20_000
+  const CONCURRENCY = 8
+  let cursor = 0
+  async function worker() {
+    while (cursor < screened.length) {
+      if (Date.now() - startedAt > BUDGET_MS) return
+      const co = screened[cursor++]
+      try {
+        const s = await computeCompanyScores(co.id)
+        if (!s?.valuation || s.valuation.verdict === "no-price") continue
+        const v = s.valuation
+        const discounts = [v.peDiscountPct, v.pbDiscountPct].filter((x): x is number => x !== null)
+        const discountPct = discounts.length ? Math.round((discounts.reduce((a, b) => a + b, 0) / discounts.length) * 10) / 10 : null
+        out.push({
+          companyId: co.id,
+          ticker: co.ticker,
+          name: co.nameAr || co.nameEn,
+          sector: co.sector,
+          pe: v.pe,
+          pb: v.pb,
+          sectorMedianPe: v.sectorMedianPe,
+          discountPct,
+          verdict: v.verdict ?? "fair",
+        })
+      } catch {
+        // one company failing must not sink the whole screen
+      }
+    }
   }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, screened.length) }, worker))
   return out
     .filter((r) => r.discountPct !== null)
     .sort((a, b) => (b.discountPct ?? -999) - (a.discountPct ?? -999))

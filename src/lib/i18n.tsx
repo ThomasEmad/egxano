@@ -327,7 +327,17 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
       const saved = localStorage.getItem("egx-lang") as Lang | null
-      if (saved === "ar" || saved === "en") setLangState(saved)
+      if (saved === "ar" || saved === "en") {
+        setLangState(saved)
+        return
+      }
+      // 2026-11-14 audit fix: no saved preference → honor the browser's
+      // language. The audience is Egyptian; an ar-* browser (ar-EG, ar-SA, …)
+      // should start in Arabic instead of being pinned to English. The render
+      // stays hydration-safe: SSR English, client settles on the next frame.
+      if (typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("ar")) {
+        setLangState("ar")
+      }
     })
     return () => cancelAnimationFrame(raf)
   }, [])

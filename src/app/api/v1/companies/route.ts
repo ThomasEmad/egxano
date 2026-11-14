@@ -20,8 +20,10 @@ type CompanyWithCounts = Prisma.CompanyGetPayload<{
 //   tickers=COMI,ETEL     explicit ticker set (used by featured/editorial rows)
 //
 // Sorting (dir=asc|desc, default depends on the field):
-//   sort=ticker        alphabetical ticker (default)
-//   sort=marketCap     current price × shares outstanding
+//   sort=marketCap     current price × shares outstanding (default — the UI
+//                      exposes market-cap ordering only; alphabetical sort was
+//                      removed by owner decision 2026-11-14)
+//   sort=ticker        alphabetical ticker (kept for internal/CSV consumers)
 //   sort=changePct     today's move, from the 15-min-delayed snapshot
 //   sort=p_e           cheapest earnings first (nulls last)
 //   sort=dividend_yield fattest trailing yield first (nulls last)
@@ -76,8 +78,10 @@ async function listCompanies(url: URL): Promise<unknown> {
   const sector = url.searchParams.get("sector")?.trim() || ""
   const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1)
   const pageSize = Math.min(50, Math.max(1, Number(url.searchParams.get("pageSize") ?? 9) || 9))
-  const sortRaw = url.searchParams.get("sort")?.trim() || "ticker"
-  const sort = ADVANCED_SORTS.has(sortRaw) ? sortRaw : sortRaw === "marketCap" ? "marketCap" : "ticker"
+  // Default ordering is market cap (owner decision 2026-11-14: alphabetical is
+  // no longer the product default). Explicit legacy values still resolve.
+  const sortRaw = url.searchParams.get("sort")?.trim() || "marketCap"
+  const sort = ADVANCED_SORTS.has(sortRaw) ? sortRaw : sortRaw === "marketCap" || sortRaw === "ticker" ? sortRaw : "marketCap"
   const dirRaw = url.searchParams.get("dir")?.trim().toLowerCase()
   const dir = dirRaw === "asc" || dirRaw === "desc" ? dirRaw : null
 

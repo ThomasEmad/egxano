@@ -24,6 +24,7 @@
 import { db } from "@/lib/db"
 import { cached } from "@/lib/server-cache"
 import { applyCorporateActionAdjustments, loadSeriesActionsByCompany, type SeriesBar } from "@/lib/market/corporate-actions"
+import { effectiveEgxSessionDate } from "@/lib/market/egx-session"
 import { computeCloseSignal, SIGNALS_VERSION, type CloseSignalOutput, type TechStance } from "./signals"
 import { readCanonicalStance, BOARD_MAX_AGE_MS, STANCE_ENGINE_VERSION } from "./stance-store"
 
@@ -101,7 +102,13 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
   for (const r of priceRows) {
     let m = byDayAll.get(r.companyId)
     if (!m) { m = new Map(); byDayAll.set(r.companyId, m) }
-    const day = r.asOf.toISOString().slice(0, 10)
+    // EGX session anchoring (2026-11-14 audit): Fri/Sat quotes restate the
+    // previous close — anchor them onto the session they belong to instead of
+    // minting a phantom weekend session. Never clobber an existing close for
+    // the anchored day (the real session bar stays authoritative).
+    const rawDay = r.asOf.toISOString().slice(0, 10)
+    const day = effectiveEgxSessionDate(r.asOf)
+    if (day !== rawDay && m.has(day)) continue
     m.set(day, { ts: day, close: r.price, volume: r.volume !== null && Number.isFinite(r.volume) && r.volume > 0 ? r.volume : null })
   }
   const companyById = new Map(companies.map((c) => [c.id, c]))

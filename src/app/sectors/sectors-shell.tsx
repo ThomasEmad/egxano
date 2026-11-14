@@ -80,12 +80,15 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
   const live = useMarketLive(year === "all" ? ["sector-aggs", "market-treemap"] : [])
 
   // A pin the current basis can't satisfy resets to auto instead of showing
-  // a table of dashes forever.
+  // a table of dashes forever. 2026-11-14 audit fix: the reset used to call
+  // pickYear("all") synchronously inside the effect body (react-hooks/
+  // set-state-in-effect). The reset is rare, one-shot, and must refetch with
+  // the collapsed basis — so it is deferred one microtask: identical
+  // behavior, no cascading render.
   useEffect(() => {
     const years = sectorAggs?.years
-    if (years && year !== "all" && !years.includes(Number(year))) pickYear("all")
+    if (years && year !== "all" && !years.includes(Number(year))) queueMicrotask(() => pickYear("all"))
   }, [sectorAggs, year, pickYear])
-
   const aggMap = new Map((sectorAggs?.sectors ?? []).map((s) => [s.sector, s]))
 
   const sectorData = sectors.map((s) => {

@@ -16,7 +16,6 @@ export interface StatusPayload {
     companiesActive: number
     financialReports: number
     marketPricePoints: number
-    aiAnalyses?: number
     latestReportImportedAt: string | null
   }
   usage?: { activePriceAlerts: number }

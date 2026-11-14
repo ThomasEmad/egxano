@@ -754,7 +754,11 @@ function HeroPreview({
           </div>
           {marketAsOf && (
             <span className="flex-shrink-0 text-[10px] px-2 py-1 rounded-full bg-muted/50 text-muted-foreground">
-              {ar ? `أسعار: ${marketAsOf}` : `Prices: ${marketAsOf}`}
+              {/* 2026-11-14 audit fix: this used to print the raw ISO string
+                  ("Prices: 2026-11-13T06:31:19.787Z") — format it instead. */}
+              {ar
+                ? `أسعار: ${new Date(marketAsOf).toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" })}`
+                : `Prices: ${new Date(marketAsOf).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}`}
             </span>
           )}
         </div>
@@ -768,13 +772,20 @@ function HeroPreview({
           />
           <MetricPreview
             label={ar ? "التغير" : "Change"}
-            value={changeText(company.marketPrice?.changePct)}
+            // The value already carries the sign — the unit renders separately,
+            // so pass the number WITHOUT its % (used to render "-1.22% %").
+            value={
+              company.marketPrice?.changePct === null || company.marketPrice?.changePct === undefined
+                ? "—"
+                : `${company.marketPrice.changePct >= 0 ? "+" : ""}${company.marketPrice.changePct.toFixed(2)}`
+            }
             unit="%"
           />
           <MetricPreview
             label={ar ? "القيمة السوقية" : "Market Cap"}
+            // egp() already embeds the currency and the B/مليار scale — a unit
+            // suffix here used to duplicate it ("EGP 425B B EGP").
             value={company.marketCap ? egp(company.marketCap, ar) : "—"}
-            unit={ar ? "مليار ج.م" : "B EGP"}
           />
           <MetricPreview
             label={ar ? "صافي الربح (سنوي)" : "Net Profit (Annual)"}

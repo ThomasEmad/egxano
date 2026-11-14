@@ -49,19 +49,18 @@ function FinishInner() {
     const error = search.get("error")
     const next = search.get("next") || "/"
 
-    if (error) {
-      setMsg(ERRORS[error] ?? { ar: "تعذّر تسجيل الدخول.", en: "Sign-in failed." })
-      return
-    }
+    // 2026-11-14 audit fix: the two synchronous setMsg calls here fired inside
+    // the effect body (set-state-in-effect → cascading render on a page that
+    // renders once). Both outcomes are fully derivable from values already in
+    // hand, so the error path now renders directly (see `urlError` below) and
+    // only genuinely async outcomes keep touching state.
+    if (error) return
 
     // token lives in the fragment — never sent to the server
     const hash = window.location.hash.replace(/^#/, "")
     const params = new URLSearchParams(hash)
     const token = params.get("token")
-    if (!token) {
-      setMsg(ERRORS.missing_token)
-      return
-    }
+    if (!token) return
 
     // verify before storing
     fetch("/api/v1/auth/me", { headers: { "x-session-token": token } })
@@ -79,14 +78,22 @@ function FinishInner() {
       .catch(() => setMsg(ERRORS.invalid_token))
   }, [router, search])
 
+  // URL-level sign-in errors (?error=<code>) are fully derivable during
+  // render — no effect or state needed (2026-11-14 audit fix).
+  const urlError = search.get("error")
+  const derivedMsg = urlError
+    ? (ERRORS[urlError] ?? { ar: "تعذّر تسجيل الدخول.", en: "Sign-in failed." })
+    : null
+  const shown = msg ?? derivedMsg
+
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center gap-4 px-4 text-center">
-      {msg ? (
+      {shown ? (
         <>
           <p className="max-w-sm rounded-lg border border-red-500/40 bg-red-500/8 px-4 py-3 text-sm text-red-600 dark:text-red-400" role="alert">
-            <span dir="auto">{msg.ar}</span>
+            <span dir="auto">{shown.ar}</span>
             <br />
-            {msg.en}
+            {shown.en}
           </p>
           <Link href="/login" className="text-sm font-semibold text-primary hover:underline">
             <span dir="auto">العودة لتسجيل الدخول</span>
