@@ -11,7 +11,7 @@
     },
     {
       "path": "/api/v1/cron/alerts-push",
-      "schedule": "*/10 * * * *"
+      "schedule": "0 14 * * *"
     }
   ]
 }
