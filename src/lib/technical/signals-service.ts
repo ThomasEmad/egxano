@@ -27,9 +27,12 @@ import { applyCorporateActionAdjustments, loadSeriesActionsByCompany, type Serie
 import { effectiveEgxSessionDate } from "@/lib/market/egx-session"
 import { computeCloseSignal, SIGNALS_VERSION, type CloseSignalOutput, type TechStance } from "./signals"
 import { readCanonicalStance, BOARD_MAX_AGE_MS, STANCE_ENGINE_VERSION } from "./stance-store"
+import { persistBoardSnapshot } from "./board-snapshot"
 
-/** Calendar-day cutoff for the trailing window (~280 sessions where history exists). */
-const WINDOW_DAYS = 420
+/** Calendar-day cutoff for the trailing window. 300 days ≈ 200 EGX sessions —
+ *  still ≥3× the longest indicator window (rangePos60) with corporate-action
+ *  margin, and ~30% less DB egress on every cold compute. */
+const WINDOW_DAYS = 300
 const CACHE_MS = 10 * 60_000
 
 export interface MarketSignalRow extends CloseSignalOutput {
@@ -278,5 +281,57 @@ export function getCachedMarketSignals(): Promise<MarketSignalsOutput> {
   // v3: tier model changed — NILEX merged into MAIN, OTC activity sweep,
   // fresh EGX30 constituents + free-tier board gating copy. The bump
   // invalidates stale v2 payloads whose tier labels/copy no longer match.
-  return cached("technical-signals:market:v3", CACHE_MS, () => buildMarketSignalsUncached())
+  return cached("technical-signals:market:v3", CACHE_MS, async () => {
+    const payload = await buildMarketSignalsUncached()
+    // Shared read model: every successful compute persists the payload so a
+    // cold instance can serve instantly (write-behind — never fails the board).
+    void persistBoardSnapshot(payload)
+    return payload
+  })
+}
+
+// =============================================================================
+// Gated row shape for FREE callers — identity + public market price ONLY.
+// The paid analysis (signal, score, dimensions, reasons, styleFits, metrics,
+// trade plan) is removed server-side before serialization and never reaches
+// the browser, the network response, or any client state.
+// =============================================================================
+export interface GatedSignalRow {
+  companyId: string
+  ticker: string
+  nameEn: string
+  nameAr: string | null
+  sector: string
+  marketTier: string
+  lastClose: number | null
+  changePct: number | null
+  asOf: string | null
+  locked: true
+}
+
+export type BoardRow = MarketSignalRow | GatedSignalRow
+
+export interface BoardMatchedCounts {
+  buy: number
+  hold: number
+  sell: number
+  weak: number
+  total: number
+}
+
+/** The route's response shape: full rows for paid callers, gated rows for free. */
+export interface MarketSignalsResponse extends Omit<MarketSignalsOutput, "rows"> {
+  rows: BoardRow[]
+  /** distribution over the FILTERED set (true filter counts for every tier) */
+  matched?: BoardMatchedCounts
+  /** aggregate per-tier counts over the FILTERED set */
+  tiers?: Record<string, number>
+  /** aggregate per-style-tag counts over the FILTERED set */
+  styles?: Record<string, number>
+  /** locked identity rows omitted by the free slice cap */
+  lockedRemaining?: number
+  plan?: string
+  upgradeHint?: { message: string; freeSetSize: number } | null
+  hiddenCompanies?: number
+  missingFreeTickers?: string[]
 }

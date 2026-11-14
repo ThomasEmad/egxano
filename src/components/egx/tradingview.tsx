@@ -31,14 +31,18 @@ interface WidgetState {
  *  theme/locale/symbol change and cleans up on unmount (no duplicate iframes). */
 function useTradingViewWidget(widget: TvWidget, config: Record<string, unknown>): WidgetState {
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const [failed, setFailed] = useState(false)
+  // Failure is scoped to the exact config it was detected for: changing the
+  // theme/locale/symbol resets the flag by derivation, so the injection effect
+  // never needs a synchronous setState at its start (and no ref is read
+  // during render — the state value itself carries the config key).
+  const [failedJson, setFailedJson] = useState<string | null>(null)
   const json = JSON.stringify(config)
+  const failed = failedJson === json
 
   useEffect(() => {
     const host = containerRef.current
     if (!host) return
     host.innerHTML = ""
-    setFailed(false)
 
     const wrapper = document.createElement("div")
     wrapper.className = "tradingview-widget-container"
@@ -59,7 +63,7 @@ function useTradingViewWidget(widget: TvWidget, config: Record<string, unknown>)
     host.appendChild(wrapper)
 
     const timer = window.setTimeout(() => {
-      if (!host.querySelector("iframe")) setFailed(true)
+      if (!host.querySelector("iframe")) setFailedJson(json)
     }, READY_TIMEOUT_MS)
 
     return () => {

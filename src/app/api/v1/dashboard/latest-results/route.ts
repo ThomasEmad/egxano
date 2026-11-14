@@ -23,8 +23,14 @@ const TRUSTED = ["VALIDATED", "APPROVED", "EXTRACTED"]
 // new filing; a 10-min SWR cache + CDN edge headers keep the 800-row probe
 // (deduped to 12) from running per request.
 export async function GET() {
+  const t0 = Date.now()
   const data = await cached("dashboard:latest-results", 10 * 60_000, buildLatestResults)
-  return Response.json(data, { headers: { "Cache-Control": publicCacheControl(600) } })
+  return Response.json(data, {
+    headers: {
+      "Cache-Control": publicCacheControl(600),
+      "server-timing": `latest-results;dur=${Date.now() - t0}`,
+    },
+  })
 }
 
 async function buildLatestResults(): Promise<{ results: unknown[] }> {

@@ -462,9 +462,9 @@ export const api = {
       }>(r)
     ),
 
-  technicalSignals: () =>
-    fetch("/api/v1/technical/signals").then((r) =>
-      handle<import("@/lib/technical/signals-service").MarketSignalsOutput>(r)
+  technicalSignals: (query?: string) =>
+    fetch(`/api/v1/technical/signals${query ? `?${query}` : ""}`).then((r) =>
+      handle<import("@/lib/technical/signals-service").MarketSignalsResponse>(r)
     ),
 
   companyDocuments: (id: string) =>

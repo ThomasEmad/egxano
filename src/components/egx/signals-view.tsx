@@ -11,7 +11,7 @@
 // Free-tier gating: free/anonymous users read the first FREE_SIGNALS_ROWS rows
 // fully; the rest render as locked cards with a Pro upgrade CTA.
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import {
@@ -36,7 +36,7 @@ import { useWatchlist } from "@/lib/client/watchlist"
 import { FREE_SIGNALS_ROWS } from "@/lib/plans/entitlements"
 import { useMarketLive } from "./use-market-live"
 import { SIGNAL_META, STYLE_TAG_HINT_AR, STYLE_TAG_META, type TechSignalType, type TechStyleTag } from "@/lib/technical/signals"
-import type { MarketSignalRow } from "@/lib/technical/signals-service"
+import type { GatedSignalRow, MarketSignalRow, MarketSignalsResponse } from "@/lib/technical/signals-service"
 import { TIER_AR } from "@/lib/market/tiers"
 
 type SignalFilter = "all" | "buy" | "hold" | "sell" | "fav"
@@ -82,15 +82,11 @@ export function SignalsView() {
   // flash-of-locked while data loads.
   const { isPremium, isLoading: planLoading } = usePlan()
   const authed = !!getUserToken()
-
-  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
-    queryKey: ["technical-signals"],
-    queryFn: () => api.technicalSignals(),
-    staleTime: 120_000,
-  })
-
-  // While EGX is in session the board follows the price refresh cadence.
-  useMarketLive(["technical-signals"])
+  // Free/anonymous filtering runs SERVER-SIDE (one engine with the API): the
+  // server executes the filters on the FULL universe and returns matched
+  // companies — free ones unlocked, premium ones as locked identity cards.
+  // Premium keeps the instant client-side filtering over full rows.
+  const gateActive = !planLoading && !isPremium
 
   const [signalFilter, setSignalFilter] = useState<SignalFilter>("all")
   const [styleFilter, setStyleFilter] = useState<StyleFilter>("all")
@@ -105,24 +101,94 @@ export function SignalsView() {
   const [q, setQ] = useState("")
   const [sort, setSort] = useState<SortKey>("score")
 
-  const rows = data?.rows ?? []
+  const filtersActive =
+    signalFilter !== "all" ||
+    styleFilter !== "all" ||
+    rsiFilter !== "all" ||
+    liquidity !== "all" ||
+    dayMove !== "all" ||
+    tierFilter !== "all" ||
+    maFilter !== "all" ||
+    rangePosFilter !== "all" ||
+    scoreFilter !== "all" ||
+    sector !== "" ||
+    q.trim() !== ""
+
+  // Debounced search term for server-side filtering (a request per keystroke
+  // would be wasteful; 350ms is the standard search debounce).
+  const [debouncedQ, setDebouncedQ] = useState("")
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q), gateActive ? 350 : 0)
+    return () => clearTimeout(t)
+  }, [q, gateActive])
+
+  // Query string sent to the API when the server executes the filters.
+  const serverQuery = useMemo(() => {
+    if (!gateActive) return ""
+    const sp = new URLSearchParams()
+    if (signalFilter !== "all" && signalFilter !== "fav") sp.set("signal", signalFilter)
+    if (styleFilter !== "all") sp.set("style", styleFilter)
+    if (rsiFilter !== "all") sp.set("rsi", rsiFilter)
+    if (liquidity !== "all") sp.set("liquidity", liquidity)
+    if (dayMove !== "all") sp.set("dayMove", dayMove)
+    if (tierFilter !== "all") sp.set("tier", tierFilter)
+    if (maFilter !== "all") sp.set("ma", maFilter)
+    if (rangePosFilter !== "all") sp.set("rangePos", rangePosFilter)
+    if (scoreFilter !== "all") sp.set("score", scoreFilter)
+    if (sector) sp.set("sector", sector)
+    if (debouncedQ.trim()) sp.set("q", debouncedQ.trim())
+    if (sort !== "score") sp.set("sort", sort)
+    return sp.toString()
+  }, [gateActive, signalFilter, styleFilter, rsiFilter, liquidity, dayMove, tierFilter, maFilter, rangePosFilter, scoreFilter, sector, debouncedQ, sort])
+
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
+    queryKey: ["technical-signals", serverQuery || "client"],
+    queryFn: () => api.technicalSignals(serverQuery || undefined),
+    staleTime: gateActive ? 60_000 : 120_000,
+  })
+
+  // While EGX is in session the board follows the price refresh cadence.
+  useMarketLive(["technical-signals"])
+
+  const allRows = data?.rows ?? []
+  const matched = (data as MarketSignalsResponse | undefined)?.matched
+  const serverTiers = (data as MarketSignalsResponse | undefined)?.tiers
+  const serverStyles = (data as MarketSignalsResponse | undefined)?.styles
+  const lockedRemaining = (data as MarketSignalsResponse | undefined)?.lockedRemaining ?? 0
+  const upgradeMessage = (data as MarketSignalsResponse | undefined)?.upgradeHint?.message
+
+  const rows = allRows
 
   const sectors = useMemo(
     () => [...new Set(rows.map((r) => r.sector))].sort((a, b) => a.localeCompare(b)),
     [rows]
   )
 
+  // Chip counts: server aggregates when the server filters (locked rows can't
+  // expose their own values), local counts over full rows for premium.
   const counts = useMemo(() => {
+    if (gateActive) {
+      return {
+        all: matched?.total ?? 0,
+        buy: matched?.buy ?? 0,
+        hold: matched?.hold ?? 0,
+        sell: matched?.sell ?? 0,
+        fav: allRows.filter((r) => watch.has(r.companyId)).length,
+      }
+    }
     const c = { all: rows.length, buy: 0, hold: 0, sell: 0, fav: 0 }
     for (const r of rows) {
+      if ("locked" in r) continue
       if (r.signal) c[r.signal]++
       if (watch.has(r.companyId)) c.fav++
     }
     return c
-  }, [rows, watch.items])
+  }, [gateActive, matched, allRows, rows, watch])
 
-  const filtered = useMemo(() => {
-    let list = rows
+  // Premium path: identical client-side filtering as before (full rows).
+  const clientFiltered = useMemo(() => {
+    const fullRows = rows.filter((r): r is MarketSignalRow => !("locked" in r))
+    let list = fullRows
     if (signalFilter === "fav") list = list.filter((r) => watch.has(r.companyId))
     else if (signalFilter !== "all") list = list.filter((r) => r.signal === signalFilter)
     if (styleFilter !== "all") list = list.filter((r) => r.styleFits.some((f) => f.tag === styleFilter))
@@ -161,18 +227,15 @@ export function SignalsView() {
       }
     })
     return sorted
-  }, [rows, signalFilter, styleFilter, rsiFilter, liquidity, dayMove, tierFilter, maFilter, rangePosFilter, scoreFilter, sector, q, sort, watch.items])
+  }, [rows, signalFilter, styleFilter, rsiFilter, liquidity, dayMove, tierFilter, maFilter, rangePosFilter, scoreFilter, sector, q, sort, watch])
 
-  // Free-tier gating (2026-11-14): the API itself enforces the FIXED free set —
-  // free/anonymous callers only ever receive those rows (no locked ticker
-  // names cross the wire). The client keeps the locked-card placeholders as a
-  // visual affordance for what exists beyond the free coverage.
-  const gateActive = !planLoading && !isPremium
-  const hiddenCompanies = gateActive ? Math.max((data as { hiddenCompanies?: number } | null)?.hiddenCompanies ?? 0, 0) : 0
-  const visibleRows = filtered
-  const lockedCount = gateActive ? Math.min(FREE_SIGNALS_ROWS - visibleRows.length, FREE_SIGNALS_ROWS) : 0
-  // Cap the placeholder cards so a large locked set doesn't flood the grid.
-  const lockedPlaceholders = Math.min(lockedCount, 4)
+  // Free path: the server already filtered + sorted the full universe.
+  const serverRows = useMemo(() => {
+    if (signalFilter !== "fav") return allRows
+    return allRows.filter((r) => watch.has(r.companyId))
+  }, [allRows, signalFilter, watch])
+
+  const visibleRows = gateActive ? serverRows : clientFiltered
 
   if (isLoading) {
     return (
@@ -279,7 +342,9 @@ export function SignalsView() {
             {ar ? "كل الأنماط" : "All styles"}
           </button>
           {(["day", "swing", "trend", "reversal"] as TechStyleTag[]).map((st) => {
-            const n = rows.filter((r) => r.styleFits.some((f) => f.tag === st)).length
+            const n = gateActive
+              ? serverStyles?.[st] ?? 0
+              : rows.filter((r) => !("locked" in r) && r.styleFits.some((f) => f.tag === st)).length
             return (
               <button key={st} className={chip(styleFilter === st)} onClick={() => setStyleFilter(st)}>
                 {ar ? STYLE_TAG_META[st].ar : STYLE_TAG_META[st].en}
@@ -319,7 +384,9 @@ export function SignalsView() {
           {ar ? "الكل" : "All"}
         </button>
         {(["EGX30", "EGX70", "MAIN", "OTC"] as Exclude<TierFilter, "all">[]).map((t) => {
-          const n = rows.filter((r) => (r.marketTier ?? "MAIN") === t).length
+          const n = gateActive
+            ? serverTiers?.[t] ?? 0
+            : rows.filter((r) => !("locked" in r) && (r.marketTier ?? "MAIN") === t).length
           const label = ar ? (TIER_AR as unknown as Record<string, { short?: string }> | undefined)?.[t]?.short ?? t : t
           return (
             <button key={t} className={chip(tierFilter === t)} onClick={() => setTierFilter(t)}>
@@ -436,7 +503,7 @@ export function SignalsView() {
       </div>
 
       {/* Data-trust line */}
-      {data.weakData > 0 || data.rows.some((r) => r.limitations.length > 0) ? (
+      {data.weakData > 0 || data.rows.some((r) => !("locked" in r) && r.limitations.length > 0) ? (
         <p className="text-[11px] leading-relaxed text-muted-foreground">
           {ar
             ? `الشفافية: الحساب يعمل على أسعار الإغلاق اليومية من مسح السوق (${data.scored} شركة قابلة للقراءة، ${data.weakData} بتاريخ غير كافٍ — تظهر بدون درجة). السلسلة معدّلة لتوزيعات الأرباح والزيادات قبل الحساب، والجلسات القليلة الأخيرة قد تكون بسعر الجلسة الجاري وليس إغلاقًا نهائيًا.`
@@ -445,32 +512,41 @@ export function SignalsView() {
       ) : null}
 
       {/* Cards */}
-      {filtered.length === 0 ? (
+      {visibleRows.length === 0 ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">
           {ar ? "لا توجد نتائج مطابقة للفلاتر الحالية." : "No matches for the current filters."}
         </Card>
       ) : (
         <>
-          {/* Free-tier banner — visible only when rows are actually gated */}
-          {lockedCount > 0 || hiddenCompanies > 0 ? (
+          {/* Free-tier banner — real results, real counts, honest copy */}
+          {gateActive ? (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2">
-              <span className="text-xs font-medium text-foreground">
-                {ar
-                  ? `التغطية المجانية ثابتة على ${FREE_SIGNALS_ROWS} شركات${hiddenCompanies > 0 ? ` — باقي الشركات (${hiddenCompanies}) مع باقة برو` : ""}`
-                  : `Free coverage is a fixed set of ${FREE_SIGNALS_ROWS} companies${hiddenCompanies > 0 ? ` — the other ${hiddenCompanies} with Pro` : ""}`}
+              <span className="text-xs font-medium leading-relaxed text-foreground">
+                {filtersActive
+                  ? ar
+                    ? `تم العثور على ${matched?.total ?? visibleRows.length} شركة تطابق معاييرك${lockedRemaining > 0 ? ` — وإليك أول ${visibleRows.length}` : ""}. التفاصيل الكاملة متاحة مع Pro.`
+                    : `${matched?.total ?? visibleRows.length} companies match your filters${lockedRemaining > 0 ? ` — showing the first ${visibleRows.length}` : ""}. Full details with Pro.`
+                  : ar
+                    ? `التغطية المجانية: ${FREE_SIGNALS_ROWS} شركات بتفاصيل الإشارات الكاملة، و${Math.max((matched?.total ?? 0) - FREE_SIGNALS_ROWS, 0)} شركة أخرى مطابقة تظهر كشركات مقفولة.`
+                    : `Free coverage: ${FREE_SIGNALS_ROWS} companies with full signal details, and the other matches appear as locked cards.`}
               </span>
               <Button asChild size="sm" variant="link" className="h-auto px-0 text-xs font-semibold">
                 <Link href="/premium">{ar ? "ترقية الآن" : "Upgrade now"}</Link>
               </Button>
             </div>
           ) : null}
+          {gateActive && upgradeMessage ? (
+            <p className="text-[11px] leading-relaxed text-muted-foreground">{upgradeMessage}</p>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {visibleRows.map((r) => (
-              <SignalCard key={r.companyId} row={r} ar={ar} fav={watch.has(r.companyId)} onFav={() => watch.toggle({ id: r.companyId, ticker: r.ticker })} />
-            ))}
-            {Array.from({ length: lockedPlaceholders }).map((_, i) => (
-              <LockedSignalCard key={`locked-${i}`} ar={ar} authed={authed} />
-            ))}
+            {visibleRows.map((r) =>
+              "locked" in r ? (
+                <CompanyLockedCard key={r.companyId} row={r} ar={ar} authed={authed} filtersActive={filtersActive} />
+              ) : (
+                <SignalCard key={r.companyId} row={r} ar={ar} fav={watch.has(r.companyId)} onFav={() => watch.toggle({ id: r.companyId, ticker: r.ticker })} />
+              )
+            )}
+            {gateActive && lockedRemaining > 0 ? <MoreLockedCard ar={ar} count={lockedRemaining} /> : null}
           </div>
         </>
       )}
@@ -610,67 +686,127 @@ function SignalCard({ row, ar, fav, onFav }: { row: MarketSignalRow; ar: boolean
   )
 }
 
-function LockedSignalCard({ ar, authed }: { ar: boolean; authed: boolean }) {
+/**
+ * Locked Premium Card — a REAL matched company, not a placeholder: identity +
+ * public market price stay visible (the filter genuinely ran on the whole
+ * market), while the paid analysis (signal, score, metrics, levels) never
+ * reached the browser — the blur here is decorative, the server redacted the
+ * data. The design teases the locked value and gives one clear CTA.
+ */
+function CompanyLockedCard({
+  row,
+  ar,
+  authed,
+  filtersActive,
+}: {
+  row: GatedSignalRow
+  ar: boolean
+  authed: boolean
+  filtersActive: boolean
+}) {
+  const tier = tierShort(row.marketTier)
   return (
-    <Card className="relative overflow-hidden border-border/60 p-0">
-      {/* Skeletonized card body — same layout shape as SignalCard, blurred and
-          fully inert (no text selection, no pointer events, hidden from a11y). */}
-      <CardContent className="select-none space-y-2.5 px-4 py-3.5 blur-sm pointer-events-none" aria-hidden>
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-3 w-36" />
-          </div>
-          <Skeleton className="h-4 w-4 rounded-md" />
-        </div>
-        <div className="flex items-center justify-between gap-2">
-          <Skeleton className="h-6 w-28" />
-          <Skeleton className="h-5 w-20 rounded-full" />
-        </div>
-        <div className="space-y-1.5">
-          <Skeleton className="h-1.5 w-full rounded-full" />
-          <Skeleton className="h-3 w-3/4" />
-        </div>
-        <div className="grid grid-cols-4 gap-1.5">
-          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-9 rounded-md" />)}
-        </div>
-      </CardContent>
-
-      {/* Dimming gradient (background → transparent → background) + brand-accent glow */}
-      <div className="absolute inset-0 bg-gradient-to-b from-background via-background/70 to-background/95" />
+    <Card className="group relative overflow-hidden p-0 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+      {/* Brand-accent glow on hover — subtle, not an ad */}
       <div
-        className="pointer-events-none absolute -top-8 left-1/2 h-24 w-44 -translate-x-1/2 rounded-full opacity-25 blur-2xl"
+        className="pointer-events-none absolute -top-10 left-1/2 h-20 w-40 -translate-x-1/2 rounded-full opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-20"
         style={{ background: "var(--brand-accent)" }}
         aria-hidden
       />
+      <CardContent className="relative space-y-2.5 px-4 py-3.5">
+        {/* Identity — real company the filter matched */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 text-sm font-bold text-foreground">
+              <span dir="ltr">{row.ticker}</span>
+              {tier ? <span className="rounded bg-muted px-1 py-0.5 text-[9px] font-medium text-muted-foreground">{tier}</span> : null}
+            </div>
+            <p className="truncate text-xs text-muted-foreground" title={ar ? (row.nameAr ?? row.nameEn) : row.nameEn}>
+              {ar ? (row.nameAr ?? row.nameEn) : row.nameEn}
+            </p>
+            <p className="mt-0.5 truncate text-[11px] text-muted-foreground/80">{row.sector}</p>
+          </div>
+          <span
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 via-[var(--brand-accent)] to-emerald-500 shadow-sm"
+            aria-hidden
+          >
+            <Lock className="h-4 w-4 text-white" />
+          </span>
+        </div>
 
-      {/* Lock copy + CTA */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
-        <span
-          className="flex h-10 w-10 items-center justify-center rounded-full shadow-md bg-gradient-to-br from-amber-500 via-[var(--brand-accent)] to-emerald-500"
-          aria-hidden
-        >
-          <Lock className="h-5 w-5 text-white" />
-        </span>
-        <p className="text-xs font-semibold leading-relaxed text-foreground">
-          {ar
-            ? `المتابعة ورا ${FREE_SIGNALS_ROWS} شركات متاحة لباقات برو وبرو بلس`
-            : `Tracking beyond ${FREE_SIGNALS_ROWS} companies is for Pro and Pro Plus`}
-        </p>
+        {/* Public market price — free data, keeps the card honest and useful */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-baseline gap-1.5" dir="ltr">
+            <span className="text-lg font-bold tabular text-foreground">{row.lastClose?.toFixed(2) ?? "—"}</span>
+            <span className={`flex items-center text-xs font-semibold tabular ${pctCls(row.changePct)}`}>
+              {row.changePct !== null && row.changePct > 0 ? <ArrowUpRight className="h-3 w-3" aria-hidden /> : row.changePct !== null && row.changePct < 0 ? <ArrowDownRight className="h-3 w-3" aria-hidden /> : null}
+              {pctStr(row.changePct)}
+            </span>
+          </div>
+          {filtersActive ? (
+            <Badge variant="outline" className="shrink-0 border-primary/40 bg-primary/10 text-[10px] text-primary">
+              {ar ? "مطابق لفلاترك" : "Matches your filters"}
+            </Badge>
+          ) : null}
+        </div>
+
+        {/* Teaser of the locked value — blurred bars represent the hidden
+            signal details (decorative: the real values were never sent). */}
+        <div className="select-none space-y-1.5 blur-[3px]" aria-hidden>
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <span>{ar ? "الدرجة الفنية" : "Technical score"}</span>
+            <span className="tabular" dir="ltr">••/100</span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <div className="h-full w-2/3 rounded-full bg-gradient-to-r from-amber-500/60 via-[var(--brand-accent)]/60 to-emerald-500/60" />
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <span className="rounded-md border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600/70 dark:text-blue-400/70">{ar ? "دخول: ••" : "Entry: ••"}</span>
+            <span className="rounded-md border border-positive/30 bg-positive/10 px-1.5 py-0.5 text-[10px] font-semibold text-positive/70">{ar ? "الهدف: ••" : "Target: ••"}</span>
+            <span className="rounded-md border border-negative/30 bg-negative/10 px-1.5 py-0.5 text-[10px] font-semibold text-negative/70">{ar ? "وقف: ••" : "Stop: ••"}</span>
+          </div>
+        </div>
+
+        {/* Value proposition + CTA */}
         <p className="text-[11px] leading-relaxed text-muted-foreground">
           {ar
-            ? "افتح كل الشركات + كل الفلاتر + مناطق الدخول والخروج ووقف الخسارة"
-            : "Unlock every company, every filter, entry/exit zones and stop-loss"}
+            ? "الشركة دي طابقت فلاترك — افتح قراءتها الفنية كاملة: الاتجاه، الدرجات، ومناطق الدخول والخروج ووقف الخسارة."
+            : "This company matches your filters — unlock its full technical read: direction, score, entry/exit zones and stop-loss."}
         </p>
-        <Button asChild size="sm" className="h-7 gap-1.5 px-3 text-xs font-semibold">
-          <Link href="/premium">{ar ? "ترقية الآن" : "Upgrade now"}</Link>
+        <Button asChild size="sm" className="h-7 w-full gap-1.5 px-3 text-xs font-semibold">
+          <Link href="/premium">{ar ? "افتح التحليل مع Pro" : "Unlock with Pro"}</Link>
         </Button>
         {!authed ? (
-          <Link href="/login" className="text-[11px] text-muted-foreground underline-offset-2 hover:underline">
-            {ar ? "لديك باقة؟ سجّل دخول" : "Already subscribed? Sign in"}
+          <Link href="/login" className="block text-center text-[11px] text-muted-foreground underline-offset-2 hover:underline">
+            {ar ? "عندك باقة؟ سجّل دخول" : "Already subscribed? Sign in"}
           </Link>
         ) : null}
-      </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+/** Tail teaser — the server caps identity rows; the rest stay counted. */
+function MoreLockedCard({ ar, count }: { ar: boolean; count: number }) {
+  return (
+    <Card className="flex flex-col items-center justify-center gap-2 border-dashed border-primary/30 bg-primary/5 p-6 text-center">
+      <span
+        className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 via-[var(--brand-accent)] to-emerald-500 shadow-sm"
+        aria-hidden
+      >
+        <Lock className="h-4 w-4 text-white" />
+      </span>
+      <p className="text-xs font-semibold text-foreground">
+        {ar
+          ? `و ${count} شركة أخرى مطابقة لفلاترك`
+          : `${count} more matched companies`}
+      </p>
+      <p className="text-[11px] text-muted-foreground">
+        {ar ? "افتح كل النتائج وتفاصيلها مع باقة Pro" : "Unlock every match and its details with Pro"}
+      </p>
+      <Button asChild size="sm" variant="outline" className="h-7 px-3 text-xs font-semibold">
+        <Link href="/premium">{ar ? "ترقية الآن" : "Upgrade now"}</Link>
+      </Button>
     </Card>
   )
 }

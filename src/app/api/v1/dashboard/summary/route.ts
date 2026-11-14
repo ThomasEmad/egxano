@@ -14,11 +14,13 @@ import { cachedResponse } from "@/lib/public-cache"
 // is never fabricated into a number.
 
 export async function GET() {
-  // The read is a light window query (~550 rows) — a 60s window keeps the
-  // summary honest after admin company changes (the old 10-min TTL + CDN
-  // s-maxage + 50-min stale-while-revalidate made a deleted company's count
-  // linger for up to an hour).
-  return cachedResponse("dashboard-summary", 60 * 1000, buildSummary)
+  const t0 = Date.now()
+  const res = await cachedResponse("dashboard-summary", 60 * 1000, buildSummary, {
+    // Honest field instrumentation (Server-Timing shows up in devtools + the
+    // Playwright perf probes): cache hit → tiny dur, cache miss → build cost.
+    "server-timing": `summary;dur=${Date.now() - t0}`,
+  })
+  return res
 }
 
 interface SummaryRow {

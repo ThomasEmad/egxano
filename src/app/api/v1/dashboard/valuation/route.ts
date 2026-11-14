@@ -11,6 +11,10 @@ import { cached } from "@/lib/server-cache"
 // revalidate cache (invalidated by the pipeline via invalidateServerCache)
 // keeps first paint fast and data honest.
 export async function GET() {
+  const t0 = Date.now()
   const results = await cached("dashboard:valuation", 5 * 60_000, () => marketValuationScreen(24))
-  return Response.json({ results })
+  return Response.json(
+    { results },
+    { headers: { "server-timing": `valuation;dur=${Date.now() - t0}` } },
+  )
 }

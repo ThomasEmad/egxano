@@ -38,16 +38,17 @@ import { AdSlot } from "./ad-slot"
 // dividend_yield metric is DATA_UNAVAILABLE and the filter would always return zero
 // results. Re-add them (backend already supports dyMin/sort=dividend_yield) when
 // real dividend records are ingested.
-type SortKey = "ticker" | "marketCap" | "changePct" | "p_e" | "roe" | "net_margin" | "name"
+// Owner decision 2026-11-14: the alphabetical sort is gone from the UI —
+// market cap is the default ordering, the rest are analytical sorts. (The API
+// keeps sort=ticker / sort=name for CSV and internal consumers only.)
+type SortKey = "marketCap" | "changePct" | "p_e" | "roe" | "net_margin"
 
 const SORT_OPTIONS: { value: SortKey; ar: string; en: string }[] = [
-  { value: "ticker", ar: "الرمز (أ ب ت)", en: "Ticker (A-Z)" },
   { value: "marketCap", ar: "القيمة السوقية", en: "Market cap" },
   { value: "changePct", ar: "تغير اليوم", en: "Today's change" },
   { value: "p_e", ar: "المكرر الأرخص أولًا (P/E)", en: "Cheapest P/E first" },
   { value: "roe", ar: "العائد على حقوق الملكية", en: "Return on equity" },
   { value: "net_margin", ar: "هامش صافي الربح", en: "Net margin" },
-  { value: "name", ar: "الاسم", en: "Name" },
 ]
 
 interface Filters {
@@ -79,8 +80,8 @@ export function CompaniesView({ onOpenCompany }: { onOpenCompany: (id: string) =
   const [sector, setSector] = useState<string>("all")
   const [page, setPage] = useState(1)
   const [watchlistOnly, setWatchlistOnly] = useState(false)
-  const [sort, setSort] = useState<SortKey>("ticker")
-  const [dir, setDir] = useState<"asc" | "desc">("asc")
+  const [sort, setSort] = useState<SortKey>("marketCap")
+  const [dir, setDir] = useState<"asc" | "desc">("desc")
   const [filters, setFilters] = useState<Filters>({})
   const [showFilters, setShowFilters] = useState(false)
   const [activePreset, setActivePreset] = useState<string | null>(null)
@@ -134,8 +135,8 @@ export function CompaniesView({ onOpenCompany }: { onOpenCompany: (id: string) =
     if (activePreset === preset.key) {
       setActivePreset(null)
       setFilters({})
-      setSort("ticker")
-      setDir("asc")
+      setSort("marketCap")
+      setDir("desc")
     } else {
       setActivePreset(preset.key)
       setFilters({ ...preset.patch } as Filters)
@@ -149,8 +150,8 @@ export function CompaniesView({ onOpenCompany }: { onOpenCompany: (id: string) =
 
   const clearAll = () => {
     setFilters({})
-    setSort("ticker")
-    setDir("asc")
+    setSort("marketCap")
+    setDir("desc")
     setSector("all")
     setSearch("")
     setActivePreset(null)
@@ -257,7 +258,7 @@ export function CompaniesView({ onOpenCompany }: { onOpenCompany: (id: string) =
           <Filter className="h-3.5 w-3.5" aria-hidden="true" />
           {ar ? "فلاتر دقيقة" : "Custom filters"}
         </button>
-        {(hasFilters || sort !== "ticker" || sector !== "all" || search) && (
+        {(hasFilters || sort !== "marketCap" || dir !== "desc" || sector !== "all" || search) && (
           <button
             type="button"
             onClick={clearAll}
@@ -276,7 +277,7 @@ export function CompaniesView({ onOpenCompany }: { onOpenCompany: (id: string) =
           onValueChange={(v) => {
             const next = v as SortKey
             setSort(next)
-            setDir(next === "ticker" || next === "name" || next === "p_e" ? "asc" : "desc")
+            setDir(next === "p_e" ? "asc" : "desc")
             setActivePreset(null)
             setPage(1)
           }}

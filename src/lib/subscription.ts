@@ -9,6 +9,8 @@ export interface SubscriptionInfo {
   id: string
   status: SubscriptionStatus
   planName: string
+  /** Raw DB price of the plan row — lets callers re-resolve premium truth. */
+  planPrice?: number
   startDate: string | null
   endDate: string | null
   activatedAt: string | null
@@ -25,13 +27,14 @@ export interface SubscriptionSummary {
 export async function getUserSubscription(userId: string): Promise<SubscriptionInfo | null> {
   const sub = await db.subscription.findUnique({
     where: { userId },
-    include: { plan: { select: { name: true } } },
+    include: { plan: { select: { name: true, price: true } } },
   })
   if (!sub) return null
   return {
     id: sub.id,
     status: sub.status as SubscriptionStatus,
     planName: sub.plan.name,
+    planPrice: sub.plan.price,
     startDate: sub.startDate?.toISOString() ?? null,
     endDate: sub.endDate?.toISOString() ?? null,
     activatedAt: sub.activatedAt?.toISOString() ?? null,
@@ -41,10 +44,49 @@ export async function getUserSubscription(userId: string): Promise<SubscriptionI
   }
 }
 
-// Hot-path cache: premium status is read on EVERY authenticated request to
-// premium features. Under load it shares the blame for connection-pool
-// exhaustion. 60s bounded staleness; explicit invalidation on any write path
-// that changes premium state (activate/cancel/reject below).
+// =============================================================================
+// Plan resolution — ONE function both the UI-facing summary and the API gates
+// derive premium truth from. History: `getSubscriptionSummary.isPremium` used
+// to accept ANY active row (even a literal FREE plan row) while
+// `getActivePlanId` mapped by exact plan NAME (unknown names stayed FREE unless
+// price > 0) — a premium UI with a free API, i.e. "premium user sees only the
+// fixed free set on the signals board". Both now call resolvePlanIdFromRow.
+// =============================================================================
+
+/** Canonical plan names + the legacy aliases that must keep resolving (paid). */
+const PLAN_NAME_ALIASES: Record<string, PlanId> = {
+  PRO: "PRO",
+  PRO_PLUS: "PRO_PLUS",
+  PROPLUS: "PRO_PLUS",
+  PLUS: "PRO_PLUS",
+  PREMIUM: "PRO",
+  PREMIUM_PLUS: "PRO_PLUS",
+  FREE: "FREE",
+}
+
+/**
+ * Resolve a DB plan row to the canonical PlanId.
+ * - Name is normalized (trim/uppercase/space-hyphen→underscore) then matched
+ *   against canonical names + legacy aliases (the retired "PREMIUM" row, etc.).
+ * - Any unknown name with price > 0 still means a paying user → PRO.
+ * - A plan named FREE (or an unknown free row) is never premium.
+ */
+export function resolvePlanIdFromRow(plan: { name: string; price: number | null } | null | undefined): PlanId {
+  if (!plan || typeof plan.name !== "string") return "FREE"
+  const norm = plan.name.trim().toUpperCase().replace(/[\s-]+/g, "_")
+  const byName = PLAN_NAME_ALIASES[norm]
+  if (byName) return byName
+  if (typeof plan.price === "number" && plan.price > 0) return "PRO"
+  return "FREE"
+}
+
+/** Is the given subscription row "premium right now" (active + not expired)? */
+function subscriptionCurrentlyActive(sub: { status: string; endDate: Date | string | null }): boolean {
+  if (sub.status !== "ACTIVE") return false
+  if (!sub.endDate) return true
+  return new Date(sub.endDate) >= new Date()
+}
+
 const premiumCache = new Map<string, { value: boolean; at: number }>()
 const PREMIUM_CACHE_TTL_MS = 60_000
 
@@ -58,32 +100,28 @@ export async function isPremiumUser(userId: string): Promise<boolean> {
   if (hit && Date.now() - hit.at < PREMIUM_CACHE_TTL_MS) return hit.value
   const sub = await db.subscription.findUnique({
     where: { userId },
-    include: { plan: true },
+    include: { plan: { select: { name: true, price: true } } },
   })
-  if (!sub) {
-    premiumCache.set(userId, { value: false, at: Date.now() })
-    return false
-  }
-  if (sub.status !== "ACTIVE") {
-    premiumCache.set(userId, { value: false, at: Date.now() })
-    return false
-  }
-  if (sub.endDate && new Date(sub.endDate) < new Date()) {
+  let value = false
+  if (sub && subscriptionCurrentlyActive(sub)) {
+    value = resolvePlanIdFromRow(sub.plan) !== "FREE"
+  } else if (sub && sub.status === "ACTIVE" && sub.endDate && new Date(sub.endDate) < new Date()) {
+    // Expired while cached — persist the honest status (same as before).
     await db.subscription.update({
       where: { id: sub.id },
       data: { status: "EXPIRED" },
     })
-    premiumCache.set(userId, { value: false, at: Date.now() })
-    return false
   }
-  premiumCache.set(userId, { value: true, at: Date.now() })
-  return true
+  premiumCache.set(userId, { value, at: Date.now() })
+  return value
 }
 
 export async function getSubscriptionSummary(userId: string): Promise<SubscriptionSummary> {
   const info = await getUserSubscription(userId)
   if (!info) return { isPremium: false, subscription: null }
-  const isPremium = info.status === "ACTIVE" && (!info.endDate || new Date(info.endDate) >= new Date())
+  const active = info.status === "ACTIVE" && (!info.endDate || new Date(info.endDate) >= new Date())
+  // Same resolver the API gates use — the UI can never disagree with the API.
+  const isPremium = active && resolvePlanIdFromRow({ name: info.planName, price: info.planPrice ?? null }) !== "FREE"
   return { isPremium, subscription: info }
 }
 
@@ -108,13 +146,8 @@ export async function getActivePlanId(userId: string): Promise<PlanId> {
     include: { plan: { select: { name: true, price: true } } },
   })
   let value: PlanId = "FREE"
-  if (sub && sub.status === "ACTIVE" && (!sub.endDate || new Date(sub.endDate) >= new Date())) {
-    const name = sub.plan.name
-    if (name === "FREE" || name === "PRO" || name === "PRO_PLUS") {
-      value = name
-    } else if (sub.plan.price > 0) {
-      value = "PRO"
-    }
+  if (sub && subscriptionCurrentlyActive(sub)) {
+    value = resolvePlanIdFromRow(sub.plan)
   }
   planCache.set(userId, { value, at: Date.now() })
   return value

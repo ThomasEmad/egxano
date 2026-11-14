@@ -18,5 +18,8 @@ export async function GET(req: NextRequest) {
   return Response.json({
     ...summary,
     plan,
+    // Raw DB plan row name — lets the owner verify exactly what an account
+    // resolves from (normalization/aliases live in resolvePlanIdFromRow).
+    planName: summary.subscription?.planName ?? null,
   })
 }

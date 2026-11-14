@@ -14,7 +14,9 @@ const TRUSTED = ["VALIDATED", "APPROVED", "EXTRACTED"]
 // Company Events (recentEvents) are premium-only.
 
 export async function GET(req: NextRequest) {
+  const t0 = Date.now()
   const { isPremium } = await getOptionalUser(req)
+  const tAuth = Date.now()
 
   // Dashboard counters must use the same trust boundary as the read paths:
   // deleted reports and reports outside the trusted processing states are not
@@ -66,6 +68,7 @@ export async function GET(req: NextRequest) {
       })),
     }
   })
+  const t2 = Date.now()
 
   // Premium-only recent events stay per-user (never cached). FRESHNESS: only
   // events detected from periods of the last two fiscal years surface here —
@@ -82,15 +85,23 @@ export async function GET(req: NextRequest) {
         take: 8,
       })
     : []
+  const tEnd = Date.now()
 
-  return Response.json({
-    ...base,
-    recentEvents: recentEvents.map((e) => ({
-      id: e.id,
-      eventType: e.eventType,
-      explanationEn: e.explanationEn,
-      explanationAr: e.explanationAr,
-      company: e.company,
-    })),
-  })
+  return Response.json(
+    {
+      ...base,
+      recentEvents: recentEvents.map((e) => ({
+        id: e.id,
+        eventType: e.eventType,
+        explanationEn: e.explanationEn,
+        explanationAr: e.explanationAr,
+        company: e.company,
+      })),
+    },
+    {
+      headers: {
+        "server-timing": `auth;dur=${tAuth - t0},base;dur=${t2 - tAuth},events;dur=${tEnd - t2},total;dur=${tEnd - t0}`,
+      },
+    },
+  )
 }

@@ -1,15 +1,45 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
-import { CompaniesView } from "@/components/egx/companies-view"
-import { CompanyDetail } from "@/components/egx/company-detail"
 import { DashboardView } from "@/components/egx/dashboard-view"
-import { DividendsView } from "@/components/egx/dividends-view"
-import { ScannersView } from "@/components/egx/scanners-view"
 import { LayoutShell } from "@/components/layout/LayoutShell"
 
 import type { ViewKey } from "@/lib/view-keys"
+
+// Perf (2026-11-14): the landing dashboard view needs only DashboardView.
+// The other four views (~3.6k lines: companies table, company detail with the
+// chart bundle, scanners, dividends) ship as separate chunks and load on first
+// navigation — the initial dashboard bundle stays small.
+function ViewSkeleton() {
+  return (
+    <div className="space-y-3">
+      <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => <div key={i} className="h-24 animate-pulse rounded-xl bg-muted" />)}
+      </div>
+      <div className="h-64 animate-pulse rounded-xl bg-muted" />
+    </div>
+  )
+}
+
+const CompaniesView = dynamic(
+  () => import("@/components/egx/companies-view").then((m) => ({ default: m.CompaniesView })),
+  { ssr: false, loading: () => <ViewSkeleton /> },
+)
+const CompanyDetail = dynamic(
+  () => import("@/components/egx/company-detail").then((m) => ({ default: m.CompanyDetail })),
+  { ssr: false, loading: () => <ViewSkeleton /> },
+)
+const ScannersView = dynamic(
+  () => import("@/components/egx/scanners-view").then((m) => ({ default: m.ScannersView })),
+  { ssr: false, loading: () => <ViewSkeleton /> },
+)
+const DividendsView = dynamic(
+  () => import("@/components/egx/dividends-view").then((m) => ({ default: m.DividendsView })),
+  { ssr: false, loading: () => <ViewSkeleton /> },
+)
 
 interface Route {
   view: ViewKey

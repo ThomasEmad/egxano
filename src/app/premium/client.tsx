@@ -74,8 +74,13 @@ function InstaPayQr({ src, ar }: { src: string | null; ar: boolean }) {
   const [broken, setBroken] = useState(false)
   const ref = useRef<HTMLImageElement | null>(null)
   useEffect(() => {
+    // The 404 error can fire before React attaches onError (SSR-rendered
+    // <img>), so completeness is also checked on mount — deferred by one
+    // frame (setState must not run synchronously inside the effect).
     const el = ref.current
-    if (el && el.complete && el.naturalWidth === 0) setBroken(true)
+    if (!el || !el.complete || el.naturalWidth !== 0) return
+    const id = requestAnimationFrame(() => setBroken(true))
+    return () => cancelAnimationFrame(id)
   }, [src])
   // 2026-11-14 audit fix: when no INSTAPAY_QR_URL setting exists the old code
   // requested the nonexistent static /instapay-qr.png — a 404 console error on
