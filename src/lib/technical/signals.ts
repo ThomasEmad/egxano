@@ -326,7 +326,11 @@ export function finalizeScore(rawPct: number, ctx: FinalizeContext): number {
   if (!ctx.riskKnown) s = Math.min(s, 75)
   // 2. display excellence gate (kept from @4): anything above 80 needs
   //    full-strength dimensions AND confirmed participation.
-  const relVolStrong = ctx.relVol !== null && ctx.relVol >= 1.3
+  // H-05 remediation: lowered from 1.3 to 1.2. The universal 1.3x threshold
+  // was too strict for many EGX names that rarely achieve 1.3x relVol.
+  // 1.2x still requires confirmed participation while being achievable for
+  // a broader set of liquid names. Calibrated on training/validation periods.
+  const relVolStrong = ctx.relVol !== null && ctx.relVol >= 1.2
   if (s > 80 && !(ctx.allDimsStrong && relVolStrong)) s = 80
   // 3. high-end compression curve (80 → 73, 75 → 67, 70 → 61)
   return Math.round(100 * Math.pow(s / 100, 1.4))
@@ -371,13 +375,16 @@ function rawWeightedPct(dims: SignalDim[]): ReturnType<typeof rawWeightedWith> {
 // Shared band scorers — identical numbers in BOTH engines.
 // ---------------------------------------------------------------------------
 
-/** RSI band credit — full credit ONLY inside 45-60; a hot-but-overextended
- *  tape (68+) earns almost nothing, so momentum cannot max while stretched. */
+/** RSI band credit — widened healthy zone (45-65) with gradual taper above 65.
+ *  This separates momentum strength from extension risk (which is handled in
+ *  the risk dimension via extensionRiskPoints). The @4 engine over-penalized
+ *  strong trends with RSI 65-75 by giving near-zero momentum credit. */
 function rsiBandPoints(r: number): number {
-  if (r >= 45 && r <= 60) return 10
-  if (r > 60 && r <= 68) return 6
-  if (r > 68 && r <= 72) return 3
-  if (r > 72) return 2
+  if (r >= 45 && r <= 65) return 10  // widened from 45-60: healthy momentum
+  if (r > 65 && r <= 70) return 8   // slightly extended but still strong
+  if (r > 70 && r <= 75) return 6   // extended but momentum present
+  if (r > 75 && r <= 78) return 4   // very extended, near veto threshold
+  if (r > 78) return 2              // overbought — vetoed for BUY anyway
   if (r >= 40) return 5
   if (r >= 30) return 3
   return 2 // <30 oversold
@@ -1350,18 +1357,20 @@ function scoreReadAt(ctx: SeriesCtx, i: number): TrailRead {
   const trendShare = trendMax > 0 ? trendEarned / trendMax : null
 
   // ---------- MOMENTUM — oscillator GROUP with a corroboration cap (audit B).
+  // Max = 25 (aligned with weight). Components: RSI 8, MACD 8, RangePos 9.
   let momEarned = 0
   let momMax = 0
-  if (rsiV !== null) { momMax += 10; momEarned += rsiBandPoints(rsiV) }
-  if (macdLine !== null && macdHist !== null) { momMax += 10; momEarned += macdPoints(macdLine, macdHist) }
-  if (rangePos !== null) { momMax += 10; momEarned += rangePosPoints(rangePos) }
+  if (rsiV !== null) { momMax += 8; momEarned += Math.round(rsiBandPoints(rsiV) * 0.8) }
+  if (macdLine !== null && macdHist !== null) { momMax += 8; momEarned += Math.round(macdPoints(macdLine, macdHist) * 0.8) }
+  if (rangePos !== null) { momMax += 9; momEarned += Math.round(rangePosPoints(rangePos) * 0.9) }
   if (momMax > 0) momEarned = Math.min(momEarned, Math.round(MOMENTUM_GROUP_STRONG_SHARE * momMax))
 
   // ---------- VOLUME (participation is a required buy confirmation) ----------
+  // Max = 25 (aligned with weight). Components: OBV 12, RelVol 13.
   let volEarned = 0
   let volMax = 0
-  if (obvSlope !== null) { volMax += 10; if (obvSlope > 0) volEarned += 8 }
-  if (relVol !== null && changePct !== null) { volMax += 10; volEarned += relVolBandPoints(relVol, changePct > 0) }
+  if (obvSlope !== null) { volMax += 12; if (obvSlope > 0) volEarned += 10 }
+  if (relVol !== null && changePct !== null) { volMax += 13; volEarned += Math.round(relVolBandPoints(relVol, changePct > 0) * 1.3) }
 
   // ---------- RISK — ONLY risk facts (audit B): two-sided extension,
   // volatility regime, volatility expansion. No trend agreement.
@@ -1751,20 +1760,14 @@ export function computeCloseSignal(rows: CloseRow[], opts: { engineVersion?: Eng
     volumePresent: f.relVol !== null,
   }, false)
 
-  // ---------- deterministic trade plan (structure + ATR proxy) ----------
-  const tradePlan = signal !== null && signal !== "hold" && lastClose !== null
-    ? (() => {
-        const levels = levelsAt(closes, sessions - 1)
-        return buildTradePlan({
-          signal,
-          lastClose,
-          closes,
-          supports: levels.supports.map((z) => ({ price: z.price })),
-          resistances: levels.resistances.map((z) => ({ price: z.price })),
-          volPct: f.dailyVolPct,
-        })
-      })()
-    : null
+  // ---------- NO trade plan from close-only engine (C-01 remediation) ----------
+  // The close-only engine provides directional reads ONLY. Executable trade
+  // plans require OHLC-based structural levels (support/resistance/zones) and
+  // real ATR. The canonical stance overlay (signals-service.ts) supplies the
+  // OHLC-derived plan for companies with a persisted snapshot. Non-canonical
+  // rows get tradePlan = null and signalState = "wait" or "watching" without
+  // fabricated levels — honest disclosure that a validated plan is unavailable.
+  const tradePlan = null
 
   // ---------- three-state publication layer (header fix J — additive) ----------
   const { state, direction, vetoReasons } = deriveSignalState(signal, g, tradePlan !== null)
@@ -2253,18 +2256,20 @@ export function computeStanceFromSnapshot(snap: TechnicalSnapshot): TechStance {
   const trendShare = trendMax > 0 ? trendEarned / trendMax : null
 
   // MOMENTUM — corroborated group (RSI + MACD + Stoch with the overbought veto)
+  // Max = 25 (aligned with weight). Components: RSI 8, MACD 8, Stoch 9.
   let momEarned = 0
   let momMax = 0
-  if (mo.rsi14 !== null) { momMax += 10; momEarned += rsiBandPoints(mo.rsi14) }
-  if (mo.macd.histogram !== null && mo.macd.macd !== null) { momMax += 10; momEarned += macdPoints(mo.macd.macd, mo.macd.histogram) }
-  if (mo.stochastic.k !== null && mo.stochastic.d !== null) { momMax += 10; momEarned += stochPoints(mo.stochastic.k, mo.stochastic.d) }
+  if (mo.rsi14 !== null) { momMax += 8; momEarned += Math.round(rsiBandPoints(mo.rsi14) * 0.8) }
+  if (mo.macd.histogram !== null && mo.macd.macd !== null) { momMax += 8; momEarned += Math.round(macdPoints(mo.macd.macd, mo.macd.histogram) * 0.8) }
+  if (mo.stochastic.k !== null && mo.stochastic.d !== null) { momMax += 9; momEarned += Math.round(stochPoints(mo.stochastic.k, mo.stochastic.d) * 0.9) }
   if (momMax > 0) momEarned = Math.min(momEarned, Math.round(MOMENTUM_GROUP_STRONG_SHARE * momMax))
 
   // VOLUME
+  // Max = 25 (aligned with weight). Components: OBV 12, RelVol 13.
   let volEarned = 0
   let volMax = 0
-  if (v.obvSlope20 !== null) { volMax += 10; if (v.obvSlope20 > 0) volEarned += 8 }
-  if (v.relVol !== null && snap.perf.d1 !== null) { volMax += 10; volEarned += relVolBandPoints(v.relVol, snap.perf.d1 > 0) }
+  if (v.obvSlope20 !== null) { volMax += 12; if (v.obvSlope20 > 0) volEarned += 10 }
+  if (v.relVol !== null && snap.perf.d1 !== null) { volMax += 13; volEarned += Math.round(relVolBandPoints(v.relVol, snap.perf.d1 > 0) * 1.3) }
 
   // RISK — two-sided extension + ATR regime (expansion unknown on a point snapshot)
   let riskEarned = 0
