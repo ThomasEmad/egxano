@@ -1,6 +1,6 @@
-# Backtest baseline — frozen CURRENT technical engine (tech-signals@4)
+# Backtest frozen CURRENT technical engine (tech-signals@4)
 
-**Run**: 2026-11-14T16:41:14.296Z · commit f5e7277 · engine frozen at `.cache/engine-baseline/` · data cached under `.cache/bt/`
+**Run**: 2026-11-14T19:57:55.161Z · commit f5e7277 · engine frozen at `.cache/engine-baseline/` · data cached under `.cache/bt/`
 **Raw results**: `.cache/bt/baseline-results.json` (every number below is generated from it — no hand transcription)
 
 ## 1. Mission and method

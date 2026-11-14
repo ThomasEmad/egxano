@@ -26,6 +26,8 @@ import { cached } from "@/lib/server-cache"
 import { applyCorporateActionAdjustments, loadSeriesActionsByCompany, type SeriesBar } from "@/lib/market/corporate-actions"
 import { effectiveEgxSessionDate } from "@/lib/market/egx-session"
 import { computeCloseSignal, SIGNALS_VERSION, type CloseSignalOutput, type TechStance } from "./signals"
+import { emaSeries } from "./indicators"
+import type { MarketRegimeInput } from "./board-gates"
 import { readCanonicalStance, BOARD_MAX_AGE_MS, isFreshCanonicalRow, STANCE_ENGINE_VERSION } from "./stance-store"
 import { persistBoardSnapshot } from "./board-snapshot"
 
@@ -34,6 +36,13 @@ import { persistBoardSnapshot } from "./board-snapshot"
  *  margin, and ~30% less DB egress on every cold compute. */
 const WINDOW_DAYS = 300
 const CACHE_MS = 10 * 60_000
+
+// ---- Market-regime loader constants (consumed by board-gates.marketRegime) ---
+// A company counts toward regime breadth only when its adjusted series is long
+// enough for BOTH an EMA50 read and a meaningful EMA20 slope (50 sessions).
+const REGIME_BREADTH_MIN_SESSIONS = 50
+// "Rising 20-EMA" = the EMA20 is higher than it was this many sessions ago.
+const REGIME_EMA_SLOPE_SESSIONS = 5
 
 export interface MarketSignalRow extends CloseSignalOutput {
   companyId: string
@@ -58,6 +67,13 @@ export interface MarketSignalsOutput {
   canonicalCount?: number
   /** % of scored companies whose price sits above EMA20 — technical breadth */
   pctAboveEma20: number | null
+  /** Board-wide aggregates feeding the market-regime gate
+   *  (src/lib/technical/board-gates.ts marketRegime): share of MEASURED
+   *  companies whose 20-EMA is rising (5-session slope) AND whose close sits
+   *  above EMA50, plus the median displayed score. Optional so pre-regime
+   *  cached payloads / persisted snapshots keep type-checking — a missing
+   *  field degrades to the neutral regime (never a penalty). */
+  regimeInput?: MarketRegimeInput
   rows: MarketSignalRow[]
   computedAt: string
 }
@@ -119,6 +135,9 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
   const rows: MarketSignalRow[] = []
   let weakData = 0
   let pricedAsOf: string | null = null
+  // Regime breadth accumulators (see REGIME_* constants above).
+  let breadthMeasured = 0
+  let breadthBullish = 0
 
   // BATCHED action load: one pass over the whole universe (2 indexed queries),
   // replacing the per-company lookups that made the cold compute pay ~500 DB
@@ -174,6 +193,25 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
     }
 
     const sig = computeCloseSignal(series)
+
+    // Regime breadth for THIS company, measured on the SAME adjusted series
+    // the board read above — a bullish company = rising 20-EMA (5-session
+    // slope) AND close above EMA50. Companies with too little history are
+    // excluded from the breadth denominator (unmeasurable ≠ bearish).
+    const regimeCloses = series.map((s) => s.close)
+    if (regimeCloses.length >= REGIME_BREADTH_MIN_SESSIONS) {
+      const ema20s = emaSeries(regimeCloses, 20)
+      const ema50s = emaSeries(regimeCloses, 50)
+      const last = regimeCloses.length - 1
+      const e20Last = ema20s[last]
+      const e20Prev = ema20s[last - REGIME_EMA_SLOPE_SESSIONS]
+      const e50Last = ema50s[last]
+      if (e20Last !== null && e20Prev !== null && e50Last !== null) {
+        breadthMeasured++
+        if (e20Last > e20Prev && regimeCloses[last] > e50Last) breadthBullish++
+      }
+    }
+
     rows.push({
       ...sig,
       companyId,
@@ -231,6 +269,14 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
         row.invalidation = canonical.stance.invalidation
         row.tradePlan = canonical.stance.tradePlan
         row.limitations = canonical.stance.limitations
+        // Three-state publication layer (fix J): the canonical stance carries
+        // the state + watched setup, so the board and the company tab publish
+        // the SAME state. Rows overlaid from a stance persisted BEFORE the
+        // layer (possible only if a stale row slipped the version contract)
+        // keep `undefined` — the UI falls back to the legacy badge and the
+        // no-naked-read invariant is still enforced at the engine itself.
+        row.signalState = canonical.stance.signalState
+        row.setup = canonical.stance.setup ?? null
       } else {
         // No canonical bundle (no candles / too few sessions): the close-based
         // reading stays, but LEVELS are withheld everywhere for consistency.
@@ -261,6 +307,17 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
     if (!r.asOf) continue
   }
 
+  // Regime aggregate: median of the DISPLAYED scores (post-overlay — the
+  // canonical stance replaced most rows' close-based score above). Rounded to
+  // 1dp so the value is stable across recomputes.
+  const sortedScores = rows.map((r) => r.score).filter((s): s is number => s !== null && Number.isFinite(s)).sort((a, b) => a - b)
+  let medianScore: number | null = null
+  if (sortedScores.length > 0) {
+    const mid = Math.floor(sortedScores.length / 2)
+    const rawMedian = sortedScores.length % 2 === 1 ? sortedScores[mid] : (sortedScores[mid - 1] + sortedScores[mid]) / 2
+    medianScore = Math.round(rawMedian * 10) / 10
+  }
+
   rows.sort((a, b) => (b.score ?? -1) - (a.score ?? -1) || a.ticker.localeCompare(b.ticker))
 
   return {
@@ -273,6 +330,10 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
     canonicalCount,
     distribution,
     pctAboveEma20: ema20Count > 0 ? Math.round((aboveEma20 / ema20Count) * 1000) / 10 : null,
+    regimeInput: {
+      breadthBullishShare: breadthMeasured > 0 ? Math.round((breadthBullish / breadthMeasured) * 1000) / 1000 : null,
+      medianScore,
+    },
     rows,
     computedAt: new Date().toISOString(),
   }

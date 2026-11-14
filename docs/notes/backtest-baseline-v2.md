@@ -1,6 +1,6 @@
 # Backtest UPGRADED engine (tech-signals@5) — same harness as the frozen baseline (tech-signals@5)
 
-**Run**: 2026-11-14T17:41:00.941Z · commit f5e7277 · engine frozen at `.cache/engine-baseline/` · data cached under `.cache/bt/`
+**Run**: 2026-11-14T19:58:20.158Z · commit f5e7277 · engine frozen at `.cache/engine-baseline/` · data cached under `.cache/bt/`
 **Raw results**: `.cache/bt/baseline-results.json` (every number below is generated from it — no hand transcription)
 
 ## 1. Mission and method

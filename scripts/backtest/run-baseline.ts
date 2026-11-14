@@ -21,7 +21,7 @@ if (!process.env.DATABASE_URL) process.env.DATABASE_URL = "postgresql://placehol
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import path from "node:path"
 
-import { DEFAULT_BACKTEST_CONFIG, EGX_SESSIONS_PER_YEAR, scoreBand, type BacktestConfig } from "../../src/lib/backtesting/constants"
+import { DEFAULT_BACKTEST_CONFIG, EGX_SESSIONS_PER_YEAR, scoreBand, ENGINE_VARIANT_TAGS, VARIANT_ENGINE_VERSION, type BacktestConfig, type EngineVariantTag } from "../../src/lib/backtesting/constants"
 import { crossCheckSplits, validateSeries, type CachedQuote, type SeriesValidation } from "../../src/lib/backtesting/data-quality"
 import { simulateExecution, type TickerMeta } from "../../src/lib/backtesting/execution"
 import { computeSellEvidence, computeSignalMetrics, computeTradeMetrics, mean, median, turnoverPer100Sessions } from "../../src/lib/backtesting/metrics"
@@ -36,12 +36,22 @@ import { computeCloseSignal as v2ComputeCloseSignal, SIGNALS_VERSION as V2_SIGNA
 // original baseline run byte-for-byte. `--engine=v2` runs the SAME pipeline
 // (identical cached data, universe, config, execution assumptions, walk-forward
 // split) with the upgraded src/lib/technical engine for the A/B comparison.
-const ENGINE = process.argv.includes("--engine=v2") ? "v2" : "frozen"
-const ENGINE_FN = ENGINE === "v2" ? v2ComputeCloseSignal : undefined // undefined → replay default (frozen)
-const OUT_TAG = ENGINE === "v2" ? "-v2" : ""
+// `--engine=v2+adx|v2+div|v2+candles|v2+all` (2026-11-14 ablation) run the same
+// v2 pipeline with ONE capped additive evidence layer (docs/notes/backtest-ablation.md).
+const ENGINE_ARG = process.argv.find((a) => a.startsWith("--engine="))?.slice("--engine=".length) ?? ""
+const ENGINE = (ENGINE_ARG === "v2" || (ENGINE_VARIANT_TAGS as readonly string[]).includes(ENGINE_ARG)) ? ENGINE_ARG : "frozen"
+const VARIANT = ENGINE !== "frozen" && ENGINE !== "v2" ? (ENGINE as EngineVariantTag) : null
+const ENGINE_FN: CloseEngine | undefined = ENGINE === "frozen"
+  ? undefined // undefined → replay default (frozen)
+  : VARIANT === null
+    ? v2ComputeCloseSignal
+    : (rows) => v2ComputeCloseSignal(rows, { engineVersion: VARIANT_ENGINE_VERSION[VARIANT] as Parameters<typeof v2ComputeCloseSignal>[1] extends { engineVersion?: infer E } ? E : never })
+const OUT_TAG = ENGINE === "frozen" ? "" : `-${ENGINE}`
 const ENGINE_SOURCE = ENGINE === "v2"
   ? "src/lib/technical (tech-signals@5 in-tree engine — the upgraded engine under evaluation)"
-  : ".cache/engine-baseline (frozen copy of src/lib/technical + corporate-actions.ts + egx-hours.ts at commit f5e7277)"
+  : VARIANT !== null
+    ? `src/lib/technical (tech-signals@5 + ablation evidence variant ${VARIANT_ENGINE_VERSION[VARIANT]} — capped additive layer, base @5 decision rules unchanged)`
+    : ".cache/engine-baseline (frozen copy of src/lib/technical + corporate-actions.ts + egx-hours.ts at commit f5e7277)"
 
 const ROOT = path.resolve(import.meta.dirname, "../..")
 const BT = path.join(ROOT, ".cache/bt")
@@ -314,12 +324,12 @@ const segments = {
 // Write results + report
 // ---------------------------------------------------------------------------
 
-const frozenSignalsVersion = ENGINE === "v2"
-  ? V2_SIGNALS_VERSION
-  : (() => {
+const frozenSignalsVersion = ENGINE === "frozen"
+  ? (() => {
     const m = readFileSync(path.join(ROOT, ".cache/engine-baseline/signals.ts"), "utf8")
     return m.match(/SIGNALS_VERSION = "([^"]+)"/)?.[1] ?? "unknown"
   })()
+  : VARIANT !== null ? VARIANT_ENGINE_VERSION[VARIANT] : V2_SIGNALS_VERSION
 
 const results = {
   generatedAt: new Date().toISOString(),
@@ -415,7 +425,7 @@ ${metricsTableRows(w.metrics)}
 
 SELL exit-evidence: ${w.sellEvidence.evaluable}/${w.sellEvidence.signals} evaluable; mean fwd ${pct(w.sellEvidence.meanFwdReturnPct, 2)}, median ${pct(w.sellEvidence.medianFwdReturnPct, 2)}, "SELL correct" (negative fwd) ${pct(w.sellEvidence.correctRatePct)}; all-sessions baseline mean ${pct(w.sellEvidence.baselineMeanFwdReturnPct, 2)}`
 
-const md = `# Backtest ${ENGINE === "v2" ? "UPGRADED engine (tech-signals@5) — same harness as the frozen baseline" : "frozen CURRENT technical engine"} (tech-signals@${frozenSignalsVersion.split("@")[1] ?? "?"})
+const md = `# Backtest ${ENGINE === "frozen" ? "frozen CURRENT technical engine" : ENGINE === "v2" ? "UPGRADED engine (tech-signals@5) — same harness as the frozen baseline" : `UPGRADED engine + ablation evidence variant (${ENGINE})`} (tech-signals@${frozenSignalsVersion.split("@")[1] ?? "?"})
 
 **Run**: ${results.generatedAt} · commit f5e7277 · engine frozen at \`.cache/engine-baseline/\` · data cached under \`.cache/bt/\`
 **Raw results**: \`.cache/bt/baseline-results.json\` (every number below is generated from it — no hand transcription)

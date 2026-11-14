@@ -47,6 +47,21 @@ export const DEFAULT_BACKTEST_CONFIG: BacktestConfig = {
  *  untouched for future A/B engine comparisons. */
 export const WALK_FORWARD_SPLIT = { train: 0.6, validation: 0.2, test: 0.2 } as const
 
+/** Ablation engine variants (2026-11-14) — each runs the EXACT base @5
+ *  methodology plus ONE capped additive evidence layer (±4 per module, ±8
+ *  total; see docs/notes/backtest-ablation.md). Mirror list of
+ *  TECH_ENGINE_VARIANTS in src/lib/technical/signals.ts (kept here as plain
+ *  strings so importing the backtest constants never pulls the engine). */
+export const ENGINE_VARIANT_TAGS = ["v2+adx", "v2+div", "v2+candles", "v2+all"] as const
+export type EngineVariantTag = (typeof ENGINE_VARIANT_TAGS)[number]
+/** Variant tag → the engineVersion string passed to computeCloseSignal. */
+export const VARIANT_ENGINE_VERSION: Record<EngineVariantTag, string> = {
+  "v2+adx": "tech-signals@5+adx",
+  "v2+div": "tech-signals@5+div",
+  "v2+candles": "tech-signals@5+candles",
+  "v2+all": "tech-signals@5+all",
+}
+
 /** Score bands for segmentation (engine final score, 0-100). */
 export function scoreBand(score: number | null): string {
   if (score === null) return "nullScore"

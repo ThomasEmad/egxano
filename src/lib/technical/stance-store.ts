@@ -19,11 +19,13 @@ import { db } from "@/lib/db"
 import { computeStanceFromSnapshot, SIGNALS_VERSION, type TechStance } from "@/lib/technical/signals"
 import { buildTechnicalBundleWithContext } from "@/lib/market/intelligence/context"
 
-/** Bump whenever the bundle/stance computation changes shape. stance@2 rides
- *  the tech-signals@5 recalibration — every persisted stance@1 row is
- *  REJECTED at read time (engineVersion mismatch) and recomputed, so no
- *  mixed-version reading can ever be displayed. */
-export const STANCE_ENGINE_VERSION = "stance@2"
+/** Bump whenever the bundle/stance computation changes shape. stance@3 rides
+ *  the three-state publication layer (signalState + watching setup on the
+ *  stance — 2026-11-14 product decision): every persisted stance@1/stance@2
+ *  row is REJECTED at read time (engineVersion mismatch) and recomputed, so
+ *  no mixed-version reading can ever be displayed. The SIGNALS engine version
+ *  itself is unchanged (tech-signals@5) — this layer adds no methodology. */
+export const STANCE_ENGINE_VERSION = "stance@3"
 
 /**
  * Pure freshness/version contract for a persisted StanceSnapshot row (kept

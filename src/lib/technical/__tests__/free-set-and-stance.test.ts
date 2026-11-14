@@ -46,21 +46,25 @@ describe("free-signal fixed set", () => {
 
 describe("stance-store contract constants", () => {
   it("versions and staleness bounds are documented values", () => {
-    expect(STANCE_ENGINE_VERSION).toBe("stance@2")
+    // stance@3 rides the three-state publication layer (signalState + watched
+    // setup on the stance) — the signals engine version itself stays @5.
+    expect(STANCE_ENGINE_VERSION).toBe("stance@3")
     expect(STALE_AFTER_MS).toBe(20 * 60 * 60 * 1000)
     expect(BOARD_MAX_AGE_MS).toBeGreaterThan(STALE_AFTER_MS)
   })
 
-  it("stale-snapshot version filtering (stance@2 contract) — mixed versions impossible", () => {
+  it("stale-snapshot version filtering (stance@3 contract) — mixed versions impossible", () => {
     const fresh = new Date(Date.now() - 1000)
     // matching version + fresh computedAt → trusted
-    expect(isFreshCanonicalRow("stance@2", fresh)).toBe(true)
-    // ANY other engine version (e.g. every persisted stance@1 row after the
-    // bump) is rejected at read time → recomputed → no mixed-version display
+    expect(isFreshCanonicalRow("stance@3", fresh)).toBe(true)
+    // ANY other engine version (e.g. every persisted stance@1/stance@2 row
+    // after the bump) is rejected at read time → recomputed → no mixed-version
+    // display (a pre-layer stance@2 row has no signalState/setup)
     expect(isFreshCanonicalRow("stance@1", fresh)).toBe(false)
-    expect(isFreshCanonicalRow("stance@3", fresh)).toBe(false)
+    expect(isFreshCanonicalRow("stance@2", fresh)).toBe(false)
+    expect(isFreshCanonicalRow("stance@4", fresh)).toBe(false)
     expect(isFreshCanonicalRow("", fresh)).toBe(false)
     // matching version but older than the board trust window → rejected
-    expect(isFreshCanonicalRow("stance@2", new Date(Date.now() - BOARD_MAX_AGE_MS - 1000))).toBe(false)
+    expect(isFreshCanonicalRow("stance@3", new Date(Date.now() - BOARD_MAX_AGE_MS - 1000))).toBe(false)
   })
 })

@@ -188,7 +188,7 @@ describe("gateRowForFree — paid analysis must never cross the wire", () => {
 
   it("REMOVES every paid analysis field (server-side redaction)", () => {
     const keys = Object.keys(gated)
-    for (const forbidden of ["signal", "score", "metrics", "dimensions", "reasons", "styleFits", "tradePlan", "invalidation", "limitations", "sessions"]) {
+    for (const forbidden of ["signal", "score", "metrics", "dimensions", "reasons", "styleFits", "tradePlan", "invalidation", "limitations", "sessions", "signalState", "setup"]) {
       expect(keys).not.toContain(forbidden)
     }
   })
@@ -199,5 +199,48 @@ describe("gateRowForFree — paid analysis must never cross the wire", () => {
     expect(json).not.toHaveProperty("score")
     expect(json).not.toHaveProperty("tradePlan")
     expect(json.locked).toBe(true)
+  })
+
+  // THREE-STATE LAYER (fix J): signalState + the watching setup (activation
+  // level, provisional entry/stop/target, invalidation) are PAID content —
+  // a locked row must carry identity + public price ONLY.
+  it("strips the three-state layer (signalState + watched setup) from locked rows", () => {
+    const watchingRow = row({
+      ticker: "COMI",
+      signal: "hold",
+      signalState: "watching",
+      setup: {
+        direction: "buy",
+        activation: { kind: "close_above", level: 99.89, basisAr: "أعلى مجموعة المقاومة المُختبرة", volumeConditionAr: "حجم إغلاق ≥ 1.5× متوسط آخر 20 جلسة" },
+        provisionalEntry: { low: 98.39, high: 100.29, basisAr: "تقديري" },
+        provisionalStop: { level: 98, basisAr: "تقديري" },
+        provisionalTarget: { low: 104.2, high: 104.83, basisAr: "تقديري" },
+        provisionalRiskReward: 3.86,
+        provisionalBasisAr: "تقديري",
+        recomputeNoteAr: "تُعاد الحسابات عند التفعيل",
+        preEntryInvalidation: { level: 97.48, conditionAr: "إغلاق يومي تحت 97.48 يلغي الفرصة قبل الدخول.", reasonAr: "الكسر الهيكلي" },
+        postEntryNoteAr: "الخروج يتبع وقف الخسارة",
+        vetoReasons: [{ code: "near_resistance_veto", tone: "negative", ar: "السعر ملاصق لمقاومة مُختبرة", en: "tested resistance" }],
+      },
+    })
+    const gatedWatching = gateRowForFree(watchingRow)
+    const keys = Object.keys(gatedWatching)
+    expect(keys).not.toContain("signalState")
+    expect(keys).not.toContain("setup")
+    // deep guard: no trace of the setup payload survives anywhere in the row
+    const json = JSON.parse(JSON.stringify(gatedWatching))
+    expect(JSON.stringify(json)).not.toContain("close_above")
+    expect(JSON.stringify(json)).not.toContain("99.89")
+    expect(JSON.stringify(json)).not.toContain("provisional")
+    expect(JSON.stringify(json)).not.toContain("near_resistance_veto")
+    // identity + public price remain, flagged locked
+    expect(gatedWatching.ticker).toBe("COMI")
+    expect(gatedWatching.lastClose).toBe(10)
+    expect(gatedWatching.locked).toBe(true)
+    // and a confirmed row is gated identically
+    const confirmedRow = row({ ticker: "EFID", signal: "buy", signalState: "confirmed", setup: null })
+    const gatedConfirmed = gateRowForFree(confirmedRow)
+    expect(Object.keys(gatedConfirmed)).not.toContain("signalState")
+    expect(Object.keys(gatedConfirmed)).not.toContain("setup")
   })
 })

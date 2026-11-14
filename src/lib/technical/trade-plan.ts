@@ -110,8 +110,10 @@ function validPrice(x: unknown): x is number {
   return typeof x === "number" && Number.isFinite(x) && x > 0
 }
 
-/** Highest price strictly below `ref` (nearest support), null when none. */
-function nearestBelow(prices: number[], ref: number): number | null {
+/** Highest price strictly below `ref` (nearest support), null when none.
+ *  Exported for the watching-setup layer in signals.ts (additive: same
+ *  helper, same semantics — no duplicated geometry). */
+export function nearestBelow(prices: number[], ref: number): number | null {
   let best: number | null = null
   for (const p of prices) {
     if (p < ref && (best === null || p > best)) best = p
@@ -119,8 +121,9 @@ function nearestBelow(prices: number[], ref: number): number | null {
   return best
 }
 
-/** Lowest price strictly above `ref` (nearest resistance), null when none. */
-function nearestAbove(prices: number[], ref: number): number | null {
+/** Lowest price strictly above `ref` (nearest resistance), null when none.
+ *  Exported for the watching-setup layer in signals.ts (additive). */
+export function nearestAbove(prices: number[], ref: number): number | null {
   let best: number | null = null
   for (const p of prices) {
     if (p > ref && (best === null || p < best)) best = p
@@ -151,8 +154,9 @@ function deriveZones(closes: number[]): { supports: { price: number }[]; resista
   }
 }
 
-/** Recent 40-session range height — the measured-move projection input. */
-function measuredHeight(closes: number[]): number | null {
+/** Recent 40-session range height — the measured-move projection input.
+ *  Exported for the watching-setup layer in signals.ts (additive). */
+export function measuredHeight(closes: number[]): number | null {
   const win = closes.slice(-MEASURED_WINDOW).filter(validPrice)
   if (win.length < 20) return null
   const h = Math.max(...win)

@@ -167,9 +167,12 @@ export function distributionOf(rows: MarketSignalRow[]): { buy: number; hold: nu
 /**
  * Identity-only projection of a matched company for FREE callers.
  * The paid analysis (signal, score, dimensions, reasons, styleFits, metrics,
- * trade plan, invalidation) is REMOVED here — nothing beyond identity + the
- * public last price/change may cross the wire for a locked row. This is the
- * server-side redaction, not a browser-side blur.
+ * trade plan, invalidation, and the three-state layer: signalState + the
+ * watching setup with its activation/provisional levels) is REMOVED here —
+ * nothing beyond identity + the public last price/change may cross the wire
+ * for a locked row. This is the server-side redaction, not a browser-side
+ * blur: the allowlist below is the ONLY thing serialized, so any field added
+ * to MarketSignalRow in the future stays gated by construction.
  */
 export function gateRowForFree(r: MarketSignalRow): GatedSignalRow {
   return {

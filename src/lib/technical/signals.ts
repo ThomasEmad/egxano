@@ -56,16 +56,64 @@
 //      preserved as computeCloseSignalV1 (reachable via
 //      computeCloseSignal(rows, { engineVersion: "tech-signals@4" })) purely
 //      for A/B backtesting on identical bars.
+//   J) THREE-STATE PUBLICATION LAYER (2026-11-14 product decision — additive
+//      only, NO methodology change, engineVersion stays "tech-signals@5"):
+//      a directional read must never be published "naked" (a شراء/بيع with no
+//      tradable plan and no levels). Every @5 row now carries `signalState`:
+//        • "confirmed" — the read passed every gate AND a tradable plan exists
+//          (plan non-null, RR ≥ 1.5 by the plan builder's own honesty rule).
+//        • "watching" — a directional CANDIDATE exists but is blocked (near-
+//          resistance veto, at-support veto, weak volume, below-full-strength
+//          evidence) or the read has no tradable plan. `setup` carries the
+//          close-based ACTIVATION level derived from the SAME structure that
+//          raised the block (tested-resistance top for a blocked buy, tested-
+//          support bottom for a blocked sell; documented fallbacks when no
+//          veto fired), provisional entry/stop/target (from the trade-plan
+//          builder evaluated AT the activation level, else from structure —
+//          each labeled تقديري and RECOMPUTED at activation with the RR
+//          re-validated ≥ 1.5), a PRE-ENTRY invalidation (separate from the
+//          post-entry stop) and the blocking veto reasons.
+//        • "wait" — no directional edge (hold) or too little history.
+//      The `signal` field, the scores, the gates, the weights and every veto
+//      rule are UNCHANGED — this layer only republishes the same decision.
+//      The frozen v1 baseline (computeCloseSignalV1) does not emit the state
+//      (optional in the type) so the A/B replay stays byte-comparable.
 // =============================================================================
 
 import { emaSeries, macdSeries, macd, rsi, rsiSeries, supportResistance, perfN, round, type Bar, type PriceZone } from "./indicators"
 import type { TechnicalSnapshot } from "./analyze"
-import { buildTradePlan, type TradePlan } from "./trade-plan"
+import { buildTradePlan, measuredHeight, nearestAbove, nearestBelow, roundToTick, type TradePlan } from "./trade-plan"
+import { computeAdx, type AdxResult } from "./adx"
+import { detectDivergence, type DivergenceSignal } from "./divergence"
+import { readLastCandle, type CandlePatternRead } from "./candlestick"
 
 export const SIGNALS_VERSION = "tech-signals@5"
 /** v1 baseline for backtest comparison — reachable only via the engineVersion option. */
 export const SIGNALS_VERSION_V1_BASELINE = "tech-signals@4"
-export type EngineVersionOption = typeof SIGNALS_VERSION | typeof SIGNALS_VERSION_V1_BASELINE
+
+// ---------------------------------------------------------------------------
+// ABLATION VARIANTS (2026-11-14, docs/notes/backtest-ablation.md) — additive
+// evidence layers over the UNCHANGED @5 methodology. Each variant runs the
+// EXACT base @5 logic, then the named module(s) evaluate evidence on the LAST
+// session and adjust the score by a DOCUMENTED, CAPPED rule:
+//   • per-module delta ∈ [−4, +4]; total delta clamped to [−8, +8];
+//   • the delta is applied to the LAST trail read's score and the read is
+//     RE-DECIDED by the SAME @5 decision gates (decideSignal) + the SAME
+//     hysteresis walk — no new decision rule exists;
+//   • evidence therefore can NEVER flip a hold to buy/sell ALONE: a flip
+//     still requires the full @5 confluence (trend share, volume agreement,
+//     decision-level excellence, RSI veto, structure veto);
+//   • when the OHLC fields are absent the ADX/candle modules abstain
+//     silently (close-only replay still works); divergence works off closes.
+// ---------------------------------------------------------------------------
+export const TECH_ENGINE_VARIANTS = ["tech-signals@5+adx", "tech-signals@5+div", "tech-signals@5+candles", "tech-signals@5+all"] as const
+export type TechEngineVariant = (typeof TECH_ENGINE_VARIANTS)[number]
+/** Per-module score-delta cap (documented ablation rule). */
+export const EVIDENCE_DELTA_CAP_PER_MODULE = 4
+/** Total score-delta cap across all modules (documented ablation rule). */
+export const EVIDENCE_DELTA_CAP_TOTAL = 8
+
+export type EngineVersionOption = typeof SIGNALS_VERSION | typeof SIGNALS_VERSION_V1_BASELINE | TechEngineVariant
 
 export type TechSignalType = "buy" | "hold" | "sell"
 
@@ -108,6 +156,75 @@ export interface StyleFit {
   total: number
 }
 
+// ---------------------------------------------------------------------------
+// Three-state publication layer (header fix J) — types. ADDITIVE ONLY: the
+// legacy fields (signal/score/tradePlan/…) keep their exact semantics.
+// ---------------------------------------------------------------------------
+
+/** Pre-entry publication state of a row:
+ *  • confirmed — the directional read passed every gate AND a tradable plan
+ *    exists (plan non-null, RR ≥ 1.5 by the plan builder's honesty rule);
+ *  • watching — a directional candidate is blocked (structural veto, weak
+ *    volume, below-full-strength evidence) or the read has no tradable plan;
+ *    `setup` carries the close-based activation;
+ *  • wait — no directional edge (hold) or too little history. */
+export type SignalState = "confirmed" | "watching" | "wait"
+
+export const SIGNAL_STATE_META: Record<SignalState, { ar: string; en: string }> = {
+  confirmed: { ar: "قراءة مؤكدة", en: "Confirmed read" },
+  watching: { ar: "فرصة تحت المراقبة", en: "Watched setup" },
+  wait: { ar: "انتظار", en: "Wait" },
+}
+
+/** Close-based activation of a watched setup — the DAILY CLOSE decides,
+ *  never an intraday touch. */
+export interface SetupActivation {
+  kind: "close_above" | "close_below"
+  /** tick-rounded trigger level (EGX tick 0.01 — roundToTick) */
+  level: number
+  /** documented source of the level (Arabic, per-level basis) */
+  basisAr: string
+  /** required participation on the activation close (Arabic) */
+  volumeConditionAr: string
+}
+
+export interface ProvisionalEntry { low: number; high: number; basisAr: string }
+export interface ProvisionalStop { level: number; basisAr: string }
+export interface ProvisionalTarget { low: number; high: number; basisAr: string }
+
+/** Pre-entry invalidation — a DIFFERENT object from the post-entry stop: it
+ *  kills the OPPORTUNITY before activation. After activation and entry the
+ *  active trade's exit is the recomputed plan's stop, never this level. */
+export interface PreEntryInvalidation {
+  level: number
+  conditionAr: string
+  reasonAr: string
+}
+
+/** The watching-setup payload (fix J) — everything a blocked candidate needs
+ *  to become actionable, with every level's basis disclosed. Provisional
+ *  levels are labeled تقديري and RECOMPUTED at activation; RR is RE-VALIDATED
+ *  (≥ 1.5) at activation — below that the setup does NOT confirm. */
+export interface WatchingSetup {
+  direction: "buy" | "sell"
+  activation: SetupActivation
+  provisionalEntry: ProvisionalEntry | null
+  provisionalStop: ProvisionalStop | null
+  provisionalTarget: ProvisionalTarget | null
+  /** provisional RR from CURRENT structure — re-validated ≥ 1.5 at activation */
+  provisionalRiskReward: number | null
+  /** where the provisional levels came from (Arabic) */
+  provisionalBasisAr: string
+  /** the "تُعاد الحسابات عند التفعيل" disclosure (Arabic) */
+  recomputeNoteAr: string
+  preEntryInvalidation: PreEntryInvalidation
+  /** prose note: after activation the trade's exit is the stop, not the
+   *  pre-entry invalidation (Arabic) */
+  postEntryNoteAr: string
+  /** the existing veto/rejection reason objects that caused the block */
+  vetoReasons: SignalReason[]
+}
+
 export interface TechStance {
   version: string
   /** null when history is too short — "weak data" bucket, never a fake score */
@@ -123,6 +240,12 @@ export interface TechStance {
    *  no honest plan can be anchored — hold, or no reachable structural target) */
   tradePlan: TradePlan | null
   limitations: string[]
+  /** Three-state publication layer (header fix J — additive; optional in the
+   *  TYPE only because the frozen v1 A/B baseline does not emit it; every @5
+   *  path always sets it, pinned by tests). */
+  signalState?: SignalState
+  /** the watched-setup payload — present iff signalState === "watching" */
+  setup?: WatchingSetup | null
 }
 
 // ---------------------------------------------------------------------------
@@ -394,6 +517,9 @@ const R = {
   breakdownConfirmed: { code: "breakdown_confirmed", tone: "negative", ar: "كسر مؤكد لدعم مُختبر بحجم قوي.", en: "Confirmed breakdown of a tested support on strong volume." },
   distributionSell: { code: "distribution_sell", tone: "negative", ar: "توزيع واضح: تدفقات خارجة مع زخم مكسور — ضغط بيعي (مش أمر بيع قصير).", en: "Clear distribution: outflow with broken momentum — sell pressure (not a short-selling instruction)." },
   volExpanding: { code: "vol_expanding", tone: "negative", ar: "التقلب يتوسع مقارنة بالفترة السابقة — المخاطرة في ارتفاع.", en: "Volatility is expanding versus the prior window — risk is rising." },
+  // ---- three-state publication layer (additive — a DISPLAY reason, never a
+  // decision input: the plan builder's RR >= 1.5 honesty rule stays intact) ----
+  noTradablePlan: { code: "no_tradable_plan", tone: "neutral", ar: "مفيش خطة تداول قابلة للتنفيذ من هيكل السعر الحالي — القراءة اتحولت لفرصة تحت المراقبة لحين تفعيل مستوى هيكلي بإغلاق يومي.", en: "No tradable plan can be anchored on the current structure — the read is published as a watched setup pending a structural close-based activation." },
 } as const satisfies Record<string, { code: string; tone: SignalReason["tone"]; ar: string; en: string }>
 
 function reason(key: keyof typeof R): SignalReason {
@@ -521,6 +647,287 @@ function retestHoldBelow(zonePrice: number, close: number, prevClose: number): b
 }
 
 // ---------------------------------------------------------------------------
+// Three-state publication layer (header fix J) — state derivation + the
+// watched-setup builder. Reads ONLY the gate flags the decision already used;
+// adds no evidence, no weight and no veto. The plan builder's honesty rules
+// (RR >= 1.5 rejection) are untouched — provisional levels are labeled
+// تقديري and re-derived at activation.
+// ---------------------------------------------------------------------------
+
+/** The gate outcomes that BLOCK a buy candidate (the audit A/C rejection
+ *  codes, in the same priority the reasons section prints them). */
+function blockedBuyReasons(g: GateFlags): SignalReason[] {
+  if (!g.buyCandidate) return []
+  const out: SignalReason[] = []
+  if (!g.volumeAgreement) out.push(reason("weakVolumeNoBuy"))
+  else if (!g.allDimsStrong) out.push(reason("notFullStrength"))
+  if (g.vetoResistance) out.push(reason("nearResistanceVeto"))
+  return out
+}
+
+/** The gate outcomes that BLOCK a sell candidate (sell deliberately carries
+ *  no volume/excellence gate — audit D reachability). */
+function blockedSellReasons(g: GateFlags): SignalReason[] {
+  if (!g.sellCandidate && !g.distributionSell) return []
+  return g.vetoSupport ? [reason("atSupportVeto")] : []
+}
+
+interface StateDerivation {
+  state: SignalState
+  /** direction of the blocked candidate (watching) or of the read (confirmed) */
+  direction: "buy" | "sell" | null
+  vetoReasons: SignalReason[]
+}
+
+/**
+ * Map (published signal, last-read gates, plan presence) → the publication
+ * state. A vetoed/uncandified hold with a live blocked candidate is still a
+ * WATCHED OPPORTUNITY (the candidate read exists, the structure just says
+ * not-yet) — the `signal` field itself is never altered.
+ */
+function deriveSignalState(signal: TechSignalType | null, g: GateFlags, hasPlan: boolean): StateDerivation {
+  const noPlanReason: SignalReason = reason("noTradablePlan")
+  if (signal === "buy") {
+    const blockers = blockedBuyReasons(g)
+    if (blockers.length > 0) return { state: "watching", direction: "buy", vetoReasons: blockers }
+    if (!hasPlan) return { state: "watching", direction: "buy", vetoReasons: [noPlanReason] }
+    return { state: "confirmed", direction: "buy", vetoReasons: [] }
+  }
+  if (signal === "sell") {
+    const blockers = blockedSellReasons(g)
+    if (blockers.length > 0) return { state: "watching", direction: "sell", vetoReasons: blockers }
+    if (!hasPlan) return { state: "watching", direction: "sell", vetoReasons: [noPlanReason] }
+    return { state: "confirmed", direction: "sell", vetoReasons: [] }
+  }
+  // hold / null — a blocked candidate still publishes a watched opportunity
+  const buyBlockers = blockedBuyReasons(g)
+  if (buyBlockers.length > 0) return { state: "watching", direction: "buy", vetoReasons: buyBlockers }
+  const sellBlockers = blockedSellReasons(g)
+  if (sellBlockers.length > 0) return { state: "watching", direction: "sell", vetoReasons: sellBlockers }
+  return { state: "wait", direction: null, vetoReasons: [] }
+}
+
+const SETUP_VOLUME_CONDITION_AR = "حجم إغلاق ≥ 1.5× متوسط آخر 20 جلسة"
+const SETUP_RECOMPUTE_NOTE_AR =
+  "المستويات تقديرية (تقديري) وتُعاد الحسابات بالكامل لحظة التفعيل بإغلاق يومي — وعندها يُعاد التحقق من نسبة المخاطرة/العائد؛ لو كانت أقل من 1.5 الفرصة لا تتحول إلى قراءة مؤكدة."
+const SETUP_POST_ENTRY_NOTE_AR =
+  "ملحوظة: شرط الإلغاء يخص ما قبل الدخول فقط — بعد التفعيل والدخول، الخروج من الصفقة يتبع وقف الخسارة في الخطة المُعاد حسابها، وليس شرط الإلغاء."
+
+/** Documented observed extremes used as the deterministic fallback anchors
+ *  when no pivot structure exists (the close engine: last-20 closes; the
+ *  snapshot path: the observed 60-session range). */
+interface SetupExtremes {
+  low: number | null
+  lowBasisAr: string
+  high: number | null
+  highBasisAr: string
+}
+
+interface WatchingSetupInput {
+  direction: "buy" | "sell"
+  lastClose: number
+  /** true when a structural veto raised the block — the activation level is
+   *  then the veto structure itself (resistance top / support bottom) */
+  structuralVeto: boolean
+  /** the veto zone level (the SAME object the veto consumed; un-rounded) */
+  vetoLevel: number | null
+  vetoTouches: number | null
+  /** zone band edges when the veto came from a supply/demand zone (snapshot) */
+  vetoBand: { low: number; high: number } | null
+  vetoReasons: SignalReason[]
+  /** full close series (close engine) — [] on the snapshot path */
+  closes: number[]
+  supports: { price: number }[]
+  resistances: { price: number }[]
+  zones: { kind: "demand" | "supply"; low: number; high: number }[] | null
+  atrPct: number | null
+  volPct: number | null
+  extremes: SetupExtremes
+}
+
+/**
+ * Build the watched-setup payload for a blocked candidate.
+ *
+ * ACTIVATION LEVEL SOURCE (deterministic, no invented numbers):
+ *   structural veto → the veto structure itself: for a blocked buy the TOP of
+ *   the tested resistance cluster (supply-zone high / pivot price), for a
+ *   blocked sell the BOTTOM of the tested support (demand-zone low / pivot);
+ *   no veto → nearest structural pivot beyond the close, else the documented
+ *   observed extreme of the series (last-20 closes / 60-session range).
+ * PROVISIONAL LEVELS: the CURRENT trade-plan builder evaluated AT the
+ *   activation level (lastClose := activation) — same honesty rules; when it
+ *   cannot anchor a plan (RR < 1.5 or missing anchors) the levels fall back
+ *   to raw structure, and every level carries its own basisAr.
+ */
+function buildWatchingSetup(inp: WatchingSetupInput): WatchingSetup {
+  const dir = inp.direction
+  const fmt = (v: number): string => v.toFixed(2)
+
+  // ---- activation level -------------------------------------------------------
+  let rawLevel: number | null = null
+  // Every path below either assigns this or the rawLevel === null fallback
+  // overwrites it — the empty default satisfies definite assignment only.
+  let activationBasisAr = ""
+  if (inp.structuralVeto && inp.vetoLevel !== null) {
+    if (dir === "buy") {
+      rawLevel = inp.vetoBand ? inp.vetoBand.high : inp.vetoLevel
+      activationBasisAr = `أعلى مجموعة المقاومة المُختبرة التي أوقفت القراءة${inp.vetoTouches !== null ? ` (${inp.vetoTouches} اختبارات)` : ""}`
+    } else {
+      rawLevel = inp.vetoBand ? inp.vetoBand.low : inp.vetoLevel
+      activationBasisAr = `قاع مجموعة الدعم المُختبرة التي أوقفت القراءة${inp.vetoTouches !== null ? ` (${inp.vetoTouches} اختبارات)` : ""}`
+    }
+  } else if (dir === "buy") {
+    const res = nearestAbove(inp.resistances.map((r) => r.price), inp.lastClose)
+    if (res !== null) {
+      rawLevel = res
+      activationBasisAr = "أقرب مقاومة هيكلية فوق السعر"
+    } else if (inp.extremes.high !== null) {
+      rawLevel = inp.extremes.high
+      activationBasisAr = inp.extremes.highBasisAr
+    }
+  } else {
+    const sup = nearestBelow(inp.supports.map((s) => s.price), inp.lastClose)
+    if (sup !== null) {
+      rawLevel = sup
+      activationBasisAr = "أقرب دعم هيكلي تحت السعر"
+    } else if (inp.extremes.low !== null) {
+      rawLevel = inp.extremes.low
+      activationBasisAr = inp.extremes.lowBasisAr
+    }
+  }
+  // Total by construction (a blocked candidate always has a veto structure, a
+  // pivot, or an observed extreme of its own series); the last-resort anchor
+  // is the last close itself and the basis says so honestly.
+  const activationLevel = roundToTick(rawLevel ?? inp.lastClose)
+  if (rawLevel === null) activationBasisAr = "آخر إغلاق متاح — لا هيكل سعري مرصود في هذه اللقطة"
+
+  const activation: SetupActivation = {
+    kind: dir === "buy" ? "close_above" : "close_below",
+    level: activationLevel,
+    basisAr: activationBasisAr,
+    volumeConditionAr: SETUP_VOLUME_CONDITION_AR,
+  }
+
+  // ---- provisional levels: the plan builder AT the activation level ----------
+  const plan = buildTradePlan({
+    signal: dir,
+    lastClose: activationLevel,
+    closes: inp.closes,
+    supports: inp.supports,
+    resistances: inp.resistances,
+    zones: inp.zones,
+    atrPct: inp.atrPct,
+    volPct: inp.volPct,
+  })
+
+  const supBelowActivation = nearestBelow(inp.supports.map((s) => s.price), activationLevel)
+  const resAboveActivation = nearestAbove(inp.resistances.map((r) => r.price), activationLevel)
+
+  const provisionalEntry: ProvisionalEntry | null = plan
+    ? { low: plan.entryLow, high: plan.entryHigh, basisAr: `خطة تقديرية محسوبة على مستوى التفعيل — ${plan.basisAr}` }
+    : dir === "buy"
+      ? { low: activationLevel, high: roundToTick(activationLevel * 1.004), basisAr: "منطقة ما بعد التفعيل حول مستوى الكسر (تقديري)" }
+      : { low: roundToTick(activationLevel * 0.996), high: activationLevel, basisAr: "منطقة ما بعد التفعيل حول مستوى الكسر (تقديري)" }
+
+  const stopAtrNoteAr = " (تقديري — يُثبت بـ 1.5×ATR عند التفعيل)"
+  const provisionalStop: ProvisionalStop | null = plan
+    ? { level: plan.stop, basisAr: `وقف تقديري — ${plan.basisAr}` }
+    : dir === "buy"
+      ? supBelowActivation !== null
+        ? { level: roundToTick(supBelowActivation), basisAr: `أقرب دعم هيكلي تحت مستوى التفعيل${stopAtrNoteAr}` }
+        : inp.extremes.low !== null && inp.extremes.low < activationLevel
+          ? { level: roundToTick(inp.extremes.low), basisAr: `${inp.extremes.lowBasisAr}${stopAtrNoteAr}` }
+          : null
+      : resAboveActivation !== null
+        ? { level: roundToTick(resAboveActivation), basisAr: `أقرب مقاومة هيكلية فوق مستوى التفعيل${stopAtrNoteAr}` }
+        : inp.extremes.high !== null && inp.extremes.high > activationLevel
+          ? { level: roundToTick(inp.extremes.high), basisAr: `${inp.extremes.highBasisAr}${stopAtrNoteAr}` }
+          : null
+
+  let provisionalTarget: ProvisionalTarget | null = null
+  if (plan) {
+    provisionalTarget = {
+      low: plan.targetLow,
+      high: plan.targetHigh,
+      basisAr: `هدف تقديري — مصدر الخطة (${plan.targetKind ?? "هيكلي"})`,
+    }
+  } else if (dir === "buy") {
+    if (resAboveActivation !== null) {
+      provisionalTarget = { low: roundToTick(resAboveActivation), high: roundToTick(resAboveActivation), basisAr: "أقرب مقاومة هيكلية فوق مستوى التفعيل (تقديري)" }
+    } else {
+      const mm = measuredHeight(inp.closes)
+      if (mm !== null) {
+        provisionalTarget = {
+          low: roundToTick(activationLevel + mm),
+          high: roundToTick(activationLevel + mm),
+          basisAr: "حركة مقاسة: ارتفاع نطاق آخر 40 جلسة مسقطًا من مستوى التفعيل (تقديري)",
+        }
+      }
+    }
+  } else {
+    if (supBelowActivation !== null) {
+      provisionalTarget = { low: roundToTick(supBelowActivation), high: roundToTick(supBelowActivation), basisAr: "أقرب دعم هيكلي تحت مستوى التفعيل (تقديري)" }
+    } else {
+      const mm = measuredHeight(inp.closes)
+      if (mm !== null) {
+        provisionalTarget = {
+          low: roundToTick(activationLevel - mm),
+          high: roundToTick(activationLevel - mm),
+          basisAr: "حركة مقاسة: ارتفاع نطاق آخر 40 جلسة مسقطًا من مستوى التفعيل (تقديري)",
+        }
+      }
+    }
+  }
+
+  const provisionalRiskReward = (() => {
+    if (plan) return plan.riskReward
+    const entryMid = (provisionalEntry.low + provisionalEntry.high) / 2
+    if (provisionalStop === null || provisionalTarget === null) return null
+    const targetMid = (provisionalTarget.low + provisionalTarget.high) / 2
+    const risk = dir === "buy" ? entryMid - provisionalStop.level : provisionalStop.level - entryMid
+    const reward = dir === "buy" ? targetMid - entryMid : entryMid - targetMid
+    if (!(risk > 0) || !(reward > 0)) return null
+    return Math.round((reward / risk) * 100) / 100
+  })()
+
+  // ---- pre-entry invalidation (separate from the post-entry stop) ------------
+  const preEntryInvalidation: PreEntryInvalidation = (() => {
+    if (dir === "buy") {
+      const floor = nearestBelow(inp.supports.map((s) => s.price), inp.lastClose) ?? inp.extremes.low
+      const level = roundToTick(floor ?? inp.lastClose)
+      return {
+        level,
+        conditionAr: `إغلاق يومي تحت ${fmt(level)} يلغي الفرصة قبل الدخول.`,
+        reasonAr: "الكسر الهيكلي قبل التفعيل يجعل سيناريو الاستمرار غير صالح — تُلغى الفرصة وتُعاد القراءة من الصفر.",
+      }
+    }
+    const ceiling = nearestAbove(inp.resistances.map((r) => r.price), inp.lastClose) ?? inp.extremes.high
+    const level = roundToTick(ceiling ?? inp.lastClose)
+    return {
+      level,
+      conditionAr: `إغلاق يومي فوق ${fmt(level)} يلغي الفرصة قبل الدخول.`,
+      reasonAr: "الاستعادة الهيكلية قبل التفعيل تلغي سيناريو الانهيار — تُلغى الفرصة وتُعاد القراءة من الصفر.",
+    }
+  })()
+
+  return {
+    direction: dir,
+    activation,
+    provisionalEntry,
+    provisionalStop,
+    provisionalTarget,
+    provisionalRiskReward,
+    provisionalBasisAr: plan
+      ? "مشتقة من مُنشئ الخطط الحتمي مُقيَّمًا عند مستوى التفعيل (تقديري)"
+      : "مشتقة من هيكل السعر مباشرة لأن الخطة لا تُثبَّت على الهيكل الحالي (تقديري)",
+    recomputeNoteAr: SETUP_RECOMPUTE_NOTE_AR,
+    preEntryInvalidation,
+    postEntryNoteAr: SETUP_POST_ENTRY_NOTE_AR,
+    vetoReasons: inp.vetoReasons,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Style checklists — the SAME facts evaluated per trading horizon.
 // The "day" style is DISABLED (@5 style honesty): daily closes cannot support
 // intraday claims. The tag stays in the type/meta for UI compatibility.
@@ -601,11 +1008,17 @@ function computeStyleFits(
 // Entry point 1 — light close-based engine (whole-market screen).
 // ---------------------------------------------------------------------------
 
-/** Minimal bar the light engine needs: one row per session, ascending. */
+/** Minimal bar the light engine needs: one row per session, ascending.
+ *  OPTIONAL real OHLC (2026-11-14 ablation extension): the ADX and
+ *  candlestick evidence modules consume open/high/low when present; close-only
+ *  rows remain fully valid — those modules abstain silently. */
 export interface CloseRow {
   ts: string
   close: number
   volume: number | null
+  open?: number
+  high?: number
+  low?: number
 }
 
 export interface CloseSignalOutput extends TechStance {
@@ -1092,11 +1505,142 @@ function rangePos(closes: number[], n = 60): number | null {
   return ((win[win.length - 1] - lo) / (hi - lo)) * 100
 }
 
+// ---------------------------------------------------------------------------
+// Ablation evidence plumbing (2026-11-14) — module reads → capped score delta
+// + appended evidence reasons. The ONLY code that consumes the ablation
+// modules; every @5 gate/weight/veto/hysteresis rule above is untouched.
+// ---------------------------------------------------------------------------
+
+interface EvidenceAppendix {
+  /** clamped to ±EVIDENCE_DELTA_CAP_TOTAL; 0 ⇒ the walk is not re-run */
+  totalDelta: number
+  reasons: SignalReason[]
+}
+
+function adxEvidenceReason(adx: AdxResult): SignalReason | null {
+  if (adx.abstained || adx.trendStrength === "none" || adx.direction === "none" || adx.adx === null) return null
+  const v = Math.round(adx.adx)
+  const strong = adx.trendStrength === "strong"
+  if (adx.direction === "up") return strong
+    ? { code: "adx_strong_up", tone: "positive", ar: `ADX عند ${v} مع سيطرة DI+ — اتجاه صاعد قوي يدعم قراءة الشراء.`, en: `ADX at ${v} with DI+ dominant — a strong uptrend supporting the buy read.` }
+    : { code: "adx_weak_up", tone: "positive", ar: `ADX عند ${v} مع ميول DI+ — اتجاه صاعد ضعيف، دليل داعم بحذر.`, en: `ADX at ${v} with a DI+ lean — a weak uptrend, supporting evidence taken cautiously.` }
+  return strong
+    ? { code: "adx_strong_down", tone: "negative", ar: `ADX عند ${v} مع سيطرة DI− — اتجاه هابط قوي يضغط على القراءة الصاعدة.`, en: `ADX at ${v} with DI− dominant — a strong downtrend weighing on the buy read.` }
+    : { code: "adx_weak_down", tone: "negative", ar: `ADX عند ${v} مع ميول DI− — اتجاه هابط ضعيف.`, en: `ADX at ${v} with a DI− lean — a weak downtrend.` }
+}
+
+function divEvidenceReason(d: DivergenceSignal): SignalReason {
+  const s = Math.round(d.strength * 100) / 100
+  const basisAr = d.basis === "rsi" ? "مؤشر القوة النسبية RSI" : "هيستوجرام MACD"
+  return d.kind === "bullish"
+    ? { code: "divergence_bullish", tone: "positive", ar: `دايفرجنس صاعد مؤكد على ${basisAr} — قاع سعري أدنى مع زخم أعلى (قوة ${s}).`, en: `Confirmed bullish divergence on ${d.basis.toUpperCase()} — a lower price low with a higher momentum low (strength ${s}).` }
+    : { code: "divergence_bearish", tone: "negative", ar: `دايفرجنس هابط مؤكد على ${basisAr} — قمة سعرية أعلى مع زخم أضعف (قوة ${s}).`, en: `Confirmed bearish divergence on ${d.basis.toUpperCase()} — a higher price high with a weaker momentum high (strength ${s}).` }
+}
+
+function candleEvidenceReason(read: CandlePatternRead): SignalReason {
+  const s = Math.round(read.strength * 100) / 100
+  const tone = read.tone === "bullish" ? "positive" as const : read.tone === "bearish" ? "negative" as const : "neutral" as const
+  return {
+    code: `candle_${read.pattern}`,
+    tone,
+    ar: `${read.contextAr} (قوة ${s})`,
+    en: `Candlestick pattern "${read.pattern}" (${read.tone}, strength ${s}) on the last session.`,
+  }
+}
+
+/** One module's evidence → its capped score delta (±EVIDENCE_DELTA_CAP_PER_MODULE). */
+function computeEvidenceAppendix(rows: CloseRow[], variant: TechEngineVariant): EvidenceAppendix {
+  const cap = EVIDENCE_DELTA_CAP_PER_MODULE
+  const clamp4 = (d: number): number => Math.max(-cap, Math.min(cap, d))
+  let total = 0
+  const reasons: SignalReason[] = []
+  const useAdx = variant === "tech-signals@5+adx" || variant === "tech-signals@5+all"
+  const useDiv = variant === "tech-signals@5+div" || variant === "tech-signals@5+all"
+  const useCandles = variant === "tech-signals@5+candles" || variant === "tech-signals@5+all"
+
+  if (useAdx) {
+    // OHLC-absent ⇒ the module abstains silently (close-only replay unchanged)
+    const bars = rows.map((r) => ({ high: typeof r.high === "number" ? r.high : NaN, low: typeof r.low === "number" ? r.low : NaN, close: r.close }))
+    const adx = computeAdx(bars)
+    if (!adx.abstained && adx.trendStrength !== "none" && adx.direction !== "none") {
+      const mag = adx.trendStrength === "strong" ? cap : 2
+      const d = clamp4(adx.direction === "up" ? mag : -mag)
+      total += d
+      if (d !== 0) {
+        const r = adxEvidenceReason(adx)
+        if (r) reasons.push(r)
+      }
+    }
+  }
+
+  if (useDiv) {
+    const div = detectDivergence(rows)
+    const bullDelta = div.bullish ? clamp4(Math.round(cap * div.bullish.strength)) : 0
+    const bearDelta = div.bearish ? -clamp4(Math.round(cap * div.bearish.strength)) : 0
+    total += bullDelta + bearDelta
+    // contradictory evidence cancels (documented) — no reason is printed
+    if (bullDelta !== 0 && bearDelta !== 0) {
+      // net zero, silent
+    } else if (bullDelta > 0 && div.bullish) {
+      reasons.push(divEvidenceReason(div.bullish))
+    } else if (bearDelta < 0 && div.bearish) {
+      reasons.push(divEvidenceReason(div.bearish))
+    }
+  }
+
+  if (useCandles) {
+    const candle = readLastCandle(rows)
+    if (candle.available && candle.read) {
+      const read = candle.read
+      const signed = read.tone === "bullish" ? 1 : read.tone === "bearish" ? -1 : 0
+      const d = signed === 0 ? 0 : clamp4(signed * Math.round(cap * read.strength))
+      total += d
+      if (d !== 0 || read.tone === "neutral") reasons.push(candleEvidenceReason(read))
+    }
+  }
+
+  return { totalDelta: Math.max(-EVIDENCE_DELTA_CAP_TOTAL, Math.min(EVIDENCE_DELTA_CAP_TOTAL, total)), reasons }
+}
+
+/** Re-decide the LAST trail read under the SAME @5 rules with an
+ *  evidence-adjusted score. Every non-score gate input is IDENTICAL to the
+ *  base read (trend share, oscillators, volume agreement, excellence, vetoes)
+ *  — evidence alone can never create a directional read. */
+function redecideLastReadWithEvidence(ctx: SeriesCtx, i: number, read: TrailRead, adjustedScore: number): TrailRead {
+  const f = read.facts
+  if (!f) return read
+  const close = ctx.closes[i]
+  const e50 = ctx.e50[i]
+  const prevClose = i > 0 ? ctx.closes[i - 1] : null
+  const levels = (adjustedScore >= BUY_SCORE || adjustedScore < SELL_DISTRIBUTION_SCORE)
+    ? levelsAt(ctx.closes, i)
+    : { supports: [] as PriceZone[], resistances: [] as PriceZone[] }
+  const { signal, gates } = decideSignal({
+    finalScore: adjustedScore,
+    trendShare: f.trendShare,
+    rsi: f.rsi14,
+    macdLine: f.macdLine,
+    macdHist: f.macdHist,
+    relVol: f.relVol,
+    obvSlope: f.obvSlope20,
+    allDimsStrong: f.gates.allDimsStrong,
+    lowerHighs: f.lowerHighs,
+    belowLongMa: e50 !== null && close < e50,
+    close,
+    prevClose,
+    resistanceZone: resistanceZoneNear(levels.resistances, close),
+    supportZone: supportZoneNear(levels.supports, close),
+  })
+  return { ...read, signal, score: adjustedScore, facts: { ...f, gates } }
+}
+
 /**
  * Deterministic light signal over close-only day-rows (ascending).
  * Missing history → null score with disclosed limitations — never a fake read.
- * opts.engineVersion: "tech-signals@5" (default, current methodology) or
- * "tech-signals@4" (v1 baseline for A/B backtesting on identical bars).
+ * opts.engineVersion: "tech-signals@5" (default, current methodology),
+ * "tech-signals@4" (v1 baseline for A/B backtesting on identical bars), or one
+ * of the TECH_ENGINE_VARIANTS (base @5 + a capped additive evidence layer —
+ * see the ablation header and docs/notes/backtest-ablation.md).
  */
 export function computeCloseSignal(rows: CloseRow[], opts: { engineVersion?: EngineVersionOption } = {}): CloseSignalOutput {
   if (opts.engineVersion === SIGNALS_VERSION_V1_BASELINE) return computeCloseSignalV1(rows)
@@ -1116,7 +1660,22 @@ export function computeCloseSignal(rows: CloseRow[], opts: { engineVersion?: Eng
 
   const ctx = buildSeriesCtx(rows)
   const reads = trailReads(ctx, TRAIL_DEPTH)
-  const walk = applyHysteresis(reads)
+  const walk0 = applyHysteresis(reads)
+  // ---- ablation variants (additive evidence layer — header block above) ----
+  const variant = opts.engineVersion && opts.engineVersion !== SIGNALS_VERSION ? (opts.engineVersion as TechEngineVariant) : null
+  let walk = walk0
+  let evidence: EvidenceAppendix | null = null
+  if (variant) {
+    evidence = computeEvidenceAppendix(rows, variant)
+    if (evidence.totalDelta !== 0) {
+      const li = reads.length - 1
+      const lr = reads[li]
+      if (lr.score !== null && lr.facts) {
+        reads[li] = redecideLastReadWithEvidence(ctx, li, lr, Math.max(0, Math.min(100, lr.score + evidence.totalDelta)))
+        walk = applyHysteresis(reads)
+      }
+    }
+  }
   const last = reads[reads.length - 1]
   const f = last.facts!
   const g = f.gates
@@ -1180,6 +1739,10 @@ export function computeCloseSignal(rows: CloseRow[], opts: { engineVersion?: Eng
   if (f.rangePos60 !== null && f.rangePos60 > 90) push(reason("atRangeTop"))
   if (f.rsi14 !== null && f.rsi14 < 38 && changePct !== null && changePct > 0) push(reason("oversoldBounce"))
 
+  // ---------- ablation-variant evidence reasons (APPENDED after the base
+  // reasons, never replacing them; evidence never alters a base reason) ----------
+  if (evidence) for (const r of evidence.reasons) if (!reasons.some((x) => x.code === r.code)) reasons.push(r)
+
   // ---------- style fits (day style DISABLED — daily closes, fix H) ----------
   const styleFits = computeStyleFits({
     signal, changePct, rsi: f.rsi14, ema20: f.ema20, ema50: f.ema50,
@@ -1203,8 +1766,40 @@ export function computeCloseSignal(rows: CloseRow[], opts: { engineVersion?: Eng
       })()
     : null
 
+  // ---------- three-state publication layer (header fix J — additive) ----------
+  const { state, direction, vetoReasons } = deriveSignalState(signal, g, tradePlan !== null)
+  let setup: WatchingSetup | null = null
+  if (state === "watching" && direction !== null && lastClose !== null) {
+    const levels = levelsAt(closes, sessions - 1)
+    const vetoZone = direction === "buy"
+      ? resistanceZoneNear(levels.resistances, lastClose)
+      : supportZoneNear(levels.supports, lastClose)
+    const closeWindow = closes.slice(-20)
+    setup = buildWatchingSetup({
+      direction,
+      lastClose,
+      structuralVeto: vetoReasons.some((r) => r.code === "near_resistance_veto" || r.code === "at_support_veto"),
+      vetoLevel: vetoZone?.price ?? null,
+      vetoTouches: vetoZone?.touches ?? null,
+      vetoBand: null,
+      vetoReasons,
+      closes,
+      supports: levels.supports.map((z) => ({ price: z.price })),
+      resistances: levels.resistances.map((z) => ({ price: z.price })),
+      zones: null,
+      atrPct: null,
+      volPct: f.dailyVolPct,
+      extremes: {
+        low: closeWindow.length > 0 ? Math.min(...closeWindow) : null,
+        lowBasisAr: "أدنى إغلاق في آخر 20 جلسة",
+        high: closeWindow.length > 0 ? Math.max(...closeWindow) : null,
+        highBasisAr: "أعلى إغلاق في آخر 20 جلسة",
+      },
+    })
+  }
+
   return {
-    version: SIGNALS_VERSION,
+    version: variant ?? SIGNALS_VERSION,
     score,
     signal,
     dimensions: last.dims,
@@ -1212,6 +1807,8 @@ export function computeCloseSignal(rows: CloseRow[], opts: { engineVersion?: Eng
     styleFits,
     invalidation: null, // close-only engine has no reliable level map — full bundle supplies it
     tradePlan,
+    signalState: state,
+    setup,
     limitations,
     sessions,
     lastClose,
@@ -1247,6 +1844,8 @@ function emptyStance(
     styleFits: [],
     invalidation: null,
     tradePlan: null,
+    signalState: "wait",
+    setup: null,
     limitations,
     sessions: base.sessions,
     lastClose: base.lastClose,
@@ -1530,6 +2129,7 @@ export function computeStanceFromSnapshot(snap: TechnicalSnapshot): TechStance {
     return {
       version: SIGNALS_VERSION, score: null, signal: null, dimensions: [],
       reasons: [], styleFits: [], invalidation: null, tradePlan: null,
+      signalState: "wait", setup: null,
       limitations: ["No daily price history is stored for this company yet."],
     }
   }
@@ -1599,6 +2199,21 @@ export function computeStanceFromSnapshot(snap: TechnicalSnapshot): TechStance {
       }, false)
 
       const invalidation = buildInvalidation(signal, last > (f.ema20 ?? 0), snap.levels.supports[0], snap.levels.resistances[0])
+      const tradePlan = signal !== null && signal !== "hold"
+        ? buildTradePlan({
+            signal,
+            lastClose: last,
+            closes: [],
+            supports: snap.levels.supports,
+            resistances: snap.levels.resistances,
+            zones: snap.zones?.zones?.map((z) => ({ kind: z.kind, low: z.low, high: z.high })) ?? null,
+            atrPct: vol.atrPct ?? null,
+          })
+        : null
+      const { state, direction, vetoReasons } = deriveSignalState(signal, g, tradePlan !== null)
+      const setup = state === "watching" && direction !== null
+        ? snapshotWatchingSetup(snap, direction, vetoReasons, vetoReasons.some((r) => r.code === "near_resistance_veto" || r.code === "at_support_veto"))
+        : null
       return {
         version: SIGNALS_VERSION,
         score: walk.score,
@@ -1607,17 +2222,9 @@ export function computeStanceFromSnapshot(snap: TechnicalSnapshot): TechStance {
         reasons,
         styleFits,
         invalidation,
-        tradePlan: signal !== null && signal !== "hold"
-          ? buildTradePlan({
-              signal,
-              lastClose: last,
-              closes: [],
-              supports: snap.levels.supports,
-              resistances: snap.levels.resistances,
-              zones: snap.zones?.zones?.map((z) => ({ kind: z.kind, low: z.low, high: z.high })) ?? null,
-              atrPct: vol.atrPct ?? null,
-            })
-          : null,
+        tradePlan,
+        signalState: state,
+        setup,
         limitations,
       }
     }
@@ -1761,6 +2368,22 @@ export function computeStanceFromSnapshot(snap: TechnicalSnapshot): TechStance {
 
   const invalidation = buildInvalidation(signal, priceAboveShort === true, snap.levels.supports[0], snap.levels.resistances[0])
 
+  const tradePlan = signal !== null && signal !== "hold"
+    ? buildTradePlan({
+        signal,
+        lastClose: last,
+        closes: [], // the snapshot carries levels, not raw bars — zones come from levels/zones below
+        supports: snap.levels.supports,
+        resistances: snap.levels.resistances,
+        zones: snap.zones?.zones?.map((z) => ({ kind: z.kind, low: z.low, high: z.high })) ?? null,
+        atrPct: vol.atrPct ?? null,
+      })
+    : null
+  const { state, direction, vetoReasons } = deriveSignalState(signal, gates, tradePlan !== null)
+  const setup = state === "watching" && direction !== null
+    ? snapshotWatchingSetup(snap, direction, vetoReasons, vetoReasons.some((r) => r.code === "near_resistance_veto" || r.code === "at_support_veto"))
+    : null
+
   return {
     version: SIGNALS_VERSION,
     score: finalScore,
@@ -1769,19 +2392,57 @@ export function computeStanceFromSnapshot(snap: TechnicalSnapshot): TechStance {
     reasons,
     styleFits,
     invalidation,
-    tradePlan: signal !== null && signal !== "hold"
-      ? buildTradePlan({
-          signal,
-          lastClose: last,
-          closes: [], // the snapshot carries levels, not raw bars — zones come from levels/zones below
-          supports: snap.levels.supports,
-          resistances: snap.levels.resistances,
-          zones: snap.zones?.zones?.map((z) => ({ kind: z.kind, low: z.low, high: z.high })) ?? null,
-          atrPct: vol.atrPct ?? null,
-        })
-      : null,
+    tradePlan,
+    signalState: state,
+    setup,
     limitations,
   }
+}
+
+/**
+ * Watched-setup input assembled from a full snapshot (shared by the trail and
+ * the fallback scorer paths). The veto zone is re-resolved with the SAME
+ * helpers the decision used, and when it came from a supply/demand zone the
+ * band recovers its full low/high edges so the activation level is the zone
+ * TOP (blocked buy) / BOTTOM (blocked sell).
+ */
+function snapshotWatchingSetup(
+  snap: TechnicalSnapshot,
+  direction: "buy" | "sell",
+  vetoReasons: SignalReason[],
+  structuralVeto: boolean,
+): WatchingSetup | null {
+  const last = snap.lastClose
+  if (last === null) return null
+  const zone = direction === "buy" ? resolveResistanceZone(snap, last) : resolveSupportZone(snap, last)
+  let vetoBand: { low: number; high: number } | null = null
+  if (zone !== null && snap.zones?.zones) {
+    for (const z of snap.zones.zones) {
+      if (direction === "buy" && z.kind === "supply" && z.low === zone.price) { vetoBand = { low: z.low, high: z.high }; break }
+      if (direction === "sell" && z.kind === "demand" && z.high === zone.price) { vetoBand = { low: z.low, high: z.high }; break }
+    }
+  }
+  return buildWatchingSetup({
+    direction,
+    lastClose: last,
+    structuralVeto,
+    vetoLevel: zone?.price ?? null,
+    vetoTouches: zone?.touches ?? null,
+    vetoBand,
+    vetoReasons,
+    closes: [],
+    supports: snap.levels.supports,
+    resistances: snap.levels.resistances,
+    zones: snap.zones?.zones?.map((z) => ({ kind: z.kind, low: z.low, high: z.high })) ?? null,
+    atrPct: snap.volatility.atrPct ?? null,
+    volPct: null,
+    extremes: {
+      low: snap.range60?.low ?? null,
+      lowBasisAr: "قاع نطاق 60 جلسة المرصود",
+      high: snap.range60?.high ?? null,
+      highBasisAr: "قمة نطاق 60 جلسة المرصود",
+    },
+  })
 }
 
 function buildInvalidation(

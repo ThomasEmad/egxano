@@ -141,11 +141,24 @@ export function validateSeries(quote: CachedQuote, cfg: BacktestConfig): SeriesV
   if (maxGap > 14) reasons.push(`max calendar gap ${maxGap} days (suspension?)`)
   // ordering anomalies disclosed in stats (ohlcViolations) but non-fatal
 
-  const rows: EngineRow[] = deduped.map((b) => ({
-    ts: b.ts,
-    close: Number.isFinite(b.adjClose) && b.adjClose > 0 ? b.adjClose : b.close,
-    volume: b.volume,
-  }))
+  // Rows fed to the engine: close = ADJUSTED close (corporate-action
+  // continuity). ADDITIVE (2026-11-14 ablation extension): real open/high/low
+  // carried on the SAME adjustment factor (adjClose/close) so OHLC stays
+  // internally consistent across ex-dates — the frozen engine ignores these
+  // fields; the ablation evidence modules (ADX/candlestick) consume them.
+  // Factor = 1 whenever adjclose is unusable (raw OHLC passthrough).
+  const rows: EngineRow[] = deduped.map((b) => {
+    const close = Number.isFinite(b.adjClose) && b.adjClose > 0 ? b.adjClose : b.close
+    const factor = b.close > 0 ? close / b.close : 1
+    return {
+      ts: b.ts,
+      close,
+      volume: b.volume,
+      open: Number.isFinite(b.open) ? b.open * factor : undefined,
+      high: Number.isFinite(b.high) ? b.high * factor : undefined,
+      low: Number.isFinite(b.low) ? b.low * factor : undefined,
+    }
+  })
 
   return { ticker: quote.ticker, ok: reasons.length === 0, reasons, stats, rows }
 }

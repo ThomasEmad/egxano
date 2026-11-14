@@ -3,8 +3,12 @@ import type { CloseRow, TechSignalType } from "../../../.cache/engine-baseline/s
 
 /** Engine input row — structurally identical to the frozen engine's CloseRow
  *  ({ ts, close, volume }); close is the ADJUSTED close (corporate-action
- *  continuity), volume is the raw session volume (production parity). */
-export type EngineRow = CloseRow
+ *  continuity), volume is the raw session volume (production parity).
+ *  ADDITIVE (2026-11-14 ablation extension): optional real open/high/low —
+ *  same-bar continuity adjusted by the adjclose/close factor so OHLC stays
+ *  internally consistent. The frozen engine ignores them; the ADX/candle
+ *  evidence modules consume them when present (absent ⇒ they abstain). */
+export type EngineRow = CloseRow & { open?: number; high?: number; low?: number }
 
 export type SignalType = TechSignalType
 
