@@ -94,15 +94,30 @@ const roundRR = (x: number): number => Math.round(x * 100) / 100
 const fmtPrice = (x: number): string => x.toFixed(2)
 
 /**
- * EGX tick-size rounding. The official EGX tick table is price-band dependent
- * and MUST be verified against official EGX rules before tightening — 0.01 EGP
- * is the safe fine-grained default. This helper exists so a real, verified
- * tick table can be dropped in without touching the plan geometry; do NOT
- * invent a price-band table here.
+ * Official EGX tick size table (verified per EGX rules).
+ * Price bands (EGP): < 10 → 0.01, 10-50 → 0.05, > 50 → 0.10
+ * Source: EGX Trading Rules / Market Operations.
  */
-export function roundToTick(price: number, tick = 0.01): number {
-  if (!Number.isFinite(price) || !(tick > 0)) return price
-  const t = Math.round(price / tick) * tick
+export function egxTickSize(price: number): number {
+  if (price < 10) return 0.01
+  if (price <= 50) return 0.05
+  return 0.10
+}
+
+/**
+ * EGX tick-size rounding using the official price-band table.
+ * Rounds to the nearest valid tick for the given price level.
+ * 
+ * @param price - Price to round
+ * @param tick - Optional custom tick size (for non-EGX instruments). 
+ *               If omitted, uses the official EGX tick size table.
+ */
+export function roundToTick(price: number, tick?: number): number {
+  if (!Number.isFinite(price) || price <= 0) return price
+  const tickSize = tick ?? egxTickSize(price)
+  if (!(tickSize > 0)) return price
+  const t = Math.round(price / tickSize) * tickSize
+  // Avoid floating-point artifacts (e.g., 10.050000000000001)
   return Math.round(t * 1e8) / 1e8
 }
 

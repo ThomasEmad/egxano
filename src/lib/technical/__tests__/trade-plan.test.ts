@@ -51,11 +51,13 @@ describe("buildTradePlan — structural stop + zone target (buy)", () => {
     expect(p.entryLow).toBeCloseTo(98.5, 2)
     expect(p.entryHigh).toBeCloseTo(100.4, 2)
     // stop = 95 − 95×0.02 = 93.10 (inside the [2%, 8%] sanity band)
+    // EGX tick for 93.10 is 0.05 → 93.1 (already on tick)
     expect(p.stop).toBeCloseTo(93.1, 2)
     expect(p.stop).toBeLessThan(p.entryLow)
     // target = the 115 pivot zone [×0.998, ×1.004]
-    expect(p.targetLow).toBeCloseTo(114.77, 2)
-    expect(p.targetHigh).toBeCloseTo(115.46, 2)
+    // EGX tick for >50 is 0.10: 114.77→114.8, 115.46→115.5
+    expect(p.targetLow).toBeCloseTo(114.8, 2)
+    expect(p.targetHigh).toBeCloseTo(115.5, 2)
     expect(p.targetKind).toBe("pivot")
     expect(p.riskReward).toBeCloseTo(2.47, 2)
     expect(p.riskReward).toBeGreaterThanOrEqual(1.5)
@@ -111,10 +113,13 @@ describe("buildTradePlan — sell", () => {
     expect(p.entryLow).toBeCloseTo(99.5, 2)
     expect(p.entryHigh).toBeCloseTo(102, 2)
     // stop = 106 + 2% default buffer = 108 (inside the sanity band)
-    expect(p.stop).toBeCloseTo(108, 2)
+    // EGX tick for 108 (>50) is 0.10 → 108.0
+    expect(p.stop).toBeCloseTo(108.0, 2)
     expect(p.stop).toBeGreaterThan(p.entryHigh)
-    expect(p.targetLow).toBeCloseTo(79.68, 2)
-    expect(p.targetHigh).toBeCloseTo(80.16, 2)
+    // target = support pivot zone [80×0.996, 80×1.002]
+    // EGX tick for >50 is 0.10: 79.68→79.7, 80.16→80.2
+    expect(p.targetLow).toBeCloseTo(79.7, 2)
+    expect(p.targetHigh).toBeCloseTo(80.2, 2)
     expect(p.targetKind).toBe("pivot")
     expect(p.riskReward).toBeCloseTo(2.87, 2)
     expect(p.textAr).toContain("ضغط بيعي")
@@ -165,19 +170,33 @@ describe("buildTradePlan — rounding and tick contract", () => {
     })
     expect(plan).not.toBeNull()
     const p = plan as TradePlan
-    expect([p.entryLow, p.entryHigh, p.stop, p.targetLow, p.targetHigh]).toEqual([99.68, 101.6, 95.4, 112.25, 112.92])
+    // EGX tick table: <10→0.01, 10-50→0.05, >50→0.10
+    // entryLow 99.68→99.7, entryHigh 101.6→101.6, stop 95.4→95.4, 
+    // targetLow = 112.47*0.998=112.24006→112.2 (0.10 tick), 
+    // targetHigh = 112.47*1.004=112.90988→112.9 (0.10 tick)
+    expect([p.entryLow, p.entryHigh, p.stop, p.targetLow, p.targetHigh]).toEqual([99.7, 101.6, 95.4, 112.2, 112.9])
     for (const v of [p.entryLow, p.entryHigh, p.stop, p.targetLow, p.targetHigh]) {
       expect(is2dp(v)).toBe(true)
       expect(v).toBeGreaterThan(0)
     }
     for (const v of [p.entryPct, p.stopPct, p.targetPct]) expect(is1dp(v)).toBe(true)
     expect(is2dp(p.riskReward)).toBe(true)
-    expect(p.riskReward).toBeCloseTo(2.28, 2)
+    // Updated due to EGX tick rounding: 2.27 instead of 2.28
+    expect(p.riskReward).toBeCloseTo(2.27, 2)
   })
 
-  it("roundToTick — 0.01 EGP safe fine-grained default (EGX table configurable)", () => {
-    expect(roundToTick(123.456)).toBe(123.46)
-    expect(roundToTick(123.4549)).toBe(123.45)
+  it("roundToTick — EGX official price-band table (<10→0.01, 10-50→0.05, >50→0.10)", () => {
+    // 123.456 with >50 tick (0.10): 123.456/0.10=1234.56→round 1235→123.5
+    expect(roundToTick(123.456)).toBe(123.5)
+    // 123.4549 with >50 tick (0.10): 123.4549/0.10=1234.549→round 1235→123.5
+    expect(roundToTick(123.4549)).toBe(123.5)
+    // 10 with 10-50 tick (0.05): 10/0.05=200→round 200→10.00
     expect(roundToTick(10)).toBe(10)
+    // 5 with <10 tick (0.01): 5/0.01=500→round 500→5.00
+    expect(roundToTick(5)).toBe(5)
+    // 25.123 with 10-50 tick (0.05): 25.123/0.05=502.46→round 502→25.10
+    expect(roundToTick(25.123)).toBe(25.1)
+    // 75.555 with >50 tick (0.10): 75.555/0.10=755.55→round 756→75.6
+    expect(roundToTick(75.555)).toBe(75.6)
   })
 })

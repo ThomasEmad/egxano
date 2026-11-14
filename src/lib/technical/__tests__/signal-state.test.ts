@@ -212,7 +212,8 @@ describe("the flagship case — vetoed buy publishes a watched setup, not a nake
     expect(setup.direction).toBe("buy")
     expect(setup.activation.kind).toBe("close_above")
     // the tested-resistance cluster the veto consumed, tick-rounded
-    expect(setup.activation.level).toBe(99.89)
+    // EGX tick for >50 is 0.10: 99.89 → 99.9
+    expect(setup.activation.level).toBe(99.9)
     expect(setup.activation.basisAr).toContain("المقاومة المُختبرة")
     expect(setup.activation.basisAr).toContain("2 اختبارات")
     expect(setup.activation.volumeConditionAr).toContain("1.5×")
@@ -292,7 +293,8 @@ describe("watching variants on the snapshot fallback path", () => {
     const setup = stance.setup!
     expect(setup.direction).toBe("buy")
     expect(setup.activation.kind).toBe("close_above")
-    expect(setup.activation.level).toBe(111.65) // the veto zone price, tick-rounded
+    // EGX tick for >50 is 0.10: 111.65 → 111.7
+    expect(setup.activation.level).toBe(111.7) // the veto zone price, tick-rounded
     expect(setup.activation.basisAr).toContain("المقاومة المُختبرة")
     expect(setup.vetoReasons[0].code).toBe("near_resistance_veto")
     // plan builder cannot anchor a target (no resistance above the cluster,
