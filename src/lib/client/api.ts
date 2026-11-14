@@ -467,6 +467,18 @@ export const api = {
       handle<import("@/lib/technical/signals-service").MarketSignalsResponse>(r)
     ),
 
+  // "فرص اليوم" digest — the server resolves the caller's tier (header token
+  // + cookie fallback) and returns paid rows or locked identity rows.
+  signalOpportunities: () =>
+    fetch("/api/v1/signals/opportunities", { headers: authHeaders() }).then((r) =>
+      handle<import("@/lib/technical/board-gates").OpportunitiesResponse>(r)
+    ),
+
+  signalLifecycle: (companyId: string) =>
+    fetch(`/api/v1/signals/lifecycle?companyId=${encodeURIComponent(companyId)}`, { headers: authHeaders() }).then((r) =>
+      handle<import("@/lib/technical/lifecycle-service").LifecycleApiResponse>(r)
+    ),
+
   companyDocuments: (id: string) =>
     fetch(`/api/v1/companies/${id}/documents`).then((r) => handle<{ documents: CompanyDocument[] }>(r)),
 
