@@ -59,23 +59,29 @@ jobs:
           }
 
           (async () => {
-            // org-scoped account: resolve org ids first, then list per org
+            // org-scoped account: discover org ids via /users/me, then list per org
             let projects = { projects: [] };
             try {
-              const orgsRaw = execSync(
-                `curl -sS --max-time 20 -H "Authorization: Bearer ${KEY}" "https://console.neon.tech/api/v2/orgs"`,
+              const meRaw = execSync(
+                `curl -sS --max-time 20 -H "Authorization: Bearer ${KEY}" "https://console.neon.tech/api/v2/users/me"`,
                 { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }
               );
-              console.log("RAW orgs payload:", orgsRaw.slice(0, 600));
-              const orgs = JSON.parse(orgsRaw);
-              for (const o of orgs.orgs || []) {
-                console.log("org:", o.id, o.name);
+              console.log("RAW me payload:", meRaw.slice(0, 700));
+              const me = JSON.parse(meRaw);
+              const orgIds = [];
+              if (me.organizations) for (const o of me.organizations) orgIds.push(o.id || o);
+              if (me.org_id) orgIds.push(me.org_id);
+              console.log("org ids:", orgIds.join(",") || "(none)");
+              if (orgIds.length === 0) throw new Error("no org in /users/me");
+              for (const oid of orgIds) {
                 try {
-                  const pl = await jget(`https://console.neon.tech/api/v2/projects?org_id=${o.id}&limit=10`);
+                  const pl = await jget(`https://console.neon.tech/api/v2/projects?org_id=${oid}&limit=25`);
+                  console.log(`org ${oid}: ${((pl.projects || []).length)} projects`);
                   projects.projects.push(...(pl.projects || []));
-                } catch (e) { console.log(`org ${o.id} projects list failed`); }
+                } catch (e) { console.log(`org ${oid} projects list failed: ${String(e.message).slice(0, 60)}`); }
               }
-            } catch {
+            } catch (e) {
+              console.log("org discovery failed:", String(e.message).slice(0, 120), "— falling back");
               projects = await jget("https://console.neon.tech/api/v2/projects");
             }
             const uris = [];
