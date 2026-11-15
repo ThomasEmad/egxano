@@ -59,7 +59,20 @@ jobs:
           }
 
           (async () => {
-            const projects = await jget("https://console.neon.tech/api/v2/projects");
+            // org-scoped account: resolve org ids first, then list per org
+            let projects = { projects: [] };
+            try {
+              const orgs = await jget("https://console.neon.tech/api/v2/orgs");
+              for (const o of orgs.orgs || []) {
+                console.log("org:", o.id, o.name);
+                try {
+                  const pl = await jget(`https://console.neon.tech/api/v2/projects?org_id=${o.id}&limit=10`);
+                  projects.projects.push(...(pl.projects || []));
+                } catch (e) { console.log(`org ${o.id} projects list failed`); }
+              }
+            } catch {
+              projects = await jget("https://console.neon.tech/api/v2/projects");
+            }
             const uris = [];
             for (const p of projects.projects || []) {
               try {
