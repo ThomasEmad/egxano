@@ -286,10 +286,17 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
       // no-naked-read invariant is still enforced at the engine itself.
       row.signalState = canonical.stance.signalState
       row.setup = canonical.stance.setup ?? null
-      // Metric consistency (remediation): overlay the canonical stance's
-      // computed metrics so board chips match the company tab exactly.
-      // The canonical stance doesn't carry the full metrics object, but its
-      // dimensions/reasons/score/signal are the source of truth.
+      // Metric consistency (remediation 2026-11-15): overlay the canonical
+      // stance's OWN metric block so the board chips show exactly what the
+      // company tab shows. A metric the canonical snapshot could not produce
+      // is null — the chip renders "—" rather than borrowing the close-only
+      // number, which is what caused two different RSI readings for one stock.
+      if (canonical.stance.metrics) {
+        row.metrics = {
+          ...row.metrics,
+          ...canonical.stance.metrics,
+        }
+      }
     } else {
       // No canonical bundle (no candles / too few sessions): the close-based
       // reading stays, but LEVELS are withheld everywhere for consistency.

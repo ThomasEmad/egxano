@@ -165,19 +165,64 @@ describe("buildTradePlan — rounding and tick contract", () => {
     })
     expect(plan).not.toBeNull()
     const p = plan as TradePlan
-    expect([p.entryLow, p.entryHigh, p.stop, p.targetLow, p.targetHigh]).toEqual([99.68, 101.6, 95.4, 112.25, 112.92])
+    // CONSERVATIVE rounding (remediation 2026-11-15): a BUY entry rounds UP and
+    // its stop rounds DOWN, so rounding can never flatter the printed R/R.
+    // Nearest-rounding gave 99.68 / 101.60; the conservative side is 99.69 / 101.61.
+    expect([p.entryLow, p.entryHigh, p.stop, p.targetLow, p.targetHigh]).toEqual([99.69, 101.61, 95.4, 112.25, 112.92])
     for (const v of [p.entryLow, p.entryHigh, p.stop, p.targetLow, p.targetHigh]) {
       expect(is2dp(v)).toBe(true)
       expect(v).toBeGreaterThan(0)
     }
     for (const v of [p.entryPct, p.stopPct, p.targetPct]) expect(is1dp(v)).toBe(true)
     expect(is2dp(p.riskReward)).toBe(true)
-    expect(p.riskReward).toBeCloseTo(2.28, 2)
+    // R/R is computed on the ROUNDED levels and re-validated — it must never
+    // exceed the pre-rounding geometry's reward.
+    expect(p.riskReward).toBeCloseTo(2.27, 2)
+    expect(p.riskReward).toBeGreaterThanOrEqual(1.5)
   })
 
   it("roundToTick — 0.01 EGP safe fine-grained default (EGX table configurable)", () => {
     expect(roundToTick(123.456)).toBe(123.46)
     expect(roundToTick(123.4549)).toBe(123.45)
     expect(roundToTick(10)).toBe(10)
+  })
+
+  it("roundToTick — direction is honoured and never drifts on exact multiples", () => {
+    // exact multiples must not be pushed a whole tick by float dust
+    expect(roundToTick(10, 0.01, "up")).toBe(10)
+    expect(roundToTick(10, 0.01, "down")).toBe(10)
+    expect(roundToTick(123.451, 0.01, "up")).toBe(123.46)
+    expect(roundToTick(123.451, 0.01, "down")).toBe(123.45)
+    expect(roundToTick(123.451, 0.01, "nearest")).toBe(123.45)
+    // a real tick table can be supplied without touching the geometry
+    expect(roundToTick(123.47, 0.05, "down")).toBe(123.45)
+    expect(roundToTick(123.47, 0.05, "up")).toBe(123.5)
+  })
+
+  it("BUY levels round conservatively: entry up, stop down, target up", () => {
+    const p = buildTradePlan({
+      signal: "buy", lastClose: 101.2, closes: [],
+      supports: [{ price: 97.35 }], resistances: [{ price: 112.47 }], atrPct: null,
+    }) as TradePlan
+    expect(p).not.toBeNull()
+    // entry never fills better than computed, stop never sits closer than
+    // computed, target never sits nearer than computed
+    expect(p.entryLow).toBeGreaterThanOrEqual(99.68)
+    expect(p.stop).toBeLessThanOrEqual(95.4)
+    expect(p.targetLow).toBeGreaterThanOrEqual(112.25)
+    // and the geometry stays internally valid after rounding
+    expect(p.stop).toBeLessThan(p.entryLow)
+    expect(p.targetLow).toBeGreaterThan(p.entryHigh)
+  })
+
+  it("SELL levels round conservatively: entry down, stop up, target closer", () => {
+    const p = buildTradePlan({
+      signal: "sell", lastClose: 100, closes: [],
+      supports: [{ price: 94 }], resistances: [{ price: 104 }], atrPct: null,
+    }) as TradePlan
+    if (p === null) return // no plan is also an honest outcome
+    expect(p.stop).toBeGreaterThan(p.entryHigh)
+    expect(p.targetHigh).toBeLessThan(p.entryLow)
+    expect(p.riskReward).toBeGreaterThanOrEqual(1.5)
   })
 })

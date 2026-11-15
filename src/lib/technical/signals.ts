@@ -246,6 +246,47 @@ export interface TechStance {
   signalState?: SignalState
   /** the watched-setup payload — present iff signalState === "watching" */
   setup?: WatchingSetup | null
+  /** CANONICAL METRIC SNAPSHOT (remediation 2026-11-15 — parity fix).
+   *  The board's metric chips used to read the close-only engine's `metrics`
+   *  while the company tab read the full OHLC bundle, so the SAME stock showed
+   *  two different RSI / range / relVol numbers on two pages. This block is
+   *  computed from the canonical full-OHLC snapshot and is the ONLY source the
+   *  board may display for an overlaid row. Optional in the TYPE because the
+   *  frozen v1 A/B baseline does not emit it; every @5 snapshot path sets it.
+   *  A metric that the snapshot cannot honestly produce is `null` — never
+   *  substituted from a different calculation source. */
+  metrics?: CanonicalMetrics
+}
+
+/**
+ * The canonical metric block shared by every surface (remediation 2026-11-15).
+ *
+ * DEFINITIONS ARE PINNED TO THE CLOSE-ENGINE NAMES so the two surfaces are
+ * directly comparable, but every value is computed from the FULL OHLC snapshot:
+ *   rsi14      — Wilder RSI(14) on adjusted closes
+ *   ema20/50   — EMA of adjusted closes
+ *   macdLine   — MACD(12,26) line; macdHist — MACD histogram (line − signal)
+ *   relVol     — last-session volume ÷ prior-20 average volume
+ *   perfW1/M1/M3 — % change over 5 / 21 / 63 sessions
+ *   rangePos60 — position inside the observed 60-session high/low (0-100)
+ *   dailyVolPct — σ of the last 20 close-to-close % moves
+ *   obvSlope20 — OBV slope over the last 20 sessions
+ * `null` means "this snapshot cannot produce it honestly" — the UI must render
+ * it as unavailable rather than borrowing the close-only number.
+ */
+export interface CanonicalMetrics {
+  rsi14: number | null
+  ema20: number | null
+  ema50: number | null
+  macdLine: number | null
+  macdHist: number | null
+  relVol: number | null
+  perfW1: number | null
+  perfM1: number | null
+  perfM3: number | null
+  rangePos60: number | null
+  dailyVolPct: number | null
+  obvSlope20: number | null
 }
 
 // ---------------------------------------------------------------------------
@@ -2228,6 +2269,9 @@ export function computeStanceFromSnapshot(snap: TechnicalSnapshot): TechStance {
         tradePlan,
         signalState: state,
         setup,
+        // canonical metric block — the board's chips read THIS, never the
+        // close-only engine's metrics (parity fix 2026-11-15)
+        metrics: buildCanonicalMetrics(snap, f.dailyVolPct),
         limitations,
       }
     }
@@ -2400,7 +2444,55 @@ export function computeStanceFromSnapshot(snap: TechnicalSnapshot): TechStance {
     tradePlan,
     signalState: state,
     setup,
+    // canonical metric block — the board's chips read THIS, never the
+    // close-only engine's metrics (parity fix 2026-11-15)
+    metrics: buildCanonicalMetrics(snap),
     limitations,
+  }
+}
+
+/**
+ * Build the canonical metric block from a FULL OHLC snapshot (remediation
+ * 2026-11-15). Every value is read from the snapshot the company technical tab
+ * already renders, so the board and the tab cannot disagree: one snapshot, one
+ * set of numbers, two surfaces.
+ *
+ * HONESTY CONTRACT: nothing here recomputes from a different source. A metric
+ * the snapshot cannot produce is null, and the caller must render it as
+ * unavailable. `rangePos60` comes from the snapshot's observed 60-session range
+ * (never re-derived from a close-only series); `macdHist` is the snapshot's own
+ * histogram; `dailyVolPct` reuses the SAME σ-of-20-close-to-close-moves
+ * definition the scoring core uses, so the chip and the risk dimension agree.
+ */
+export function buildCanonicalMetrics(
+  snap: TechnicalSnapshot,
+  /** σ of the last 20 close-to-close % moves when the caller already has it
+   *  (the trail facts carry it). The snapshot itself does NOT expose a close
+   *  series, and `volatility.histVol20` is a DIFFERENT statistic (annualized
+   *  log-return sd), so it is never substituted here — absent input means the
+   *  chip renders as unavailable. */
+  dailyVolPct: number | null = null,
+): CanonicalMetrics {
+  const mo = snap.momentum
+  const vol = snap.volume
+  const trend = snap.trend
+  const nz = (x: number | null | undefined): number | null =>
+    typeof x === "number" && Number.isFinite(x) ? round(x, 4) : null
+
+  return {
+    rsi14: nz(mo?.rsi14),
+    ema20: nz(trend?.ema20),
+    ema50: nz(trend?.ema50),
+    macdLine: nz(mo?.macd?.macd),
+    macdHist: nz(mo?.macd?.histogram),
+    relVol: nz(vol?.relVol),
+    perfW1: nz(snap.perf?.w1),
+    perfM1: nz(snap.perf?.m1),
+    perfM3: nz(snap.perf?.m3),
+    // observed 60-session range position — the snapshot's own read
+    rangePos60: nz(snap.range60?.posPct),
+    dailyVolPct: nz(dailyVolPct),
+    obvSlope20: nz(vol?.obvSlope20),
   }
 }
 
