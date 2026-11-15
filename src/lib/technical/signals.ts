@@ -877,14 +877,16 @@ function buildWatchingSetup(inp: WatchingSetupInput): WatchingSetup {
   const supBelowActivation = nearestBelow(inp.supports.map((s) => s.price), activationLevel)
   const resAboveActivation = nearestAbove(inp.resistances.map((r) => r.price), activationLevel)
 
-  const provisionalEntry: ProvisionalEntry | null = plan
+  // a sell read carries no geometry (no retail short selling on the EGX)
+  const sellNoLevels = dir === "sell"
+  const provisionalEntry: ProvisionalEntry | null = sellNoLevels ? null : plan
     ? { low: plan.entryLow, high: plan.entryHigh, basisAr: `خطة تقديرية محسوبة على مستوى التفعيل — ${plan.basisAr}` }
     : dir === "buy"
       ? { low: activationLevel, high: roundToTick(activationLevel * 1.004), basisAr: "منطقة ما بعد التفعيل حول مستوى الكسر (تقديري)" }
       : { low: roundToTick(activationLevel * 0.996), high: activationLevel, basisAr: "منطقة ما بعد التفعيل حول مستوى الكسر (تقديري)" }
 
   const stopAtrNoteAr = " (تقديري — يُثبت بـ 1.5×ATR عند التفعيل)"
-  const provisionalStop: ProvisionalStop | null = plan
+  const provisionalStop: ProvisionalStop | null = sellNoLevels ? null : plan
     ? { level: plan.stop, basisAr: `وقف تقديري — ${plan.basisAr}` }
     : dir === "buy"
       ? supBelowActivation !== null
@@ -899,7 +901,9 @@ function buildWatchingSetup(inp: WatchingSetupInput): WatchingSetup {
           : null
 
   let provisionalTarget: ProvisionalTarget | null = null
-  if (plan) {
+  if (sellNoLevels) {
+    // deliberately empty — a short setup keeps its trigger, never its levels
+  } else if (plan) {
     provisionalTarget = {
       low: plan.targetLow,
       high: plan.targetHigh,
@@ -935,8 +939,8 @@ function buildWatchingSetup(inp: WatchingSetupInput): WatchingSetup {
 
   const provisionalRiskReward = (() => {
     if (plan) return plan.riskReward
+    if (provisionalEntry === null || provisionalStop === null || provisionalTarget === null) return null
     const entryMid = (provisionalEntry.low + provisionalEntry.high) / 2
-    if (provisionalStop === null || provisionalTarget === null) return null
     const targetMid = (provisionalTarget.low + provisionalTarget.high) / 2
     const risk = dir === "buy" ? entryMid - provisionalStop.level : provisionalStop.level - entryMid
     const reward = dir === "buy" ? targetMid - entryMid : entryMid - targetMid
@@ -2083,28 +2087,14 @@ function v1TradePlan(signal: "buy" | "sell", lc: number, closes: number[]): Trad
   let r1: number | null = null
   for (const p of resPrices) if (p > lc && (r1 === null || p < r1)) r1 = p
   const rp = (x: number): number => Math.round(x * 100) / 100
-  if (signal === "sell") {
-    if (r1 === null) return null
-    const entryLow = rp(lc * 0.995)
-    const entryHigh = rp(Math.min(r1, lc * 1.02))
-    const stop = rp(Math.min(r1 * 1.01, lc * 1.04))
-    const target = rp(s1 ?? lc * 0.93)
-    const entryMid = (entryLow + entryHigh) / 2
-    const stopDist = stop - entryMid
-    const rewardDist = entryMid - target
-    if (!(stopDist > 0) || !(rewardDist > 0)) return null
-    return {
-      bias: "sell", entryLow, entryHigh,
-      entryPct: Math.round(((entryMid - lc) / lc) * 1000) / 10,
-      stop,
-      stopPct: Math.round(((stop - lc) / lc) * 1000) / 10,
-      targetLow: target, targetHigh: target,
-      targetPct: Math.round(((target - lc) / lc) * 1000) / 10,
-      riskReward: Math.round((rewardDist / stopDist) * 100) / 100,
-      textAr: "v1 baseline plan", textEn: "v1 baseline plan",
-      basisAr: "v1 baseline (mechanical)",
-    }
-  }
+  // EGX REALITY (2026-11-15 owner report: the top of the board was four
+  // SHORT plans — entry near the close, stop ABOVE it, targets BELOW it —
+  // presented as ready opportunities). The Egyptian Exchange has no retail
+  // short-selling, and eligibility is restricted to a published list, so this
+  // geometry is never executable by a reader of this product. The branch that
+  // built it is DELETED rather than hidden: a sell read carries no price
+  // levels at all, from any builder.
+  if (signal === "sell") return null
   const chasing = s1 === null || ((lc - s1) / s1) * 100 > 6
   let entryLowRaw: number
   let entryHighRaw: number

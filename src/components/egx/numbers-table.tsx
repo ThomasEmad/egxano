@@ -114,7 +114,7 @@ export function NumbersTable({ rows, ar }: { rows: MarketSignalRow[]; ar: boolea
               <th className="px-2 py-1.5 text-start font-semibold">{ar ? "الحالة" : "State"}</th>
               <th className="px-2 py-1.5 text-start font-semibold">{ar ? "الدخول" : "Entry"}</th>
               <th className="px-2 py-1.5 text-start font-semibold">{ar ? "الوقف" : "Stop"}</th>
-              <th className="px-2 py-1.5 text-start font-semibold">{ar ? "م/ع" : "R/R"}</th>
+              <th className="px-2 py-1.5 text-start font-semibold" title={ar ? "المخاطرة/العائد محسوبة حتى الهدف الأول المعروض في العمود التالي، من منتصف منطقة الدخول إلى الوقف" : "risk/reward to the T1 shown in the next column, from the entry mid to the stop"}>{ar ? "م/ع حتى T1" : "R/R→T1"}</th>
               <th className="px-2 py-1.5 text-start font-semibold">{ar ? "الهدف الأول" : "T1"}</th>
               <th className="px-2 py-1.5 text-start font-semibold">{ar ? "الثاني" : "T2"}</th>
               <th className="px-2 py-1.5 text-start font-semibold">{ar ? "الثالث" : "T3"}</th>
@@ -138,8 +138,13 @@ export function NumbersTable({ rows, ar }: { rows: MarketSignalRow[]; ar: boolea
               // — but ONLY when the server actually vetted them: an attached
               // layer that did not drop the setup. No layer (unclassified) or a
               // dropped (stale) setup → no levels at all (dead geometry, AMES).
-              const plan = r.tradePlan ?? null
-              const setup = op && !op.setupDropped ? (r.setup ?? null) : null
+              // EGX reality: the board has no short-selling, so a plan or setup
+              // whose direction is not a long is NOT rendered here — not even
+              // from a persisted snapshot written before the engine fix. Sell
+              // reads surface as state only (avoid / exit), never as levels.
+              const rawPlan = r.tradePlan ?? null
+              const plan = rawPlan && rawPlan.bias === "buy" ? rawPlan : null
+              const setup = op && !op.setupDropped && r.setup?.direction === "buy" ? (r.setup ?? null) : null
               const entry = plan
                 ? zoneStr(plan.entryLow, plan.entryHigh)
                 : setup?.provisionalEntry
@@ -150,10 +155,18 @@ export function NumbersTable({ rows, ar }: { rows: MarketSignalRow[]; ar: boolea
                 : setup?.provisionalStop
                   ? `≈ ${priceStr(setup.provisionalStop.level)}`
                   : "—"
-              const rr = plan
-                ? Number.isFinite(Number(plan.riskReward))
-                  ? Number(plan.riskReward).toFixed(2)
-                  : "—"
+              // R/R is computed against the SAME T1 printed in the next column,
+              // from the same entry mid and stop — one number, one meaning. The
+              // plan's own validated R/R is measured to its structural target,
+              // which is often a further rung; printing that beside T1 made the
+              // two columns contradict each other (2026-11-15 owner report).
+              const rrToT1 =
+                plan && t1 && plan.stop < plan.entryLow
+                  ? (t1.price - (plan.entryLow + plan.entryHigh) / 2) /
+                    ((plan.entryLow + plan.entryHigh) / 2 - plan.stop)
+                  : null
+              const rr = rrToT1 !== null && Number.isFinite(rrToT1)
+                ? rrToT1.toFixed(2)
                 : setup?.provisionalRiskReward != null && Number.isFinite(setup.provisionalRiskReward)
                   ? `≈ ${Number(setup.provisionalRiskReward).toFixed(2)}`
                   : "—"
