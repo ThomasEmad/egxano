@@ -14,8 +14,15 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // DATABASE_URL — the POOLED string (`-pooler` host). This is what the running
+  // app uses: serverless functions open many short-lived connections, and the
+  // pooler keeps them from exhausting the database's connection limit.
+  url       = env("DATABASE_URL")
+  // DIRECT_URL — the DIRECT (non-pooled) string. Migrations, `db push`,
+  // `migrate diff` and seeding use this one, because DDL needs a real session
+  // and the transaction-mode pooler cannot run it reliably.
+  directUrl = env("DIRECT_URL")
 }
 
 model Company {

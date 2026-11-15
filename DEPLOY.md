@@ -1,6 +1,6 @@
 # دليل الـ Deploy — EGXANO
 
-النشر الإنتاجي لتطبيق Next.js 16 (standalone) + Prisma/SQLite. كل الأوامر على Ubuntu 22.04/24.04 كمثال.
+النشر الإنتاجي لتطبيق Next.js 16 (standalone) + Prisma/Postgres (Neon). كل الأوامر على Ubuntu 22.04/24.04 كمثال.
 
 ## الحالة الدائمة على القرص (خذ نسخة احتياطية منها)
 
@@ -29,12 +29,17 @@ cp .env.example .env   # ثم عبّي القيم الحقيقية
 
 | المتغير | إلزامي؟ | الغرض |
 |---|---|---|
-| `DATABASE_URL` | ✅ | مسار SQLite، مثال `file:/home/deploy/egxano/db/custom.db` |
+| `DATABASE_URL` | ✅ | وصلة **Neon المجمَّعة** (pooled) — الهوست بيبقى فيه `-pooler`. التطبيق (serverless / Next.js) بيستخدمها وقت التشغيل. |
+| `DIRECT_URL` | ✅ | وصلة **Neon المباشرة** (direct، بدون `-pooler`). الـ migrations و`db push` والـ seeding بيستخدموها، لأن الـ DDL محتاج session حقيقية والـ pooler مش بيعملها بشكل موثوق. |
 | `ADMIN_PASSCODE` | ✅ | باس كود دخول لوحة الأدمن |
 | `CRON_SECRET` | ✅ للمهام المجدولة | حماية `/api/v1/cron/*` عبر `Authorization: Bearer` |
 | `NEXT_PUBLIC_SITE_URL` | ✅ | رابط الموقع العام (SEO/sitemap/OG) |
 | `TRUSTED_PROXIES` | ⬜ | إذا وضعت nginx على نفس السيرفر: `"127.0.0.1"` (أو `"*"` لبوابة واحدة موثوقة). فارغ = تجاهل `x-forwarded-for` تماماً |
 | `NEXT_PUBLIC_TEMP_EDIT_MODE` | ⬜ | وضع التحرير التجريبي — خلّيه فارغ في الإنتاج |
+
+> **قاعدتان:** الاتنين لازم يوجّهوا لنفس قاعدة البيانات ونفس الفرع (`production`)، والفرق بينهم في الـ pooler بس. أعطِ `DATABASE_URL` الهوست اللي فيه `-pooler` — لو عكستهم، التطبيق هيستهلك حد الاتصالات بسرعة والـ migrations هتفشل.
+>
+> على Vercel: Settings → Environment Variables — ضيف الاتنين لكل البيئات. الـ `DIRECT_URL` مش محتاجها التطبيق نفسه، بس `prisma migrate deploy` في خط النشر بيقراها. ولو مفتاح Neon اتكشف، اعمله rotate من اللوحة وحدّث المتغيرين.
 
 ---
 
