@@ -274,9 +274,12 @@ export function OpportunityCardView({ model, ar }: { model: OpportunityCardModel
               {ar ? "سلّم الأهداف — كل هدف عند حاجز هيكلي حقيقي موثق:" : "Target ladder — each rung at a real documented obstacle:"}
             </p>
             {targets.map((t, i) => {
-              const upsideFromEntry =
-                model.entryHigh !== null && Number.isFinite(model.entryHigh)
-                  ? ((t.price - (model.entryHigh as number)) / (model.entryHigh as number)) * 100
+              // % basis = the CURRENT close, not the entry — after the
+              // stale-plan fix the ladder is anchored on the live price, and
+              // the reader reads "+x%" as "from where the stock trades now"
+              const upsideFromCurrent =
+                model.lastClose !== null && Number.isFinite(model.lastClose)
+                  ? ((t.price - (model.lastClose as number)) / (model.lastClose as number)) * 100
                   : null
               return (
                 <div key={t.label} className="flex items-start gap-1.5">
@@ -287,9 +290,9 @@ export function OpportunityCardView({ model, ar }: { model: OpportunityCardModel
                     {t.label}
                   </span>
                   <span className="shrink-0 text-[11px] font-bold tabular text-foreground" dir="ltr">{priceStr(t.price)}</span>
-                  {upsideFromEntry !== null ? (
-                    <span className={`shrink-0 text-[10px] font-semibold tabular ${pctCls(upsideFromEntry)}`} dir="ltr">
-                      {pctStr(upsideFromEntry)}
+                  {upsideFromCurrent !== null ? (
+                    <span className={`shrink-0 text-[10px] font-semibold tabular ${pctCls(upsideFromCurrent)}`} dir="ltr">
+                      {pctStr(upsideFromCurrent)}
                     </span>
                   ) : null}
                   <p className="line-clamp-2 min-w-0 flex-1 text-[10px] leading-relaxed text-muted-foreground" title={t.whyAr}>
@@ -301,13 +304,13 @@ export function OpportunityCardView({ model, ar }: { model: OpportunityCardModel
           </div>
         ) : null}
 
-        {/* العائد المتبقي — رقم البوابة، بارز */}
+        {/* العائد المتبقي — من السعر الحالي حتى الهدف الأول (الرقم البارز) */}
         <div className="flex items-baseline justify-between rounded-md border border-border/60 bg-muted/20 px-2 py-1.5">
           <span className="text-[10px] font-medium text-muted-foreground">
-            {ar ? "العائد المتبقي حتى الهدف الأول" : "Remaining upside to T1"}
+            {ar ? "العائد المتبقي حتى الهدف الأول (من السعر الحالي)" : "Remaining upside to T1 (from current price)"}
           </span>
-          <span className={`text-sm font-bold tabular ${pctCls(view.upsidePctToT1)}`} dir="ltr">
-            {view.upsidePctToT1 !== null ? pctStr(view.upsidePctToT1) : "—"}
+          <span className={`text-sm font-bold tabular ${pctCls(view.remainingPctToT1)}`} dir="ltr">
+            {view.remainingPctToT1 !== null ? pctStr(view.remainingPctToT1) : "—"}
           </span>
         </div>
         {view.state === "conditional" && view.upsidePctToT1 !== null ? (
@@ -412,7 +415,7 @@ function MissedRow({ row, ar }: { row: OpportunityMissedRow; ar: boolean }) {
       <span className="text-[11px] font-semibold text-negative">{row.missedAr}</span>
       <span className="text-[10px] text-muted-foreground">
         {ar ? "العائد المتبقي حتى الهدف الأول: " : "Remaining upside to T1: "}
-        <span className="tabular" dir="ltr">{row.upsidePctToT1 !== null ? pctStr(row.upsidePctToT1) : "—"}</span>
+        <span className="tabular" dir="ltr">{row.remainingPctToT1 !== null ? pctStr(row.remainingPctToT1) : "—"}</span>
       </span>
       <span className="ms-auto text-[10px] text-muted-foreground">
         {ar ? "آخر تحديث: " : "As of: "}

@@ -134,15 +134,15 @@ function checkContract(v: OpportunityView, label: string): void {
 // 1. Version + thresholds pinning
 // ---------------------------------------------------------------------------
 
-describe("opportunity@1 pinning", () => {
+describe("opportunity@2 pinning", () => {
   it("stamps the version on every view", () => {
-    expect(OPPORTUNITY_VERSION).toBe("opportunity@1")
+    expect(OPPORTUNITY_VERSION).toBe("opportunity@2")
     for (const inp of [
       base(),
       base({ signalState: "watching", setup: setupInput(), tradePlan: null, direction: null }),
       base({ signalState: "wait", tradePlan: null, direction: null, ladder: null }),
     ]) {
-      expect(classifyOpportunity(inp).opportunityVersion).toBe("opportunity@1")
+      expect(classifyOpportunity(inp).opportunityVersion).toBe("opportunity@2")
     }
   })
 

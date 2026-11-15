@@ -100,7 +100,7 @@
 // =============================================================================
 
 /** Version stamped on every emitted view. */
-export const OPPORTUNITY_VERSION = "opportunity@1"
+export const OPPORTUNITY_VERSION = "opportunity@2"
 
 /** The strict eligibility gates — exported so UI/tests/integration cite the
  *  SAME numbers instead of re-hardcoding them. */
@@ -242,6 +242,12 @@ export interface OpportunityView {
    *  entryHigh; sell: entryLow) — or, on conditional rows, from the ACTIVATION
    *  level (provisional). null when no plan or no usable T1. */
   upsidePctToT1: number | null
+  /** favorable % from the CURRENT LAST CLOSE to the ladder's T1 — the reader's
+   *  "العائد" mental model (2026-11-15 owner bug report: a +21% entry-basis
+   *  upside printed next to a T1 that was +142% away from the displayed price
+   *  read as a contradiction). Display value; the 5% gate still uses the
+   *  entry-basis upside. null when no usable T1 or no usable lastClose. */
+  remainingPctToT1: number | null
   /** STRICTLY > 5.0 (5.00 exactly FAILS). On conditional rows this is the
    *  PROVISIONAL gate result at the activation level. */
   qualifies5: boolean
@@ -441,6 +447,7 @@ function buildEmptyView(): OpportunityView {
     direction: null,
     opportunityVersion: OPPORTUNITY_VERSION,
     upsidePctToT1: null,
+    remainingPctToT1: null,
     qualifies5: false,
     rrOk: false,
     eligible: false,
@@ -552,6 +559,8 @@ export function classifyOpportunity(input: OpportunityInput): OpportunityView {
       }
     }
     view.upsidePctToT1 = g.upsidePct
+    view.remainingPctToT1 =
+      t1 !== null && isUsablePrice(input.lastClose) ? favorablePct(input.lastClose, t1.price, buy) : null
     view.qualifies5 = g.qualifies5
     view.rrOk = g.rrOk
 
@@ -670,6 +679,8 @@ export function classifyOpportunity(input: OpportunityInput): OpportunityView {
   }
 
   view.upsidePctToT1 = provUpside
+  view.remainingPctToT1 =
+    t1 !== null && isUsablePrice(input.lastClose) ? favorablePct(input.lastClose, t1.price, buySetup) : null
   view.qualifies5 = prov5
   view.rrOk = provRrOk
 

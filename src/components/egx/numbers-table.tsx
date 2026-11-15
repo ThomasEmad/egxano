@@ -64,7 +64,7 @@ export function NumbersTable({ rows, ar }: { rows: MarketSignalRow[]; ar: boolea
   const sorted = useMemo(() => {
     const key = (r: MarketSignalRow): number => {
       if (sort === "change") return r.changePct ?? -Infinity
-      if (sort === "upside") return r.opportunity?.view.upsidePctToT1 ?? -Infinity
+      if (sort === "upside") return r.opportunity?.view.remainingPctToT1 ?? -Infinity
       return r.opportunity?.oqs ?? -1
     }
     return [...fullRows].sort((a, b) => key(b) - key(a) || a.ticker.localeCompare(b.ticker))
@@ -118,7 +118,7 @@ export function NumbersTable({ rows, ar }: { rows: MarketSignalRow[]; ar: boolea
               <th className="px-2 py-1.5 text-start font-semibold">{ar ? "الهدف الأول" : "T1"}</th>
               <th className="px-2 py-1.5 text-start font-semibold">{ar ? "الثاني" : "T2"}</th>
               <th className="px-2 py-1.5 text-start font-semibold">{ar ? "الثالث" : "T3"}</th>
-              <th className="px-2 py-1.5 text-start font-semibold">{ar ? "العائد" : "Upside"}</th>
+              <th className="px-2 py-1.5 text-start font-semibold" title={ar ? "من السعر الحالي حتى الهدف الأول" : "from the current price to T1"}>{ar ? "العائد" : "Upside"}</th>
               <th className="px-2 py-1.5 text-start font-semibold">{ar ? "الجودة" : "OQS"}</th>
               <th className="w-6 px-1 py-1.5" aria-hidden />
             </tr>
@@ -131,7 +131,29 @@ export function NumbersTable({ rows, ar }: { rows: MarketSignalRow[]; ar: boolea
               const t1 = targets?.[0] ?? null
               const t2 = targets?.[1] ?? null
               const t3 = targets?.[2] ?? null
-              const plan = view?.state === "actionable" ? r.tradePlan : null
+              // levels: the executable plan whenever one exists (any state) —
+              // hiding them behind "actionable" left every row reading "—"
+              // (2026-11-15 owner bug report). A watching row's provisional
+              // setup levels display with a "≈" prefix (recomputed at activation).
+              const plan = r.tradePlan ?? null
+              const setup = r.setup ?? null
+              const entry = plan
+                ? zoneStr(plan.entryLow, plan.entryHigh)
+                : setup?.provisionalEntry
+                  ? `≈ ${zoneStr(setup.provisionalEntry.low, setup.provisionalEntry.high)}`
+                  : "—"
+              const stop = plan
+                ? priceStr(plan.stop)
+                : setup?.provisionalStop
+                  ? `≈ ${priceStr(setup.provisionalStop.level)}`
+                  : "—"
+              const rr = plan
+                ? Number.isFinite(Number(plan.riskReward))
+                  ? Number(plan.riskReward).toFixed(2)
+                  : "—"
+                : setup?.provisionalRiskReward != null && Number.isFinite(setup.provisionalRiskReward)
+                  ? `≈ ${Number(setup.provisionalRiskReward).toFixed(2)}`
+                  : "—"
               const stateMeta = view ? STATE_LABEL[view.state] : null
               const open = openId === r.companyId
               return (
@@ -169,16 +191,16 @@ export function NumbersTable({ rows, ar }: { rows: MarketSignalRow[]; ar: boolea
                         <span className="text-muted-foreground">—</span>
                       )}
                     </td>
-                    <td className="px-2 py-1.5 tabular text-blue-600 dark:text-blue-400" dir="ltr">{plan ? zoneStr(plan.entryLow, plan.entryHigh) : "—"}</td>
-                    <td className="px-2 py-1.5 tabular text-negative" dir="ltr">{plan ? priceStr(plan.stop) : "—"}</td>
-                    <td className="px-2 py-1.5 tabular" dir="ltr">{plan && Number.isFinite(Number(plan.riskReward)) ? Number(plan.riskReward).toFixed(2) : "—"}</td>
+                    <td className="px-2 py-1.5 tabular text-blue-600 dark:text-blue-400" dir="ltr" title={plan ? undefined : setup?.provisionalEntry ? (ar ? "مستويات تقديرية عند التفعيل" : "provisional at activation") : undefined}>{entry}</td>
+                    <td className="px-2 py-1.5 tabular text-negative" dir="ltr">{stop}</td>
+                    <td className="px-2 py-1.5 tabular" dir="ltr">{rr}</td>
                     <td className="px-2 py-1.5 tabular" dir="ltr">
                       {t1 ? <span className="font-semibold text-foreground">{priceStr(t1.price)}</span> : "—"}
                     </td>
                     <td className="px-2 py-1.5 tabular text-muted-foreground" dir="ltr">{t2 ? priceStr(t2.price) : "—"}</td>
                     <td className="px-2 py-1.5 tabular text-muted-foreground" dir="ltr">{t3 ? priceStr(t3.price) : "—"}</td>
-                    <td className={`px-2 py-1.5 font-semibold tabular ${pctCls(view?.upsidePctToT1 ?? null)}`} dir="ltr">
-                      {view ? pctStr(view.upsidePctToT1) : "—"}
+                    <td className={`px-2 py-1.5 font-semibold tabular ${pctCls(view?.remainingPctToT1 ?? null)}`} dir="ltr" title={ar ? "من السعر الحالي حتى الهدف الأول" : "from the current price to T1"}>
+                      {view ? pctStr(view.remainingPctToT1) : "—"}
                     </td>
                     <td className="px-2 py-1.5">
                       {op?.oqs !== undefined && op?.oqs !== null ? (
@@ -226,6 +248,7 @@ function NotesPanel({ row, op, ar }: { row: MarketSignalRow; op: RowOpportunity 
       {view ? (
         <>
           <p className="font-semibold text-foreground">{view.stateNoteAr}</p>
+          {op?.planRebuiltNoteAr ? <p className="text-blue-600 dark:text-blue-400">{op.planRebuiltNoteAr}</p> : null}
           {view.rejectionReasonsAr.length > 0 ? (
             <div>
               <p className="text-[10px] font-semibold text-muted-foreground">{ar ? "ما الذي قد يفشل:" : "What may fail:"}</p>

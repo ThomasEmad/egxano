@@ -57,7 +57,7 @@ jobs:
         run: |
           for i in 1 2 3 4 5 6; do
             echo "stance batch $i"
-            curl -s --max-time 120 -X POST "${{ secrets.STANCE_REFRESH_URL }}/api/v1/cron/stance-refresh?limit=50" -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" || true
+            curl -s --max-time 120 -X POST "${{ secrets.STANCE_REFRESH_URL || 'https://egxano.vercel.app' }}/api/v1/cron/stance-refresh?limit=50" -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" || true
             echo
           done
 

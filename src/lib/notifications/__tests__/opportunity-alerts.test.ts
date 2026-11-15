@@ -53,7 +53,8 @@ function oppView(overrides?: Partial<OpportunityView>): OpportunityView {
   return {
     state: "none",
     direction: "buy",
-    opportunityVersion: "opportunity@1",
+    opportunityVersion: "opportunity@2",
+    remainingPctToT1: null,
     upsidePctToT1: null,
     qualifies5: false,
     rrOk: false,
@@ -412,6 +413,25 @@ function opportunityBars(lastClose?: number): Bar[] {
   return out
 }
 
+/** 60 sessions in a TIGHT 10.0\u201310.4 zigzag with the last close pulled to
+ *  10.5: the only supply band (10.44\u201310.56) CONTAINS the price, so under
+ *  opportunity-targets@3 (R3\u2033) it is support \u2014 never a target \u2014 and the
+ *  honest measured-move projection (~10.8) lands < 5% above the close, which
+ *  is exactly what fires the NO-CHASE rule. */
+function missedBars(): Bar[] {
+  const out: Bar[] = []
+  for (let i = 0; i < 60; i++) {
+    const close = [10.0, 10.2, 10.4, 10.2][i % 4]
+    out.push({ ts: dayIso(i), open: close - 0.1, high: close + 0.1, low: close - 0.1, close, volume: 1000 })
+  }
+  const last = out[59]
+  last.open = 10.4
+  last.high = 10.6
+  last.low = 10.4
+  last.close = 10.5
+  return out
+}
+
 function lcViewStub(overrides?: Partial<LifecycleView>): LifecycleView {
   return {
     basis: "confirmed",
@@ -520,7 +540,7 @@ describe("classifyOpportunityRow — real map + ladder + classifier", () => {
   })
 
   it("classifies a confirmed row whose close left the entry behind with <5% remaining as missed", () => {
-    const out = classifyOpportunityRow(rowStub({ bars: opportunityBars(12.5) }))
+    const out = classifyOpportunityRow(rowStub({ bars: missedBars() }))
     expect(out).not.toBeNull()
     expect(out!.view.state).toBe("missed")
     expect(out!.view.missedAr).toBe("الفرصة فاتت — العائد المتبقي غير كافٍ")
@@ -664,7 +684,7 @@ describe("runOpportunitySweep", () => {
         return [{ companyId: "c1", ticker: "AAA" }]
       },
       async computeOne() {
-        return rowStub({ companyId: "c1", ticker: "AAA", bars: opportunityBars(12.5) })
+        return rowStub({ companyId: "c1", ticker: "AAA", bars: missedBars() })
       },
       async loadStateMap() {
         return store.state

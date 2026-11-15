@@ -43,7 +43,7 @@ import {
   type OpportunityScoreComponents,
   type OpportunityState as OqsScoreState,
 } from "./opportunity-score"
-import { roundToTick } from "./trade-plan"
+import { roundToTick, buildTradePlan, type TradePlan } from "./trade-plan"
 
 /** Calendar-day cutoff for the trailing window. 300 days ≈ 200 EGX sessions —
  *  still ≥3× the longest indicator window (rangePos60) with corporate-action
@@ -104,10 +104,20 @@ export interface MarketSignalRow extends CloseSignalOutput {
 
 /** The opportunity layer attached to one candidate row. */
 export interface RowOpportunity {
-  /** the classified view (state / gates / reasons / notes — opportunity@1) */
+  /** the classified view (state / gates / reasons / notes — opportunity@2) */
   view: OpportunityView
   /** the structural target ladder for this side (null when no honest rung) */
   ladder: TargetLadder | null
+  /** the executable plan actually backing the displayed levels — the row's
+   *  own plan, or the FRESH rebuild when that plan had gone stale against the
+   *  last close (planRebuilt). Null when no plan exists at all. */
+  plan: TradePlan | null
+  /** true when the row's persisted plan was stale vs the last close and a
+   *  fresh plan was rebuilt from the stored candles (2026-11-15 owner bug:
+   *  a plan published at ~9 EGP served while the stock traded 24+). */
+  planRebuilt: boolean
+  /** Arabic note when the plan was rebuilt (surfaced in the notes panel) */
+  planRebuiltNoteAr: string | null
   /** OQS 0-100 — null for ineligible rows (the module's own hard rule) */
   oqs: number | null
   /** per-component 0-1 sub-scores (null for ineligible rows) */
@@ -190,6 +200,9 @@ export interface OpportunityLayerInput {
   relVol: number | null
   ema20: number | null
   ema50: number | null
+  /** the row's displayed daily volatility % (σ of last 20 close-to-close
+   *  moves) — the ATR-proxy input for a fresh plan rebuild */
+  volPct: number | null
   /** the row's data session (null when unknown) */
   asOf: string | null
   /** the compute day's effective EGX session date */
@@ -197,6 +210,30 @@ export interface OpportunityLayerInput {
   /** the company's stored daily OHLC candles (corporate-action adjusted),
    *  from the SAME batched fetch as the snapshot — never a refetch */
   bars: Bar[]
+}
+
+// ---- plan freshness + rebuild constants (2026-11-15 owner bug report) ----
+/** A persisted plan whose entry zone no longer sits near the market price is
+ *  STALE: its entry/stop and the ladder anchored on it describe a price
+ *  regime the market already left (VLMRA: plan entry ~9.2 served while the
+ *  stock traded 24.47 — a "target" below the live price). The farthest entry
+ *  edge beyond this % of the last close disqualifies the plan. A freshly
+ *  built plan's edges sit within ~2% of the close, so 10% only fires on a
+ *  genuinely dead regime, never on normal drift. */
+const STALE_PLAN_GAP_PCT = 10
+
+/** σ of the last 20 close-to-close % moves — the signals.ts dailyVolPct
+ *  convention (same formula) so a fresh rebuild matches the close engine. */
+function closeOnlyDailyVolPct(closes: number[]): number | null {
+  if (closes.length < 21) return null
+  const moves: number[] = []
+  for (let i = closes.length - 20; i < closes.length; i++) {
+    if (closes[i - 1] > 0) moves.push(((closes[i] - closes[i - 1]) / closes[i - 1]) * 100)
+  }
+  if (!moves.length) return null
+  const mean = moves.reduce((s, m) => s + m, 0) / moves.length
+  const variance = moves.reduce((s, m) => s + (m - mean) ** 2, 0) / moves.length
+  return Math.sqrt(variance)
 }
 
 /**
@@ -223,32 +260,67 @@ export function buildOpportunityLayer(input: OpportunityLayerInput): RowOpportun
   // ---- resistance map on the SAME stored daily candles (no refetch) ----
   const map: ResistanceMap | null = input.bars.length > 0 ? buildResistanceMap(input.bars) : null
 
+  // ---- PLAN FRESHNESS GUARD (2026-11-15 owner bug report) ----
+  // A persisted plan whose entry zone no longer sits near the CURRENT close
+  // is stale: every level anchored on it describes a price regime the market
+  // already left. Rebuild the plan from the SAME stored candles around the
+  // current close (same builder, same zones, same ATR proxy). No rebuildable
+  // plan → the row honestly carries NO levels (never serve a stale one).
+  const farFromEntry = plan
+    ? Math.max(
+        Math.abs(((plan.entryLow - input.lastClose) / input.lastClose) * 100),
+        Math.abs(((plan.entryHigh - input.lastClose) / input.lastClose) * 100),
+      )
+    : 0
+  const planStale = farFromEntry > STALE_PLAN_GAP_PCT
+  let effectivePlan: TradePlan | null = plan
+  let planRebuilt = false
+  let planRebuiltNoteAr: string | null = null
+  if (planStale && plan) {
+    const volPct = input.volPct ?? closeOnlyDailyVolPct(input.bars.map((b) => b.close))
+    const rebuilt =
+      buildTradePlan({
+        signal: side,
+        lastClose: input.lastClose,
+        closes: input.bars.map((b) => b.close),
+        zones: map ? map.zones.map((z) => ({ kind: z.kind, low: z.low, high: z.high })) : null,
+        volPct,
+      }) ?? null
+    if (rebuilt) {
+      effectivePlan = rebuilt
+      planRebuilt = true
+      planRebuiltNoteAr = `الخطة المحفوظة كانت من جلسة سابقة (منطقة الدخول ${plan.entryLow.toFixed(2)}–${plan.entryHigh.toFixed(2)}) والسعر الحالي (${input.lastClose.toFixed(2)}) أصبح بعيدًا عنها — أُعيد بناء الخطة على السعر الحالي من نفس شموع السهم، والمستويات المعروضة هي المستويات الجديدة.`
+    } else {
+      effectivePlan = null // no honest levels at the current price — serve none
+    }
+  }
+
   // ---- entry basis per the opportunity.ts input contract: the plan's entry
   // zone when a plan exists, else the setup's activation level as a
   // single-price basis (the daily close decides there).
-  const entryLow = plan ? plan.entryLow : (setup ? setup.activation.level : input.lastClose)
-  const entryHigh = plan ? plan.entryHigh : (setup ? setup.activation.level : input.lastClose)
+  const entryLow = effectivePlan ? effectivePlan.entryLow : setup ? setup.activation.level : input.lastClose
+  const entryHigh = effectivePlan ? effectivePlan.entryHigh : setup ? setup.activation.level : input.lastClose
 
   // ---- structural target ladder for this side ----
   const ladder = map ? buildTargetLadder(map, side, entryLow, entryHigh, input.lastClose, roundToTick) : null
 
-  // ---- classify (opportunity@1) ----
+  // ---- classify (opportunity@2) ----
   const view = classifyOpportunity({
     lastClose: input.lastClose,
     signalState: isConfirmed ? "confirmed" : "watching",
     score: input.score ?? 0,
     direction: input.direction,
     tradePlan:
-      plan
+      effectivePlan
         ? {
-            bias: plan.bias,
-            entryLow: plan.entryLow,
-            entryHigh: plan.entryHigh,
-            stop: plan.stop,
-            targetLow: plan.targetLow,
-            targetHigh: plan.targetHigh,
-            riskReward: plan.riskReward,
-            targetKind: plan.targetKind ?? null,
+            bias: effectivePlan.bias,
+            entryLow: effectivePlan.entryLow,
+            entryHigh: effectivePlan.entryHigh,
+            stop: effectivePlan.stop,
+            targetLow: effectivePlan.targetLow,
+            targetHigh: effectivePlan.targetHigh,
+            riskReward: effectivePlan.riskReward,
+            targetKind: effectivePlan.targetKind ?? null,
           }
         : null,
     setup: setup
@@ -284,7 +356,7 @@ export function buildOpportunityLayer(input: OpportunityLayerInput): RowOpportun
     relativeStrengthPct: null, // no benchmark window on the board — neutral 0.5 (documented)
     relVol: input.relVol,
     upsidePctToT1: view.upsidePctToT1,
-    riskReward: plan ? plan.riskReward : null,
+    riskReward: effectivePlan ? effectivePlan.riskReward : null,
     obstacleCount: obstacleCountBetween(map, ladder, side, entryLow, entryHigh),
     liquidityTier: rowLiquidityTier(input.relVol),
     state: scoreState,
@@ -294,6 +366,9 @@ export function buildOpportunityLayer(input: OpportunityLayerInput): RowOpportun
   return {
     view,
     ladder,
+    plan: effectivePlan,
+    planRebuilt,
+    planRebuiltNoteAr,
     oqs: oqs.oqs,
     oqsComponents: oqs.components,
     oqsNoteAr: oqs.noteAr,
@@ -625,11 +700,18 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
         relVol: row.metrics.relVol,
         ema20: row.metrics.ema20,
         ema50: row.metrics.ema50,
+        volPct: row.metrics.dailyVolPct,
         asOf: row.asOf,
         todaySession,
         bars,
       })
-      if (layer) row.opportunity = layer
+      if (layer) {
+        row.opportunity = layer
+        // The board must never display stale executable levels: when the
+        // layer rebuilt the plan around the current close, the ROW serves the
+        // fresh plan (the company tab converges when its stance refreshes).
+        if (layer.planRebuilt && layer.plan) row.tradePlan = layer.plan
+      }
     } catch (e) {
       // Per-row error isolation (same rule as the overlay above): a failed
       // layer must never corrupt the row — the row stays honest "none".
@@ -696,7 +778,11 @@ export function getCachedMarketSignals(): Promise<MarketSignalsOutput> {
   // so the bump retires v5 payloads whose rows lack the field (same lesson as
   // the board-snapshot key bump: a pre-layer payload must never be served as
   // if it were current).
-  return cached("technical-signals:market:v6", CACHE_MS, async () => {
+  // v7: stale-plan guard (opportunity@2 + opportunity-targets@3, 2026-11-15) —
+  // the view gained remainingPctToT1 and the layer carries plan/planRebuilt;
+  // a persisted v6 snapshot would serve pre-guard ladders whose T1 could sit
+  // below the live price (the exact owner bug report this fixes).
+  return cached("technical-signals:market:v7", CACHE_MS, async () => {
     const payload = await buildMarketSignalsUncached()
     // Shared read model: every successful compute persists the payload so a
     // cold instance can serve instantly. The write is AWAITED inside the
@@ -856,8 +942,9 @@ export interface OpportunityMissedRow {
   missedAr: string
   stateNoteAr: string
   watchNextAr: string
-  /** remaining upside to T1 from the LAST close (the number that failed the gate) */
-  upsidePctToT1: number | null
+  /** remaining upside to T1 from the LAST close — the number that failed the
+   *  5% NO-CHASE gate (opportunity@2; the entry-basis upside is gate-internal) */
+  remainingPctToT1: number | null
 }
 
 export interface OpportunityDigestResponse {
@@ -934,7 +1021,7 @@ export function buildOpportunityDigestV1(
     .filter((r) => r.opportunity.view.state === "missed" && r.opportunity.view.missedAr !== null)
     .sort(
       (a, b) =>
-        (b.opportunity.view.upsidePctToT1 ?? -Infinity) - (a.opportunity.view.upsidePctToT1 ?? -Infinity) ||
+        (b.opportunity.view.remainingPctToT1 ?? -Infinity) - (a.opportunity.view.remainingPctToT1 ?? -Infinity) ||
         a.ticker.localeCompare(b.ticker),
     )
     .slice(0, missedCap)
@@ -990,7 +1077,7 @@ export function buildOpportunityDigestV1(
     missedAr: r.opportunity.view.missedAr as string,
     stateNoteAr: r.opportunity.view.stateNoteAr,
     watchNextAr: r.opportunity.view.watchNextAr,
-    upsidePctToT1: r.opportunity.view.upsidePctToT1,
+    remainingPctToT1: r.opportunity.view.remainingPctToT1,
   })
 
   return {

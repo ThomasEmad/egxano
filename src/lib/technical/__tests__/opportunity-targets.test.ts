@@ -69,10 +69,10 @@ function mapOf(
   }
 }
 
-const buy = (map: ResistanceMap, entryLow: number, entryHigh: number, tick?: typeof roundToTick): TargetLadder | null =>
-  buildTargetLadder(map, "buy", entryLow, entryHigh, 100, tick ?? roundToTick)
-const sell = (map: ResistanceMap, entryLow: number, entryHigh: number): TargetLadder | null =>
-  buildTargetLadder(map, "sell", entryLow, entryHigh, 100, roundToTick)
+const buy = (map: ResistanceMap, entryLow: number, entryHigh: number, tick?: typeof roundToTick, lastClose = 100): TargetLadder | null =>
+  buildTargetLadder(map, "buy", entryLow, entryHigh, lastClose, tick ?? roundToTick)
+const sell = (map: ResistanceMap, entryLow: number, entryHigh: number, tick?: typeof roundToTick, lastClose = 100): TargetLadder | null =>
+  buildTargetLadder(map, "sell", entryLow, entryHigh, lastClose, tick ?? roundToTick)
 const rungs = (l: TargetLadder | null): [string, number, string, number | null][] =>
   (l?.targets ?? []).map((t) => [t.label, t.price, t.kind, t.strength])
 
@@ -171,7 +171,7 @@ describe("buildTargetLadder — rung walk on a three-tier map (R2-R5)", () => {
     ])
 
   it("walks T1 < T2 < T3 ascending with zone rungs", () => {
-    const ladder = buy(threeTier(), 96, 97)
+    const ladder = buy(threeTier(), 96, 97, undefined, 96)
     expect(rungs(ladder)).toEqual([
       ["T1", 99.5, "zone", 50],
       ["T2", 104.47, "zone", 55],
@@ -188,7 +188,7 @@ describe("buildTargetLadder — rung walk on a three-tier map (R2-R5)", () => {
       zone("supply", 101.5, 103, 6, 90, { age: 5 }),
       zone("supply", 105, 107, 4, 55, { age: 20 }),
     ])
-    expect(rungs(buy(map, 96, 97))).toEqual([
+    expect(rungs(buy(map, 96, 97, undefined, 96))).toEqual([
       ["T1", 99.5, "zone", 50],
       ["T2", 104.47, "zone", 55], // the too-close 101.5 zone is skipped
     ])
@@ -199,13 +199,13 @@ describe("buildTargetLadder — rung walk on a three-tier map (R2-R5)", () => {
       [zone("supply", 100, 102, 4, 50, { age: 30 }), zone("supply", 105, 107, 4, 30, { age: 20 })],
       { majorHigh: null, majorLow: null },
     )
-    expect(rungs(buy(weakOnly, 96, 97))).toEqual([["T1", 99.5, "zone", 50]])
+    expect(rungs(buy(weakOnly, 96, 97, undefined, 96))).toEqual([["T1", 99.5, "zone", 50]])
 
     const withExtreme = mapOf(
       [zone("supply", 100, 102, 4, 50, { age: 30 }), zone("supply", 105, 107, 4, 30, { age: 20 })],
       { majorHigh: { price: 106.5, ts: "2025-05-02" }, majorLow: null },
     )
-    const ladder = buy(withExtreme, 96, 97)
+    const ladder = buy(withExtreme, 96, 97, undefined, 96)
     expect(rungs(ladder)).toEqual([
       ["T1", 99.5, "zone", 50],
       ["T2", 105.96, "major_high", 30], // 106.5 × 0.995 → down; strength from the CONTAINING band
@@ -220,7 +220,7 @@ describe("buildTargetLadder — rung walk on a three-tier map (R2-R5)", () => {
       majorHigh: { price: 101.5, ts: "2025-05-02" },
       majorLow: null,
     })
-    expect(rungs(buy(map, 96, 97))).toEqual([["T1", 99.5, "zone", 50]])
+    expect(rungs(buy(map, 96, 97, undefined, 96))).toEqual([["T1", 99.5, "zone", 50]])
   })
 
   it("T3 gate: a meaningful (55) but non-dominant zone beyond T2 does NOT justify a third rung", () => {
@@ -229,7 +229,7 @@ describe("buildTargetLadder — rung walk on a three-tier map (R2-R5)", () => {
       zone("supply", 105, 107, 4, 55, { age: 20 }),
       zone("supply", 111, 113, 4, 55, { age: 10 }),
     ])
-    expect(rungs(buy(map, 96, 97))).toEqual([
+    expect(rungs(buy(map, 96, 97, undefined, 96))).toEqual([
       ["T1", 99.5, "zone", 50],
       ["T2", 104.47, "zone", 55],
     ])
@@ -241,7 +241,7 @@ describe("buildTargetLadder — rung walk on a three-tier map (R2-R5)", () => {
       zone("supply", 105, 107, 4, 55, { age: 20 }),
       zone("supply", 111, 113, 6, 70, { age: 5 }),
     ])
-    expect(rungs(buy(dominant, 96, 97))[2]).toEqual(["T3", 110.44, "zone", 70])
+    expect(rungs(buy(dominant, 96, 97, undefined, 96))[2]).toEqual(["T3", 110.44, "zone", 70])
 
     const viaExtreme = mapOf(
       [
@@ -251,7 +251,7 @@ describe("buildTargetLadder — rung walk on a three-tier map (R2-R5)", () => {
       ],
       { majorHigh: { price: 119, ts: "2024-12-15" }, majorLow: null },
     )
-    const ladder = buy(viaExtreme, 96, 97)
+    const ladder = buy(viaExtreme, 96, 97, undefined, 96)
     expect(rungs(ladder)).toEqual([
       ["T1", 99.5, "zone", 50],
       ["T2", 104.47, "zone", 55],
@@ -261,6 +261,34 @@ describe("buildTargetLadder — rung walk on a three-tier map (R2-R5)", () => {
     expect(ladder!.targets[2].whyAr).toContain("2024-12-15")
   })
 })
+
+  it("R3\u2033 last-price anchoring: a wall the price already reached is support, never a target", () => {
+    // close = 100 sits AT the first wall's lower edge → T1 skips to the NEXT wall
+    const atPrice = mapOf([
+      zone("supply", 100, 102, 4, 50, { age: 30 }),
+      zone("supply", 105, 107, 4, 55, { age: 20 }),
+    ])
+    expect(rungs(buy(atPrice, 96, 97, undefined, 100))).toEqual([["T1", 104.47, "zone", 55]])
+    // and with ONLY the at-price wall available there is NO rung at all —
+    // never a target below the live price (the owner's 13.21-vs-24.47 bug)
+    const onlyAtPrice = mapOf([zone("supply", 100, 102, 4, 50, { age: 30 })])
+    expect(buy(onlyAtPrice, 96, 97, undefined, 100)).toBeNull()
+    // the measured-move projection must clear the close or print nothing
+    const clearable = mapOf([zone("supply", 98, 99, 1, 10, { age: 40 })], { majorHigh: null, majorLow: null }, {
+      sessions: 40,
+      low: 90,
+      high: 96,
+      height: 6,
+    })
+    expect(rungs(buy(clearable, 96, 97, undefined, 100))).toEqual([["T1", 102.5, "measured_move", null]])
+    const short = mapOf([zone("supply", 98, 99, 1, 10, { age: 40 })], { majorHigh: null, majorLow: null }, {
+      sessions: 40,
+      low: 90,
+      high: 96,
+      height: 3,
+    })
+    expect(buy(short, 96, 97, undefined, 100)).toBeNull()
+  })
 
 describe("buildTargetLadder — strong-wall anchoring (R3′, owner directive)", () => {
   it("T1 SKIPS weak near shelves and anchors to the nearest STRONG zone, disclosing the skip", () => {

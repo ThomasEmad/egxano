@@ -68,6 +68,7 @@ function row(over: Partial<MarketSignalRow> & { ticker: string }): MarketSignalR
       macdLine: 1,
       macdHist: 0.2,
       relVol: 1.8,
+      volPct: null,
       perfW1: 2,
       perfM1: 5,
       perfM3: 9,
@@ -150,6 +151,7 @@ describe("buildOpportunityLayer — candidate gate (cost discipline)", () => {
       setup: null,
       reasons: r.reasons,
       relVol: 1.8,
+      volPct: null,
       ema20: 99,
       ema50: 97,
       asOf: TODAY,
@@ -185,6 +187,7 @@ describe("buildOpportunityLayer — candidate gate (cost discipline)", () => {
       setup: watchingRow({ ticker: "W" }).setup ?? null,
       reasons: [],
       relVol: 1.2,
+      volPct: null,
       ema20: 99,
       ema50: 97,
       asOf: TODAY,
@@ -209,6 +212,7 @@ describe("buildOpportunityLayer — candidate gate (cost discipline)", () => {
       setup: null,
       reasons: [],
       relVol: 1.0,
+      volPct: null,
       ema20: 99,
       ema50: 97,
       asOf: TODAY,
@@ -231,6 +235,7 @@ describe("buildOpportunityLayer — honesty on the same bars", () => {
       setup: null,
       reasons: [],
       relVol: 1.0,
+      volPct: null,
       ema20: 99,
       ema50: 97,
       asOf: TODAY,
@@ -254,12 +259,13 @@ describe("buildOpportunityLayer — honesty on the same bars", () => {
     const layer = buildOpportunityLayer({
       signalState: "confirmed",
       direction: "buy",
-      lastClose: 112, // beyond the entry zone AND beyond the 110 ceiling zone
+      lastClose: 105, // beyond the entry zone yet within the staleness gap; remaining to the 110 wall < 5%
       score: 80,
       tradePlan: { ...plan, riskReward: 1.2 },
       setup: null,
       reasons: [],
       relVol: 1.0,
+      volPct: null,
       ema20: 99,
       ema50: 97,
       asOf: TODAY,
@@ -273,7 +279,82 @@ describe("buildOpportunityLayer — honesty on the same bars", () => {
     expect(layer!.oqs).toBeNull()
   })
 
-  it("feeds dataAgeSessions from asOf vs the compute day (EGX Sun–Thu sessions)", () => {
+  // ---- the VLMRA bug pin (2026-11-15 owner report): a plan published at ~9.2
+// served while the stock trades 24.47 printed a T1 (13.21) BELOW the live
+// price. The stale-plan guard must rebuild around the current close and the
+// ladder must never print a rung below the market. ----
+function vlmraBars(): Bar[] {
+  daySeq = 0
+  const bars: Bar[] = []
+  const push = (o: number, h: number, l: number, c: number) =>
+    bars.push({ ts: fixtureDay(), open: o, high: h, low: l, close: c, volume: 1000 })
+  // 1-40: the OLD plan's regime — a 9.0-9.6 low-base zigzag (real pivots)
+  for (let i = 0; i < 40; i++) {
+    const mid = 9.0 + (i % 4) * 0.2
+    push(mid, mid + 0.1, mid - 0.1, mid)
+  }
+  // 41-50: a limit-up style re-rating rally 9.6 → ~24.3
+  for (let i = 0; i < 10; i++) {
+    const mid = 9.6 + (i + 1) * 1.47
+    push(mid, mid + 0.2, mid - 0.2, mid)
+  }
+  // 51-55: topping cluster — probe ~24.9, close below (rejection wicks)
+  for (let i = 0; i < 5; i++) push(24.4, 24.9 + i * 0.03, 24.2, 24.75)
+  // 56-58: pullback toward a higher low
+  push(24.4, 24.5, 23.2, 23.3)
+  push(23.3, 23.6, 23.0, 23.15)
+  push(23.2, 23.7, 23.1, 23.6)
+  // 59: recovery to the current close
+  push(23.6, 24.6, 23.5, 24.47)
+  return bars
+}
+
+it("rebuilds a STALE plan around the current close — T1 never below the live price (VLMRA bug pin)", () => {
+  const layer = buildOpportunityLayer({
+    signalState: "confirmed",
+    direction: "buy",
+    lastClose: 24.47,
+    score: 80,
+    tradePlan: {
+      bias: "buy",
+      entryLow: 9.1,
+      entryHigh: 9.3,
+      entryPct: 0.5,
+      stop: 8.6,
+      stopPct: -6,
+      targetLow: 13.21,
+      targetHigh: 13.21,
+      targetPct: 40,
+      riskReward: 2.0,
+      textAr: "",
+      textEn: "",
+      basisAr: "",
+    },
+    setup: null,
+    reasons: [],
+    relVol: 1.0,
+    volPct: 1.0,
+    ema20: 23,
+    ema50: 15,
+    asOf: TODAY,
+    todaySession: TODAY,
+    bars: vlmraBars(),
+  })
+  expect(layer).not.toBeNull()
+  // the persisted plan (~9.2) sits ~160% below the market → rebuilt, never served
+  expect(layer!.planRebuilt).toBe(true)
+  expect(layer!.plan).not.toBeNull()
+  expect(layer!.plan!.entryLow).toBeGreaterThan(20)
+  expect(layer!.planRebuiltNoteAr).not.toBeNull()
+  // and the ladder anchors ABOVE the live price — never 13.21 on a 24.47 stock
+  expect(layer!.ladder).not.toBeNull()
+  expect(layer!.ladder!.targets.length).toBeGreaterThan(0)
+  for (const t of layer!.ladder!.targets) {
+    expect(t.price).toBeGreaterThan(24.47)
+  }
+})
+
+it("feeds dataAgeSessions from asOf vs the compute day (EGX Sun–Thu sessions)", () => {
     expect(egxSessionsBetween("2026-11-15", "2026-11-15")).toBe(0)
     expect(egxSessionsBetween("2026-11-12", "2026-11-15")).toBe(1) // Thu → Sun
     expect(egxSessionsBetween("2026-11-13", "2026-11-15")).toBe(1) // Fri skipped
@@ -286,6 +367,7 @@ describe("buildOpportunityLayer — honesty on the same bars", () => {
       setup: null,
       reasons: [],
       relVol: 1.0,
+      volPct: null,
       ema20: 99,
       ema50: 97,
       asOf: "2026-11-12",
@@ -302,8 +384,9 @@ function oppView(over: Partial<OpportunityView>): OpportunityView {
   return {
     state: "actionable",
     direction: "buy",
-    opportunityVersion: "opportunity@1",
+    opportunityVersion: "opportunity@2",
     upsidePctToT1: 8,
+    remainingPctToT1: 8,
     qualifies5: true,
     rrOk: true,
     eligible: true,
@@ -320,6 +403,9 @@ function layer(over: Partial<RowOpportunity> = {}): RowOpportunity {
   return {
     view: oppView({}),
     ladder: null,
+    plan: null,
+    planRebuilt: false,
+    planRebuiltNoteAr: null,
     oqs: 80,
     oqsComponents: null,
     oqsNoteAr: "",
@@ -392,7 +478,7 @@ describe("buildOpportunityDigestV1 — cap + missed list + empty state", () => {
       const r = row({ ticker: `M${i}` })
       r.opportunity = layer({
         oqs: null,
-        view: oppView({ state: "missed", eligible: false, missedAr: "الفرصة فاتت — العائد المتبقي غير كافٍ", upsidePctToT1: 4 - i * 0.5 }),
+        view: oppView({ state: "missed", eligible: false, missedAr: "الفرصة فاتت — العائد المتبقي غير كافٍ", remainingPctToT1: 4 - i * 0.5 }),
       })
       rows.push(r)
     }
@@ -401,7 +487,7 @@ describe("buildOpportunityDigestV1 — cap + missed list + empty state", () => {
     expect(d.missedRows.length).toBe(OPPORTUNITY_DIGEST_MISSED_CAP)
     expect(d.missedRows.every((r) => "missedAr" in r)).toBe(true)
     // remaining-upside DESC ordering
-    expect(d.missedRows.map((r) => ("upsidePctToT1" in r ? r.upsidePctToT1 : null))).toEqual([4, 3.5, 3])
+    expect(d.missedRows.map((r) => ("remainingPctToT1" in r ? r.remainingPctToT1 : null))).toEqual([4, 3.5, 3])
   })
 
   it("an empty qualifying set carries the EXACT honest empty-state note", () => {

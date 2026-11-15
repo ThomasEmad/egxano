@@ -25,6 +25,14 @@
 //      walks to the NEXT real wall). The number of skipped weak zones is
 //      disclosed in whyAr; HORIZON_PCT stays the caller's lens and filters
 //      nothing here.
+//   R3″ LAST-PRICE ANCHORING (2026-11-15 owner bug report — "الهدف الأول 13.21
+//      والسهم سعره 24.47"): a target the price has ALREADY passed is not a
+//      target — it is support. Every rung sits beyond the CURRENT LAST CLOSE
+//      as well as the entry band (buy: zone.low > max(entryHigh, lastClose);
+//      sell: zone.high < min(entryLow, lastClose)), and the measured-move
+//      projection must clear the last close in the trade's direction or the
+//      ladder prints nothing. A stale plan entry can no longer drag the whole
+//      ladder under/over the market price.
 //   R4 T2 = next STRONGER rung beyond T1 (zone strength >= T1's, or the major
 //      confirmed swing high/low) at least SEPARATION_PCT (2%) beyond T1's
 //      printed price — a rung 0.5% past T1 is the same level, not a rung. The
@@ -53,7 +61,7 @@ import type { ResistanceMap, ResistanceZone } from "./resistance-map"
 import { strengthAt } from "./resistance-map"
 import { roundToTick, type TickDirection } from "./trade-plan"
 
-export const OPPORTUNITY_TARGETS_VERSION = "opportunity-targets@2"
+export const OPPORTUNITY_TARGETS_VERSION = "opportunity-targets@3"
 
 /** Every rung rule, in one place (see header R1′-R6). */
 export const TARGET_RULES = {
@@ -205,11 +213,13 @@ export function buildTargetLadder(
   const tick = roundToTickFn // injected (tests may pass a coarser tick)
   const isBuy = side === "buy"
 
-  // ---- T1: the NEAREST STRONG zone beyond the entry band (R2 floor + R3′) ----
+  // ---- T1: the NEAREST STRONG zone beyond the entry band AND the last close
+  // ---- (R2 floor + R3′ + R3″): a level the price already trades past is
+  // ---- support, never a target.
   // Weaker near shelves are skipped BY DESIGN (owner directive): a soft shelf
   // clearable inside one session is not a target; the skip count is disclosed.
   const beyondEntry = map.zones
-    .filter((z) => (isBuy ? z.kind === "supply" && z.low > entryHigh : z.kind === "demand" && z.high < entryLow))
+    .filter((z) => (isBuy ? z.kind === "supply" && z.low > entryHigh && z.low > lastClose : z.kind === "demand" && z.high < entryLow && z.high < lastClose))
     .sort((a, b) => (isBuy ? a.low - b.low : b.high - a.high) || b.strength - a.strength)
   const t1zone = beyondEntry.find((z) => z.strength >= TARGET_RULES.STRONG_TARGET_STRENGTH) ?? null
   const skippedWeak = t1zone ? beyondEntry.indexOf(t1zone) : 0
@@ -230,10 +240,13 @@ export function buildTargetLadder(
     })
   } else {
     // ---- R6 measured-move fallback: STRONG zones ALWAYS take precedence ----
+    // R3″: the projection must clear the LAST CLOSE in the trade's direction —
+    // a projected rung the price has already reached is not a target.
     const m = map.measured
     if (m.height === null || !(m.height > 0) || m.low === null || m.high === null) return null
     const mid = (entryLow + entryHigh) / 2
     const raw = isBuy ? mid + m.height : mid - m.height
+    if (isBuy ? !(raw > lastClose) : !(raw < lastClose)) return null
     const price = tick(raw, 0.01, "up")
     targets.push({
       label: "T1",
