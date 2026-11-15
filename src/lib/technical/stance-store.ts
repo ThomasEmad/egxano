@@ -25,7 +25,7 @@ import { buildTechnicalBundleWithContext } from "@/lib/market/intelligence/conte
  *  row is REJECTED at read time (engineVersion mismatch) and recomputed, so
  *  no mixed-version reading can ever be displayed. The SIGNALS engine version
  *  itself is unchanged (tech-signals@5) — this layer adds no methodology. */
-export const STANCE_ENGINE_VERSION = "stance@3"
+export const STANCE_ENGINE_VERSION = "stance@4" // 2026-11-15: sell reads never carry plans
 
 /**
  * Pure freshness/version contract for a persisted StanceSnapshot row (kept

@@ -64,23 +64,35 @@ describe("buildTradePlan — structural stop + zone target (buy)", () => {
     expect(p.textAr).toContain("تتلغى")
   })
 
-  it("tiny ATR clamps the stop to the 3.5×ATR sanity ceiling (never absurdly far)", () => {
-    // anchor 95 − 1.5×0.30 = 94.55 → distance 4.90 > 3.5×0.30 → clamped to 98.40
-    const plan = buildTradePlan({ signal: "buy", lastClose: 100, closes: zigzagWithZones(), atrPct: 0.3 })
+  it("tiny ATR cannot place the stop outside the entry zone → NO plan", () => {
+    // ATR 0.30 caps the stop at entryMid − 0.60 = 98.85, which sits INSIDE the
+    // 98.5–100.4 entry zone: a stop there invalidates nothing, so the builder
+    // refuses the plan rather than shrinking the stop into the noise. (The old
+    // 3.5×ATR ceiling pushed the same stop out to 98.40 and "passed".)
+    expect(buildTradePlan({ signal: "buy", lastClose: 100, closes: zigzagWithZones(), atrPct: 0.3 })).toBeNull()
+  })
+
+  it("wide ATR is clamped to 2×ATR, and the plan must still pay ≥1.5R", () => {
+    // entry zone 98.5–100.4 (mid 99.45); the structural stop 95 − 1.5×6 = 86
+    // would sit 13.45 away, so the 2.0×ATR ceiling pulls it to 87.45 (risk
+    // 12.00) while the measured-move target pays 20 → RR ≈ 1.67 → the plan
+    // stands, with the R/R validated on the clamped numbers.
+    const plan = buildTradePlan({ signal: "buy", lastClose: 100, closes: zigzagWithZones(), atrPct: 6 })
     expect(plan).not.toBeNull()
-    expect(plan!.stop).toBeCloseTo(98.4, 2)
+    expect(plan!.stop).toBeCloseTo(87.45, 2)
+    expect(plan!.riskReward).toBeGreaterThanOrEqual(1.5)
   })
 
-  it("wide ATR pushes RR below 1.5 → NO plan (validated, not fudged)", () => {
-    // @5 plan geometry: entry zone 98.5–100.4 (mid 99.45), structural stop
-    // 95 − 1.5×ATR, measured-move target 119.45. ATR 6 → stop 86 → risk 13.45
-    // vs reward 20 → RR ≈ 1.49 < 1.5 → the plan is REJECTED, never fudged.
-    expect(buildTradePlan({ signal: "buy", lastClose: 100, closes: zigzagWithZones(), atrPct: 6 })).toBeNull()
-  })
-
-  it("chase with a distant support: measured-move target pays < 1.5R → NO plan", () => {
-    // @4 printed RR exactly 2.00 here; @5 refuses a plan that cannot pay 1.5R
-    expect(buildTradePlan({ signal: "buy", lastClose: 120, closes: chasingCloses(), volPct: 3 })).toBeNull()
+  it("chase with a distant support: any plan emitted must still pay ≥1.5R and keep the stop inside 2×ATR", () => {
+    // The @5 contract after the 2026-11-15 stop-distance fix: the plan is
+    // either absent (no honest geometry) or it respects both invariants.
+    const plan = buildTradePlan({ signal: "buy", lastClose: 120, closes: chasingCloses(), volPct: 3 })
+    if (plan) {
+      expect(plan.riskReward).toBeGreaterThanOrEqual(1.5)
+      const atrAbs = (3 * 1.5 / 100) * 120
+      const entryMid = (plan.entryLow + plan.entryHigh) / 2
+      expect(entryMid - plan.stop).toBeLessThanOrEqual(2 * atrAbs + 0.02)
+    }
   })
 
   it("close-only board path: volPct becomes the disclosed ATR proxy", () => {
@@ -96,29 +108,20 @@ describe("buildTradePlan — structural stop + zone target (buy)", () => {
 })
 
 describe("buildTradePlan — sell", () => {
-  it("stop above the resistance + buffer; target at a support paying ≥ 1.5R", () => {
-    const plan = buildTradePlan({
+  it("a sell read NEVER produces a tradable plan — no entry, no stop, no target", () => {
+    // 2026-11-15 owner report: "صفقات بيع كتير مع ان السوق المصري بيسمح بصفقات
+    // الشراء فقط". Even with a textbook short geometry available (resistance
+    // just above, a support far below paying > 2R), the builder refuses to
+    // price it: an EGX reader cannot execute a short, so a sell plan would be
+    // fiction. The sell read stays a risk/exit warning on `signal` only.
+    expect(buildTradePlan({
       signal: "sell",
       lastClose: 100,
       closes: [],
       supports: [{ price: 80 }],
       resistances: [{ price: 106 }],
       atrPct: null,
-    })
-    expect(plan).not.toBeNull()
-    const p = plan as TradePlan
-    expect(p.bias).toBe("sell")
-    expect(p.entryLow).toBeCloseTo(99.5, 2)
-    expect(p.entryHigh).toBeCloseTo(102, 2)
-    // stop = 106 + 2% default buffer = 108 (inside the sanity band)
-    expect(p.stop).toBeCloseTo(108, 2)
-    expect(p.stop).toBeGreaterThan(p.entryHigh)
-    expect(p.targetLow).toBeCloseTo(79.68, 2)
-    expect(p.targetHigh).toBeCloseTo(80.16, 2)
-    expect(p.targetKind).toBe("pivot")
-    expect(p.riskReward).toBeCloseTo(2.87, 2)
-    expect(p.textAr).toContain("ضغط بيعي")
-    expect(p.basisAr).toContain("المقاومة")
+    })).toBeNull()
   })
 
   it("nearest support pays < 1.5R → NO plan (the @4 lc×0.93 fallback is gone)", () => {

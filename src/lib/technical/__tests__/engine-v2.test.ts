@@ -244,7 +244,10 @@ describe("trade plan rides the read (F)", () => {
     const closes = healthyUptrend(80)
     const volumes = closes.map((_, i) => (i % 2 === 0 ? 1100 : 1000))
     const buy = computeCloseSignal(rowsFrom(closes, volumes))
-    if (buy.signal === "buy") {
+    // A buy read that cannot be priced (the 2.0×ATR stop ceiling would put the
+    // stop inside the entry zone) is published as a watched setup, never as a
+    // bare read — so the plan requirement belongs to the confirmed state.
+    if (buy.signal === "buy" && buy.signalState === "confirmed") {
       expect(buy.tradePlan).not.toBeNull()
       expect(buy.tradePlan!.riskReward).toBeGreaterThanOrEqual(1.5)
     }

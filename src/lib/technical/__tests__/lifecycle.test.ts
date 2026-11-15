@@ -289,7 +289,7 @@ describe("lifecycle — watching branch", () => {
     expect(view!.events).toHaveLength(0)
   })
 
-  it("mirrors the sell setup: close_below activation + close_above invalidation", () => {
+  it("a sell setup can never confirm: the plan builder refuses to price a short on the EGX", () => {
     const setup = watchSetup({
       direction: "sell",
       activation: { kind: "close_below", level: 9.9, basisAr: "اختبار", volumeConditionAr: "حجم إغلاق ≥ 1.5× متوسط آخر 20 جلسة" },
@@ -312,12 +312,12 @@ describe("lifecycle — watching branch", () => {
       ]),
       createdOn: dayIso(WARMUP - 1),
     })
-    expect(view!.state).toBe("confirmed")
-    expect(view!.activation).toEqual({ date: dayIso(WARMUP + 2), price: 9.85 })
-    expect(view!.tradePlan).not.toBeNull()
-    expect(view!.tradePlan!.bias).toBe("sell")
-    expect(view!.tradePlan!.riskReward).toBeGreaterThanOrEqual(DEFAULT_LIFECYCLE_PARAMS.minRiskReward)
-    expect(view!.events[0].noteAr).toContain("تحت مستوى التفعيل")
+    // 2026-11-15 owner report ("صفقات بيع كتير…"): the Egyptian Exchange has no
+    // retail short-selling, so a sell read is never priced. With no rebuilt
+    // plan the lifecycle cannot reach "confirmed" — it expires rather than
+    // inventing levels nobody could execute.
+    expect(view!.state).toBe("expired")
+    expect(view!.tradePlan).toBeNull()
   })
 
   it("invalidates a sell setup when a close restores above the invalidation ceiling", () => {

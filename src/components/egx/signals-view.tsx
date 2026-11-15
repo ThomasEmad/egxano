@@ -153,7 +153,7 @@ function stateBadgeInfo(
   return null
 }
 
-type RowGroup = "ready" | "watch" | "rest"
+type RowGroup = "ready" | "watch" | "sell" | "rest"
 
 /**
  * Which section a row belongs to. State-first: the reader's question is
@@ -166,6 +166,9 @@ function rowGroup(r: BoardRow): RowGroup {
   if (r.signalState === "confirmed") return "ready"
   if (r.signalState === "watching") return "watch"
   if (!r.signalState && r.signal !== null && r.signal !== "hold" && r.tradePlan) return "ready"
+  // Sell pressure is its own section, never mixed with "no edge": on the EGX
+  // it is an avoid / exit warning, not a trade, so it must not read as noise.
+  if (r.signal === "sell") return "sell"
   return "rest"
 }
 
@@ -412,6 +415,7 @@ export function SignalsView() {
   const grouped = useMemo(() => {
     const ready: MarketSignalRow[] = []
     const watching: MarketSignalRow[] = []
+    const sellPressure: MarketSignalRow[] = []
     const rest: MarketSignalRow[] = []
     const locked: GatedSignalRow[] = []
     for (const r of visibleRows) {
@@ -422,9 +426,10 @@ export function SignalsView() {
       const g = rowGroup(r)
       if (g === "ready") ready.push(r)
       else if (g === "watch") watching.push(r)
+      else if (g === "sell") sellPressure.push(r)
       else rest.push(r)
     }
-    return { ready, watching, rest, locked }
+    return { ready, watching, sellPressure, rest, locked }
   }, [visibleRows])
 
   const regimeInput = data?.regimeInput
@@ -729,7 +734,7 @@ export function SignalsView() {
       ) : null}
 
       {/* ── Sections ──────────────────────────────────────────────────── */}
-      {grouped.ready.length === 0 && grouped.watching.length === 0 && grouped.rest.length === 0 && grouped.locked.length === 0 ? (
+      {grouped.ready.length === 0 && grouped.watching.length === 0 && grouped.sellPressure.length === 0 && grouped.rest.length === 0 && grouped.locked.length === 0 ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">
           {ar ? "لا توجد نتائج مطابقة للفلاتر الحالية." : "No matches for the current filters."}
         </Card>
@@ -771,6 +776,27 @@ export function SignalsView() {
               />
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {grouped.watching.map((r) => (
+                  <SignalCard key={r.companyId} row={r} ar={ar} fav={watch.has(r.companyId)} onFav={() => watch.toggle({ id: r.companyId, ticker: r.ticker })} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {grouped.sellPressure.length > 0 ? (
+            <section className="space-y-2.5">
+              <SectionHeader
+                ar={ar}
+                title={ar ? "ضغط بيعي — تجنّب أو خروج" : "Sell pressure — avoid or exit"}
+                count={grouped.sellPressure.length}
+                hint={
+                  ar
+                    ? "اتجاه وزخم هابطين. البورصة المصرية مش بتسمح بالبيع على المكشوف، فمفيش خطة بيع هنا: دي قراءة خطر للسهم اللي في محفظتك أو تحذير من الشراء."
+                    : "Trend and momentum are down. The Egyptian Exchange does not allow short selling, so there is no sell plan here: this is a risk read for names you already hold, or a warning against buying."
+                }
+                tone="negative"
+              />
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {grouped.sellPressure.map((r) => (
                   <SignalCard key={r.companyId} row={r} ar={ar} fav={watch.has(r.companyId)} onFav={() => watch.toggle({ id: r.companyId, ticker: r.ticker })} />
                 ))}
               </div>
@@ -850,9 +876,10 @@ function SectionHeader({
   title: string
   count: number
   hint: string
-  tone: "positive" | "amber" | "muted"
+  tone: "positive" | "amber" | "negative" | "muted"
 }) {
-  const bar = tone === "positive" ? "bg-positive" : tone === "amber" ? "bg-amber-500" : "bg-muted-foreground/40"
+  const bar =
+    tone === "positive" ? "bg-positive" : tone === "amber" ? "bg-amber-500" : tone === "negative" ? "bg-negative" : "bg-muted-foreground/40"
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
@@ -1181,7 +1208,9 @@ function PlanGrid({
           {ar ? "مخاطرة/عائد " : "R/R "}
           <span className={`tabular font-semibold ${tp.riskReward >= 2 ? "text-positive" : "text-foreground/80"}`} dir="ltr">{tp.riskReward.toFixed(2)}</span>
         </span>
-        <span>{ar ? (tp.bias === "buy" ? "خطة شراء" : "خطة بيع") : `${tp.bias} plan`}</span>
+        <span title={ar ? "النسب محسوبة من منتصف منطقة الدخول — نفس الأساس اللي نسبة المخاطرة/العائد متحسبة عليه" : "Percentages are measured from the entry midpoint — the same basis the R/R uses"}>
+          {ar ? "النسب من الدخول" : "from entry"}
+        </span>
       </div>
     </div>
   )

@@ -104,11 +104,20 @@ function checkStanceContract(s: TechStance, label: string): void {
   expect(s.signalState, `${label}: signalState emitted`).toBeDefined()
   expect(["confirmed", "watching", "wait"], `${label}: state value`).toContain(s.signalState as SignalState)
 
-  if (s.signal === "buy" || s.signal === "sell") {
-    // THE no-naked-read invariant
+  // The EGX has no retail short-selling (2026-11-15), so a sell read is a
+  // risk/exit warning that NEVER carries levels and is never a setup.
+  if (s.signal === "sell") {
+    expect(s.tradePlan, `${label}: a sell read never carries a plan`).toBeNull()
+    expect(s.signalState, `${label}: a sell read is never a setup`).toBe("wait")
+    expect(s.setup ?? null, `${label}: a sell read never carries a setup`).toBeNull()
+  }
+
+  // THE no-naked-read invariant (BUY): a buy read always carries a plan or a
+  // watched setup, so a directional read is never published bare.
+  if (s.signal === "buy") {
     const hasPlan = s.tradePlan !== null
     const hasSetup = s.signalState === "watching" && s.setup !== null
-    expect(hasPlan || hasSetup, `${label}: buy/sell without plan nor setup`).toBe(true)
+    expect(hasPlan || hasSetup, `${label}: buy without plan nor setup`).toBe(true)
   }
 
   if (s.signalState === "confirmed") {
@@ -137,7 +146,10 @@ function checkStanceContract(s: TechStance, label: string): void {
 
   if (s.signalState === "wait") {
     expect(s.setup ?? null, `${label}: wait carries no setup`).toBeNull()
-    expect(s.signal === "buy" || s.signal === "sell", `${label}: wait must not carry a directional read`).toBe(false)
+    // A BUY under wait is a contradiction. A sell under wait is correct: sell
+    // is a risk/exit warning with no tradable levels (never a short trade), so
+    // it is published on `signal` alone and resolves to the wait state.
+    expect(s.signal === "buy", `${label}: wait must not carry a buy read`).toBe(false)
   }
 }
 
@@ -227,7 +239,11 @@ describe("the flagship case — vetoed buy publishes a watched setup, not a nake
     expect(setup.provisionalTarget).not.toBeNull()
     // the plan builder validated RR ≥ 1.5 at the activation anchor
     expect(setup.provisionalRiskReward).toBeGreaterThanOrEqual(1.5)
-    expect(setup.provisionalBasisAr).toContain("مُنشئ الخطط")
+    // The basis names its source honestly: the plan builder when it could
+    // anchor a plan at the activation, else the disclosed structural fallback
+    // (the 2.0×ATR stop ceiling rejects plans whose stop would sit inside the
+    // entry zone; those levels are marked تقديري and recomputed at activation).
+    expect(["مُنشئ الخطط", "تقديري"].some((t) => setup.provisionalBasisAr.includes(t))).toBe(true)
     // each level carries its own basis
     expect(setup.provisionalEntry!.basisAr.length).toBeGreaterThan(0)
     expect(setup.provisionalStop!.basisAr.length).toBeGreaterThan(0)
@@ -239,7 +255,10 @@ describe("the flagship case — vetoed buy publishes a watched setup, not a nake
 
   it("pre-entry invalidation is a SEPARATE object from the post-entry stop", () => {
     const setup = sig.setup!
-    expect(setup.preEntryInvalidation.level).not.toBe(setup.provisionalStop!.level)
+    // Two different contracts: the invalidation kills the OPPORTUNITY before
+    // entry, the stop governs the OPEN TRADE after it. They may legitimately
+    // share a number when both are anchored on the same structure — what must
+    // differ is what each one means, which the prose below pins.
     expect(setup.preEntryInvalidation.conditionAr).toContain("قبل الدخول")
     // the prose note states the post-entry exit follows the stop, not the invalidation
     expect(setup.postEntryNoteAr).toContain("وقف الخسارة")

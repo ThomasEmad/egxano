@@ -40,11 +40,14 @@ export interface TradePlan {
   /** entry-mid distance from the last close, percent (1dp) */
   entryPct: number
   stop: number
-  /** stop distance from the last close, percent (1dp; negative for buy) */
+  /** stop distance from the ENTRY MID, percent (1dp; negative for buy) — the
+   *  risk actually taken when the plan fills, so |stopPct| and targetPct tie
+   *  out to riskReward instead of being measured against a price nobody paid. */
   stopPct: number
   targetLow: number
   targetHigh: number
-  /** target-mid distance from the last close, percent (1dp) */
+  /** target-mid distance from the ENTRY MID, percent (1dp) — the reward per
+   *  unit paid at the entry, which is the number the R/R is made of. */
   targetPct: number
   /** (target-mid − entry-mid) / (entry-mid − stop) — 2dp, validated ≥ 1.5 */
   riskReward: number
@@ -85,7 +88,11 @@ export interface TradePlanInput {
 const ATR_PROXY_FACTOR = 1.5 // close-only proxy: ATR ≈ 1.5 × daily close-to-close σ
 const STOP_ATR_MULT = 1.5 // stop = structural anchor ± 1.5×ATR
 const STOP_MIN_ATR = 0.5 // sanity band: stop never closer than 0.5×ATR (noise)
-const STOP_MAX_ATR = 3.5 // sanity band: stop never farther than 3.5×ATR (absurd)
+// 2026-11-15 owner report: "وقف الخسارة بعيد جدا عن منطقة الدخول". The old
+// 3.5×ATR ceiling let a 3%-daily-volatility name print a stop ~16% below its
+// entry, which is not a stop — it is a different trade. 2.0×ATR is the widest
+// distance that still reads as the same setup's invalidation.
+const STOP_MAX_ATR = 2.0 // sanity band: stop never farther than 2.0×ATR
 const MIN_RR = 1.5 // a plan paying less than 1.5R is REJECTED, not fudged
 const MEASURED_WINDOW = 40 // measured-move lookback (range height projection)
 
@@ -183,7 +190,7 @@ export function measuredHeight(closes: number[]): number | null {
 
 /**
  * Stop sanity band: the distance from the entry mid is clamped into
- * [0.5×ATR, 3.5×ATR] (or [2%, 8%] when no volatility input exists) so the stop
+ * [0.5×ATR, 2.0×ATR] (or [2%, 8%] when no volatility input exists) so the stop
  * is never inside normal noise nor absurdly far from the entry. When the clamp
  * moves the stop off its structural anchor the basis text discloses it.
  */
@@ -212,6 +219,14 @@ export function buildTradePlan(p: TradePlanInput): TradePlan | null {
   const lc = p.lastClose
   if (!validPrice(lc)) return null
   if (p.signal === "hold") return null
+  // EGX REALITY (2026-11-15 owner report: "صفقات بيع كتير مع ان السوق المصري
+  // بيسمح بصفقات الشراء فقط"). The Egyptian Exchange has no retail
+  // short-selling mechanism, so an entry/stop/target plan BELOW the market is
+  // not executable by anyone reading this product. A sell read therefore stays
+  // exactly what the engine says it is — a sell-pressure / risk warning (exit
+  // or avoid) — and is never turned into a tradable plan. The old sell
+  // geometry is removed here, not merely hidden, so no caller can surface it.
+  if (p.signal === "sell") return null
 
   const passedSupports = (p.supports ?? []).map((z) => z?.price).filter(validPrice)
   const passedResistances = (p.resistances ?? []).map((z) => z?.price).filter(validPrice)
@@ -227,64 +242,6 @@ export function buildTradePlan(p: TradePlanInput): TradePlan | null {
   const atrAbs = effAtrPct !== null ? (effAtrPct / 100) * lc : null
   const usesProxy = atrPct === null && volPct !== null
   const proxyNoteAr = usesProxy ? " (تقلب تقريبي من الإغلاقات — لا ATR حقيقي)" : ""
-
-  // ---------------- sell — exit / re-entry guidance below the nearest resistance
-  if (p.signal === "sell") {
-    if (r1 === null) return null // no usable resistance → no honest sell plan
-    const entryLowRaw = lc * 0.995
-    const entryHighRaw = Math.min(r1, lc * 1.02)
-    if (!(entryHighRaw > entryLowRaw)) return null
-    const entryMidRaw = (entryLowRaw + entryHighRaw) / 2
-    // stop ABOVE the structural resistance + 1.5×ATR, sanity-banded
-    const stopRaw = bandStop(entryMidRaw, r1 + (atrAbs !== null ? STOP_ATR_MULT * atrAbs : lc * 0.02), atrAbs, "above")
-    const riskDist = stopRaw - entryMidRaw
-    if (!(riskDist > 0)) return null
-    // target candidates: demand zone below → support pivot → measured move down
-    const cands: TargetCandidate[] = []
-    const demandZones = (p.zones ?? []).filter((z) => z.kind === "demand" && validPrice(z.high) && z.high < entryLowRaw).sort((a, b) => b.high - a.high)
-    if (demandZones[0]) cands.push({ low: demandZones[0].low, high: demandZones[0].high, kind: "zone" })
-    if (s1 !== null && s1 < entryLowRaw) cands.push({ low: s1 * 0.996, high: s1 * 1.002, kind: "pivot" })
-    const mm = measuredHeight(p.closes ?? [])
-    if (mm !== null) cands.push({ low: entryMidRaw - mm, high: entryMidRaw - mm, kind: "measured_move" })
-    let target: TargetCandidate | null = null
-    for (const c of cands) {
-      const mid = (c.low + c.high) / 2
-      if (!(mid < entryLowRaw)) continue
-      if ((entryMidRaw - mid) / riskDist >= MIN_RR) {
-        target = c
-        break
-      }
-    }
-    if (!target) return null // nothing pays ≥ 1.5R → NO plan (no fabricated levels)
-    // SELL conservative rounding: a LOWER entry and a CLOSER target both
-    // reduce reward and raise risk, and a HIGHER stop widens risk — so none of
-    // the three can flatter the printed R/R.
-    const entryLow = roundToTick(entryLowRaw, 0.01, "down")
-    const entryHigh = roundToTick(Math.max(entryHighRaw, entryLowRaw), 0.01, "down")
-    const stop = roundToTick(stopRaw, 0.01, "up")
-    const targetLow = roundToTick(target.low, 0.01, "up")
-    const targetHigh = roundToTick(Math.max(target.high, target.low), 0.01, "up")
-    const entryMid = (entryLow + entryHigh) / 2
-    const targetMid = (targetLow + targetHigh) / 2
-    const rr = roundRR((entryMid - targetMid) / (stop - entryMid))
-    if (!(rr >= MIN_RR) || !(stop > entryHigh) || !(targetMid < entryLow)) return null
-    return {
-      bias: "sell",
-      entryLow,
-      entryHigh,
-      entryPct: roundPct(((entryMid - lc) / lc) * 100),
-      stop,
-      stopPct: roundPct(((stop - lc) / lc) * 100),
-      targetLow,
-      targetHigh,
-      targetPct: roundPct(((targetMid - lc) / lc) * 100),
-      riskReward: rr,
-      textAr: `ضغط بيعي واضح — المنطقة دي مناسبة للخروج أو الانتظار، والهدف الهيكلي الأول عند ${fmtPrice(targetLow)}. القراءة تتلغى لو السهم قفل فوق ${fmtPrice(stop)}.`,
-      textEn: `Clear sell pressure — this zone suits exiting or waiting, with the first structural target at ${fmtPrice(targetLow)}. The read is void on a close above ${fmtPrice(stop)}.`,
-      basisAr: `تحت المقاومة الأقرب — وقف هيكلي + 1.5×ATR فوق ${fmtPrice(stop)}${proxyNoteAr}`,
-      targetKind: target.kind,
-    }
-  }
 
   // ---------------- buy — entry zone anchored on the nearest support
   if (s1 === null) return null // no structural floor → no honest buy plan
@@ -339,10 +296,10 @@ export function buildTradePlan(p: TradePlanInput): TradePlan | null {
     entryHigh,
     entryPct: roundPct(((entryMid - lc) / lc) * 100),
     stop,
-    stopPct: roundPct(((stop - lc) / lc) * 100),
+    stopPct: roundPct(((stop - entryMid) / entryMid) * 100),
     targetLow,
     targetHigh,
-    targetPct: roundPct(((targetMid - lc) / lc) * 100),
+    targetPct: roundPct(((targetMid - entryMid) / entryMid) * 100),
     riskReward: rr,
     textAr: `منطقة الدخول من ${fmtPrice(entryLow)} لـ ${fmtPrice(entryHigh)}، وقف الخسارة تحت ${fmtPrice(stop)} — والهدف الهيكلي ${targetTxtAr}. القراءة تتلغى لو السهم قفل تحت وقف الخسارة.`,
     textEn: `Entry zone ${entryTxt}, stop below ${fmtPrice(stop)}, structural target ${targetTxtEn}. The plan is void on a close below the stop.`,

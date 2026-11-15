@@ -321,6 +321,19 @@ const WEAK_SESSIONS = 15
 /** Momentum corroboration cap: overlapping oscillators saturate at this share
  *  of the group's present maximum (80% = the decision-excellence bar). */
 const MOMENTUM_GROUP_STRONG_SHARE = 0.8
+/**
+ * DECISION-LEVEL EXCELLENCE BAR (2026-11-15 owner report: buy opportunities
+ * never confirmed, the whole board stayed "watching"). A BUY required EVERY
+ * present dimension to earn >=80% of its own maximum, so on the EGX — thin
+ * volume history, and a risk dimension that competes with trend by
+ * construction — almost nothing could ever confirm.
+ * 70% still forbids a weak dimension from passing (a 2/10 or 3/10 dim never
+ * clears it) while making the confirmed state reachable for a genuinely strong
+ * name. This is the DECISION bar; the DISPLAY excellence gate in finalizeScore
+ * (>80 needs full strength) is a separate threshold and is unchanged, so the
+ * published score keeps its meaning.
+ */
+const DECISION_STRENGTH_SHARE = 0.7
 /** Structure veto distance (audit C): a multi-touch cluster within this % of
  *  the close vetoes the directional read unless breakout/breakdown is confirmed. */
 const RESISTANCE_VETO_PCT = 2.0
@@ -398,7 +411,7 @@ function rawWeightedWith(dims: SignalDim[], weights: Record<string, number>): {
     weightSum += weights[d.key]
   }
   const present = dims.filter((d) => d.max > 0)
-  const allDimsStrong = present.length > 0 && present.every((d) => d.earned / d.max >= 0.8)
+  const allDimsStrong = present.length > 0 && present.every((d) => d.earned / d.max >= DECISION_STRENGTH_SHARE)
   return {
     rawPct: weightSum > 0 ? (score / weightSum) * 100 : null,
     allDimsStrong,
@@ -713,12 +726,6 @@ function blockedBuyReasons(g: GateFlags): SignalReason[] {
   return out
 }
 
-/** The gate outcomes that BLOCK a sell candidate (sell deliberately carries
- *  no volume/excellence gate — audit D reachability). */
-function blockedSellReasons(g: GateFlags): SignalReason[] {
-  if (!g.sellCandidate && !g.distributionSell) return []
-  return g.vetoSupport ? [reason("atSupportVeto")] : []
-}
 
 interface StateDerivation {
   state: SignalState
@@ -741,17 +748,16 @@ function deriveSignalState(signal: TechSignalType | null, g: GateFlags, hasPlan:
     if (!hasPlan) return { state: "watching", direction: "buy", vetoReasons: [noPlanReason] }
     return { state: "confirmed", direction: "buy", vetoReasons: [] }
   }
-  if (signal === "sell") {
-    const blockers = blockedSellReasons(g)
-    if (blockers.length > 0) return { state: "watching", direction: "sell", vetoReasons: blockers }
-    if (!hasPlan) return { state: "watching", direction: "sell", vetoReasons: [noPlanReason] }
-    return { state: "confirmed", direction: "sell", vetoReasons: [] }
-  }
-  // hold / null — a blocked candidate still publishes a watched opportunity
+  // SELL IS NEVER A SETUP (EGX reality, 2026-11-15 owner report): the Egyptian
+  // Exchange has no retail short-selling, so a "sell opportunity" is a trade
+  // nobody reading this can execute. A sell read stays the sell-pressure / risk
+  // warning it already is (exit or avoid), published on `signal` alone — never
+  // confirmed, never watched, and never carrying levels. `hasPlan` is always
+  // false for a sell read now that the plan builder refuses to price one.
+  if (signal === "sell") return { state: "wait", direction: null, vetoReasons: [] }
+  // hold / null — a blocked BUY candidate still publishes a watched opportunity
   const buyBlockers = blockedBuyReasons(g)
   if (buyBlockers.length > 0) return { state: "watching", direction: "buy", vetoReasons: buyBlockers }
-  const sellBlockers = blockedSellReasons(g)
-  if (sellBlockers.length > 0) return { state: "watching", direction: "sell", vetoReasons: sellBlockers }
   return { state: "wait", direction: null, vetoReasons: [] }
 }
 
