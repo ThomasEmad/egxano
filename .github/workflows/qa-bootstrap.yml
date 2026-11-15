@@ -62,7 +62,12 @@ jobs:
             // org-scoped account: resolve org ids first, then list per org
             let projects = { projects: [] };
             try {
-              const orgs = await jget("https://console.neon.tech/api/v2/orgs");
+              const orgsRaw = execSync(
+                `curl -sS --max-time 20 -H "Authorization: Bearer ${KEY}" "https://console.neon.tech/api/v2/orgs"`,
+                { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }
+              );
+              console.log("RAW orgs payload:", orgsRaw.slice(0, 600));
+              const orgs = JSON.parse(orgsRaw);
               for (const o of orgs.orgs || []) {
                 console.log("org:", o.id, o.name);
                 try {
