@@ -41,12 +41,21 @@ jobs:
 
           const { execSync } = require("child_process");
           function jget(url) {
-            // curl gives a clear network error message; node fetch masked it
             const out = execSync(
               `curl -sS --max-time 20 -H "Authorization: Bearer ${KEY}" "${url}"`,
               { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }
             );
             return JSON.parse(out);
+          }
+          // diagnostics: dump the raw projects payload (contains no credentials)
+          try {
+            const raw = execSync(
+              `curl -sS --max-time 20 -H "Authorization: Bearer ${KEY}" "https://console.neon.tech/api/v2/projects"`,
+              { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }
+            );
+            console.log("RAW projects payload:", raw.slice(0, 900));
+          } catch (e) {
+            console.log("RAW projects curl failed:", String(e.stderr || e.message).slice(0, 300));
           }
 
           (async () => {
