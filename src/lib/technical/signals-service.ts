@@ -52,6 +52,12 @@ export interface MarketSignalRow extends CloseSignalOutput {
   sector: string
   /** EGX30 | EGX70 | MAIN | OTC (see src/lib/market/tiers.ts) */
   marketTier: string
+  /** Where the displayed `metrics` block came from (remediation 2026-11-15).
+   *  "canonical"   — the full-OHLC canonical stance: identical to the company tab.
+   *  "close_only"  — a canonical stance that predates the metric block.
+   *  "unavailable" — no canonical stance; chips are withheld rather than showing
+   *                  close-only numbers that would contradict the company tab. */
+  metricsSource?: "canonical" | "close_only" | "unavailable"
 }
 
 export interface MarketSignalsOutput {
@@ -297,11 +303,27 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
           ...canonical.stance.metrics,
         }
       }
+      // A row whose stance predates the metric block cannot be shown to agree
+      // with the tab — mark it so the UI can say so instead of implying parity.
+      row.metricsSource = canonical.stance.metrics ? "canonical" : "close_only"
     } else {
       // No canonical bundle (no candles / too few sessions): the close-based
       // reading stays, but LEVELS are withheld everywhere for consistency.
       row.tradePlan = null
       row.invalidation = null
+      // METRIC PARITY (remediation 2026-11-15): the company tab computes its
+      // metrics from the full OHLC bundle. A row with no canonical stance has
+      // no such bundle here, so its close-only metrics are NOT the same numbers
+      // the tab would show (verified live: ETEL board RSI 55.89 vs tab 54.86).
+      // Withhold them exactly as levels are withheld — an unavailable chip is
+      // honest, a contradicting chip is not. The directional read, score and
+      // signal still come from the close engine and remain displayed.
+      row.metrics = {
+        rsi14: null, ema20: null, ema50: null, macdLine: null, macdHist: null,
+        relVol: null, perfW1: null, perfM1: null, perfM3: null,
+        rangePos60: null, dailyVolPct: null, obvSlope20: null,
+      }
+      row.metricsSource = "unavailable"
     }
   }
 
