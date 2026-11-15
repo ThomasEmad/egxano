@@ -467,7 +467,7 @@ export const api = {
 
   technicalSignals: (query?: string) =>
     fetch(`/api/v1/technical/signals${query ? `?${query}` : ""}`).then((r) =>
-      handle<import("@/lib/technical/signals-service").MarketSignalsResponse>(r)
+      handle<import("@/lib/signals/board-service").SignalsBoardResponse>(r)
     ),
 
   // "فرص اليوم" digest — the server resolves the caller's tier (header token

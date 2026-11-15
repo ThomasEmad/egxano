@@ -1,0 +1,204 @@
+{
+  "generatedAt": "2026-11-15T23:05:48.435Z",
+  "base": "https://egxano.vercel.app",
+  "universeReplayed": [
+    "COMI",
+    "SWDY",
+    "ETEL",
+    "TMGH",
+    "EGAL",
+    "EAST",
+    "ALCN",
+    "ABUK",
+    "EFID",
+    "HRHO",
+    "CLHO",
+    "AMOC",
+    "ORHD"
+  ],
+  "skipped": [],
+  "sessionsReplayed": 5369,
+  "stateCounts": {
+    "buy": 599,
+    "near": 888,
+    "wait": 3457,
+    "exit": 425
+  },
+  "typeCounts": {
+    "exit_support": 376,
+    "reversal": 255,
+    "breakout": 575,
+    "retest": 516,
+    "bounce": 141,
+    "exit_trend": 49
+  },
+  "invariants": {
+    "violations": [],
+    "violationCount": 0
+  },
+  "outcomes": {
+    "buySessions": 599,
+    "t1BeforeStop": 232,
+    "stopBeforeT1": 296,
+    "neitherWithin20": 71,
+    "medianReturn10AfterT1": null,
+    "nearSessionsWith5Forward": 887,
+    "nearFiredWithin5": 330
+  },
+  "examples": {
+    "buy": [
+      {
+        "ticker": "COMI",
+        "asOf": "2025-03-20",
+        "type": "reversal",
+        "entry": [
+          78.52,
+          78.9
+        ],
+        "stop": 77.57,
+        "t1": 80.1,
+        "rr": 1.22,
+        "score": 72,
+        "hit": true,
+        "stopped": false
+      },
+      {
+        "ticker": "COMI",
+        "asOf": "2025-05-12",
+        "type": "reversal",
+        "entry": [
+          78.93,
+          79.45
+        ],
+        "stop": 77.96,
+        "t1": 82.59,
+        "rr": 2.76,
+        "score": 75.5,
+        "hit": true,
+        "stopped": false
+      },
+      {
+        "ticker": "COMI",
+        "asOf": "2025-07-02",
+        "type": "retest",
+        "entry": [
+          83.87,
+          84.44
+        ],
+        "stop": 82.82,
+        "t1": 87.02,
+        "rr": 2.15,
+        "score": 72,
+        "hit": true,
+        "stopped": false
+      },
+      {
+        "ticker": "COMI",
+        "asOf": "2025-07-10",
+        "type": "retest",
+        "entry": [
+          84.42,
+          84.94
+        ],
+        "stop": 83.25,
+        "t1": 87.33,
+        "rr": 1.85,
+        "score": 73,
+        "hit": true,
+        "stopped": false
+      },
+      {
+        "ticker": "COMI",
+        "asOf": "2025-09-02",
+        "type": "retest",
+        "entry": [
+          95.4,
+          96
+        ],
+        "stop": 94.29,
+        "t1": 101.75,
+        "rr": 4.29,
+        "score": 62,
+        "hit": false,
+        "stopped": true
+      },
+      {
+        "ticker": "COMI",
+        "asOf": "2025-09-03",
+        "type": "retest",
+        "entry": [
+          95.43,
+          96
+        ],
+        "stop": 94.36,
+        "t1": 101.75,
+        "rr": 4.45,
+        "score": 62,
+        "hit": false,
+        "stopped": true
+      },
+      {
+        "ticker": "COMI",
+        "asOf": "2025-09-29",
+        "type": "retest",
+        "entry": [
+          99.11,
+          99.75
+        ],
+        "stop": 97.92,
+        "t1": 101.75,
+        "rr": 1.54,
+        "score": 80.5,
+        "hit": true,
+        "stopped": false
+      },
+      {
+        "ticker": "COMI",
+        "asOf": "2025-09-30",
+        "type": "retest",
+        "entry": [
+          100.35,
+          101
+        ],
+        "stop": 98.18,
+        "t1": 103.95,
+        "rr": 1.31,
+        "score": 83.5,
+        "hit": true,
+        "stopped": false
+      }
+    ],
+    "exit": [
+      {
+        "ticker": "COMI",
+        "asOf": "2025-02-25",
+        "type": "exit_support",
+        "score": 61
+      },
+      {
+        "ticker": "COMI",
+        "asOf": "2025-02-27",
+        "type": "exit_support",
+        "score": 37
+      },
+      {
+        "ticker": "COMI",
+        "asOf": "2025-04-07",
+        "type": "exit_support",
+        "score": 63
+      },
+      {
+        "ticker": "COMI",
+        "asOf": "2025-04-14",
+        "type": "exit_support",
+        "score": 20.5
+      },
+      {
+        "ticker": "COMI",
+        "asOf": "2025-06-15",
+        "type": "exit_support",
+        "score": 41.5
+      }
+    ]
+  }
+}
