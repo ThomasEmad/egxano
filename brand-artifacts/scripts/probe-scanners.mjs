@@ -3,7 +3,7 @@ const browser = await chromium.launch();
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "ar-EG" });
 await context.route("**/api/v1/**", async (route) => {
   const r = route.request(); const u = new URL(r.url());
-  const resp = await context.request.fetch("https://meza-ashy.vercel.app" + u.pathname + u.search, { method: r.method(), timeout: 45000, failOnStatusCode: false });
+  const resp = await context.request.fetch("https://egxano.vercel.app" + u.pathname + u.search, { method: r.method(), timeout: 45000, failOnStatusCode: false });
   await route.fulfill({ status: resp.status(), headers: { "content-type": resp.headers()["content-type"] || "application/json" }, body: await resp.body() });
 });
 const page = await context.newPage();

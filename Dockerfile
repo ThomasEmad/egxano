@@ -1,5 +1,5 @@
-# Meza — production image (Next.js 16 standalone + Prisma/SQLite).
-# Build:  docker build -t meza .
+# EGXANO — production image (Next.js 16 standalone + Prisma/SQLite).
+# Build:  docker build -t egxano .
 # Run:    see docker-compose.yml (mounts db/, storage/, reports/ + .env)
 
 # ---------- 1. Dependencies ----------
@@ -34,9 +34,9 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1
 
 # Non-root user; owns the writable state dirs (db, storage, reports)
-RUN addgroup -S egx && adduser -S egx -G egx \
+RUN addgroup -S egxano && adduser -S egxano -G egxano \
  && mkdir -p /app/db /app/storage /app/reports \
- && chown -R egx:egx /app/db /app/storage /app/reports
+ && chown -R egxano:egxano /app/db /app/storage /app/reports
 
 # Standalone server + static assets + public
 COPY --from=builder --chown=egx:egx /app/.next/standalone ./
@@ -45,11 +45,11 @@ COPY --from=builder --chown=egx:egx /app/public ./public
 
 # Prisma schema + migrations + CLI so the entrypoint can `migrate deploy`
 # against the mounted volume on first boot.
-COPY --from=builder --chown=egx:egx /app/prisma ./prisma
-COPY --from=builder --chown=egx:egx /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder --chown=egx:egx /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder --chown=egx:egx /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
-COPY --chown=egx:egx docker-entrypoint.sh ./docker-entrypoint.sh
+COPY --from=builder --chown=egxano:egxano /app/prisma ./prisma
+COPY --from=builder --chown=egxano:egxano /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder --chown=egxano:egxano /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder --chown=egxano:egxano /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+COPY --chown=egxano:egxano docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh && chmod +x ./node_modules/.bin/prisma
 
 USER egx

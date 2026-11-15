@@ -1,4 +1,4 @@
-# Meza AI Analysis Engine v2 — Architecture & Operations
+# EGXANO AI Analysis Engine v2 — Architecture & Operations
 
 ## 1. Overview
 

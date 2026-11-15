@@ -32,7 +32,7 @@ body.push(new Paragraph({
   bidirectional: true, alignment: AlignmentType.START, spacing: { after: 100 },
   children: [ar("دليل تفعيل تسجيل الدخول الاجتماعي (جوجل وفيسبوك)", { size: 34, bold: true, color: "1A1A1A" })],
 }))
-body.push(pAr([ar("منصة Meza — 6 نوفمبر 2026. الزمن المطلوب: 20-30 دقيقة. لا تحتاج أي تعديل في الشيفرة إطلاقاً — كل ما تحتاجه مفاتيح تطبيقات تُنشئها بنفسك ثم تضيفها إلى ملف .env.", { size: 20, color: "666666" })], { after: 240 }))
+body.push(pAr([ar("منصة EGXANO — 6 نوفمبر 2026. الزمن المطلوب: 20-30 دقيقة. لا تحتاج أي تعديل في الشيفرة إطلاقاً — كل ما تحتاجه مفاتيح تطبيقات تُنشئها بنفسك ثم تضيفها إلى ملف .env.", { size: 20, color: "666666" })], { after: 240 }))
 
 body.push(heading1("أولاً: جوجل (Google)"))
 body.push(...step(1, ["افتح Google Cloud Console (console.cloud.google.com) وأنشئ مشروعاً جديداً باسم Meza."]))
@@ -82,12 +82,12 @@ body.push(bullet("من لوحة الأدمن ← مراجعة الأحداث: ي
 body.push(pAr([ar("ملاحظة أمنية: ", { bold: true }), ar("لا تشارك المفاتيح مع أي طرف، ولا ترفعها إلى مستودع عام. ملف .env مستثنى من النسخة الاحتياطية العامة للشيفرة.")], { before: 160 }))
 
 const doc = new Document({
-  creator: "Meza",
+  creator: "EGXANO",
   title: "دليل تفعيل تسجيل الدخول الاجتماعي",
   styles: { default: { document: { run: { font: AR_FONT, size: 22 } } } },
   sections: [{
     properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1300, bottom: 1300, left: 1200, right: 1200 }, pageNumbers: { start: 1, formatType: NumberFormat.DECIMAL } } },
-    headers: { default: new Header({ children: [new Paragraph({ bidirectional: true, alignment: AlignmentType.START, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: PAL.accent, space: 4 } }, children: [ar("دليل تفعيل تسجيل الدخول الاجتماعي — Meza", { size: 16, color: "888888" })] })] }) },
+    headers: { default: new Header({ children: [new Paragraph({ bidirectional: true, alignment: AlignmentType.START, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: PAL.accent, space: 4 } }, children: [ar("دليل تفعيل تسجيل الدخول الاجتماعي — EGXANO", { size: 16, color: "888888" })] })] }) },
     footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ children: [PageNumber.CURRENT], font: AR_FONT, size: 18 })] })] }) },
     children: body,
   }],

@@ -1,4 +1,4 @@
-# دليل الـ Deploy — Meza
+# دليل الـ Deploy — EGXANO
 
 النشر الإنتاجي لتطبيق Next.js 16 (standalone) + Prisma/SQLite. كل الأوامر على Ubuntu 22.04/24.04 كمثال.
 
@@ -29,7 +29,7 @@ cp .env.example .env   # ثم عبّي القيم الحقيقية
 
 | المتغير | إلزامي؟ | الغرض |
 |---|---|---|
-| `DATABASE_URL` | ✅ | مسار SQLite، مثال `file:/home/deploy/meza/db/custom.db` |
+| `DATABASE_URL` | ✅ | مسار SQLite، مثال `file:/home/deploy/egxano/db/custom.db` |
 | `ADMIN_PASSCODE` | ✅ | باس كود دخول لوحة الأدمن |
 | `CRON_SECRET` | ✅ للمهام المجدولة | حماية `/api/v1/cron/*` عبر `Authorization: Bearer` |
 | `NEXT_PUBLIC_SITE_URL` | ✅ | رابط الموقع العام (SEO/sitemap/OG) |
@@ -47,7 +47,7 @@ rsync -az --exclude node_modules --exclude .next --exclude db ./ server:~/meza/
 # على السيرفر
 cd ~/meza
 mkdir -p db storage reports
-# لو عندك بيانات موجودة:  rsync -az db/custom.db server:~/meza/db/
+# لو عندك بيانات موجودة:  rsync -az db/custom.db server:~/egxano/db/
 cp .env.example .env && nano .env
 docker compose up -d --build
 
@@ -75,15 +75,15 @@ npm start              # يشغّل standalone ويحمّل .env تلقائيا�
 خدمة systemd:
 
 ```ini
-# /etc/systemd/system/meza.service
+# /etc/systemd/system/egxano.service
 [Unit]
-Description=Meza (Next.js standalone)
+Description=EGXANO (Next.js standalone)
 After=network.target
 
 [Service]
 Type=simple
 User=deploy
-WorkingDirectory=/home/deploy/meza
+WorkingDirectory=/home/deploy/egxano
 ExecStart=/usr/bin/node scripts/start-standalone.mjs
 Environment=NODE_ENV=production
 Environment=PORT=3000
@@ -93,15 +93,15 @@ RestartSec=5
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
-ReadWritePaths=/home/deploy/meza/db /home/deploy/meza/storage /home/deploy/meza/reports /etc/.z-ai-config
+ReadWritePaths=/home/deploy/egxano/db /home/deploy/egxano/storage /home/deploy/egxano/reports /etc/.z-ai-config
 
 [Install]
 WantedBy=multi-user.target
 ```
 
 ```bash
-sudo systemctl daemon-reload && sudo systemctl enable --now meza
-systemctl status meza && journalctl -u meza -f
+sudo systemctl daemon-reload && sudo systemctl enable --now egxano
+systemctl status egxano && journalctl -u egxano -f
 ```
 
 ## nginx أمام التطبيق (TLS)
@@ -143,7 +143,7 @@ npm run backup          # أو مع Docker: docker compose exec app node scripts
 
 # تحديث نسخة جديدة:
 git pull   # أو rsync الجديد
-npm ci && npm run build && sudo systemctl restart meza
+npm ci && npm run build && sudo systemctl restart egxano
 # مع Docker:  docker compose up -d --build
 
 # تحديث قاعدة البيانات بعد تغيّر الـ schema:

@@ -1,6 +1,6 @@
-# Meza — Visual & UI Audit (production baseline)
+# EGXANO — Visual & UI Audit (production baseline)
 
-Status: audit of the **deployed production site** `https://meza-ashy.vercel.app`
+Status: audit of the **deployed production site** `https://egxano.vercel.app`
 (v0.3.0), captured 2026-11-09. It is the "before" half of the brand
 transformation; the "after" half is compared in `docs/brand/visual-comparison.md`
 once the rebuilt working tree is final.
@@ -54,7 +54,7 @@ crops live in `fold/`; edge states append `--<state>`. `mobile-menu` means a
 
 ---
 
-## 2. First impression: does a stranger understand what Meza is?
+## 2. First impression: does a stranger understand what EGXANO is?
 
 **Partially — they learn "EGX data + scanner", not "research platform".**
 
@@ -63,7 +63,7 @@ built on real published financials"* over a 3-line paragraph that starts
 *"Institutional-grade pattern scanner: loss-to-profit turnarounds, revenue
 acceleration, deleveraging…"*. A newcomer learns: Egyptian market, scanner,
 published data. They do **not** learn the brand promise from `BRIEF.md`
-("understand the stock before you decide"), nor that Meza is a research
+("understand the stock before you decide"), nor that EGXANO is a research
 workbench for companies/comparisons/technicals — the words "research",
 "compare", "understand" are absent from the hero.
 
@@ -80,8 +80,8 @@ translation but the same problems apply, plus the hero headline's gradient makes
 the Arabic look decorative rather than authoritative (§5, §12).
 
 The header makes the identity ambiguous before the hero is read: the wordmark
-appears **twice side by side** — once in the sidebar (`Meza / EGX market
-intelligence`, x≈12–230) and again in the top bar (`Meza`, x≈288) —
+appears **twice side by side** — once in the sidebar (`EGXANO / EGX market
+intelligence`, x≈12–230) and again in the top bar (`EGXANO`, x≈288) —
 `home--en--light--desktop.png`, `companies--en--light--desktop.png`.
 
 ---

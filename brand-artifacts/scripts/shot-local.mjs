@@ -2,7 +2,7 @@
 import path from "node:path";
 
 const BASE = process.env.BASE || "http://localhost:3100";
-const PROD = "https://meza-ashy.vercel.app";
+const PROD = "https://egxano.vercel.app";
 const OUT = process.env.OUT || path.resolve("brand-artifacts/local");
 const pagePath = process.argv[2] || "/";
 const name = process.argv[3] || "home";

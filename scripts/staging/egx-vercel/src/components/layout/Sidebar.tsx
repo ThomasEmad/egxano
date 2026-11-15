@@ -300,7 +300,7 @@ export function Sidebar({ collapsed = false, onCollapseChange }: { collapsed?: b
           </div>
           {!isCollapsed && (
             <div className="flex flex-col leading-tight">
-              <span className="font-bold tracking-tight text-foreground">Meza</span>
+              <span className="font-bold tracking-tight text-foreground">EGXANO</span>
               <span className="text-[10px] text-muted-foreground tracking-tighter">Analyze • Compare • Invest</span>
             </div>
           )}
@@ -528,7 +528,7 @@ export function Sidebar({ collapsed = false, onCollapseChange }: { collapsed?: b
 
           {/* Version label */}
           <p className="px-2 text-[10px] text-muted-foreground/60 leading-none">
-            Meza v1.0.0
+            EGXANO v1.0.0
           </p>
 
           <Button

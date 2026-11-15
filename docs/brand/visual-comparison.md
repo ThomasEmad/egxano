@@ -1,6 +1,6 @@
-# Meza — Visual Comparison: Production (Before) vs Rebuilt (After)
+# EGXANO — Visual Comparison: Production (Before) vs Rebuilt (After)
 
-> **Baseline:** Production `https://meza-ashy.vercel.app` (v0.3.0, deployed 2026-11-09)
+> **Baseline:** Production `https://egxano.vercel.app` (v0.3.0, deployed 2026-11-09)
 >
 > **After:** Local rebuild `http://localhost:3100` (working tree at `main` + brand transformation commits), proxied APIs → production
 >
@@ -22,7 +22,7 @@
 | **P/E rankings** | DESC → most expensive = #1 (crown) | ASC for lower-is-better, no crowns, "(lower is better)" label | ✅ Fixed |
 | **Sector ROE display** | "+19.5%" with up arrow (level shown as change) | "19.5%" plain, bar = value, red = negative | ✅ Fixed |
 | **Trust chrome** | Missing on 10 pages (login, premium, etc.) | LayoutShell `chrome="marketing"` on all public pages | ✅ Fixed |
-| **Auth pages** | "EGX" badge, raw API codes | Meza wordmark, plain bilingual errors, "not affiliated" | ✅ Fixed |
+| **Auth pages** | "EGX" badge, raw API codes | EGXANO wordmark, plain bilingual errors, "not affiliated" | ✅ Fixed |
 | **Premium page** | "+ Ads / No ads" (fake), un-completable payment | Honest capabilities, manual activation stated, payment state from settings | ✅ Fixed |
 | **Terms** | "billed in advance / auto-renewal" (false) | "One-off 30-day manual activation, no card, no auto-renewal" | ✅ Fixed |
 
@@ -43,7 +43,7 @@
 | `/rankings?metric=p_e` AR | `before/rankings--ar--light--1440.png` | `after/rankings--ar--light--1440.png` | ASC sort, "(lower is better)", no crowns |
 | `/sectors` AR light | `before/sectors--ar--light--1440.png` | `after/sectors--ar--light--1440.png` | Median ROE as level, no "+" sign |
 | `/premium` AR light | `before/premium--ar--light--1440.png` | `after/premium--ar--light--1440.png` | Honest caps, manual activation, no fake ads |
-| `/login` AR light | `before/login--ar--light--1440.png` | `after/login--ar--light--1440.png` | Meza mark, plain errors, "not affiliated" |
+| `/login` AR light | `before/login--ar--light--1440.png` | `after/login--ar--light--1440.png` | EGXANO mark, plain errors, "not affiliated" |
 | `/status` AR light | `before/status--ar--light--1440.png` | `after/status--ar--light--1440.png` | Live data, no "Operational" badge |
 | Mobile drawer open | `before/home--en--light--mobile-menu.png` | `after/home--en--light--mobile-menu.png` | Full height, all sections reachable |
 
@@ -87,7 +87,7 @@
 
 **Auth Pages (Blocker #5, #6)**
 - **Before:** "EGX" badge, raw `INVALID_CREDENTIALS`/`RATE_LIMITED`
-- **After:** Meza wordmark, "Independent research platform — not affiliated with the Egyptian Exchange", mapped bilingual errors (`loginError`/`registerError`)
+- **After:** EGXANO wordmark, "Independent research platform — not affiliated with the Egyptian Exchange", mapped bilingual errors (`loginError`/`registerError`)
 - **Files:** `src/app/login/page.tsx:27-40`, `src/app/register/page.tsx:31-48`
 
 **Missing Trust Chrome (Blocker #8)**
@@ -126,11 +126,11 @@
 | `src/app/landing-client.tsx` | **Complete rewrite** — brand hero, 4 pillars, research walkthrough, connected picture, trust-as-product, FAQ |
 | `src/lib/brand.ts` | **New** — `BRAND`, `TRUST`, `METRIC_GLOSSARY`, `formatMoney`, `formatDate` |
 | `src/lib/seo-config.ts` | Description updated |
-| `src/components/brand/*` | **New** — 10 primitives (`MezaMark`, `SectionHeading`, `DataStateBadge`, `SourceLine`, `FreshnessBadge`, `MarketDataLine`, `MetricTip`, `EmptyState`, `CompanySearch`, `PublicHeader`) |
+| `src/components/brand/*` | **New** — 10 primitives (`EGXANOMark`, `SectionHeading`, `DataStateBadge`, `SourceLine`, `FreshnessBadge`, `MarketDataLine`, `MetricTip`, `EmptyState`, `CompanySearch`, `PublicHeader`) |
 | `src/components/layout/LayoutShell.tsx` | `chrome="marketing"` mode |
-| `src/components/layout/AppSidebar.tsx` | Navigation restructured, `MezaWordmark` |
+| `src/components/layout/AppSidebar.tsx` | Navigation restructured, `EGXANOWordmark` |
 | `src/components/layout/MobileBottomNav.tsx` | Core research loop (Home/Companies/Screener/Compare/Watchlist) |
-| `src/components/layout/MobileNavDrawer.tsx` | Portalled, `MezaWordmark`, fixed clipped drawer |
+| `src/components/layout/MobileNavDrawer.tsx` | Portalled, `EGXANOWordmark`, fixed clipped drawer |
 | `src/components/egx/app-footer.tsx` | Institutional footer with trust row |
 | `scripts/generate-brand-assets.mjs` | Updated OG image (Arabic-first, no fake stats) |
 | `public/logo.svg`, `public/og-image.png` | Regenerated |
@@ -154,8 +154,8 @@
 |------|-------------|
 | `src/app/premium/client.tsx` | **Major** — honest capabilities, payment state from settings, manual activation flow, capability matrix, FAQ |
 | `src/app/terms/terms-client.tsx` | **Major** — bilingual, manual activation terms, dated |
-| `src/app/login/page.tsx` | Error mapping, Meza mark, independence statement |
-| `src/app/register/page.tsx` | Error mapping, 8–72 password rule, Meza mark |
+| `src/app/login/page.tsx` | Error mapping, EGXANO mark, independence statement |
+| `src/app/register/page.tsx` | Error mapping, 8–72 password rule, EGXANO mark |
 | `src/app/about/client.tsx` | Trust chrome, data handling section |
 | `src/app/status/client.tsx` | No "Operational" badge, honest status |
 | `src/app/auth/finish/page.tsx` | Marketing chrome |
@@ -196,7 +196,7 @@
 | Admin background jobs (`admin-ops.ts`) | Pre-existing | Requires separate server or queue infrastructure; not fixable in brand scope |
 | Payment channel config (`PAYMENT_PHONE`, `WHATSAPP_NUMBER`) | Ops | Honest "not published" state shipped; needs ops to populate |
 | Support mailbox | Ops | Links to `/about`, `/status` only; no invented contact |
-| Custom domain | Ops | Currently `meza-ashy.vercel.app` |
+| Custom domain | Ops | Currently `egxano.vercel.app` |
 | Authenticated screenshots | Visual audit | No test account; manual review needed for `/portfolio`, `/watchlist`, `/alerts` |
 | Screen-reader/keyboard testing | Accessibility | Out of scope for automated capture |
 
@@ -236,7 +236,7 @@
 1. **Resolve admin background jobs** — Move to separate worker/service or use Vercel Cron + serverless-compatible queue
 2. **Configure payment channels** — Populate `PAYMENT_PHONE`, `WHATSAPP_NUMBER`, `PAYMENT_INSTRUCTIONS` in Vercel env
 3. **Set up support mailbox** — Add real contact to `/about`, `/status`, `/privacy`
-4. **Custom domain** — Point `meza.app` (or similar) to Vercel
+4. **Custom domain** — Point `egxano.app` (or similar) to Vercel
 5. **Manual QA** — Authenticated flows (`/portfolio`, `/watchlist`, `/alerts`), Arabic RTL at 360px, screen-reader pass
 6. **Deploy preview** — Vercel preview deployment for stakeholder review
 7. **Production deploy** — After all above verified

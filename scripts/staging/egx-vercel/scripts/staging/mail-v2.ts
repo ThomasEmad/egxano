@@ -122,7 +122,7 @@ export async function sendMail(input: MailInput): Promise<MailResult> {
 // styles only (email clients strip <style> tags), no external assets.
 // ---------------------------------------------------------------------------
 
-const BRAND = "Meza"
+const BRAND = "EGXANO"
 
 function layout(titleAr: string, titleEn: string, bodyHtml: string): string {
   return `<!doctype html>

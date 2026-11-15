@@ -1,4 +1,4 @@
-# Meza — Audit: Comparison, Discovery & Screening experience
+# EGXANO — Audit: Comparison, Discovery & Screening experience
 
 Author: compare-discovery teammate · Date: 2026-11-09 · Phase: **audit only (no source edits)**
 
@@ -403,7 +403,7 @@ Arabic follows strategy §6: Egyptian financial register in narrative copy, neut
 | H-1 | search hint `TopHeader.tsx:274-276` | "Press Enter to select" | "Use ↑ ↓ then Enter" (only once implemented) — otherwise remove | "اضغط Enter للاختيار" | "استخدم ↑ ↓ ثم Enter" (بعد التنفيذ) أو تُحذف |
 | X-1 | shared trust line (use `BRAND.trustLine*` from `src/lib/brand.ts`) | fragmented in 6 places | "Data from published filings · unavailable values show «—» · prices delayed 15 min · not investment advice" | fragmented | "بيانات من الإفصاحات المنشورة · القيم غير المتاحة تظهر «—» · أسعار متأخرة 15 دقيقة · ليست نصيحة استثمارية" |
 
-Dictionary keys needing Lead changes (I must not edit `i18n.tsx`): `sc.basisQuarterly` (EN/AR parity), `dash.validatedValues` ("Financial data points"), `dash.topUndervalued`, `dash.title` (EN "Meza" vs AR "ماسح البيانات المالية للبورصة المصرية" — inconsistent meaning), `common.demoData` ("UNVERIFIED"), `ft.demoNotice` (hardcoded 15-min). Until then I will use inline `ar ? … : …` per BRIEF §Execution model.
+Dictionary keys needing Lead changes (I must not edit `i18n.tsx`): `sc.basisQuarterly` (EN/AR parity), `dash.validatedValues` ("Financial data points"), `dash.topUndervalued`, `dash.title` (EN "EGXANO" vs AR "ماسح البيانات المالية للبورصة المصرية" — inconsistent meaning), `common.demoData` ("UNVERIFIED"), `ft.demoNotice` (hardcoded 15-min). Until then I will use inline `ar ? … : …` per BRIEF §Execution model.
 
 ---
 

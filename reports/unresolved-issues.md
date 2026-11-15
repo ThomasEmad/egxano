@@ -1,4 +1,4 @@
-# القضايا غير المحلولة — Meza / Unresolved issues
+# القضايا غير المحلولة — EGXANO / Unresolved issues
 
 **التاريخ / Date:** 2026-11-03  
 **النسخة / Version:** 0.3.0 (local, uncommitted)  

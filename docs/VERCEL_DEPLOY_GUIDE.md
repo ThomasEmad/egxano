@@ -33,7 +33,7 @@
 
 ### الطريقة الموصى بها (أسرع — 5 دقائق):
 1. من حساب GitHub: اضغط **+** (فوق يمين) → **New repository**
-2. الاسم مثلاً: `meza` — اختر **Private** — **متحقق من خيار README ولا تشغله** (repo فاضي) → Create
+2. الاسم مثلاً: `egxano` — اختر **Private** — **متحقق من خيار README ولا تشغله** (repo فاضي) → Create
 3. اعمل مفتاح وصول Temporary:
    - GitHub → Settings → Developer settings → Personal access tokens → **Tokens (classic)** → Generate new token (classic)
    - Note: `vercel-deploy` — Expiration: **7 days** — علّم على `repo` فقط → Generate
@@ -47,8 +47,8 @@
 تحتاج Git مثبت على جهازك — فك ضغط `egx-vercel-deploy.zip` ثم:
 ```bash
 cd egx-vercel-deploy
-git init && git add . && git commit -m "Meza - Vercel ready"
-git remote add origin https://github.com/USERNAME/meza.git
+git init && git add . && git commit -m "EGXANO - Vercel ready"
+git remote add origin https://github.com/USERNAME/egxano.git
 git branch -M main
 git push -u origin main
 ```
@@ -92,7 +92,7 @@ git push -u origin main
 
 ## الخطوة 5️⃣ — الاستيراد في Vercel (5 دقائق)
 
-1. https://vercel.com/new → اضغط **Import** جنب repo `meza`
+1. https://vercel.com/new → اضغط **Import** جنب repo `egxano`
 2. Framework Preset هيتكتشف تلقائياً: **Next.js** — سيبه زي ما هو
 3. **قبل ما تضغط Deploy**: افتح **Environment Variables** (تحت)، وأضف واحد واحد:
 
@@ -109,14 +109,14 @@ git push -u origin main
 | `SMTP_PORT` | `465` | |
 | `SMTP_USER` | `tomasemad286@gmail.com` | |
 | `SMTP_PASS` | `<YOUR-GMAIL-APP-PASSWORD>` | App Password بتاعك |
-| `MAIL_FROM` | `Meza <tomasemad286@gmail.com>` | |
+| `MAIL_FROM` | EGXANO <tomasemad286@gmail.com> | |
 | `AI_API_KEY` | `AIza…` | من الخطوة 4 |
 | `NEXT_PUBLIC_SITE_URL` | *(أضِفها بعد أول Deploy)* | حط لينك الموقع اللي هيطلع |
 
 > ⚠️ **متضفش** `NEXT_PUBLIC_TEMP_EDIT_MODE` في الإنتاج (ده وضع تجريبي للمراجعة).
 
 4. اضغط **Deploy** — البناء 2-4 دقائق. لو نجح هيطلعلك **Congratulations** بلينك زي:
-   `https://meza-xxxx.vercel.app`
+   `https://egxano-xxxx.vercel.app`
 
 5. **بعد أول deploy**: Settings → Environment Variables → عدّل `NEXT_PUBLIC_SITE_URL` وحط اللينك الجديد → Deployments → آخر deployment → **Redeploy** (عشان الإيميلات وروابط استعادة كلمة السر تستخدم اللينك الصح).
 

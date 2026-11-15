@@ -2,7 +2,7 @@
 const db = new PrismaClient();
 let n = 0;
 for (let page = 1; page <= 8; page++) {
-  const res = await fetch(`https://meza-ashy.vercel.app/api/v1/companies?pageSize=50&page=${page}`);
+  const res = await fetch(`https://egxano.vercel.app/api/v1/companies?pageSize=50&page=${page}`);
   const json = await res.json();
   const rows = json.companies ?? [];
   if (!rows.length) break;

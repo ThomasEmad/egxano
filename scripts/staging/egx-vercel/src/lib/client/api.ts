@@ -1,6 +1,6 @@
 "use client"
 
-// Typed API client for the Meza REST API (/api/v1).
+// Typed API client for the EGXANO REST API (/api/v1).
 
 export type MetricResultStatus = "OK" | "DATA_UNAVAILABLE" | "NOT_APPLICABLE" | "NOT_COMPUTABLE"
 

@@ -1,4 +1,4 @@
-# Meza Design System — Graphite & Acid Lime, refined
+# EGXANO Design System — Graphite & Acid Lime, refined
 
 This is the implemented visual system (source of truth: `src/app/globals.css`).
 It keeps the existing Graphite + Acid Lime identity and corrects how the palette
@@ -12,7 +12,7 @@ direction color.
 | `--brand-ink` | `#0B0F0D` | The mark tile, graphite brand blocks |
 | `--brand-lime` | `#A3E635` | The mark, lime accent surfaces on graphite |
 
-The mark (`MezaMark`, `public/logo.svg`) is always graphite + acid lime — it never
+The mark (`EGXANOMark`, `public/logo.svg`) is always graphite + acid lime — it never
 changes with the UI theme.
 
 ## Color roles
@@ -89,7 +89,7 @@ changes with the UI theme.
 
 Shared brand primitives live in `src/components/brand/`:
 
-- `MezaMark` / `MezaWordmark` — brand mark.
+- `EGXANOMark` / `EGXANOWordmark` — brand mark.
 - `SectionHeading` / `Stat` — editorial section headers and figures.
 - `DataStateBadge` — `reported`, `calculated`, `unavailable`, `ai`, `delayed`,
   `needs-review`, `comparable`.

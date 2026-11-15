@@ -1,4 +1,4 @@
-# Meza — Brand Strategy & Messaging System
+# EGXANO — Brand Strategy & Messaging System
 
 Status: working strategy for the brand-transformation implementation. This is a
 decision document, not marketing copy — every claim below is grounded in what the
@@ -6,7 +6,7 @@ product actually does today.
 
 ---
 
-## 1. What Meza is (the one sentence)
+## 1. What EGXANO is (the one sentence)
 
 **Arabic:** منصة بحث للبورصة المصرية تجمع القوائم المالية والنسب والمؤشرات الفنية
 والمقارنات في مكان واحد، وتشرح معنى الأرقام قبل أي قرار.
@@ -16,13 +16,13 @@ statements, ratios, technical context and company comparisons into one place —
 and explains what the numbers mean before any decision.
 
 Short form (for UI, metadata, footer):
-`Meza — أبحاث البورصة المصرية` · `Meza — Egyptian stock market research`
+`EGXANO — أبحاث البورصة المصرية` · `EGXANO — Egyptian stock market research`
 
 ## 2. Brand idea
 
 > **الفهم قبل القرار.** · **Understanding before the decision.**
 
-This is the strategic center. Meza is not a place to be told what to buy; it is
+This is the strategic center. EGXANO is not a place to be told what to buy; it is
 the place where a company becomes understandable. The promise is *preparedness
 through understanding*: research the company, compare it fairly, notice what
 changed, and decide with context.
@@ -42,9 +42,9 @@ changed, and decide with context.
 **Positioning statement**
 
 > For Egyptian investors who want to understand a company rather than react to a
-> price, Meza is the EGX research workspace that explains financial and technical
+> price, EGXANO is the EGX research workspace that explains financial and technical
 > information in one place, with the source and freshness of every figure visible.
-> Unlike global charting platforms or news portals, Meza is built around Egyptian
+> Unlike global charting platforms or news portals, EGXANO is built around Egyptian
 > company fundamentals, fair comparison, and honest data provenance.
 
 **Who we are not:** not a broker, not an execution platform, not a signals service,
@@ -52,7 +52,7 @@ not an AI oracle, not a news outlet, not a personal-brand page.
 
 ## 4. Audience
 
-| Segment | What they need | What they fear | What Meza gives |
+| Segment | What they need | What they fear | What EGXANO gives |
 | --- | --- | --- | --- |
 | Beginner / self-directed investor | A starting point, plain-language explanations, context for ratios | Losing money because of hype or a number they don't understand | Guided company reading, explained metrics, honest "unavailable" states |
 | Active retail researcher | Speed, statements, comparisons, changes over time | Missing a material change or comparing incomparable figures | Fast company lookup, like-for-like comparison, detected events, watchlist |
@@ -123,7 +123,7 @@ updated, and *why* a comparison is valid — then get out of the way.
 | Source of a figure | المصدر: الإفصاح المالي المنشور | Source: published filing |
 | Reporting period | الفترة المالية | Reporting period |
 | Last data refresh | آخر تحديث | Last updated |
-| Value calculated by Meza | قيمة محسوبة | Calculated |
+| Value calculated by EGXANO | قيمة محسوبة | Calculated |
 | Value as reported | قيمة كما وردت | As reported |
 | Not disclosed / unavailable | غير متاح — لم يُنشر | Not reported |
 | Price delay | أسعار متأخرة 15 دقيقة | Prices delayed 15 min |
@@ -198,7 +198,7 @@ The homepage narrative is a research story, not a feature list:
 ## 11. What success looks like
 
 Brand success is behavioural, not aesthetic: a first-time visitor can explain what
-Meza is in one sentence; a researcher reaches a company page in one action; a
+EGXANO is in one sentence; a researcher reaches a company page in one action; a
 comparison is started from the homepage; a returning user checks "what changed";
 and no screen promises something the product cannot deliver.
 

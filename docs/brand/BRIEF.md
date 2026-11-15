@@ -1,4 +1,4 @@
-# MEZA — Brand Transformation Brief (internal working document)
+# EGXANO — Brand Transformation Brief (internal working document)
 
 This is the shared contract for the brand-transformation session. Read it fully
 before auditing or editing. The full client brief is longer; this file captures
@@ -6,13 +6,13 @@ what every collaborator must know.
 
 ## Mission
 
-Make Meza feel like a recognizable, differentiated, trusted Egyptian stock-market
+Make EGXANO feel like a recognizable, differentiated, trusted Egyptian stock-market
 **research** brand — not a generic AI-finance dashboard, not a marketing landing
 page with invented numbers. Work is **frontend / presentation only**.
 
 Starting position:
 
-> **Meza is an Egyptian stock market research platform that brings financial data,
+> **EGXANO is an Egyptian stock market research platform that brings financial data,
 > technical insights, company comparisons, and research tools together to help
 > investors understand stocks more clearly.**
 
