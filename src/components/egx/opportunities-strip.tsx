@@ -197,6 +197,15 @@ export function OpportunityCardView({ model, ar }: { model: OpportunityCardModel
               <span className={`h-1.5 w-1.5 rounded-full ${stateMeta.dot}`} aria-hidden />
               {stateLabel}
             </Badge>
+            {/* Direction chip on EVERY state — the owner's 13.21-vs-24.47 report
+                was unreadable without knowing the target belongs to a SELL */}
+            {view.direction && view.state !== "actionable" ? (
+              <span
+                className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${view.direction === "buy" ? "border-positive/30 bg-positive/10 text-positive" : "border-negative/30 bg-negative/10 text-negative"}`}
+              >
+                {ar ? (view.direction === "buy" ? "شراء" : "بيع") : (view.direction === "buy" ? "BUY" : "SELL")}
+              </span>
+            ) : null}
             {model.tier ? (
               <span
                 className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${TIER_CLS[model.tier]}`}

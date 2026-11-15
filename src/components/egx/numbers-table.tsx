@@ -134,9 +134,11 @@ export function NumbersTable({ rows, ar }: { rows: MarketSignalRow[]; ar: boolea
               // levels: the executable plan whenever one exists (any state) —
               // hiding them behind "actionable" left every row reading "—"
               // (2026-11-15 owner bug report). A watching row's provisional
-              // setup levels display with a "≈" prefix (recomputed at activation).
+              // setup levels display with a "≈" prefix (recomputed at activation) —
+              // but never when the layer DROPPED the setup as stale (dead
+              // geometry, AMES bug): a dropped setup means no levels at all.
               const plan = r.tradePlan ?? null
-              const setup = r.setup ?? null
+              const setup = op?.setupDropped ? null : (r.setup ?? null)
               const entry = plan
                 ? zoneStr(plan.entryLow, plan.entryHigh)
                 : setup?.provisionalEntry
@@ -183,9 +185,14 @@ export function NumbersTable({ rows, ar }: { rows: MarketSignalRow[]; ar: boolea
                     </td>
                     <td className="px-2 py-1.5">
                       {stateMeta ? (
-                        <span className={`inline-flex items-center gap-1 font-semibold ${stateMeta.text}`}>
+                        <span className={`inline-flex items-center gap-1 font-semibold ${stateMeta.text}`} title={view?.direction === "buy" ? (ar ? "قراءة شراء" : "buy read") : view?.direction === "sell" ? (ar ? "قراءة بيع" : "sell read") : undefined}>
                           <span className={`h-1.5 w-1.5 rounded-full ${stateMeta.dot}`} aria-hidden />
                           {ar ? stateMeta.ar : stateMeta.en}
+                          {view?.direction ? (
+                            <span className={`rounded px-1 text-[9px] font-bold ${view.direction === "buy" ? "bg-positive/10 text-positive" : "bg-negative/10 text-negative"}`} dir={ar ? undefined : "ltr"}>
+                              {ar ? (view.direction === "buy" ? "شراء" : "بيع") : view.direction === "buy" ? "BUY" : "SELL"}
+                            </span>
+                          ) : null}
                         </span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
@@ -249,6 +256,7 @@ function NotesPanel({ row, op, ar }: { row: MarketSignalRow; op: RowOpportunity 
         <>
           <p className="font-semibold text-foreground">{view.stateNoteAr}</p>
           {op?.planRebuiltNoteAr ? <p className="text-blue-600 dark:text-blue-400">{op.planRebuiltNoteAr}</p> : null}
+          {op?.setupDroppedNoteAr ? <p className="text-amber-600 dark:text-amber-400">{op.setupDroppedNoteAr}</p> : null}
           {view.rejectionReasonsAr.length > 0 ? (
             <div>
               <p className="text-[10px] font-semibold text-muted-foreground">{ar ? "ما الذي قد يفشل:" : "What may fail:"}</p>

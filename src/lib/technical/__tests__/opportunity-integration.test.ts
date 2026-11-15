@@ -354,6 +354,49 @@ it("rebuilds a STALE plan around the current close — T1 never below the live p
   }
 })
 
+it("drops a watching setup whose activation is far from the current close (AMES bug pin)", () => {
+  // a buy trigger at ~108 while the stock trades 54 — the trigger fired long
+  // ago and the provisional levels are dead geometry: the layer must drop
+  // the setup (observation, no levels) instead of serving it.
+  const layer = buildOpportunityLayer({
+    signalState: "watching",
+    direction: "buy",
+    lastClose: 54.15,
+    score: 60,
+    tradePlan: null,
+    setup: {
+      direction: "buy",
+      activation: { kind: "close_above", level: 107.94, basisAr: "اختبار", volumeConditionAr: "اختبار" },
+      provisionalEntry: { low: 107.94, high: 108.37, basisAr: "اختبار" },
+      provisionalStop: { level: 50.05, basisAr: "اختبار" },
+      provisionalTarget: { low: 130, high: 131, basisAr: "اختبار" },
+      provisionalRiskReward: 0.06,
+      provisionalBasisAr: "اختبار",
+      recomputeNoteAr: "تُعاد الحسابات عند التفعيل",
+      preEntryInvalidation: { level: 50.05, conditionAr: "اختبار", reasonAr: "اختبار" },
+      postEntryNoteAr: "الخروج يتبع الوقف",
+      vetoReasons: [],
+    },
+    reasons: [],
+    relVol: 1.0,
+    volPct: null,
+    ema20: 60,
+    ema50: 70,
+    asOf: TODAY,
+    todaySession: TODAY,
+    bars: ceilingBars(),
+  })
+  expect(layer).not.toBeNull()
+  expect(layer!.setupDropped).toBe(true)
+  expect(layer!.setupDroppedNoteAr).not.toBeNull()
+  // the stale setup never reaches the classifier: honest observation
+  expect(layer!.view.state).toBe("observation")
+  // and the ladder anchors on the CURRENT price, not the dead trigger
+  for (const t of layer!.ladder?.targets ?? []) {
+    expect(t.price).toBeGreaterThan(54.15)
+  }
+})
+
 it("feeds dataAgeSessions from asOf vs the compute day (EGX Sun–Thu sessions)", () => {
     expect(egxSessionsBetween("2026-11-15", "2026-11-15")).toBe(0)
     expect(egxSessionsBetween("2026-11-12", "2026-11-15")).toBe(1) // Thu → Sun
@@ -406,6 +449,8 @@ function layer(over: Partial<RowOpportunity> = {}): RowOpportunity {
     plan: null,
     planRebuilt: false,
     planRebuiltNoteAr: null,
+    setupDropped: false,
+    setupDroppedNoteAr: null,
     oqs: 80,
     oqsComponents: null,
     oqsNoteAr: "",

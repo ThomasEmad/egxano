@@ -118,6 +118,13 @@ export interface RowOpportunity {
   planRebuilt: boolean
   /** Arabic note when the plan was rebuilt (surfaced in the notes panel) */
   planRebuiltNoteAr: string | null
+  /** true when the watched setup's activation level sat far from the current
+   *  close (SETUP_STALE_GAP_PCT) — the stale setup is NOT classified and its
+   *  provisional levels must not be displayed anywhere (2026-11-15 AMES bug:
+   *  a buy trigger at ~108 served while the stock traded 54). */
+  setupDropped: boolean
+  /** Arabic note when the setup was dropped (surfaced in the notes panel) */
+  setupDroppedNoteAr: string | null
   /** OQS 0-100 — null for ineligible rows (the module's own hard rule) */
   oqs: number | null
   /** per-component 0-1 sub-scores (null for ineligible rows) */
@@ -222,6 +229,16 @@ export interface OpportunityLayerInput {
  *  genuinely dead regime, never on normal drift. */
 const STALE_PLAN_GAP_PCT = 10
 
+/** A watched setup whose activation level the market has already left far
+ *  behind describes a structure that no longer exists (2026-11-15 owner bug
+ *  report, AMES: a buy trigger at ~108 served while the stock traded 54 — the
+ *  close-above trigger fired a week earlier and the provisional levels were
+ *  dead geometry). The activation must sit within this % of the last close
+ *  for the setup to stay usable; beyond it the row honestly reads observation
+ *  with no executable levels (targets still print from the price-anchored
+ *  ladder; entry/stop stay empty). */
+const SETUP_STALE_GAP_PCT = 15
+
 /** σ of the last 20 close-to-close % moves — the signals.ts dailyVolPct
  *  convention (same formula) so a fresh rebuild matches the close engine. */
 function closeOnlyDailyVolPct(closes: number[]): number | null {
@@ -295,11 +312,27 @@ export function buildOpportunityLayer(input: OpportunityLayerInput): RowOpportun
     }
   }
 
+  // ---- SETUP FRESHNESS GUARD (2026-11-15 owner bug report) ----
+  // A watching setup whose activation level sits far from the CURRENT close
+  // is stale: its trigger already fired (or became unreachable) and the
+  // provisional entry/stop are dead geometry. Drop it — the row honestly
+  // reads observation with no executable levels (targets still print from
+  // the current-price-anchored ladder; entry/stop stay empty).
+  const setupStale =
+    !isConfirmed && setup
+      ? Math.abs(((setup.activation.level - input.lastClose) / input.lastClose) * 100) > SETUP_STALE_GAP_PCT
+      : false
+  const effectiveSetup = setupStale ? null : setup
+  let setupDroppedNoteAr: string | null = null
+  if (setupStale && setup) {
+    setupDroppedNoteAr = `مستوى التفعيل المراقَب (${setup.activation.level.toFixed(2)}) أصبح بعيدًا عن السعر الحالي (${input.lastClose.toFixed(2)}) — البنية التي أنتجت هذا المستوى لم تعد قائمة، فأُسقطت المستويات التقديرية بدل عرض أرقام ميتة، وتُعاد القراءة عند التحديث القادم.`
+  }
+
   // ---- entry basis per the opportunity.ts input contract: the plan's entry
   // zone when a plan exists, else the setup's activation level as a
   // single-price basis (the daily close decides there).
-  const entryLow = effectivePlan ? effectivePlan.entryLow : setup ? setup.activation.level : input.lastClose
-  const entryHigh = effectivePlan ? effectivePlan.entryHigh : setup ? setup.activation.level : input.lastClose
+  const entryLow = effectivePlan ? effectivePlan.entryLow : effectiveSetup ? effectiveSetup.activation.level : input.lastClose
+  const entryHigh = effectivePlan ? effectivePlan.entryHigh : effectiveSetup ? effectiveSetup.activation.level : input.lastClose
 
   // ---- structural target ladder for this side ----
   const ladder = map ? buildTargetLadder(map, side, entryLow, entryHigh, input.lastClose, roundToTick) : null
@@ -323,13 +356,13 @@ export function buildOpportunityLayer(input: OpportunityLayerInput): RowOpportun
             targetKind: effectivePlan.targetKind ?? null,
           }
         : null,
-    setup: setup
+    setup: effectiveSetup
       ? {
-          direction: setup.direction,
-          activationLevel: setup.activation.level,
-          activationConditionAr: setup.activation.basisAr,
+          direction: effectiveSetup.direction,
+          activationLevel: effectiveSetup.activation.level,
+          activationConditionAr: effectiveSetup.activation.basisAr,
           provisional: true, // the watched-setup levels are recomputed at activation
-          provisionalRiskReward: setup.provisionalRiskReward,
+          provisionalRiskReward: effectiveSetup.provisionalRiskReward,
         }
       : null,
     lifecycleView: null, // the board serves PRE-ENTRY stances; the lifecycle walk is the per-company route's own layer
@@ -369,6 +402,8 @@ export function buildOpportunityLayer(input: OpportunityLayerInput): RowOpportun
     plan: effectivePlan,
     planRebuilt,
     planRebuiltNoteAr,
+    setupDropped: setupStale,
+    setupDroppedNoteAr,
     oqs: oqs.oqs,
     oqsComponents: oqs.components,
     oqsNoteAr: oqs.noteAr,
@@ -1066,9 +1101,9 @@ export function buildOpportunityDigestV1(
       entryHigh: isConfirmed && r.tradePlan ? r.tradePlan.entryHigh : null,
       stop: isConfirmed && r.tradePlan ? r.tradePlan.stop : null,
       riskReward: isConfirmed && r.tradePlan ? r.tradePlan.riskReward : null,
-      activationKind: !isConfirmed && r.setup ? r.setup.activation.kind : null,
-      activationLevel: !isConfirmed && r.setup ? r.setup.activation.level : null,
-      activationConditionAr: !isConfirmed && r.setup ? r.setup.activation.basisAr : null,
+      activationKind: !isConfirmed && !op.setupDropped && r.setup ? r.setup.activation.kind : null,
+      activationLevel: !isConfirmed && !op.setupDropped && r.setup ? r.setup.activation.level : null,
+      activationConditionAr: !isConfirmed && !op.setupDropped && r.setup ? r.setup.activation.basisAr : null,
     }
   }
 

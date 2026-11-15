@@ -184,7 +184,16 @@ export function classifyOpportunityRow(row: OpportunityComputedRow): ClassifiedR
   if (!usablePrice(lastClose)) return null
 
   const plan = row.tradePlan ?? row.view.tradePlan ?? null
-  const setupInput = toOpportunitySetup(row.setup)
+  const setupInputRaw = toOpportunitySetup(row.setup)
+  // SETUP freshness guard (mirror of the board's SETUP_STALE_GAP_PCT): a
+  // watched setup whose activation sits far from the current close is dead
+  // geometry (AMES: a buy trigger at ~108 while the stock traded 54) — never
+  // classify or alert on it.
+  const setupInput =
+    setupInputRaw && usablePrice(setupInputRaw.activationLevel) &&
+    Math.abs(((setupInputRaw.activationLevel - lastClose) / lastClose) * 100) > 15
+      ? null
+      : setupInputRaw
 
   let ladder: TargetLadder | null = null
   if (plan && usablePrice(plan.entryLow) && usablePrice(plan.entryHigh) && plan.entryHigh >= plan.entryLow) {
