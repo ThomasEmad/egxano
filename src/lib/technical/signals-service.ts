@@ -348,7 +348,11 @@ export function buildOpportunityLayer(input: OpportunityLayerInput): RowOpportun
     lastClose: input.lastClose,
     signalState: isConfirmed ? "confirmed" : "watching",
     score: input.score ?? 0,
-    direction: input.direction,
+    // the displayed direction MUST equal the ladder's own side — the owner's
+    // visual review caught a "جاهزة شراء" chip on a row whose whole plan was
+    // a sell (EGTS: stop above entry, targets below the price). side already
+    // resolves plan-bias → usable-setup → row-signal in that order.
+    direction: side,
     tradePlan:
       effectivePlan
         ? {
