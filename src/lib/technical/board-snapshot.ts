@@ -15,7 +15,11 @@ import type { MarketSignalsOutput } from "./signals-service"
 // v2 (2026-11-15): rows carry the canonical metric block + metricsSource.
 // Bumping the key retires v1 snapshots whose rows lack those fields, so a
 // pre-fix payload can never be served as if it were current.
-const BOARD_SNAPSHOT_KEY = "technical-signals:board:v2"
+// v3 (2026-11-15): rows carry the opportunity layer (opportunity@1) —
+// candidate rows now persist `opportunity` (view + ladder + OQS). Bumping the
+// key retires v2 snapshots whose rows lack the field (same lesson as the
+// market cache key bump: a pre-layer payload must never be served as current).
+const BOARD_SNAPSHOT_KEY = "technical-signals:board:v3"
 
 export const BOARD_SNAPSHOT_FRESH_MS = 15 * 60_000
 export const BOARD_SNAPSHOT_MAX_MS = 24 * 60 * 60_000

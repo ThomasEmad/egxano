@@ -459,6 +459,9 @@ export const api = {
         /** Corporate-action-adjusted daily candles for the client chart. */
         candles?: { t: string; o: number; h: number; l: number; c: number }[]
         stance?: import("@/lib/technical/signals").TechStance
+        /** Opportunity layer (opportunity@1) — the SAME layer the board strip
+         *  serves for this ticker; null when the row is not a candidate. */
+        opportunity?: import("@/lib/technical/signals-service").RowOpportunity | null
       }>(r)
     ),
 
@@ -471,7 +474,7 @@ export const api = {
   // + cookie fallback) and returns paid rows or locked identity rows.
   signalOpportunities: () =>
     fetch("/api/v1/signals/opportunities", { headers: authHeaders() }).then((r) =>
-      handle<import("@/lib/technical/board-gates").OpportunitiesResponse>(r)
+      handle<import("@/lib/technical/signals-service").OpportunityDigestResponse>(r)
     ),
 
   signalLifecycle: (companyId: string) =>
