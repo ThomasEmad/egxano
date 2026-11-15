@@ -167,6 +167,46 @@ kind of inconsistency that destroys trust in the whole reading.
 
 ## 5. Verification performed
 
+### 5.1 Live parity result (production, 2026-11-15)
+
+The parity fix was **not** accepted on unit tests alone. Live verification on the first
+Preview build showed parity still failing for ETEL:
+
+```
+board RSI 55.89   vs   tab RSI 54.86      (canonicalCount = 6 of 246)
+```
+
+Root cause: the overlay only fixes rows that *have* a canonical stance. The other ~240
+companies kept close-only metrics while the tab computed full-OHLC ones. **The overlay alone
+was not a parity fix** — this was caught only because the check was run against the deployed
+payload rather than the test suite.
+
+Two follow-up commits corrected it:
+
+- `603cbb7` — non-canonical rows now **withhold** metrics (chips render unavailable) and
+  carry `metricsSource: "unavailable"`, matching the existing rule for `tradePlan` /
+  `invalidation`. The directional read, score and signal still come from the close engine.
+- `6fd931c` — bumped `technical-signals:market:v4 → v5` and `technical-signals:board:v1 → v2`.
+  Without this, a board snapshot persisted by the *previous* deploy was still being served
+  (up to 24h off-hours), so the new row shape never reached the client and `metricsSource`
+  appeared empty.
+
+Final verified result on production (`www.egxano.com`, deployment `egxano-5ajib47co`):
+
+| ETEL | Board | Company tab |
+|---|---|---|
+| RSI | 54.861 | 54.861 |
+| relVol | 0.9548 | 0.9548 |
+| Range (60-session) | 62.33 | 62.33 |
+| Score | 71 | 71 |
+| Signal | hold | hold |
+
+Row distribution across the 29 served rows: 1 `canonical`, 4 `unavailable`, 24 free-tier
+gated rows (identity + price only, no analysis by design — verified: those rows carry only
+`companyId, ticker, nameEn, nameAr, sector, marketTier, lastClose, changePct, asOf, locked`).
+
+### 5.2 Test and type results
+
 | Check | Result |
 |---|---|
 | `npx vitest run src/lib/technical` | **275 passed**, 16 files |
@@ -215,17 +255,39 @@ kind of inconsistency that destroys trust in the whole reading.
 
 ---
 
-## 8. Rollback
+## 8. Delivery record
 
-This branch changes three source files and adds one test file. All changes are additive or
-behaviour-preserving except the two intentional ones (metric overlay, conservative rounding).
+| Item | Value |
+|---|---|
+| Feature branch | `fix/technical-engine-integrity` |
+| Commits | `6e45359` (parity + rounding), `603cbb7` (withhold non-canonical metrics), `6fd931c` (cache/snapshot key bump) |
+| Merge commit on main | `d0559b7` |
+| Remote main | `d0559b7645cc849a37c2444e0849d700f9fefd7f` — pushed, verified equal to local HEAD |
+| Preview deployments | `egxano-1dtg5im68`, `egxano-959vmy97n`, `egxano-rhrj1k36k` |
+| Production deployment | `egxano-5ajib47co-thomasemads-projects.vercel.app` — status **● Ready** |
+| Production aliases | `www.egxano.com`, `egxano.com` |
+| Vercel auth | existing authenticated CLI session (`thomasemad`); no token created, printed, or stored |
+
+No force push was used. `main` had not advanced between branch creation and merge, so the
+merge was a clean `--no-ff` with no reconciliation needed.
+
+## 9. Rollback
+
+This branch changes four source files and adds one test file. All changes are additive or
+behaviour-preserving except the two intentional ones (metric overlay/withholding, conservative
+rounding).
 
 ```
-git checkout main
-git branch -D fix/technical-engine-integrity   # if discarding
+git revert -m 1 d0559b7      # revert the merge, keeping history
+git push origin main
+npx vercel deploy --prod --yes
 ```
 
 No database migration, no schema change, no data deletion, and no engine-version bump are
 involved, so rollback is a pure code revert. Existing `StanceSnapshot` rows remain valid:
 `stance@3` is unchanged, and a stance persisted before this branch simply lacks `metrics`,
-which the overlay treats as "no metric block" and leaves the row's own values in place.
+which the overlay treats as "no metric block".
+
+Note: reverting the key bump means the board returns to serving `technical-signals:board:v1`
+snapshots. Any v2 snapshot written meanwhile is simply ignored (different key) — no cleanup
+is required, and no stale data is served as current.
