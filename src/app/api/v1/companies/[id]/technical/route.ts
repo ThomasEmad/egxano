@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { findCompanyByKey } from "@/lib/company-lookup"
 import { buildTechnicalBundleWithContext } from "@/lib/market/intelligence/context"
 import { computeStanceFromSnapshot, type TechStance } from "@/lib/technical/signals"
-import { getCachedMarketSignals } from "@/lib/technical/signals-service"
+import { getCachedMarketSignals, companyOpportunityFromRows } from "@/lib/technical/signals-service"
 import { cached } from "@/lib/server-cache"
 import { getCanonicalStance } from "@/lib/technical/stance-store"
 import { getSessionUser, USER_SESSION_COOKIE } from "@/lib/auth"
@@ -79,16 +79,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
     // The market board read for this ticker (10-min cached whole-market pass —
     // cheap to touch here). Since the board now overlays the same canonical
-    // stance, boardSignal and stance agree by construction.
+    // stance, boardSignal and stance agree by construction. The SAME row also
+    // carries the opportunity layer (opportunity@1) for candidate rows — the
+    // strip and this tab render the identical layer for one ticker (single
+    // source, built on the company's stored daily candles in the board's
+    // shared compute; null when the row is not a candidate — honest "none").
     let boardSignal: { signal: "buy" | "hold" | "sell"; score: number; asOf: string | null } | null = null
+    let opportunity: import("@/lib/technical/signals-service").RowOpportunity | null = null
     try {
       const board = await getCachedMarketSignals()
       const row = board.rows.find((r) => r.ticker === company.ticker)
       if (row?.signal && row.score !== null) {
         boardSignal = { signal: row.signal, score: row.score, asOf: row.asOf ?? null }
       }
+      if (row && company.ticker) {
+        opportunity = companyOpportunityFromRows(board.rows, company.ticker)
+      }
     } catch {
       boardSignal = null
+      opportunity = null
     }
     return {
       snapshot: bundle.snapshot,
@@ -99,6 +108,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       stance: canonical.stance,
       stanceDataAsOf: canonical.dataAsOf.toISOString(),
       boardSignal,
+      opportunity,
     }
   })
 

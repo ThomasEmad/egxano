@@ -1,29 +1,36 @@
 import { NextRequest } from "next/server"
-import { getCachedMarketSignals, type MarketSignalsOutput } from "@/lib/technical/signals-service"
+import {
+  getCachedMarketSignals,
+  buildOpportunityDigestV1,
+  OPPORTUNITY_DIGEST_VERSION,
+  OPPORTUNITY_DIGEST_CAP,
+  OPPORTUNITY_DIGEST_MISSED_CAP,
+  type MarketSignalsOutput,
+  type OpportunityDigestResponse,
+} from "@/lib/technical/signals-service"
 import { readBoardSnapshot } from "@/lib/technical/board-snapshot"
 import { cached, peekCacheAgeMs } from "@/lib/server-cache"
 import { getSessionUser, USER_SESSION_COOKIE } from "@/lib/auth"
 import { getActivePlanId } from "@/lib/subscription"
 import { isPaidPlanId } from "@/lib/plans/entitlements"
-import {
-  buildOpportunitiesDigest,
-  marketRegime,
-  OPPORTUNITIES_CAP,
-  REGIME_META,
-  EMPTY_REGIME_INPUT,
-  type OpportunitiesResponse,
-} from "@/lib/technical/board-gates"
+import { marketRegime, REGIME_META, EMPTY_REGIME_INPUT } from "@/lib/technical/board-gates"
 
-// GET /api/v1/signals/opportunities — "فرص اليوم" digest.
+// GET /api/v1/signals/opportunities — the opportunity@1 "فرص اليوم" digest.
 //
-// The ordered, capped opportunities strip: confirmed + watching rows only,
-// tier-sorted (conviction A first), regime-gated, MAX 5 rows returned. The
-// gate decides how many qualify; if fewer than 5 qualify, FEWER are returned —
-// the digest is never padded with weaker rows.
+// opportunity@1 (upgraded from the legacy conviction-tier digest): qualifying
+// rows (eligible — STRICT opportunity gates: > 5% remaining upside to the
+// ladder's T1 AND RR ≥ 1.5 on real plan numbers) ranked by OQS DESC (ties →
+// higher upsidePctToT1, then ticker), followed by a small informative tail of
+// non-eligible rows (conditional / observation with rejectionReasonsAr,
+// clearly separated by `section`), total capped at 5 — NEVER padded. Missed
+// rows (the NO-CHASE verdict) travel separately in missedRows (cap 3).
+// qualifying === 0 carries the exact honest empty-state noteAr — no
+// manufactured opportunities.
 //
 // PURE CORE: all selection/sorting/gating logic lives in
-// src/lib/technical/board-gates.ts (buildOpportunitiesDigest) and is pinned by
-// unit tests. This route is glue only: auth + payload sourcing + response.
+// src/lib/technical/signals-service.ts (buildOpportunityDigestV1) and is
+// pinned by unit tests. This route is glue only: auth + payload sourcing +
+// response.
 //
 // AUTH: identical to the signals board route — x-session-token /
 // Authorization header first, then the HttpOnly USER_SESSION_COOKIE fallback
@@ -32,10 +39,10 @@ import {
 // Plan resolution via getActivePlanId (src/lib/subscription.ts).
 //
 // ENTITLEMENT: paid callers (Pro / Pro Quarterly / legacy paid rows) receive
-// the full digest rows (tier, levels, activation). Free/anonymous callers
-// receive the SAME qualifying companies passed through gateRowForFree —
-// locked identity rows (ticker/name/sector/tier/last price, locked:true),
-// the board's exact free gating. No paid analysis field crosses the wire.
+// the full digest rows (view, levels, targets, OQS). Free/anonymous callers
+// receive the SAME companies passed through gateRowForFree — locked identity
+// rows (ticker/name/sector/tier/last price, locked:true), the board's exact
+// free gating. No paid analysis field crosses the wire.
 //
 // PAYLOAD SOURCE: the whole-market computation is cached tier-independent and
 // SHARED with the board (same cache key), plus the persisted board snapshot
@@ -78,13 +85,17 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // ---- regime + digest (pure core) ----
+  // ---- regime + opportunity@1 digest (pure core) ----
   const regimeInput = full.regimeInput ?? EMPTY_REGIME_INPUT
   const regime = marketRegime(regimeInput)
-  const digest = buildOpportunitiesDigest(full.rows, regime, { cap: OPPORTUNITIES_CAP, free: !paid })
+  const digest = buildOpportunityDigestV1(full.rows, regime, {
+    cap: OPPORTUNITY_DIGEST_CAP,
+    missedCap: OPPORTUNITY_DIGEST_MISSED_CAP,
+    free: !paid,
+  })
 
-  const payload: OpportunitiesResponse = {
-    version: full.version,
+  const payload: OpportunityDigestResponse = {
+    version: OPPORTUNITY_DIGEST_VERSION,
     regime,
     regimeNoteAr: REGIME_META[regime].noteAr,
     breadthPct: regimeInput.breadthBullishShare === null ? null : Math.round(regimeInput.breadthBullishShare * 1000) / 10,
@@ -93,6 +104,8 @@ export async function GET(req: NextRequest) {
     computedAt: full.computedAt,
     qualifying: digest.qualifying,
     rows: digest.rows,
+    missedRows: digest.missedRows,
+    ...(digest.emptyNoteAr !== undefined ? { emptyNoteAr: digest.emptyNoteAr } : {}),
     plan,
   }
 

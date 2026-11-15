@@ -45,6 +45,15 @@
 // NO persistence here (no clocks, no randomness, no db import) — the storage
 // seam lives in lifecycle-alerts-store.ts (Setting KV) and the orchestration
 // in lifecycle-sweep.ts, both of which stay unit-testable with fakes.
+//
+// OWNER DIRECTIVE §10 EXTENSION (additive, 2026-11): the persisted feed row is
+// now SHARED with the opportunity-transition layer
+// (src/lib/notifications/opportunity-alerts.ts + opportunity-sweep.ts). Every
+// item carries a `kind` discriminator ("lifecycle" — the default for absent
+// kind, this module's items — or "opportunity"), the dedup identity includes
+// the kind, and the ordering is total over both kinds. Lifecycle-only feeds
+// order byte-identically to the pre-extension behavior; the alerts API and the
+// bell UI pass whole items through, so no reader change was needed.
 // =============================================================================
 
 import type { LifecycleState, LifecycleView } from "../technical/lifecycle"
@@ -96,6 +105,41 @@ export interface LifecycleAlert {
   titleAr: string
   /** the lifecycle event's Arabic note (gap fills, fills, volume condition) */
   bodyAr: string
+  /**
+   * Feed-kind discriminator (owner directive §10 — the opportunity layer shares
+   * this feed row). ABSENT on every pre-existing persisted item and on the
+   * records this module produces: an absent kind READS as "lifecycle" everywhere
+   * (feedItemKind below), so old rows and old readers stay byte-compatible.
+   * Opportunity alerts (opportunity-alerts.ts) carry kind "opportunity" explicitly.
+   */
+  kind?: "lifecycle"
+}
+
+/**
+ * Structural shape of an opportunity-transition feed item as the shared feed
+ * sees it. Kept STRUCTURAL (type widened to string) so the pure modules stay
+ * import-cycle-free: opportunity-alerts.ts's OpportunityAlert (with its
+ * narrower OpportunityAlertType) is assignable to this, and the generalized
+ * feed helpers below accept both kinds without importing it.
+ */
+export interface OpportunityFeedItem {
+  kind: "opportunity"
+  companyId: string
+  ticker: string
+  type: string
+  date: string
+  titleAr: string
+  bodyAr: string
+}
+
+/** One item of the shared sweep feed row (`lifecycle-sweep:alerts:v1`): a
+ *  lifecycle transition alert (kind absent/`"lifecycle"`) or an
+ *  opportunity-transition alert (kind `"opportunity"`). */
+export type SweepFeedAlert = LifecycleAlert | OpportunityFeedItem
+
+/** The feed kind of an item — absent kind reads as "lifecycle" (pre-kind rows). */
+export function feedItemKind(a: SweepFeedAlert): "lifecycle" | "opportunity" {
+  return a.kind === "opportunity" ? "opportunity" : "lifecycle"
 }
 
 /** The persisted per-company sweep snapshot (stored as Setting KV JSON). */
@@ -245,7 +289,9 @@ export function currentTransitionAlerts(company: LifecycleCompanyRef, view: Life
  *  — impossible with a daily sweep; the bound keeps the Setting row small. */
 export const EMITTED_KEYS_KEEP = 64
 
-function pruneEmitted(keys: string[]): string[] {
+/** Dedup-ledger pruning, shared with the opportunity-alerts ledger (same
+ *  `${type}:${date}` key shape, same bound, same recency ordering). */
+export function pruneEmitted(keys: string[]): string[] {
   const unique = [...new Set(keys)].sort((a, b) => {
     // keys are `${type}:${date}` — sort by the date suffix desc (recency)
     const da = a.slice(a.lastIndexOf(":") + 1)
@@ -293,15 +339,37 @@ export function diffLifecycleState(
 }
 
 // ---------------------------------------------------------------------------
-// Feed helpers — deterministic ordering + merge/cap for the persisted feed
+// Feed helpers — deterministic ordering + merge/cap for the persisted feed.
+// Kind-aware (owner directive §10): the same feed row carries lifecycle AND
+// opportunity items; the rules below are total over BOTH kinds and reduce to
+// the original behavior when the feed contains lifecycle items only.
 // ---------------------------------------------------------------------------
 
-/** Newest-first, total order (date desc, then the stable type/ticker/title
- *  tie-breaks) — the persisted alerts feed and the API return this order. */
-export function orderAlertsNewestFirst(alerts: LifecycleAlert[]): LifecycleAlert[] {
+/** Same-kind type ordering: the documented lifecycle TYPE_RANK when both types
+ *  are known lifecycle types; everything unknown (opportunity types, corrupt
+ *  rows) sorts after ALL known ranks, ordered by plain type string. Built as a
+ *  lexicographic (known?, key) composite so the comparator stays transitive. */
+function sameKindTypeCompare(a: string, b: string): number {
+  const ra = TYPE_RANK[a as LifecycleAlertType]
+  const rb = TYPE_RANK[b as LifecycleAlertType]
+  if (ra !== undefined && rb !== undefined) return ra - rb
+  if (ra !== undefined) return -1
+  if (rb !== undefined) return 1
+  return a < b ? -1 : a > b ? 1 : 0
+}
+
+/** Newest-first, total order over BOTH feed kinds (date desc, then lifecycle
+ *  before opportunity on the same date, then the within-kind type order, then
+ *  the stable ticker/title tie-breaks) — the persisted alerts feed and the API
+ *  return this order. For a lifecycle-only feed this is byte-identical to the
+ *  original (pre-opportunity) ordering. */
+export function orderAlertsNewestFirst<T extends SweepFeedAlert>(alerts: T[]): T[] {
   return [...alerts].sort((a, b) => {
     if (a.date !== b.date) return a.date < b.date ? 1 : -1
-    if (a.type !== b.type) return TYPE_RANK[a.type] - TYPE_RANK[b.type]
+    const ka = feedItemKind(a)
+    const kb = feedItemKind(b)
+    if (ka !== kb) return ka < kb ? -1 : 1
+    if (a.type !== b.type) return sameKindTypeCompare(a.type, b.type)
     if (a.ticker !== b.ticker) return a.ticker < b.ticker ? -1 : 1
     return a.titleAr < b.titleAr ? -1 : a.titleAr > b.titleAr ? 1 : 0
   })
@@ -311,24 +379,32 @@ export function orderAlertsNewestFirst(alerts: LifecycleAlert[]): LifecycleAlert
  *  PlanLimits.alerts ON TOP of this). */
 export const ALERT_FEED_CAP = 200
 
+/** The dedup identity of a feed item: kind + companyId + type + date. The KIND
+ *  is part of the identity — a lifecycle "invalidated" and an opportunity
+ *  "invalidated" on the same company/date are two different events and both
+ *  belong in the feed. */
+export function feedAlertKey(a: SweepFeedAlert): string {
+  return `${feedItemKind(a)}|${a.companyId}|${a.type}|${a.date}`
+}
+
 /**
  * Merge the existing feed with newly produced alerts:
- *   • dedup by the transition identity (companyId + type + date) — a company
- *     re-appearing in the feed (e.g. after a baseline reset) can never
+ *   • dedup by the transition identity (kind + companyId + type + date) — a
+ *     company re-appearing in the feed (e.g. after a baseline reset) can never
  *     duplicate an entry;
  *   • newest-first order (orderAlertsNewestFirst);
- *   • capped at `cap` (oldest entries dropped — the sweep's own ledger in
- *     the state snapshot is the durable dedup record, the feed is a window).
+ *   • capped at `cap` (oldest entries dropped — the sweeps' own ledgers in the
+ *     state snapshots are the durable dedup record, the feed is a window).
  */
-export function mergeAlertFeed(
-  existing: LifecycleAlert[],
-  incoming: LifecycleAlert[],
+export function mergeAlertFeed<T extends SweepFeedAlert>(
+  existing: T[],
+  incoming: T[],
   cap: number = ALERT_FEED_CAP,
-): LifecycleAlert[] {
+): T[] {
   const seen = new Set<string>()
-  const merged: LifecycleAlert[] = []
+  const merged: T[] = []
   for (const a of orderAlertsNewestFirst([...existing, ...incoming])) {
-    const key = `${a.companyId}|${a.type}|${a.date}`
+    const key = feedAlertKey(a)
     if (seen.has(key)) continue
     seen.add(key)
     merged.push(a)

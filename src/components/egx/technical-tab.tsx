@@ -50,6 +50,8 @@ import type { VsaSnapshot } from "@/lib/technical/vsa"
 import type { ZonesSnapshot } from "@/lib/technical/zones"
 import type { QualityScore } from "@/lib/technical/quality"
 import { SIGNAL_META, STYLE_TAG_META, type TechStance, type WatchingSetup } from "@/lib/technical/signals"
+import { OpportunityCardView, type OpportunityCardModel } from "./opportunities-strip"
+import type { RowOpportunity } from "@/lib/technical/signals-service"
 
 export interface TechSnapshot {
   version: string
@@ -147,6 +149,70 @@ interface BoardSignal {
   signal: "buy" | "hold" | "sell"
   score: number
   asOf: string | null
+}
+
+/**
+ * Opportunity block (opportunity@1) — the SAME layer the board's "فرص اليوم"
+ * strip serves for this ticker, fed by the per-company data route
+ * (/api/v1/companies/[id]/technical). Renders via the shared
+ * OpportunityCardView; a non-candidate read (wait / no structural trigger)
+ * gets an honest "none" card — nothing is manufactured.
+ */
+function CompanyOpportunityBlock({
+  opportunity,
+  ticker,
+  stance,
+  lastClose,
+  asOf,
+  ar,
+}: {
+  opportunity: RowOpportunity | null | undefined
+  ticker: string
+  stance?: StanceWithPlan
+  lastClose: number | null
+  asOf: string | null
+  ar: boolean
+}) {
+  if (!opportunity) {
+    return (
+      <Card className="p-4">
+        <p className="text-xs font-bold text-foreground">
+          {ar ? "الفرصة: لا توجد فرصة مصنفة على هذه القراءة الآن" : "Opportunity: none classified on this read"}
+        </p>
+        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+          {ar
+            ? "القراءات غير المرشحة (انتظار أو بلا تفعيل هيكلي) تُقرأ ضمنيًا بلا فرصة — ولا تُصنَّع فرصة. تُعاد القراءة حسابيًا مع كل إغلاق يومي."
+            : "Non-candidate reads (wait / no structural trigger) read as no opportunity implicitly — nothing is manufactured. The read recomputes with every daily close."}
+        </p>
+      </Card>
+    )
+  }
+  const view = opportunity.view
+  const plan = view.state === "actionable" ? (stance?.tradePlan ?? null) : null
+  const setup = view.state !== "actionable" ? (stance?.setup ?? null) : null
+  const riskFactorsAr =
+    view.rejectionReasonsAr.length > 0
+      ? view.rejectionReasonsAr
+      : (stance?.reasons ?? []).filter((r) => r.tone === "negative").map((r) => r.ar)
+  const model: OpportunityCardModel = {
+    ticker,
+    lastClose,
+    asOf,
+    view,
+    targets: opportunity.ladder ? opportunity.ladder.targets : null,
+    oqs: opportunity.oqs,
+    oqsComponents: opportunity.oqsComponents,
+    oqsNoteAr: opportunity.oqsNoteAr,
+    riskFactorsAr,
+    entryLow: plan ? plan.entryLow : null,
+    entryHigh: plan ? plan.entryHigh : null,
+    stop: plan ? plan.stop : null,
+    riskReward: plan ? Number(plan.riskReward) : null,
+    activationKind: setup?.activation.kind ?? null,
+    activationLevel: setup ? setup.activation.level : null,
+    activationConditionAr: setup ? setup.activation.basisAr : null,
+  }
+  return <OpportunityCardView model={model} ar={ar} />
 }
 
 const PERF_LABELS: Array<{ key: keyof TechSnapshot["perf"]; ar: string; en: string }> = [
@@ -1340,6 +1406,18 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
 
       {/* b. rule-based stance hero with the trade plan */}
       {stance ? <StanceCard companyId={companyId} stance={stance} verdict={verdict} pos={pos} neg={neg} boardSignal={(data as { boardSignal?: BoardSignal | null }).boardSignal ?? null} ar={ar} /> : null}
+
+      {/* b2. opportunity layer (opportunity@1) — the SAME layer the board's
+          "فرص اليوم" strip serves for this ticker; honest "none" when the
+          read is not a candidate. */}
+      <CompanyOpportunityBlock
+        opportunity={data.opportunity}
+        ticker={ticker ?? ""}
+        stance={stance}
+        lastClose={snap.lastClose}
+        asOf={snap.asOf}
+        ar={ar}
+      />
 
       {/* c. the story in brief */}
       <StoryList snap={snap} stance={stance} ar={ar} />
