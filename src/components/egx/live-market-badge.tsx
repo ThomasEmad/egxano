@@ -36,7 +36,7 @@ export function LiveMarketBadge({
       role="status"
     >
       <span
-        className={`flex h-1.5 w-1.5 rounded-full ${status.live ? "bg-positive animate-pulse" : "bg-muted-foreground/50"}`}
+        className={`flex h-1.5 w-1.5 rounded-full ${status.pulse ? "bg-positive animate-pulse" : "bg-muted-foreground/50"}`}
         aria-hidden
       />
       <span className={status.live ? "text-positive" : "text-muted-foreground"}>

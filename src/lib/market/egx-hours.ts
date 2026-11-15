@@ -37,6 +37,20 @@ export function isEgxTradingDay(date: Date = new Date()): boolean {
 export const EGX_OPEN_MINUTES = 9 * 60 + 45 // 09:45 — opening auction underway
 export const EGX_CLOSE_MINUTES = 14 * 60 + 45 // 14:45 — closing auction done
 
+/** Auto-refresh pulse window (owner requirement: "تحديث كل 30 ثانية … اقفله
+ *  بعد الساعة 3"): trading days 09:45 → 15:00 Cairo. Inside it the UI pulses
+ *  every 30 seconds; AFTER 15:00 — and on weekends — it stops entirely. The
+ *  badge's "live" wording stays 09:45–14:45 (the actual session); the extra
+ *  15 minutes keep refreshing the closing auction's slow trickle. */
+export const EGX_PULSE_CLOSE_MINUTES = 15 * 60 // 15:00 — the pulse stops after this
+
+/** True while the automatic 30-second refresh pulse is allowed to run. */
+export function isEgxPulseWindow(date: Date = new Date()): boolean {
+  if (!isEgxTradingDay(date)) return false
+  const { minutes } = cairoParts(date)
+  return minutes >= EGX_OPEN_MINUTES && minutes <= EGX_PULSE_CLOSE_MINUTES
+}
+
 /** True while the session can actually move prices (trading day, 09:45–14:45 Cairo). */
 export function isEgxMarketLive(date: Date = new Date()): boolean {
   if (!isEgxTradingDay(date)) return false
@@ -46,6 +60,8 @@ export function isEgxMarketLive(date: Date = new Date()): boolean {
 
 export interface EgxMarketStatus {
   live: boolean
+  /** true ONLY inside the pulse window — the 30s auto-refresh runs then and stops after 15:00 */
+  pulse: boolean
   tradingDay: boolean
   /** Arabic label for the badge, e.g. "السوق مفتوح الآن" / "السوق مقفول — يفتح الأحد ٩:٤٥ ص" */
   ar: string
@@ -69,11 +85,13 @@ export function egxMarketStatus(date: Date = new Date()): EgxMarketStatus {
   const { weekday, minutes } = cairoParts(date)
   const tradingDay = isEgxTradingDay(date)
   const live = tradingDay && minutes >= EGX_OPEN_MINUTES && minutes <= EGX_CLOSE_MINUTES
+  const pulse = tradingDay && minutes >= EGX_OPEN_MINUTES && minutes <= EGX_PULSE_CLOSE_MINUTES
   if (live) {
     const minutesLeft = EGX_CLOSE_MINUTES - minutes
     const closeHintAr = minutesLeft <= 30 ? ` — هيفصل بعد ${minutesLeft} دقيقة` : ""
     return {
       live: true,
+      pulse,
       tradingDay,
       ar: `السوق مفتوح الآن${closeHintAr}`,
       en: "Market is live now",
@@ -97,6 +115,7 @@ export function egxMarketStatus(date: Date = new Date()): EgxMarketStatus {
   }
   return {
     live: false,
+    pulse,
     tradingDay,
     ar: `السوق مقفول — يفتح ${DAY_AR[day]} ${fmtTime(EGX_OPEN_MINUTES)}`,
     en: `Market closed — opens ${DAY_EN[day]} 09:45 AM`,
