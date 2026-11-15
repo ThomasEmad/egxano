@@ -24,13 +24,15 @@ jobs:
           node-version: 20
 
       - name: Install pg client
+        working-directory: ${{ runner.temp }}
         run: npm init -y >/dev/null 2>&1 && npm i pg@8 --silent >/dev/null 2>&1
 
       - name: Resolve Neon URI + activate QA subscription (scoped)
+        working-directory: ${{ runner.temp }}
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
         run: |
-          cat > /tmp/qa.js <<'EOF'
+          cat > qa.js <<'EOF'
           const { Client } = require("pg");
           const fs = require("fs");
           const KEY = process.env.NEON_API_KEY;
@@ -93,4 +95,4 @@ jobs:
             throw new Error("no candidate database contained the app tables");
           })().catch((e) => { console.error("FATAL", e.message); process.exit(1); });
           EOF
-          node /tmp/qa.js
+          node qa.js
