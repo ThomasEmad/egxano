@@ -1,26 +1,55 @@
 "use client"
 
-// /signals — market-wide technical signals board.
+// /signals — market-wide technical signals board ("نشرة الجلسة").
 //
-// ZBorsa-style reading surface built on EGXANO's own deterministic engine:
-// rule-based confluence score (trend/momentum/volume/risk, documented weights),
-// a buy/wait/sell-press READING (disclosed as a rule output, not advice),
-// trading-style fit tags, a deterministic TRADE PLAN strip (entry zone / stop /
-// target from src/lib/technical/trade-plan.ts), and live filters. Every number
-// traces to the close-based engine in src/lib/technical/signals.ts.
-// Free-tier gating: free/anonymous users read the first FREE_SIGNALS_ROWS rows
-// fully; the rest render as locked cards with a Pro upgrade CTA.
+// RESTRUCTURE (read this before touching the layout):
+// The old page was a flat wall — five chip rows, six selects, four identical
+// stat cards, and one interleaved card grid whose rows were sorted by score so
+// confirmed reads with a live plan scrolled past in between "wait" rows. Three
+// structural ideas replace that:
+//
+//   1. STATE FIRST. A row's publication state (confirmed / watching / wait) is
+//      the first question an EGX trader asks — "which of these can I actually
+//      trade today?" — so the board is SPLIT INTO SECTIONS by state, in that
+//      order, instead of one score-sorted list. Sorting still applies INSIDE a
+//      section. A directional read is never mixed in with "no edge".
+//   2. THE MARKET COMES BEFORE THE STOCKS. One briefing band answers "where is
+//      the tape?" — regime (bull / neutral / bear from the board's own
+//      breadth + median score), breadth above EMA20, and the read mix — so the
+//      reader knows how to weigh the list below it before scanning it.
+//   3. FILTERS HAVE A HIERARCHY. Four primary controls stay visible; the rest
+//      live behind "فلاتر متقدمة". Nothing is removed — the same filters and
+//      the same server-side gating still run.
+//
+// EGXAN-specific honesty carried on the page (never decorative):
+//   • the engine reads DAILY CLOSES, so the "day trade" style is disclosed as
+//     unavailable rather than silently offered;
+//   • EGX applies daily price limits, so a level can gap and never trade — the
+//     plan strip says so once, in the reader's language;
+//   • liquidity on the EGX is thin outside EGX30, so relative volume sits next
+//     to every plan: a perfect level with no volume is not an executable level;
+//   • prices are delayed public quotes and the last session may be the running
+//     one, so freshness is stated with the session date, not implied.
+//
+// Engine provenance: every number traces to the close-based engine in
+// src/lib/technical/signals.ts, overlaid by the canonical OHLC stance so the
+// board and the company tab agree. Free-tier gating is unchanged: free and
+// anonymous callers receive the first FREE_SIGNALS_ROWS rows fully and the rest
+// as locked identity cards (the paid fields never reach the browser).
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import {
   Activity,
   ArrowDownRight,
   ArrowUpRight,
+  ChevronDown,
+  Info,
   Lock,
   RefreshCw,
   Search,
+  SlidersHorizontal,
   Star,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -29,18 +58,20 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { api, authHeaders, getUserToken } from "@/lib/client/api"
+import { api, getUserToken } from "@/lib/client/api"
 import { usePlan } from "@/lib/client/subscription"
 import { useI18n } from "@/lib/i18n"
 import { useWatchlist } from "@/lib/client/watchlist"
 import { FREE_SIGNALS_ROWS } from "@/lib/plans/entitlements"
+import { LiveMarketBadge } from "./live-market-badge"
 import { useMarketLive } from "./use-market-live"
 import { SIGNAL_META, STYLE_TAG_HINT_AR, STYLE_TAG_META, type TechSignalType, type TechStyleTag, type WatchingSetup } from "@/lib/technical/signals"
-import type { GatedSignalRow, MarketSignalRow, MarketSignalsResponse } from "@/lib/technical/signals-service"
+import type { BoardRow, GatedSignalRow, MarketSignalRow, MarketSignalsResponse } from "@/lib/technical/signals-service"
 import { lifecycleChipLabel, type LifecycleState } from "@/lib/technical/lifecycle"
 import { OpportunitiesStrip } from "./opportunities-strip"
 import { NumbersTable } from "./numbers-table"
 import { TIER_AR } from "@/lib/market/tiers"
+import { EMPTY_REGIME_INPUT, REGIME_META, marketRegime, type MarketRegime } from "@/lib/technical/board-gates"
 
 type SignalFilter = "all" | "buy" | "hold" | "sell" | "fav"
 type StyleFilter = "all" | TechStyleTag
@@ -81,6 +112,12 @@ const WATCHING_CLS = {
   dot: "bg-amber-500",
 }
 
+const REGIME_CLS: Record<MarketRegime, { pill: string; dot: string }> = {
+  bull: { pill: "border-positive/40 bg-positive/10 text-positive", dot: "bg-positive" },
+  neutral: { pill: "border-border/70 bg-muted/50 text-foreground/80", dot: "bg-muted-foreground/60" },
+  bear: { pill: "border-negative/40 bg-negative/10 text-negative", dot: "bg-negative" },
+}
+
 /**
  * Three-state publication badge (engine contract: every published row is
  * confirmed / watching / wait — a directional read is never naked). Falls
@@ -103,7 +140,7 @@ function stateBadgeInfo(
   if (st === "watching" && row.setup) {
     const buy = row.setup.direction === "buy"
     return {
-      label: ar ? (buy ? "فرصة شراء تحت المراقبة" : "فرصة بيع تحت المراقبة") : buy ? "Buy setup — watching" : "Sell setup — watching",
+      label: ar ? (buy ? "شراء تحت المراقبة" : "بيع تحت المراقبة") : buy ? "Buy setup — watching" : "Sell setup — watching",
       cls: WATCHING_CLS.badge,
       dot: WATCHING_CLS.dot,
     }
@@ -116,6 +153,22 @@ function stateBadgeInfo(
   return null
 }
 
+type RowGroup = "ready" | "watch" | "rest"
+
+/**
+ * Which section a row belongs to. State-first: the reader's question is
+ * "what can I act on today", so confirmed beats watching beats everything else.
+ * Rows from a payload older than the three-state layer fall back to the legacy
+ * test — a directional read that carries a tradable plan IS actionable.
+ */
+function rowGroup(r: BoardRow): RowGroup {
+  if ("locked" in r) return "rest"
+  if (r.signalState === "confirmed") return "ready"
+  if (r.signalState === "watching") return "watch"
+  if (!r.signalState && r.signal !== null && r.signal !== "hold" && r.tradePlan) return "ready"
+  return "rest"
+}
+
 /** Compact watched-setup strip for board cards: activation (close-based),
  *  provisional levels (تقديري), recompute note and the pre-entry invalidation. */
 function WatchingSetupStrip({ setup, ar }: { setup: WatchingSetup; ar: boolean }) {
@@ -126,7 +179,7 @@ function WatchingSetupStrip({ setup, ar }: { setup: WatchingSetup; ar: boolean }
     <div className="space-y-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-2">
       <div className="flex flex-wrap items-center justify-between gap-1">
         <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
-          {ar ? `شروط التفعيل — ${setup.direction === "buy" ? "فرصة شراء" : "فرصة بيع"}` : `Activation — ${setup.direction} setup`}
+          {ar ? `شرط التفعيل — ${setup.direction === "buy" ? "فرصة شراء" : "فرصة بيع"}` : `Activation — ${setup.direction} setup`}
         </p>
         <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1 py-0.5 text-[9px] font-medium text-amber-600 dark:text-amber-400">
           {ar ? "بالإغلاق اليومي فقط" : "daily close only"}
@@ -199,17 +252,23 @@ export function SignalsView() {
   const [sector, setSector] = useState("")
   const [q, setQ] = useState("")
   const [sort, setSort] = useState<SortKey>("score")
+  // Advanced filters are a disclosure, not a wall: the four primary controls
+  // (state chips, style chips, liquidity, search/sort/sector) stay visible.
+  const [advancedOpen, setAdvancedOpen] = useState(false)
 
-  const filtersActive =
-    signalFilter !== "all" ||
-    styleFilter !== "all" ||
+  const advancedActive =
     rsiFilter !== "all" ||
-    liquidity !== "all" ||
     dayMove !== "all" ||
     tierFilter !== "all" ||
     maFilter !== "all" ||
     rangePosFilter !== "all" ||
-    scoreFilter !== "all" ||
+    scoreFilter !== "all"
+
+  const filtersActive =
+    signalFilter !== "all" ||
+    styleFilter !== "all" ||
+    liquidity !== "all" ||
+    advancedActive ||
     sector !== "" ||
     q.trim() !== ""
 
@@ -253,7 +312,7 @@ export function SignalsView() {
 
   // While EGX is in session the board AND the opportunities strip follow the
   // 30-second pulse cadence (the strip's query key rides the same invalidator).
-  useMarketLive(["technical-signals", "signal-opportunities"])
+  const { status: marketStatus, lastUpdated } = useMarketLive(["technical-signals", "signal-opportunities"])
 
   const allRows = data?.rows ?? []
   const matched = (data as MarketSignalsResponse | undefined)?.matched
@@ -269,10 +328,11 @@ export function SignalsView() {
   // — deriving options from the visible rows alone would starve the dropdown
   // (the live "empty sector options" bug). Row-derived list stays as fallback
   // for an older cached payload without the facet.
+  const sectorsFacet = data?.sectors
   const sectors = useMemo(() => {
-    if (data?.sectors?.length) return [...data.sectors].sort((a, b) => a.localeCompare(b))
+    if (sectorsFacet?.length) return [...sectorsFacet].sort((a, b) => a.localeCompare(b))
     return [...new Set(rows.map((r) => r.sector))].sort((a, b) => a.localeCompare(b))
-  }, [data?.sectors, rows])
+  }, [sectorsFacet, rows])
 
   // Chip counts: server aggregates when the server filters (locked rows can't
   // expose their own values), local counts over full rows for premium.
@@ -347,15 +407,36 @@ export function SignalsView() {
 
   const visibleRows = gateActive ? serverRows : clientFiltered
 
+  // State-first grouping. The order inside each section is whatever the sort
+  // control says; the SECTION order is fixed (ready → watch → rest).
+  const grouped = useMemo(() => {
+    const ready: MarketSignalRow[] = []
+    const watching: MarketSignalRow[] = []
+    const rest: MarketSignalRow[] = []
+    const locked: GatedSignalRow[] = []
+    for (const r of visibleRows) {
+      if ("locked" in r) {
+        locked.push(r)
+        continue
+      }
+      const g = rowGroup(r)
+      if (g === "ready") ready.push(r)
+      else if (g === "watch") watching.push(r)
+      else rest.push(r)
+    }
+    return { ready, watching, rest, locked }
+  }, [visibleRows])
+
+  const regimeInput = data?.regimeInput
+  const marketRegimeValue = useMemo(() => marketRegime(regimeInput ?? EMPTY_REGIME_INPUT), [regimeInput])
+
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
-        </div>
+        <Skeleton className="h-28 rounded-2xl" />
         <Skeleton className="h-10 rounded-lg" />
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-40 rounded-xl" />)}
+          {[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-44 rounded-xl" />)}
         </div>
       </div>
     )
@@ -371,38 +452,34 @@ export function SignalsView() {
 
   const dist = data.distribution
   const total = dist.buy + dist.hold + dist.sell
-  const strengthPct = total > 0 ? Math.round(((dist.buy + dist.hold * 0.5) / total) * 100) : null
 
   const chip = (active: boolean) =>
     `rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
       active ? "border-primary bg-primary text-primary-foreground" : "border-border/60 bg-muted/40 text-muted-foreground hover:text-foreground"
     }`
 
-  const styleHintAr = (["day", "swing", "trend", "reversal"] as TechStyleTag[])
+  const styleHintAr = (["swing", "trend", "reversal"] as TechStyleTag[])
     .map((t) => `${STYLE_TAG_META[t].ar} = ${STYLE_TAG_HINT_AR[t]}`)
     .join(" · ")
-  const styleHintEn = "Day trade = in and out within the session · Days trade = two days to two weeks · Weeks trade = with the trend for months · Reversal watch = near the lows"
+  const styleHintEn = "Days trade = two days to two weeks · Weeks trade = with the trend for months · Reversal watch = near the lows"
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
+    <div className="space-y-5">
+      {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-foreground">
             <Activity className="h-5 w-5 text-primary" aria-hidden />
             {ar ? "الإشارات الفنية" : "Technical Signals"}
           </h1>
           <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
             {ar
-              ? "قراءة قواعدية حتمية لكل الأسهم المتداولة من بيانات الأسعار الحقيقية — الاتجاه والزخم ومناطق الدخول والخروج تُدمج في درجة واحدة موثقة الأوزان. الإشارة قراءة فنية قابلة للتحقق — وليست توصية استثمارية."
-              : "A deterministic rule-based reading of every traded name from real price data — trend, momentum and entry/exit zones merge into one documented score. The signal is a verifiable technical reading — not an investment recommendation."}
+              ? "قراءة قواعدية حتمية لكل الأسهم المتداولة على إغلاقات الأسعار الفعلية — الاتجاه والزخم والتداول والموقع السعري بيندمجوا في درجة واحدة موثقة الأوزان. الإشارة قراءة فنية قابلة للتحقق، مش توصية استثمارية."
+              : "A deterministic rule-based reading of every traded name from real closing prices — trend, momentum, participation and price location merge into one documented score. The signal is a verifiable technical reading, not an investment recommendation."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground">
-            {ar ? "آخر جلسة: " : "Last session: "}
-            <span dir="ltr">{data.pricedAsOf ?? "—"}</span>
-          </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <LiveMarketBadge ar={ar} on={["technical-signals", "signal-opportunities"]} status={marketStatus} lastUpdated={lastUpdated} />
           <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => void refetch()} disabled={isRefetching}>
             <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`} aria-hidden />
             {ar ? "تحديث" : "Refresh"}
@@ -410,56 +487,123 @@ export function SignalsView() {
         </div>
       </div>
 
-      {/* "فرص اليوم" strip — the ordered, capped, regime-gated digest
-          (server-built in board-gates.ts; locked cards for free callers). */}
+      {/* ── Market state band — the tape before the tickers ─────────────── */}
+      <MarketStateBand
+        ar={ar}
+        regime={marketRegimeValue}
+        breadthPct={data.pctAboveEma20}
+        bullishShare={data.regimeInput?.breadthBullishShare ?? null}
+        medianScore={data.regimeInput?.medianScore ?? null}
+        distribution={dist}
+        total={total}
+        scored={data.scored}
+        weakData={data.weakData}
+        pricedAsOf={data.pricedAsOf ?? null}
+      />
+
+      {/* ── "فرص اليوم" strip — the ordered, capped, regime-gated digest ── */}
       <OpportunitiesStrip />
 
       {/* Full-market numbers table — premium only (locked rows carry no
           analytical fields server-side; the free board stays identity-only). */}
       {!gateActive ? <NumbersTable rows={rows.filter((r): r is MarketSignalRow => !("locked" in r))} ar={ar} /> : null}
 
-      {/* Stats bar */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label={ar ? "قراءات شراء" : "Buy reads"}
-          value={dist.buy}
-          tone="positive"
-          hint={ar ? `من ${total} شركة مقروءة` : `of ${total} scored`}
-        />
-        <StatCard
-          label={ar ? "انتظار" : "Wait"}
-          value={dist.hold}
-          tone="amber"
-          hint={ar ? "إشارات متعارضة أو زخم ضعيف" : "mixed or weak momentum"}
-        />
-        <StatCard
-          label={ar ? "ضغط بيعي" : "Sell pressure"}
-          value={dist.sell}
-          tone="negative"
-          hint={ar ? "اتجاه وزخم هابطان" : "trend and momentum down"}
-        />
-        <StatCard
-          label={ar ? "قوة القراءة السوقية" : "Market read strength"}
-          value={strengthPct !== null ? `${strengthPct}%` : "—"}
-          tone={strengthPct !== null && strengthPct >= 55 ? "positive" : strengthPct !== null && strengthPct < 40 ? "negative" : "amber"}
-          hint={
-            data.pctAboveEma20 !== null
-              ? ar
-                ? `${data.pctAboveEma20}% من الأسهم فوق متوسط 20 جلسة`
-                : `${data.pctAboveEma20}% of names above their EMA20`
-              : ar ? "اتساع فني" : "technical breadth"
-          }
-        />
-      </div>
-
-      {/* Style chips */}
-      <div className="space-y-1">
+      {/* ── Filter bar: four primary controls, everything else behind a reply ── */}
+      <div className="space-y-2.5 rounded-xl border border-border/60 bg-card/40 p-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground">{ar ? "أسلوب التداول:" : "Trading style:"}</span>
-          <button className={chip(styleFilter === "all")} onClick={() => setStyleFilter("all")}>
-            {ar ? "كل الأنماط" : "All styles"}
+          <div className="relative">
+            <Search className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={ar ? "رمز أو اسم…" : "Ticker or name…"}
+              className="h-8 w-44 ps-8 text-xs"
+              aria-label={ar ? "بحث" : "Search"}
+            />
+          </div>
+          <Select value={sector || "all"} onValueChange={(v) => setSector(v === "all" ? "" : v)}>
+            <SelectTrigger className="h-8 w-40 text-xs" aria-label={ar ? "القطاع" : "Sector"}>
+              <SelectValue placeholder={ar ? "كل القطاعات" : "All sectors"} />
+            </SelectTrigger>
+            <SelectContent className="max-h-64">
+              <SelectItem value="all">{ar ? "كل القطاعات" : "All sectors"}</SelectItem>
+              {sectors.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+            <SelectTrigger className="h-8 w-40 text-xs" aria-label={ar ? "الترتيب" : "Sort"}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="score">{ar ? "الأقوى فنيًا" : "Strongest read"}</SelectItem>
+              <SelectItem value="change">{ar ? "أداء اليوم" : "Day move"}</SelectItem>
+              <SelectItem value="perfM1">{ar ? "أداء الشهر" : "1-month perf"}</SelectItem>
+              <SelectItem value="rsi">{ar ? "RSI (الأدنى أولًا)" : "RSI (lowest first)"}</SelectItem>
+              <SelectItem value="relVol">{ar ? "نشاط التداول" : "Volume activity"}</SelectItem>
+            </SelectContent>
+          </Select>
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            aria-expanded={advancedOpen}
+            className={`ms-auto flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              advancedActive || advancedOpen
+                ? "border-primary/50 bg-primary/10 text-primary"
+                : "border-border/60 bg-background text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+            {ar ? "فلاتر متقدمة" : "Advanced filters"}
+            {advancedActive ? (
+              <span className="rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                {[rsiFilter, dayMove, tierFilter, maFilter, rangePosFilter, scoreFilter].filter((v) => v !== "all").length}
+              </span>
+            ) : null}
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${advancedOpen ? "rotate-180" : ""}`} aria-hidden />
           </button>
-          {(["day", "swing", "trend", "reversal"] as TechStyleTag[]).map((st) => {
+        </div>
+
+        {/* Primary chips: state + style + liquidity */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">{ar ? "القراءة:" : "Read:"}</span>
+          <button className={chip(signalFilter === "all")} onClick={() => setSignalFilter("all")}>
+            {ar ? "الكل" : "All"} <span className="ms-1 tabular opacity-80">{counts.all}</span>
+          </button>
+          <button className={chip(signalFilter === "buy")} onClick={() => setSignalFilter("buy")}>
+            {ar ? "شراء" : "Buy"} <span className="ms-1 tabular opacity-80">{counts.buy}</span>
+          </button>
+          <button className={chip(signalFilter === "hold")} onClick={() => setSignalFilter("hold")}>
+            {ar ? "انتظار" : "Wait"} <span className="ms-1 tabular opacity-80">{counts.hold}</span>
+          </button>
+          <button className={chip(signalFilter === "sell")} onClick={() => setSignalFilter("sell")}>
+            {ar ? "بيع" : "Sell"} <span className="ms-1 tabular opacity-80">{counts.sell}</span>
+          </button>
+          <button className={chip(signalFilter === "fav")} onClick={() => setSignalFilter("fav")}>
+            <Star className={`inline h-3 w-3 ${counts.fav > 0 ? "fill-warning text-warning" : ""}`} aria-hidden />
+            {ar ? "المفضلة" : "Favorites"} <span className="ms-1 tabular opacity-80">{counts.fav}</span>
+          </button>
+
+          <span className="mx-1 hidden text-border sm:inline" aria-hidden>|</span>
+
+          <Select value={liquidity} onValueChange={(v) => setLiquidity(v as LiquidityFilter)}>
+            <SelectTrigger className="h-7 w-36 text-xs" aria-label={ar ? "السيولة" : "Liquidity"}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{ar ? "السيولة: الكل" : "Liquidity: all"}</SelectItem>
+              <SelectItem value="high">{ar ? "نشاط مرتفع (≥1.5×)" : "High activity (≥1.5×)"}</SelectItem>
+              <SelectItem value="normal">{ar ? "نشاط عادي" : "Normal activity"}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Style chips — the trading horizon, not a filter afterthought */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">{ar ? "الأفق:" : "Horizon:"}</span>
+          <button className={chip(styleFilter === "all")} onClick={() => setStyleFilter("all")}>
+            {ar ? "كل الآفاق" : "All horizons"}
+          </button>
+          {(["swing", "trend", "reversal"] as TechStyleTag[]).map((st) => {
             const n = gateActive
               ? serverStyles?.[st] ?? 0
               : rows.filter((r) => !("locked" in r) && r.styleFits.some((f) => f.tag === st)).length
@@ -471,217 +615,378 @@ export function SignalsView() {
             )
           })}
         </div>
-        <p className="text-xs text-muted-foreground">{ar ? styleHintAr : styleHintEn}</p>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">{ar ? styleHintAr : styleHintEn}</p>
+
+        {/* Advanced disclosure */}
+        {advancedOpen ? (
+          <div className="space-y-2 border-t border-border/50 pt-2.5">
+            <FilterRow label={ar ? "التصنيف" : "Tier"}>
+              <button className={chip(tierFilter === "all")} onClick={() => setTierFilter("all")}>
+                {ar ? "الكل" : "All"}
+              </button>
+              {(["EGX30", "EGX70", "MAIN"] as Exclude<TierFilter, "all">[]).map((t) => {
+                const n = gateActive
+                  ? serverTiers?.[t] ?? 0
+                  : rows.filter((r) => !("locked" in r) && (r.marketTier ?? "MAIN") === t).length
+                const label = ar ? (TIER_AR as unknown as Record<string, { short?: string }> | undefined)?.[t]?.short ?? t : t
+                return (
+                  <button key={t} className={chip(tierFilter === t)} onClick={() => setTierFilter(t)}>
+                    {/* Parentheses keep the count visually separate in RTL — «مؤشر 30 (31)» not «مؤشر 3031» */}
+                    {ar ? `${label} (${n})` : `${label} ${n}`}
+                  </button>
+                )
+              })}
+            </FilterRow>
+
+            <FilterRow label={ar ? "المتوسطات" : "Averages"}>
+              <button className={chip(maFilter === "all")} onClick={() => setMaFilter("all")}>
+                {ar ? "الكل" : "All"}
+              </button>
+              <button className={chip(maFilter === "aboveEma50")} onClick={() => setMaFilter("aboveEma50")}>
+                {ar ? "فوق EMA50" : "Above EMA50"}
+              </button>
+              <button className={chip(maFilter === "belowEma50")} onClick={() => setMaFilter("belowEma50")}>
+                {ar ? "تحت EMA50" : "Below EMA50"}
+              </button>
+            </FilterRow>
+
+            <FilterRow label={ar ? "الموقع السعري" : "Price position"}>
+              <button className={chip(rangePosFilter === "all")} onClick={() => setRangePosFilter("all")}>
+                {ar ? "الكل" : "All"}
+              </button>
+              <button className={chip(rangePosFilter === "top")} onClick={() => setRangePosFilter("top")}>
+                {ar ? "قرب قمة 60 جلسة (≥80%)" : "Near 60-session high (≥80%)"}
+              </button>
+              <button className={chip(rangePosFilter === "bottom")} onClick={() => setRangePosFilter("bottom")}>
+                {ar ? "قرب قاع (≤20%)" : "Near low (≤20%)"}
+              </button>
+              <button className={chip(rangePosFilter === "middle")} onClick={() => setRangePosFilter("middle")}>
+                {ar ? "المنتصف" : "Middle"}
+              </button>
+            </FilterRow>
+
+            <FilterRow label={ar ? "الدرجة" : "Score"}>
+              <button className={chip(scoreFilter === "all")} onClick={() => setScoreFilter("all")}>
+                {ar ? "الكل" : "All"}
+              </button>
+              <button className={chip(scoreFilter === "s70")} onClick={() => setScoreFilter("s70")}>
+                ≥70
+              </button>
+              <button className={chip(scoreFilter === "s60")} onClick={() => setScoreFilter("s60")}>
+                ≥60
+              </button>
+            </FilterRow>
+
+            <FilterRow label="RSI">
+              <button className={chip(rsiFilter === "all")} onClick={() => setRsiFilter("all")}>
+                {ar ? "الكل" : "All"}
+              </button>
+              <button className={chip(rsiFilter === "oversold")} onClick={() => setRsiFilter("oversold")}>
+                {ar ? "تشبع بيعي (<30)" : "Oversold (<30)"}
+              </button>
+              <button className={chip(rsiFilter === "neutral")} onClick={() => setRsiFilter("neutral")}>
+                {ar ? "منطقة محايدة" : "Neutral band"}
+              </button>
+              <button className={chip(rsiFilter === "overbought")} onClick={() => setRsiFilter("overbought")}>
+                {ar ? "تشبع شرائي (>70)" : "Overbought (>70)"}
+              </button>
+            </FilterRow>
+
+            <FilterRow label={ar ? "أداء اليوم" : "Today"}>
+              <button className={chip(dayMove === "all")} onClick={() => setDayMove("all")}>
+                {ar ? "الكل" : "All"}
+              </button>
+              <button className={chip(dayMove === "up")} onClick={() => setDayMove("up")}>
+                {ar ? "صاعد اليوم" : "Up today"}
+              </button>
+              <button className={chip(dayMove === "down")} onClick={() => setDayMove("down")}>
+                {ar ? "هابط اليوم" : "Down today"}
+              </button>
+            </FilterRow>
+          </div>
+        ) : null}
       </div>
 
-      {/* Signal filter chips */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground">{ar ? "فلترة:" : "Filter:"}</span>
-        <button className={chip(signalFilter === "all")} onClick={() => setSignalFilter("all")}>
-          {ar ? "الكل" : "All"} <span className="ms-1 tabular opacity-80">{counts.all}</span>
-        </button>
-        <button className={chip(signalFilter === "buy")} onClick={() => setSignalFilter("buy")}>
-          {ar ? "شراء" : "Buy"} <span className="ms-1 tabular opacity-80">{counts.buy}</span>
-        </button>
-        <button className={chip(signalFilter === "hold")} onClick={() => setSignalFilter("hold")}>
-          {ar ? "انتظار" : "Wait"} <span className="ms-1 tabular opacity-80">{counts.hold}</span>
-        </button>
-        <button className={chip(signalFilter === "sell")} onClick={() => setSignalFilter("sell")}>
-          {ar ? "بيع" : "Sell"} <span className="ms-1 tabular opacity-80">{counts.sell}</span>
-        </button>
-        <button className={chip(signalFilter === "fav")} onClick={() => setSignalFilter("fav")}>
-          <Star className={`inline h-3 w-3 ${counts.fav > 0 ? "fill-warning text-warning" : ""}`} aria-hidden />
-          {ar ? "المفضلة" : "Favorites"} <span className="ms-1 tabular opacity-80">{counts.fav}</span>
-        </button>
-      </div>
-
-      {/* Tier filter chips */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground">{ar ? "التصنيف:" : "Tier:"}</span>
-        <button className={chip(tierFilter === "all")} onClick={() => setTierFilter("all")}>
-          {ar ? "الكل" : "All"}
-        </button>
-        {(["EGX30", "EGX70", "MAIN"] as Exclude<TierFilter, "all">[]).map((t) => {
-          const n = gateActive
-            ? serverTiers?.[t] ?? 0
-            : rows.filter((r) => !("locked" in r) && (r.marketTier ?? "MAIN") === t).length
-          const label = ar ? (TIER_AR as unknown as Record<string, { short?: string }> | undefined)?.[t]?.short ?? t : t
-          return (
-            <button key={t} className={chip(tierFilter === t)} onClick={() => setTierFilter(t)}>
-              {/* Parentheses keep the count visually separate in RTL — «مؤشر 30 (31)» not «مؤشر 3031» */}
-              {ar ? `${label} (${n})` : `${label} ${n}`}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Moving-average / range / score filter chips */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground">{ar ? "المتوسطات:" : "Averages:"}</span>
-        <button className={chip(maFilter === "all")} onClick={() => setMaFilter("all")}>
-          {ar ? "الكل" : "All"}
-        </button>
-        <button className={chip(maFilter === "aboveEma50")} onClick={() => setMaFilter("aboveEma50")}>
-          {ar ? "فوق EMA50" : "Above EMA50"}
-        </button>
-        <button className={chip(maFilter === "belowEma50")} onClick={() => setMaFilter("belowEma50")}>
-          {ar ? "تحت EMA50" : "Below EMA50"}
-        </button>
-        <span className="mx-1 hidden text-border sm:inline" aria-hidden>|</span>
-        <span className="text-xs text-muted-foreground">{ar ? "الموقع السعري:" : "Price position:"}</span>
-        <button className={chip(rangePosFilter === "all")} onClick={() => setRangePosFilter("all")}>
-          {ar ? "الكل" : "All"}
-        </button>
-        <button className={chip(rangePosFilter === "top")} onClick={() => setRangePosFilter("top")}>
-          {ar ? "قرب قمة 60 جلسة (≥80%)" : "Near 60-session high (≥80%)"}
-        </button>
-        <button className={chip(rangePosFilter === "bottom")} onClick={() => setRangePosFilter("bottom")}>
-          {ar ? "قرب قاع (≤20%)" : "Near low (≤20%)"}
-        </button>
-        <button className={chip(rangePosFilter === "middle")} onClick={() => setRangePosFilter("middle")}>
-          {ar ? "المنتصف" : "Middle"}
-        </button>
-        <span className="mx-1 hidden text-border sm:inline" aria-hidden>|</span>
-        <span className="text-xs text-muted-foreground">{ar ? "الدرجة:" : "Score:"}</span>
-        <button className={chip(scoreFilter === "all")} onClick={() => setScoreFilter("all")}>
-          {ar ? "الكل" : "All"}
-        </button>
-        <button className={chip(scoreFilter === "s70")} onClick={() => setScoreFilter("s70")}>
-          ≥70
-        </button>
-        <button className={chip(scoreFilter === "s60")} onClick={() => setScoreFilter("s60")}>
-          ≥60
-        </button>
-      </div>
-
-      {/* Advanced filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={ar ? "رمز أو اسم…" : "Ticker or name…"}
-            className="h-8 w-44 ps-8 text-xs"
-            aria-label={ar ? "بحث" : "Search"}
-          />
+      {/* Free-tier banner — real results, real counts, honest copy */}
+      {gateActive ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2">
+          <span className="text-xs font-medium leading-relaxed text-foreground">
+            {filtersActive
+              ? ar
+                ? `تم العثور على ${matched?.total ?? visibleRows.length} شركة تطابق معاييرك${lockedRemaining > 0 ? ` — وإليك أول ${visibleRows.length}` : ""}. التفاصيل الكاملة متاحة مع Pro.`
+                : `${matched?.total ?? visibleRows.length} companies match your filters${lockedRemaining > 0 ? ` — showing the first ${visibleRows.length}` : ""}. Full details with Pro.`
+              : ar
+                ? `التغطية المجانية: ${FREE_SIGNALS_ROWS} شركات بتفاصيل الإشارات الكاملة، والباقي يظهر كشركات مقفولة.`
+                : `Free coverage: ${FREE_SIGNALS_ROWS} companies with full signal details, and the rest appear as locked cards.`}
+          </span>
+          <Button asChild size="sm" variant="link" className="h-auto px-0 text-xs font-semibold">
+            <Link href="/premium">{ar ? "ترقية الآن" : "Upgrade now"}</Link>
+          </Button>
         </div>
-        <Select value={sector || "all"} onValueChange={(v) => setSector(v === "all" ? "" : v)}>
-          <SelectTrigger className="h-8 w-40 text-xs" aria-label={ar ? "القطاع" : "Sector"}>
-            <SelectValue placeholder={ar ? "كل القطاعات" : "All sectors"} />
-          </SelectTrigger>
-          <SelectContent className="max-h-64">
-            <SelectItem value="all">{ar ? "كل القطاعات" : "All sectors"}</SelectItem>
-            {sectors.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={rsiFilter} onValueChange={(v) => setRsiFilter(v as RsiFilter)}>
-          <SelectTrigger className="h-8 w-36 text-xs" aria-label="RSI">
-            <SelectValue placeholder="RSI" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{ar ? "RSI: الكل" : "RSI: all"}</SelectItem>
-            <SelectItem value="oversold">{ar ? "تشبع بيعي (<30)" : "Oversold (<30)"}</SelectItem>
-            <SelectItem value="neutral">{ar ? "منطقة محايدة" : "Neutral band"}</SelectItem>
-            <SelectItem value="overbought">{ar ? "تشبع شرائي (>70)" : "Overbought (>70)"}</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={liquidity} onValueChange={(v) => setLiquidity(v as LiquidityFilter)}>
-          <SelectTrigger className="h-8 w-36 text-xs" aria-label={ar ? "السيولة" : "Liquidity"}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{ar ? "السيولة: الكل" : "Liquidity: all"}</SelectItem>
-            <SelectItem value="high">{ar ? "نشاط مرتفع (≥1.5×)" : "High activity (≥1.5×)"}</SelectItem>
-            <SelectItem value="normal">{ar ? "نشاط عادي" : "Normal activity"}</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={dayMove} onValueChange={(v) => setDayMove(v as DayMoveFilter)}>
-          <SelectTrigger className="h-8 w-32 text-xs" aria-label={ar ? "أداء اليوم" : "Day move"}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{ar ? "اليوم: الكل" : "Today: all"}</SelectItem>
-            <SelectItem value="up">{ar ? "صاعد اليوم" : "Up today"}</SelectItem>
-            <SelectItem value="down">{ar ? "هابط اليوم" : "Down today"}</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
-          <SelectTrigger className="h-8 w-40 text-xs" aria-label={ar ? "الترتيب" : "Sort"}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="score">{ar ? "الأقوى فنيًا" : "Strongest read"}</SelectItem>
-            <SelectItem value="change">{ar ? "أداء اليوم" : "Day move"}</SelectItem>
-            <SelectItem value="perfM1">{ar ? "أداء الشهر" : "1-month perf"}</SelectItem>
-            <SelectItem value="rsi">{ar ? "RSI (الأدنى أولًا)" : "RSI (lowest first)"}</SelectItem>
-            <SelectItem value="relVol">{ar ? "نشاط التداول" : "Volume activity"}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Data-trust line */}
-      {data.weakData > 0 || data.rows.some((r) => !("locked" in r) && r.limitations.length > 0) ? (
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
-          {ar
-            ? `الشفافية: الحساب يعمل على أسعار الإغلاق اليومية من مسح السوق (${data.scored} شركة قابلة للقراءة، ${data.weakData} بتاريخ غير كافٍ — تظهر بدون درجة). السلسلة معدّلة لتوزيعات الأرباح والزيادات قبل الحساب، والجلسات القليلة الأخيرة قد تكون بسعر الجلسة الجاري وليس إغلاقًا نهائيًا.`
-            : `Transparency: the engine runs on daily closing prices from the market scan (${data.scored} scored, ${data.weakData} with insufficient history — shown without a score). The series is rebuilt across corporate actions before computing, and the latest sessions may carry the running session's price rather than a final close.`}
-        </p>
+      ) : null}
+      {gateActive && upgradeMessage ? (
+        <p className="text-[11px] leading-relaxed text-muted-foreground">{upgradeMessage}</p>
       ) : null}
 
-      {/* Cards */}
-      {visibleRows.length === 0 ? (
+      {/* ── Sections ──────────────────────────────────────────────────── */}
+      {grouped.ready.length === 0 && grouped.watching.length === 0 && grouped.rest.length === 0 && grouped.locked.length === 0 ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">
           {ar ? "لا توجد نتائج مطابقة للفلاتر الحالية." : "No matches for the current filters."}
         </Card>
       ) : (
-        <>
-          {/* Free-tier banner — real results, real counts, honest copy */}
-          {gateActive ? (
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2">
-              <span className="text-xs font-medium leading-relaxed text-foreground">
-                {filtersActive
-                  ? ar
-                    ? `تم العثور على ${matched?.total ?? visibleRows.length} شركة تطابق معاييرك${lockedRemaining > 0 ? ` — وإليك أول ${visibleRows.length}` : ""}. التفاصيل الكاملة متاحة مع Pro.`
-                    : `${matched?.total ?? visibleRows.length} companies match your filters${lockedRemaining > 0 ? ` — showing the first ${visibleRows.length}` : ""}. Full details with Pro.`
-                  : ar
-                    ? `التغطية المجانية: ${FREE_SIGNALS_ROWS} شركات بتفاصيل الإشارات الكاملة، و${Math.max((matched?.total ?? 0) - FREE_SIGNALS_ROWS, 0)} شركة أخرى مطابقة تظهر كشركات مقفولة.`
-                    : `Free coverage: ${FREE_SIGNALS_ROWS} companies with full signal details, and the other matches appear as locked cards.`}
-              </span>
-              <Button asChild size="sm" variant="link" className="h-auto px-0 text-xs font-semibold">
-                <Link href="/premium">{ar ? "ترقية الآن" : "Upgrade now"}</Link>
-              </Button>
-            </div>
+        <div className="space-y-6">
+          {grouped.ready.length > 0 ? (
+            <section className="space-y-2.5">
+              <SectionHeader
+                ar={ar}
+                title={ar ? "جاهز الآن" : "Ready now"}
+                count={grouped.ready.length}
+                hint={
+                  ar
+                    ? "قراءة اتجاهية عدّت كل البوابات، ومعه خطة تداول بأرقام (دخول / وقف / هدف) ونسبة مخاطرة/عائد لا تقل عن 1.5."
+                    : "A directional read that cleared every gate, with a priced plan (entry / stop / target) and a risk-reward of at least 1.5."
+                }
+                tone="positive"
+              />
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {grouped.ready.map((r) => (
+                  <SignalCard key={r.companyId} row={r} ar={ar} fav={watch.has(r.companyId)} onFav={() => watch.toggle({ id: r.companyId, ticker: r.ticker })} />
+                ))}
+              </div>
+            </section>
           ) : null}
-          {gateActive && upgradeMessage ? (
-            <p className="text-[11px] leading-relaxed text-muted-foreground">{upgradeMessage}</p>
+
+          {grouped.watching.length > 0 ? (
+            <section className="space-y-2.5">
+              <SectionHeader
+                ar={ar}
+                title={ar ? "تحت المراقبة" : "Watching"}
+                count={grouped.watching.length}
+                hint={
+                  ar
+                    ? "القراءة الاتجاهية موجودة لكن الهيكل السعري واقف في طريقها — مقاومة مُختبرة فوقها أو دعم تحتها. الشرط مكتوب على كل كارت: إغلاق يومي عند مستوى محدد."
+                    : "The directional case exists but price structure blocks it — tested resistance above or support below. Each card states its condition: a daily close at a specific level."
+                }
+                tone="amber"
+              />
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {grouped.watching.map((r) => (
+                  <SignalCard key={r.companyId} row={r} ar={ar} fav={watch.has(r.companyId)} onFav={() => watch.toggle({ id: r.companyId, ticker: r.ticker })} />
+                ))}
+              </div>
+            </section>
           ) : null}
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {visibleRows.map((r) =>
-              "locked" in r ? (
-                <CompanyLockedCard key={r.companyId} row={r} ar={ar} authed={authed} filtersActive={filtersActive} />
-              ) : (
-                <SignalCard key={r.companyId} row={r} ar={ar} fav={watch.has(r.companyId)} onFav={() => watch.toggle({ id: r.companyId, ticker: r.ticker })} />
-              )
-            )}
-            {gateActive && lockedRemaining > 0 ? <MoreLockedCard ar={ar} count={lockedRemaining} /> : null}
-          </div>
-        </>
+
+          {grouped.rest.length > 0 ? (
+            <section className="space-y-2.5">
+              <SectionHeader
+                ar={ar}
+                title={ar ? "بدون أفضلية" : "No edge"}
+                count={grouped.rest.length}
+                hint={
+                  ar
+                    ? "إشارات متعارضة أو زخم ضعيف أو تاريخ سعري غير كافٍ. عدم وجود إشارة نتيجة، مش نقص في البيانات — وده الجزء الأكبر من السوق في أي جلسة."
+                    : "Mixed signals, weak momentum or too little price history. No read is itself a result, not a data gap — and it is the bulk of the market on any given session."
+                }
+                tone="muted"
+              />
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {grouped.rest.map((r) => (
+                  <SignalCard key={r.companyId} row={r} ar={ar} fav={watch.has(r.companyId)} onFav={() => watch.toggle({ id: r.companyId, ticker: r.ticker })} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {grouped.locked.length > 0 ? (
+            <section className="space-y-2.5">
+              <SectionHeader
+                ar={ar}
+                title={ar ? "مطابقات مقفولة" : "Locked matches"}
+                count={grouped.locked.length}
+                hint={
+                  ar
+                    ? "شركات حقيقية طابقت فلاترك — الاسم والسعر العام ظاهرين، والتحليل المدفوع متقفل."
+                    : "Real companies that matched your filters — identity and public price visible, the paid analysis locked."
+                }
+                tone="muted"
+              />
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {grouped.locked.map((r) => (
+                  <CompanyLockedCard key={r.companyId} row={r} ar={ar} authed={authed} filtersActive={filtersActive} />
+                ))}
+                {gateActive && lockedRemaining > 0 ? <MoreLockedCard ar={ar} count={lockedRemaining} /> : null}
+              </div>
+            </section>
+          ) : null}
+        </div>
       )}
+
+      {/* ── How to read this board — EGX-specific, not boilerplate ─────── */}
+      <BoardReadingNotes ar={ar} pricedAsOf={data.pricedAsOf ?? null} scored={data.scored} weakData={data.weakData} />
     </div>
   )
 }
 
-function StatCard({ label, value, tone, hint }: { label: string; value: number | string; tone: "positive" | "negative" | "amber"; hint?: string }) {
-  const cls = tone === "positive" ? "text-positive" : tone === "negative" ? "text-negative" : "text-amber-600 dark:text-amber-400"
+/* ────────────────────────────────────────────────────────────────────────── */
+
+function FilterRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <Card className="p-0">
-      <CardContent className="px-4 py-3">
-        <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
-        <p className={`text-2xl font-bold tabular ${cls}`} dir="ltr">{value}</p>
-        {hint ? <p className="text-[10px] text-muted-foreground">{hint}</p> : null}
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="w-24 shrink-0 text-[11px] text-muted-foreground">{label}</span>
+      {children}
+    </div>
+  )
+}
+
+function SectionHeader({
+  ar,
+  title,
+  count,
+  hint,
+  tone,
+}: {
+  ar: boolean
+  title: string
+  count: number
+  hint: string
+  tone: "positive" | "amber" | "muted"
+}) {
+  const bar = tone === "positive" ? "bg-positive" : tone === "amber" ? "bg-amber-500" : "bg-muted-foreground/40"
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <span className={`h-4 w-1 rounded-full ${bar}`} aria-hidden />
+        <h2 className="text-sm font-bold tracking-tight text-foreground">{title}</h2>
+        <span className="rounded-full border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[10px] font-semibold tabular text-muted-foreground">
+          {count}
+        </span>
+      </div>
+      <p className="ps-3 text-[11px] leading-relaxed text-muted-foreground">{hint}</p>
+      <span className="sr-only">{ar ? "قسم" : "section"}</span>
+    </div>
+  )
+}
+
+/**
+ * The market briefing band. Replaces four identical stat cards with the three
+ * things that actually change how the list below should be read: the regime,
+ * the breadth, and the mix of published reads. Every number is the board's own
+ * aggregate — nothing is modelled here.
+ */
+function MarketStateBand({
+  ar,
+  regime,
+  breadthPct,
+  bullishShare,
+  medianScore,
+  distribution,
+  total,
+  scored,
+  weakData,
+  pricedAsOf,
+}: {
+  ar: boolean
+  regime: MarketRegime
+  breadthPct: number | null
+  bullishShare: number | null
+  medianScore: number | null
+  distribution: { buy: number; hold: number; sell: number }
+  total: number
+  scored: number
+  weakData: number
+  pricedAsOf: string | null
+}) {
+  const meta = REGIME_META[regime]
+  const cls = REGIME_CLS[regime]
+  const buyPct = total > 0 ? (distribution.buy / total) * 100 : 0
+  const holdPct = total > 0 ? (distribution.hold / total) * 100 : 0
+  const sellPct = total > 0 ? (distribution.sell / total) * 100 : 0
+
+  return (
+    <Card className="overflow-hidden p-0">
+      <CardContent className="space-y-3 px-4 py-3.5">
+        {/* Regime line */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-medium text-muted-foreground">{ar ? "حالة السوق" : "Market regime"}</span>
+            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-bold ${cls.pill}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${cls.dot}`} aria-hidden />
+              {ar ? meta.labelAr : meta.labelEn}
+            </span>
+          </div>
+          <span className="text-[11px] text-muted-foreground">
+            {ar ? "آخر جلسة: " : "Last session: "}
+            <span dir="ltr" className="tabular">{pricedAsOf ?? "—"}</span>
+          </span>
+        </div>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">{ar ? meta.noteAr : meta.labelEn}</p>
+
+        {/* Read mix — one proportional bar instead of three separate numbers */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="font-medium text-foreground">{ar ? "توزيع القراءات" : "Read mix"}</span>
+            <span className="tabular text-muted-foreground" dir="ltr">
+              {distribution.buy} / {distribution.hold} / {distribution.sell}
+            </span>
+          </div>
+          <div className="flex h-2 overflow-hidden rounded-full bg-muted" role="img" aria-label={ar ? "توزيع القراءات" : "Read distribution"}>
+            {total > 0 ? (
+              <>
+                <div className="h-full bg-positive" style={{ width: `${buyPct}%` }} />
+                <div className="h-full bg-amber-500" style={{ width: `${holdPct}%` }} />
+                <div className="h-full bg-negative" style={{ width: `${sellPct}%` }} />
+              </>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-positive" aria-hidden />{ar ? "شراء" : "Buy"} <span className="tabular text-foreground/80">{distribution.buy}</span></span>
+            <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />{ar ? "انتظار" : "Wait"} <span className="tabular text-foreground/80">{distribution.hold}</span></span>
+            <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-negative" aria-hidden />{ar ? "ضغط بيعي" : "Sell pressure"} <span className="tabular text-foreground/80">{distribution.sell}</span></span>
+          </div>
+        </div>
+
+        {/* Breadth — the EGX-specific context: how much of the market is
+            actually participating in the up-move, not just how many names
+            scored well. Thin breadth + strong scores = a few crowded names. */}
+        <div className="grid gap-3 border-t border-border/50 pt-2.5 sm:grid-cols-3">
+          <BreadthTile
+            ar={ar}
+            label={ar ? "فوق متوسط 20 جلسة" : "Above EMA20"}
+            value={breadthPct}
+            suffix="%"
+            hint={ar ? "اتساع الحركة القصيرة" : "short-term breadth"}
+          />
+          <BreadthTile
+            ar={ar}
+            label={ar ? "اتجاه صاعد مؤكد" : "Confirmed uptrend"}
+            value={bullishShare !== null ? Math.round(bullishShare * 1000) / 10 : null}
+            suffix="%"
+            hint={ar ? "EMA20 صاعد + فوق EMA50" : "rising EMA20 + above EMA50"}
+          />
+          <BreadthTile
+            ar={ar}
+            label={ar ? "وسيط الدرجات" : "Median score"}
+            value={medianScore}
+            suffix=""
+            hint={ar ? `${scored} مقروءة · ${weakData} بيانات ناقصة` : `${scored} scored · ${weakData} weak data`}
+          />
+        </div>
       </CardContent>
     </Card>
+  )
+}
+
+function BreadthTile({ ar, label, value, suffix, hint }: { ar: boolean; label: string; value: number | null; suffix: string; hint: string }) {
+  return (
+    <div>
+      <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
+      <p className="text-xl font-bold tabular text-foreground" dir="ltr">
+        {value !== null ? `${value}${suffix}` : "—"}
+      </p>
+      <p className="text-[10px] leading-relaxed text-muted-foreground">{hint}</p>
+      <span className="sr-only">{ar ? "قراءة" : "read"}</span>
+    </div>
   )
 }
 
@@ -719,17 +1024,31 @@ function LifecycleChip({ companyId, ar, signalState }: { companyId: string; ar: 
   )
 }
 
+/**
+ * The card. Hierarchy is deliberate and reads top-to-bottom in the order a
+ * trader needs it:
+ *   1. WHAT — ticker, tier, name, and the state badge (can I act on this?)
+ *   2. WHERE — price and the day's move
+ *   3. HOW — the plan (entry / stop / target / R:R), visually the centre.
+ *      For a watching row this slot is the ACTIVATION condition instead,
+ *      because that is the only actionable number on a blocked setup.
+ *   4. WHY — the engine's own strongest reason, one line
+ *   5. HOW STRONG — score, then the metric chips (RSI / 1M / volume / range).
+ *      Volume sits beside the plan on purpose: on the EGX a level with no
+ *      participation behind it is not executable.
+ */
 function SignalCard({ row, ar, fav, onFav }: { row: MarketSignalRow; ar: boolean; fav: boolean; onFav: () => void }) {
   const m = row.metrics
   const sig = row.signal
   const sigCls = sig ? SIGNAL_CLS[sig] : null
   const tp = row.tradePlan
   const tier = tierShort(row.marketTier)
-  const planZone = (low: number, high: number): string => (low === high ? low.toFixed(2) : `${low.toFixed(2)}–${high.toFixed(2)}`)
   const stateBadge = stateBadgeInfo(row, ar)
+  const planZone = (low: number, high: number): string => (low === high ? low.toFixed(2) : `${low.toFixed(2)}–${high.toFixed(2)}`)
   return (
     <Card className={`group relative p-0 transition-shadow hover:shadow-md ${sigCls?.ring ?? "border-border/60"}`}>
       <CardContent className="space-y-2.5 px-4 py-3.5">
+        {/* 1 — identity + state */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <Link href={`/company/${row.companyId}?tab=technical`} className="flex items-center gap-1.5 text-sm font-bold text-foreground hover:text-primary">
@@ -741,15 +1060,21 @@ function SignalCard({ row, ar, fav, onFav }: { row: MarketSignalRow; ar: boolean
               {ar ? (row.nameAr ?? row.nameEn) : row.nameEn}
             </p>
           </div>
-          <button
-            onClick={onFav}
-            aria-label={ar ? "إضافة للمفضلة" : "Toggle favorite"}
-            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-warning"
-          >
-            <Star className={`h-4 w-4 ${fav ? "fill-warning text-warning" : ""}`} aria-hidden />
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            {(row.signalState === "watching" || row.signalState === "confirmed") ? (
+              <LifecycleChip companyId={row.companyId} ar={ar} signalState={row.signalState} />
+            ) : null}
+            <button
+              onClick={onFav}
+              aria-label={ar ? "إضافة للمفضلة" : "Toggle favorite"}
+              className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-warning"
+            >
+              <Star className={`h-4 w-4 ${fav ? "fill-warning text-warning" : ""}`} aria-hidden />
+            </button>
+          </div>
         </div>
 
+        {/* 2 — price + state badge */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-baseline gap-1.5" dir="ltr">
             <span className="text-lg font-bold tabular text-foreground">{row.lastClose?.toFixed(2) ?? "—"}</span>
@@ -758,9 +1083,6 @@ function SignalCard({ row, ar, fav, onFav }: { row: MarketSignalRow; ar: boolean
               {pctStr(row.changePct)}
             </span>
           </div>
-          {(row.signalState === "watching" || row.signalState === "confirmed") ? (
-            <LifecycleChip companyId={row.companyId} ar={ar} signalState={row.signalState} />
-          ) : null}
           {stateBadge ? (
             <Badge variant="outline" className={`shrink-0 gap-1.5 ${stateBadge.cls}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${stateBadge.dot}`} aria-hidden />
@@ -776,70 +1098,37 @@ function SignalCard({ row, ar, fav, onFav }: { row: MarketSignalRow; ar: boolean
           )}
         </div>
 
-        {/* Score + one-line reason */}
-        {row.score !== null ? (
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-              <span>{ar ? "الدرجة الفنية" : "Technical score"}</span>
-              <span className="tabular" dir="ltr">{row.score}/100</span>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-              <div
-                className={`h-full rounded-full ${row.score >= 62 ? "bg-positive" : row.score <= 38 ? "bg-negative" : "bg-amber-500"}`}
-                style={{ width: `${row.score}%` }}
-              />
-            </div>
-            {row.reasons[0] ? (
-              <p className="text-[11px] leading-relaxed text-muted-foreground">{ar ? row.reasons[0].ar : row.reasons[0].en}</p>
-            ) : null}
-          </div>
-        ) : (
-          row.limitations[0] ? <p className="text-[11px] leading-relaxed text-muted-foreground">{row.limitations[0]}</p> : null
-        )}
-
-        {/* Trade plan strip (confirmed rows) or the watched-setup strip
-            (watching rows) — a directional read is never published without
-            one of them (engine invariant, fix J). A watching state takes
-            precedence: a hysteresis-held plan at a vetoed structure would
-            otherwise read as tradable before the activation. */}
+        {/* 3 — the plan is the centre of the card; a watching row shows its
+            activation condition in the same slot (the only tradeable number). */}
         {row.signalState === "watching" && row.setup ? (
           <WatchingSetupStrip setup={row.setup} ar={ar} />
         ) : tp ? (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-md border border-blue-500/40 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
-              {ar ? "دخول: " : "Entry: "}
-              <span className="tabular" dir="ltr">{planZone(tp.entryLow, tp.entryHigh)}</span>
-            </span>
-            <span className="rounded-md border border-positive/40 bg-positive/10 px-1.5 py-0.5 text-[10px] font-semibold text-positive">
-              {ar ? "الهدف: " : "Target: "}
-              <span className="tabular" dir="ltr">{planZone(tp.targetLow, tp.targetHigh)} ({tp.targetPct.toFixed(1)}%)</span>
-            </span>
-            <span className="rounded-md border border-negative/40 bg-negative/10 px-1.5 py-0.5 text-[10px] font-semibold text-negative">
-              {ar ? "وقف الخسارة: " : "Stop: "}
-              <span className="tabular" dir="ltr">{tp.stop.toFixed(2)} ({tp.stopPct.toFixed(1)}%)</span>
-            </span>
-            <span className="rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-              {ar ? "مخاطرة/عائد " : "R/R "}
-              <span className="tabular" dir="ltr">{tp.riskReward.toFixed(2)}</span>
-            </span>
-          </div>
+          <PlanGrid ar={ar} tp={tp} planZone={planZone} />
         ) : row.setup ? (
           <WatchingSetupStrip setup={row.setup} ar={ar} />
         ) : sig !== null ? (
-          <p className="text-[11px] leading-relaxed text-muted-foreground">
+          <p className="rounded-lg border border-border/50 bg-muted/20 px-2.5 py-2 text-[11px] leading-relaxed text-muted-foreground">
             {ar ? "مفيش منطقة دخول واضحة دلوقتي — استنى إشارة أوضح." : "No clear entry zone right now — wait for a cleaner read."}
           </p>
         ) : null}
 
-        {/* Metric chips */}
+        {/* 4 — why (the engine's own strongest line) */}
+        {row.reasons[0] ? (
+          <p className="text-[11px] leading-relaxed text-muted-foreground">{ar ? row.reasons[0].ar : row.reasons[0].en}</p>
+        ) : row.limitations[0] ? (
+          <p className="text-[11px] leading-relaxed text-muted-foreground">{row.limitations[0]}</p>
+        ) : null}
+
+        {/* 5 — how strong */}
+        {row.score !== null ? <ScoreMeter ar={ar} score={row.score} /> : null}
+
         <div className="grid grid-cols-4 gap-1.5 text-center">
           <MiniMetric label="RSI" value={m.rsi14 !== null ? m.rsi14.toFixed(0) : "—"} tone={m.rsi14 === null ? "muted" : m.rsi14 > 70 ? "negative" : m.rsi14 < 30 ? "positive" : "muted"} />
           <MiniMetric label={ar ? "شهر" : "1M"} value={pctStr(m.perfM1)} tone={m.perfM1 === null ? "muted" : m.perfM1 > 0 ? "positive" : m.perfM1 < 0 ? "negative" : "muted"} />
-          <MiniMetric label={ar ? "حجم" : "Vol×"} value={m.relVol !== null ? `${m.relVol.toFixed(1)}×` : "—"} tone="muted" />
+          <MiniMetric label={ar ? "حجم" : "Vol×"} value={m.relVol !== null ? `${m.relVol.toFixed(1)}×` : "—"} tone={m.relVol !== null && m.relVol >= 1.5 ? "positive" : "muted"} />
           <MiniMetric label={ar ? "النطاق" : "Range"} value={m.rangePos60 !== null ? `${m.rangePos60.toFixed(0)}%` : "—"} tone="muted" />
         </div>
 
-        {/* Style tags */}
         {row.styleFits.length > 0 ? (
           <div className="flex flex-wrap gap-1">
             {row.styleFits.map((f) => (
@@ -852,6 +1141,84 @@ function SignalCard({ row, ar, fav, onFav }: { row: MarketSignalRow; ar: boolean
         ) : null}
       </CardContent>
     </Card>
+  )
+}
+
+/** The three numbers a plan is made of. Equal columns, tabular figures, the
+ *  risk-reward as the footnote that decides whether the geometry is worth it. */
+function PlanGrid({
+  ar,
+  tp,
+  planZone,
+}: {
+  ar: boolean
+  tp: NonNullable<MarketSignalRow["tradePlan"]>
+  planZone: (low: number, high: number) => string
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="grid grid-cols-3 gap-1.5">
+        <PlanCell
+          label={ar ? "دخول" : "Entry"}
+          value={planZone(tp.entryLow, tp.entryHigh)}
+          tone="neutral"
+        />
+        <PlanCell
+          label={ar ? "هدف" : "Target"}
+          value={planZone(tp.targetLow, tp.targetHigh)}
+          sub={`${tp.targetPct.toFixed(1)}%`}
+          tone="positive"
+        />
+        <PlanCell
+          label={ar ? "وقف" : "Stop"}
+          value={tp.stop.toFixed(2)}
+          sub={`${tp.stopPct.toFixed(1)}%`}
+          tone="negative"
+        />
+      </div>
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+        <span>
+          {ar ? "مخاطرة/عائد " : "R/R "}
+          <span className={`tabular font-semibold ${tp.riskReward >= 2 ? "text-positive" : "text-foreground/80"}`} dir="ltr">{tp.riskReward.toFixed(2)}</span>
+        </span>
+        <span>{ar ? (tp.bias === "buy" ? "خطة شراء" : "خطة بيع") : `${tp.bias} plan`}</span>
+      </div>
+    </div>
+  )
+}
+
+function PlanCell({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone: "neutral" | "positive" | "negative" }) {
+  const cls =
+    tone === "positive"
+      ? "border-positive/40 bg-positive/10 text-positive"
+      : tone === "negative"
+        ? "border-negative/40 bg-negative/10 text-negative"
+        : "border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400"
+  return (
+    <div className={`rounded-md border px-1.5 py-1 ${cls}`}>
+      <p className="text-[9px] font-medium opacity-80">{label}</p>
+      <p className="text-[11px] font-bold tabular" dir="ltr">{value}</p>
+      {sub ? <p className="text-[9px] tabular opacity-80" dir="ltr">{sub}</p> : null}
+    </div>
+  )
+}
+
+/** Score with its band made legible: the number alone never told a reader
+ *  whether 62 is "just above the buy gate" or "almost perfect". */
+function ScoreMeter({ ar, score }: { ar: boolean; score: number }) {
+  const band = score >= 62 ? "positive" : score <= 38 ? "negative" : "amber"
+  const cls = band === "positive" ? "text-positive" : band === "negative" ? "text-negative" : "text-amber-600 dark:text-amber-400"
+  const fill = band === "positive" ? "bg-positive" : band === "negative" ? "bg-negative" : "bg-amber-500"
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-[10px]">
+        <span className="text-muted-foreground">{ar ? "الدرجة الفنية" : "Technical score"}</span>
+        <span className={`tabular font-semibold ${cls}`} dir="ltr">{score}/100</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className={`h-full rounded-full ${fill}`} style={{ width: `${Math.max(0, Math.min(100, score))}%` }} />
+      </div>
+    </div>
   )
 }
 
@@ -939,7 +1306,7 @@ function CompanyLockedCard({
         {/* Value proposition + CTA */}
         <p className="text-[11px] leading-relaxed text-muted-foreground">
           {ar
-            ? "الشركة دي طابقت فلاترك — افتح قراءتها الفنية كاملة: الاتجاه، الدرجات، ومناطق الدخول والخروج ووقف الخسارة."
+            ? "الشركة دي طابقت فلاترك — افتح قراءتها الفنية كاملة: الاتجاه، الدرجة، ومناطق الدخول والخروج ووقف الخسارة."
             : "This company matches your filters — unlock its full technical read: direction, score, entry/exit zones and stop-loss."}
         </p>
         <Button asChild size="sm" className="h-7 w-full gap-1.5 px-3 text-xs font-semibold">
@@ -966,9 +1333,7 @@ function MoreLockedCard({ ar, count }: { ar: boolean; count: number }) {
         <Lock className="h-4 w-4 text-white" />
       </span>
       <p className="text-xs font-semibold text-foreground">
-        {ar
-          ? `و ${count} شركة أخرى مطابقة لفلاترك`
-          : `${count} more matched companies`}
+        {ar ? `و ${count} شركة أخرى مطابقة لفلاترك` : `${count} more matched companies`}
       </p>
       <p className="text-[11px] text-muted-foreground">
         {ar ? "افتح كل النتائج وتفاصيلها مع باقة Pro" : "Unlock every match and its details with Pro"}
@@ -987,5 +1352,62 @@ function MiniMetric({ label, value, tone }: { label: string; value: string; tone
       <p className="text-[9px] text-muted-foreground">{label}</p>
       <p className={`text-[11px] font-semibold tabular ${cls}`} dir="ltr">{value}</p>
     </div>
+  )
+}
+
+/**
+ * The footnotes that make the board honest on the EGX specifically — written
+ * once, at the bottom, instead of repeated inside every card. Each line is a
+ * real property of the data or the market, not decoration:
+ *   • closing prices only, so intraday claims are not made;
+ *   • corporate actions are rebuilt before any indicator runs;
+ *   • EGX daily price limits mean a level can gap through without trading;
+ *   • outside EGX30 liquidity thins, which is why relative volume is shown;
+ *   • public quotes are delayed, and the newest session may be running.
+ */
+function BoardReadingNotes({
+  ar,
+  pricedAsOf,
+  scored,
+  weakData,
+}: {
+  ar: boolean
+  pricedAsOf: string | null
+  scored: number
+  weakData: number
+}) {
+  const notes = ar
+    ? [
+        `المحرك بيقرأ إغلاقات يومية فقط على ${scored} شركة قابلة للقراءة (${weakData} بتاريخ غير كافٍ — بتظهر بدون درجة). عشان كده مفيش أي مطالبة بتداول داخل الجلسة.`,
+        "السلسلة السعرية بتُعاد بناؤها عبر توزيعات الأرباح والزيادات وتقسيم الأسهم قبل حساب أي مؤشر، فالفجوة الوهمية على تاريخ الاستحقاق مش موجودة.",
+        "السوق المصري عليه حدود يومية لتغير السعر: السهم ممكن يقفل على الحد ولا يتداول عند مستوى الدخول أو الوقف — الخطة احتمالية، مش أمر تنفيذ مضمون.",
+        "بره مؤشر EGX30 السيولة بتقل: عشان كده حجم التداول النسبي جنب كل خطة. مستوى فني ممتاز من غير مشاركة مش مستوى قابل للتنفيذ.",
+        `الأسعار من مصدر عام متأخر، وآخر جلسة (${pricedAsOf ?? "—"}) ممكن تكون سعر الجلسة الجاري ومش إغلاق نهائي.`,
+        "القراءة الفنية مبنية على قواعد مكتوبة وموثقة الأوزان — مش توصية شراء أو بيع، والقرار قرارك.",
+      ]
+    : [
+        `The engine reads daily closes only, across ${scored} scoreable companies (${weakData} with insufficient history — shown without a score), so no intraday claim is ever made.`,
+        "The price series is rebuilt across dividends, bonus shares and splits before any indicator runs, so an ex-date is never mistaken for a real gap.",
+        "The Egyptian market applies daily price limits: a name can close at its limit and never trade at your entry or stop — a plan is a probability, not a guaranteed fill.",
+        "Outside EGX30 liquidity thins, which is why relative volume sits beside every plan: a clean level with no participation is not an executable level.",
+        `Quotes come from a delayed public source, and the newest session (${pricedAsOf ?? "—"}) may carry the running session's price rather than a final close.`,
+        "The technical read is rule-based with documented weights — not a buy or sell recommendation. The decision stays yours.",
+      ]
+  return (
+    <details className="group rounded-xl border border-border/60 bg-card/40 p-3">
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-[11px] font-semibold text-foreground">
+        <Info className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+        {ar ? "إزاي تقرأ اللوحة دي" : "How to read this board"}
+        <ChevronDown className="ms-auto h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
+      </summary>
+      <ul className="mt-2 space-y-1.5 ps-1">
+        {notes.map((n, i) => (
+          <li key={i} className="flex gap-2 text-[11px] leading-relaxed text-muted-foreground">
+            <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/50" aria-hidden />
+            <span>{n}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
   )
 }
