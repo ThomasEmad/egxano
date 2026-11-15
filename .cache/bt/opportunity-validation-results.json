@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-11-15T15:41:24.905Z",
+ "generatedAt": "2026-11-15T17:13:32.379Z",
  "mission": "owner directive §12 — historical validation of the Opportunity Intelligence eligibility rules on the frozen backtest harness",
  "engine": {
   "signalSource": "tech-signals@5 (the v2 engine signal stream, reused exactly via replayEngine)",
@@ -74,137 +74,136 @@
    "early": 0,
    "observation": 0,
    "conditional": 0,
-   "actionable": 397,
+   "actionable": 392,
    "invalidated": 0,
    "missed": 0,
-   "none": 1149
+   "none": 1154
   },
-  "qualifying": 397,
+  "qualifying": 392,
   "limitLocked": 0,
-  "positionBusy": 281,
-  "tradesEntered": 116
+  "positionBusy": 288,
+  "tradesEntered": 104
  },
- "qualifyingRatePctOfCandidates": 25.679172056921086,
- "qualifyingRatePctOfBuySignals": 25.679172056921086,
+ "qualifyingRatePctOfCandidates": 25.35575679172057,
+ "qualifyingRatePctOfBuySignals": 25.35575679172057,
  "audit": {
-  "checked": 116,
+  "checked": 104,
   "violations": 0,
-  "minUpsidePct": 5.0528,
+  "minUpsidePct": 5.0363,
   "violating": []
  },
  "tradeStats": {
-  "entered": 116,
-  "completed": 113,
-  "open": 3,
-  "t1BeforeStopPct": 45.45454545454545,
-  "stopRatePct": 42.47787610619469,
-  "t2ReachedPctOfRungTrades": 18.91891891891892,
-  "t2WithRung": 37,
+  "entered": 104,
+  "completed": 100,
+  "open": 4,
+  "t1BeforeStopPct": 39.130434782608695,
+  "stopRatePct": 42,
+  "t2ReachedPctOfRungTrades": 16.129032258064516,
+  "t2WithRung": 31,
   "ambiguousCount": 0,
-  "falseBreakoutRatePct": 51.724137931034484,
-  "medianSessionsToT1": 6.5,
-  "avgMfePct": 8.355129009738695,
-  "avgMaePct": -3.4651703303039922,
+  "falseBreakoutRatePct": 50,
+  "medianSessionsToT1": 9,
+  "avgMfePct": 9.851277196440472,
+  "avgMaePct": -4.245170958946773,
   "fillCases": {
-   "open": 115,
-   "zone_edge": 1
+   "open": 104
   },
   "fillErodedBelow5Pct": 0,
-  "upsidePctFromFillMin": 5.4607
+  "upsidePctFromFillMin": 5.4549
  },
  "pooledMetrics": {
-  "trades": 116,
-  "completed": 113,
-  "open": 3,
-  "wins": 62,
-  "losses": 51,
-  "winRatePct": 54.86725663716814,
-  "profitFactor": 2.107052424275962,
-  "expectancyPct": 3.3163918013652247,
-  "avgReturnPct": 3.3163918013652247,
-  "medianReturnPct": 3.152066018309197,
-  "grossWinPct": 713.2658482834587,
-  "grossLossPct": -338.5135747291885,
-  "maxDrawdownPct": -67.24156054843483,
-  "sharpe": 0.7237734429641142,
-  "sortino": 1.715690255705912,
-  "medianSessionsHeld": 8,
-  "medianTimeToTarget": 6.5,
-  "maeP50": -2.9044958443524393,
+  "trades": 104,
+  "completed": 100,
+  "open": 4,
+  "wins": 53,
+  "losses": 47,
+  "winRatePct": 53,
+  "profitFactor": 1.9667376807983559,
+  "expectancyPct": 3.6508552459358428,
+  "avgReturnPct": 3.6508552459358428,
+  "medianReturnPct": 1.9513475318996059,
+  "grossWinPct": 742.7324621703706,
+  "grossLossPct": -377.6469375767865,
+  "maxDrawdownPct": -92.22251069709291,
+  "sharpe": 0.5574657127301652,
+  "sortino": 0.928366761198049,
+  "medianSessionsHeld": 9.5,
+  "medianTimeToTarget": 9,
+  "maeP50": -3.049560870637169,
   "maeP90": 0,
-  "mfeP50": 7.180181279912734,
-  "mfeP90": 20.81009531433334,
-  "falsePositiveRatePct": 54.54545454545454,
-  "stopExits": 48,
-  "targetExits": 40,
-  "timeStopExits": 25
+  "mfeP50": 7.427417385962698,
+  "mfeP90": 25.165950096072756,
+  "falsePositiveRatePct": 60.86956521739131,
+  "stopExits": 42,
+  "targetExits": 27,
+  "timeStopExits": 31
  },
  "windows": {
   "train": {
    "startDate": "2026-03-09",
    "endDate": "2026-08-09",
    "decisionSessions": 2813,
-   "trades": 83,
-   "completed": 83,
+   "trades": 69,
+   "completed": 69,
    "metrics": {
-    "trades": 83,
-    "completed": 83,
+    "trades": 69,
+    "completed": 69,
     "open": 0,
-    "wins": 56,
-    "losses": 27,
-    "winRatePct": 67.46987951807229,
-    "profitFactor": 3.5868327534610027,
-    "expectancyPct": 5.2543127037016575,
-    "avgReturnPct": 5.2543127037016575,
-    "medianReturnPct": 6.191906704560069,
-    "grossWinPct": 604.6955655791447,
-    "grossLossPct": -168.58761117190718,
-    "maxDrawdownPct": -32.77822872238999,
-    "sharpe": 1.3550405481509844,
-    "sortino": 3.7560912221143083,
-    "medianSessionsHeld": 9,
-    "medianTimeToTarget": 6.5,
-    "maeP50": -2.2612631857932164,
+    "wins": 47,
+    "losses": 22,
+    "winRatePct": 68.11594202898551,
+    "profitFactor": 4.9782958853126775,
+    "expectancyPct": 7.235658265990484,
+    "avgReturnPct": 7.235658265990484,
+    "medianReturnPct": 6.515534253180323,
+    "grossWinPct": 624.7564706085653,
+    "grossLossPct": -125.49605025522213,
+    "maxDrawdownPct": -33.93658736820782,
+    "sharpe": 1.4679447472505276,
+    "sortino": 5.032515230777789,
+    "medianSessionsHeld": 17,
+    "medianTimeToTarget": 9,
+    "maeP50": -2.0657933626795577,
     "maeP90": 0,
-    "mfeP50": 7.744107744107742,
-    "mfeP90": 20.81009531433334,
-    "falsePositiveRatePct": 42.3728813559322,
-    "stopExits": 25,
-    "targetExits": 34,
-    "timeStopExits": 24
+    "mfeP50": 9.22910165790336,
+    "mfeP90": 26.04877660290585,
+    "falsePositiveRatePct": 46.15384615384615,
+    "stopExits": 18,
+    "targetExits": 21,
+    "timeStopExits": 30
    }
   },
   "validation": {
    "startDate": "2026-08-10",
    "endDate": "2026-09-23",
    "decisionSessions": 928,
-   "trades": 20,
-   "completed": 20,
+   "trades": 22,
+   "completed": 22,
    "metrics": {
-    "trades": 20,
-    "completed": 20,
+    "trades": 22,
+    "completed": 22,
     "open": 0,
-    "wins": 5,
-    "losses": 15,
-    "winRatePct": 25,
-    "profitFactor": 0.9835027209200351,
-    "expectancyPct": -0.08342081502239988,
-    "avgReturnPct": -0.08342081502239988,
+    "wins": 6,
+    "losses": 16,
+    "winRatePct": 27.27272727272727,
+    "profitFactor": 0.6434197503420133,
+    "expectancyPct": -2.9718976751953936,
+    "avgReturnPct": -2.9718976751953936,
     "medianReturnPct": -5.9021835326842345,
-    "grossWinPct": 99.46440035137287,
-    "grossLossPct": -101.13281665182089,
-    "maxDrawdownPct": -32.945340182572956,
-    "sharpe": -0.014747515227273475,
-    "sortino": -0.03094648984956368,
+    "grossWinPct": 117.97599156180527,
+    "grossLossPct": -183.35774041610395,
+    "maxDrawdownPct": -84.0799223598182,
+    "sharpe": -0.3440026337982925,
+    "sortino": -0.41267471316746335,
     "medianSessionsHeld": 6,
-    "medianTimeToTarget": 15,
+    "medianTimeToTarget": 6.5,
     "maeP50": -5.302183532684235,
-    "maeP90": 0,
+    "maeP90": -0.0562914145692871,
     "mfeP50": 2.6721876325681793,
-    "mfeP90": 24.34051878228476,
-    "falsePositiveRatePct": 73.68421052631578,
-    "stopExits": 14,
-    "targetExits": 5,
+    "mfeP90": 25.063840286966258,
+    "falsePositiveRatePct": 71.42857142857143,
+    "stopExits": 15,
+    "targetExits": 6,
     "timeStopExits": 1
    }
   },
@@ -213,32 +212,32 @@
    "endDate": "2026-11-11",
    "decisionSessions": 986,
    "trades": 13,
-   "completed": 10,
+   "completed": 9,
    "metrics": {
     "trades": 13,
-    "completed": 10,
-    "open": 3,
-    "wins": 1,
+    "completed": 9,
+    "open": 4,
+    "wins": 0,
     "losses": 9,
-    "winRatePct": 10,
-    "profitFactor": 0.1323661260249516,
-    "expectancyPct": -5.968726455251926,
-    "avgReturnPct": -5.968726455251926,
-    "medianReturnPct": -7.594718682708301,
-    "grossWinPct": 9.105882352941187,
+    "winRatePct": 0,
+    "profitFactor": 0,
+    "expectancyPct": -7.6436829894956055,
+    "avgReturnPct": -7.6436829894956055,
+    "medianReturnPct": -8.052336737609078,
+    "grossWinPct": 0,
     "grossLossPct": -68.79314690546045,
     "maxDrawdownPct": -51.146662229354156,
-    "sharpe": -1.746162401348779,
-    "sortino": -1.2907617445748043,
+    "sharpe": -9.39073090817444,
+    "sortino": -1.4876802108488498,
     "medianSessionsHeld": 4,
-    "medianTimeToTarget": 3,
-    "maeP50": -6.994718682708301,
-    "maeP90": -4.840637126636264,
-    "mfeP50": 0.0996038737035021,
-    "mfeP90": 2.522796836198541,
-    "falsePositiveRatePct": 90,
+    "medianTimeToTarget": null,
+    "maeP50": -7.452336737609078,
+    "maeP90": -5.440701352286066,
+    "mfeP50": 0,
+    "mfeP90": 1.338040376649734,
+    "falsePositiveRatePct": 100,
     "stopExits": 9,
-    "targetExits": 1,
+    "targetExits": 0,
     "timeStopExits": 0
    }
   }
@@ -247,12 +246,12 @@
   "bySector": [
    {
     "segment": "Banks",
-    "trades": 9,
-    "completed": 9,
-    "winRatePct": 55.55555555555556,
-    "profitFactor": 2.7623767104877635,
-    "expectancyPct": 4.742967909650612,
-    "medianReturnPct": 4.445281935038748
+    "trades": 8,
+    "completed": 8,
+    "winRatePct": 62.5,
+    "profitFactor": 3.824321930009015,
+    "expectancyPct": 6.573999368024255,
+    "medianReturnPct": 6.043240694794917
    },
    {
     "segment": "Basic Materials",
@@ -267,160 +266,160 @@
     "segment": "Building Materials",
     "trades": 5,
     "completed": 5,
-    "winRatePct": 60,
-    "profitFactor": 3.2575183804029013,
-    "expectancyPct": 5.264142804004638,
-    "medianReturnPct": 2.9301170979692652
+    "winRatePct": 80,
+    "profitFactor": 10.47035273209505,
+    "expectancyPct": 8.657008055920137,
+    "medianReturnPct": 7.534555918502674
    },
    {
     "segment": "Construction",
-    "trades": 6,
-    "completed": 6,
-    "winRatePct": 83.33333333333334,
-    "profitFactor": 6.774947715609473,
-    "expectancyPct": 5.978159480555415,
-    "medianReturnPct": 6.8116164203429825
+    "trades": 5,
+    "completed": 5,
+    "winRatePct": 80,
+    "profitFactor": 3.6197611934609135,
+    "expectancyPct": 6.659106169834219,
+    "medianReturnPct": 8.162624550938792
    },
    {
     "segment": "Financial Services",
-    "trades": 9,
-    "completed": 9,
-    "winRatePct": 77.77777777777779,
-    "profitFactor": 6.271993124363962,
-    "expectancyPct": 8.830072585482998,
-    "medianReturnPct": 6.325207957474578
+    "trades": 10,
+    "completed": 10,
+    "winRatePct": 70,
+    "profitFactor": 4.7120753790427985,
+    "expectancyPct": 7.44804134516523,
+    "medianReturnPct": 6.2585573310173235
    },
    {
     "segment": "Food",
-    "trades": 17,
-    "completed": 16,
-    "winRatePct": 25,
-    "profitFactor": 0.4222153246453052,
-    "expectancyPct": -3.1543694535048625,
-    "medianReturnPct": -6.859258340246148
+    "trades": 12,
+    "completed": 11,
+    "winRatePct": 18.181818181818183,
+    "profitFactor": 0.06785720075149823,
+    "expectancyPct": -11.887811491701951,
+    "medianReturnPct": -7.824336462086011
    },
    {
     "segment": "Healthcare",
-    "trades": 30,
-    "completed": 29,
-    "winRatePct": 65.51724137931035,
-    "profitFactor": 2.906957353916067,
-    "expectancyPct": 5.169600474844904,
-    "medianReturnPct": 6.458823611909549
+    "trades": 28,
+    "completed": 26,
+    "winRatePct": 57.692307692307686,
+    "profitFactor": 3.2335792973085113,
+    "expectancyPct": 6.456545760334658,
+    "medianReturnPct": 6.4537390371426815
    },
    {
     "segment": "Industrial",
-    "trades": 3,
-    "completed": 3,
-    "winRatePct": 33.33333333333333,
-    "profitFactor": 0.45542074334655863,
-    "expectancyPct": -2.692413519185939,
-    "medianReturnPct": -5.287972845392696
+    "trades": 2,
+    "completed": 2,
+    "winRatePct": 0,
+    "profitFactor": 0,
+    "expectancyPct": -5.894632256370802,
+    "medianReturnPct": -5.894632256370802
    },
    {
     "segment": "Real Estate",
-    "trades": 18,
-    "completed": 18,
-    "winRatePct": 44.44444444444444,
-    "profitFactor": 1.4111998234986947,
-    "expectancyPct": 1.488273926923564,
-    "medianReturnPct": -4.288184872152456
+    "trades": 16,
+    "completed": 16,
+    "winRatePct": 43.75,
+    "profitFactor": 1.8735824752813186,
+    "expectancyPct": 3.2484708977923837,
+    "medianReturnPct": -4.362861610630558
    },
    {
     "segment": "Telecom",
-    "trades": 9,
-    "completed": 9,
-    "winRatePct": 55.55555555555556,
-    "profitFactor": 3.2652549732795153,
-    "expectancyPct": 4.714807963029437,
-    "medianReturnPct": 3.895493570963549
+    "trades": 8,
+    "completed": 8,
+    "winRatePct": 50,
+    "profitFactor": 3.2264757977955885,
+    "expectancyPct": 5.088661431410786,
+    "medianReturnPct": 4.787482248103193
    },
    {
     "segment": "Textiles",
     "trades": 6,
     "completed": 5,
     "winRatePct": 80,
-    "profitFactor": 3.7572686218600273,
-    "expectancyPct": 3.707118139463893,
-    "medianReturnPct": 5.04853491789572
+    "profitFactor": 5.783457538759734,
+    "expectancyPct": 6.431307443425338,
+    "medianReturnPct": 4.484743388343283
    }
   ],
   "byLiquidity": [
    {
     "segment": "T1",
-    "trades": 36,
-    "completed": 35,
-    "winRatePct": 60,
-    "profitFactor": 2.534433116129678,
-    "expectancyPct": 3.8976925090931998,
-    "medianReturnPct": 5.04853491789572
+    "trades": 32,
+    "completed": 31,
+    "winRatePct": 67.74193548387096,
+    "profitFactor": 3.613156087721608,
+    "expectancyPct": 5.758122402490343,
+    "medianReturnPct": 6.448654462375814
    },
    {
     "segment": "T2",
-    "trades": 41,
-    "completed": 39,
-    "winRatePct": 46.15384615384615,
-    "profitFactor": 1.7465946685304121,
-    "expectancyPct": 2.8293598514862697,
-    "medianReturnPct": -5.287972845392696
+    "trades": 40,
+    "completed": 38,
+    "winRatePct": 39.473684210526315,
+    "profitFactor": 1.1803681280722835,
+    "expectancyPct": 1.0653025072524502,
+    "medianReturnPct": -5.496726819393004
    },
    {
     "segment": "T3",
-    "trades": 39,
-    "completed": 39,
-    "winRatePct": 58.97435897435898,
-    "profitFactor": 2.257119929780143,
-    "expectancyPct": 3.2817436289241972,
-    "medianReturnPct": 3.895493570963549
+    "trades": 32,
+    "completed": 31,
+    "winRatePct": 54.83870967741935,
+    "profitFactor": 2.7208771840691366,
+    "expectancyPct": 4.712975317444852,
+    "medianReturnPct": 3.150000000000009
    }
   ],
   "byScoreBand": [
    {
     "segment": "<70",
-    "trades": 76,
-    "completed": 74,
-    "winRatePct": 54.054054054054056,
-    "profitFactor": 2.145674864636662,
-    "expectancyPct": 3.5623934232585515,
-    "medianReturnPct": 3.040058548984637
+    "trades": 65,
+    "completed": 62,
+    "winRatePct": 56.451612903225815,
+    "profitFactor": 2.8302664583431065,
+    "expectancyPct": 5.510828054043136,
+    "medianReturnPct": 3.7976409675193787
    },
    {
     "segment": "70-79",
-    "trades": 40,
-    "completed": 39,
-    "winRatePct": 56.41025641025641,
-    "profitFactor": 2.025081673038002,
-    "expectancyPct": 2.8496194931573697,
-    "medianReturnPct": 5.365556900076097
+    "trades": 39,
+    "completed": 38,
+    "winRatePct": 47.368421052631575,
+    "profitFactor": 1.1226075977539163,
+    "expectancyPct": 0.6161627695502548,
+    "medianReturnPct": -0.3178336738885895
    }
   ],
   "byTier": [
    {
     "segment": "EGX30",
-    "trades": 30,
-    "completed": 29,
-    "winRatePct": 55.172413793103445,
-    "profitFactor": 2.1218883887375695,
-    "expectancyPct": 2.976526878855885,
-    "medianReturnPct": 1.7809523809523724
+    "trades": 25,
+    "completed": 24,
+    "winRatePct": 50,
+    "profitFactor": 2.229090843151684,
+    "expectancyPct": 3.4845736859558496,
+    "medianReturnPct": 0.14149689186169256
    },
    {
     "segment": "EGX70",
-    "trades": 53,
-    "completed": 52,
-    "winRatePct": 55.769230769230774,
-    "profitFactor": 2.0031532968484833,
-    "expectancyPct": 3.2326264460369307,
-    "medianReturnPct": 3.7986739766739728
+    "trades": 49,
+    "completed": 47,
+    "winRatePct": 51.06382978723404,
+    "profitFactor": 1.5606666504549516,
+    "expectancyPct": 2.820743408169798,
+    "medianReturnPct": 2.553379227507713
    },
    {
     "segment": "MAIN",
-    "trades": 33,
-    "completed": 32,
-    "winRatePct": 53.125,
-    "profitFactor": 2.2801156494325605,
-    "expectancyPct": 3.7605130897977848,
-    "medianReturnPct": 2.280863572744863
+    "trades": 30,
+    "completed": 29,
+    "winRatePct": 58.620689655172406,
+    "profitFactor": 3.0354066261505506,
+    "expectancyPct": 5.133821239540114,
+    "medianReturnPct": 4.484743388343283
    }
   ]
  },
@@ -435,15 +434,15 @@
     "early": 0,
     "observation": 0,
     "conditional": 0,
-    "actionable": 36,
+    "actionable": 37,
     "invalidated": 0,
     "missed": 0,
-    "none": 56
+    "none": 55
    },
-   "qualifying": 36,
+   "qualifying": 37,
    "limitLocked": 0,
-   "positionBusy": 30,
-   "tradesEntered": 6
+   "positionBusy": 32,
+   "tradesEntered": 5
   },
   "EAST": {
    "decisionSessions": 163,
@@ -482,8 +481,8 @@
    },
    "qualifying": 31,
    "limitLocked": 0,
-   "positionBusy": 26,
-   "tradesEntered": 5
+   "positionBusy": 25,
+   "tradesEntered": 6
   },
   "COMI": {
    "decisionSessions": 163,
@@ -495,15 +494,15 @@
     "early": 0,
     "observation": 0,
     "conditional": 0,
-    "actionable": 7,
+    "actionable": 11,
     "invalidated": 0,
     "missed": 0,
-    "none": 60
+    "none": 56
    },
-   "qualifying": 7,
+   "qualifying": 11,
    "limitLocked": 0,
-   "positionBusy": 5,
-   "tradesEntered": 2
+   "positionBusy": 10,
+   "tradesEntered": 1
   },
   "TMGH": {
    "decisionSessions": 163,
@@ -535,14 +534,14 @@
     "early": 0,
     "observation": 0,
     "conditional": 0,
-    "actionable": 13,
+    "actionable": 10,
     "invalidated": 0,
     "missed": 0,
-    "none": 33
+    "none": 36
    },
-   "qualifying": 13,
+   "qualifying": 10,
    "limitLocked": 0,
-   "positionBusy": 10,
+   "positionBusy": 7,
    "tradesEntered": 3
   },
   "ORAS": {
@@ -602,8 +601,8 @@
    },
    "qualifying": 20,
    "limitLocked": 0,
-   "positionBusy": 13,
-   "tradesEntered": 7
+   "positionBusy": 16,
+   "tradesEntered": 4
   },
   "GBCO": {
    "decisionSessions": 163,
@@ -615,15 +614,15 @@
     "early": 0,
     "observation": 0,
     "conditional": 0,
-    "actionable": 4,
+    "actionable": 9,
     "invalidated": 0,
     "missed": 0,
-    "none": 63
+    "none": 58
    },
-   "qualifying": 4,
+   "qualifying": 9,
    "limitLocked": 0,
-   "positionBusy": 1,
-   "tradesEntered": 3
+   "positionBusy": 7,
+   "tradesEntered": 2
   },
   "MPCO": {
    "decisionSessions": 163,
@@ -635,15 +634,15 @@
     "early": 0,
     "observation": 0,
     "conditional": 0,
-    "actionable": 5,
+    "actionable": 4,
     "invalidated": 0,
     "missed": 0,
-    "none": 52
+    "none": 53
    },
-   "qualifying": 5,
+   "qualifying": 4,
    "limitLocked": 0,
    "positionBusy": 2,
-   "tradesEntered": 3
+   "tradesEntered": 2
   },
   "MPCI": {
    "decisionSessions": 163,
@@ -662,8 +661,8 @@
    },
    "qualifying": 12,
    "limitLocked": 0,
-   "positionBusy": 6,
-   "tradesEntered": 6
+   "positionBusy": 8,
+   "tradesEntered": 4
   },
   "POUL": {
    "decisionSessions": 163,
@@ -675,15 +674,15 @@
     "early": 0,
     "observation": 0,
     "conditional": 0,
-    "actionable": 18,
+    "actionable": 15,
     "invalidated": 0,
     "missed": 0,
-    "none": 66
+    "none": 69
    },
-   "qualifying": 18,
+   "qualifying": 15,
    "limitLocked": 0,
-   "positionBusy": 13,
-   "tradesEntered": 5
+   "positionBusy": 11,
+   "tradesEntered": 4
   },
   "NIPH": {
    "decisionSessions": 163,
@@ -695,15 +694,15 @@
     "early": 0,
     "observation": 0,
     "conditional": 0,
-    "actionable": 13,
+    "actionable": 9,
     "invalidated": 0,
     "missed": 0,
-    "none": 28
+    "none": 32
    },
-   "qualifying": 13,
+   "qualifying": 9,
    "limitLocked": 0,
-   "positionBusy": 8,
-   "tradesEntered": 5
+   "positionBusy": 5,
+   "tradesEntered": 4
   },
   "PRCL": {
    "decisionSessions": 163,
@@ -715,14 +714,14 @@
     "early": 0,
     "observation": 0,
     "conditional": 0,
-    "actionable": 14,
+    "actionable": 15,
     "invalidated": 0,
     "missed": 0,
-    "none": 23
+    "none": 22
    },
-   "qualifying": 14,
+   "qualifying": 15,
    "limitLocked": 0,
-   "positionBusy": 9,
+   "positionBusy": 10,
    "tradesEntered": 5
   },
   "HDBK": {
@@ -735,14 +734,14 @@
     "early": 0,
     "observation": 0,
     "conditional": 0,
-    "actionable": 22,
+    "actionable": 20,
     "invalidated": 0,
     "missed": 0,
-    "none": 25
+    "none": 27
    },
-   "qualifying": 22,
+   "qualifying": 20,
    "limitLocked": 0,
-   "positionBusy": 15,
+   "positionBusy": 13,
    "tradesEntered": 7
   },
   "SIPC": {
@@ -755,14 +754,14 @@
     "early": 0,
     "observation": 0,
     "conditional": 0,
-    "actionable": 20,
+    "actionable": 19,
     "invalidated": 0,
     "missed": 0,
-    "none": 38
+    "none": 39
    },
-   "qualifying": 20,
+   "qualifying": 19,
    "limitLocked": 0,
-   "positionBusy": 12,
+   "positionBusy": 11,
    "tradesEntered": 8
   },
   "AMER": {
@@ -775,15 +774,15 @@
     "early": 0,
     "observation": 0,
     "conditional": 0,
-    "actionable": 14,
+    "actionable": 13,
     "invalidated": 0,
     "missed": 0,
-    "none": 10
+    "none": 11
    },
-   "qualifying": 14,
+   "qualifying": 13,
    "limitLocked": 0,
-   "positionBusy": 8,
-   "tradesEntered": 6
+   "positionBusy": 6,
+   "tradesEntered": 7
   },
   "PHAR": {
    "decisionSessions": 163,
@@ -795,15 +794,15 @@
     "early": 0,
     "observation": 0,
     "conditional": 0,
-    "actionable": 27,
+    "actionable": 26,
     "invalidated": 0,
     "missed": 0,
-    "none": 34
+    "none": 35
    },
-   "qualifying": 27,
+   "qualifying": 26,
    "limitLocked": 0,
-   "positionBusy": 22,
-   "tradesEntered": 5
+   "positionBusy": 20,
+   "tradesEntered": 6
   },
   "ENGC": {
    "decisionSessions": 163,
@@ -815,15 +814,15 @@
     "early": 0,
     "observation": 0,
     "conditional": 0,
-    "actionable": 11,
+    "actionable": 12,
     "invalidated": 0,
     "missed": 0,
-    "none": 43
+    "none": 42
    },
-   "qualifying": 11,
+   "qualifying": 12,
    "limitLocked": 0,
-   "positionBusy": 8,
-   "tradesEntered": 3
+   "positionBusy": 10,
+   "tradesEntered": 2
   },
   "AALR": {
    "decisionSessions": 163,
@@ -875,14 +874,14 @@
     "early": 0,
     "observation": 0,
     "conditional": 0,
-    "actionable": 19,
+    "actionable": 20,
     "invalidated": 0,
     "missed": 0,
-    "none": 52
+    "none": 51
    },
-   "qualifying": 19,
+   "qualifying": 20,
    "limitLocked": 0,
-   "positionBusy": 13,
+   "positionBusy": 14,
    "tradesEntered": 6
   },
   "ADCI": {
@@ -895,14 +894,14 @@
     "early": 0,
     "observation": 0,
     "conditional": 0,
-    "actionable": 32,
+    "actionable": 30,
     "invalidated": 0,
     "missed": 0,
-    "none": 34
+    "none": 36
    },
-   "qualifying": 32,
+   "qualifying": 30,
    "limitLocked": 0,
-   "positionBusy": 28,
+   "positionBusy": 26,
    "tradesEntered": 4
   },
   "ADPC": {
@@ -915,15 +914,15 @@
     "early": 0,
     "observation": 0,
     "conditional": 0,
-    "actionable": 6,
+    "actionable": 3,
     "invalidated": 0,
     "missed": 0,
-    "none": 45
+    "none": 48
    },
-   "qualifying": 6,
+   "qualifying": 3,
    "limitLocked": 0,
-   "positionBusy": 2,
-   "tradesEntered": 4
+   "positionBusy": 1,
+   "tradesEntered": 2
   },
   "AFDI": {
    "decisionSessions": 163,
@@ -935,14 +934,14 @@
     "early": 0,
     "observation": 0,
     "conditional": 0,
-    "actionable": 24,
+    "actionable": 25,
     "invalidated": 0,
     "missed": 0,
-    "none": 42
+    "none": 41
    },
-   "qualifying": 24,
+   "qualifying": 25,
    "limitLocked": 0,
-   "positionBusy": 20,
+   "positionBusy": 21,
    "tradesEntered": 4
   },
   "AFMC": {
@@ -955,15 +954,15 @@
     "early": 0,
     "observation": 0,
     "conditional": 0,
-    "actionable": 5,
+    "actionable": 7,
     "invalidated": 0,
     "missed": 0,
-    "none": 32
+    "none": 30
    },
-   "qualifying": 5,
+   "qualifying": 7,
    "limitLocked": 0,
-   "positionBusy": 2,
-   "tradesEntered": 3
+   "positionBusy": 5,
+   "tradesEntered": 2
   },
   "ALUM": {
    "decisionSessions": 163,
@@ -1006,7 +1005,7 @@
    "tradesEntered": 2
   }
  },
- "perTickerTrades": 116,
+ "perTickerTrades": 104,
  "comparisonBasis": "v2 baseline numbers read from .cache/bt/baseline-results-v2.json (same frozen window, verified above)",
  "disclosure": {
   "noTuning": "Every threshold comes from OPPORTUNITY_THRESHOLDS / TARGET_RULES / BacktestConfig / the ladder rules. Nothing was fitted to outcomes; the honest numbers are reported as measured.",

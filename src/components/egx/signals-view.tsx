@@ -39,6 +39,7 @@ import { SIGNAL_META, STYLE_TAG_HINT_AR, STYLE_TAG_META, type TechSignalType, ty
 import type { GatedSignalRow, MarketSignalRow, MarketSignalsResponse } from "@/lib/technical/signals-service"
 import { lifecycleChipLabel, type LifecycleState } from "@/lib/technical/lifecycle"
 import { OpportunitiesStrip } from "./opportunities-strip"
+import { NumbersTable } from "./numbers-table"
 import { TIER_AR } from "@/lib/market/tiers"
 
 type SignalFilter = "all" | "buy" | "hold" | "sell" | "fav"
@@ -412,6 +413,10 @@ export function SignalsView() {
       {/* "فرص اليوم" strip — the ordered, capped, regime-gated digest
           (server-built in board-gates.ts; locked cards for free callers). */}
       <OpportunitiesStrip />
+
+      {/* Full-market numbers table — premium only (locked rows carry no
+          analytical fields server-side; the free board stays identity-only). */}
+      {!gateActive ? <NumbersTable rows={rows.filter((r): r is MarketSignalRow => !("locked" in r))} ar={ar} /> : null}
 
       {/* Stats bar */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

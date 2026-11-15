@@ -5,24 +5,26 @@
 // obstacle path from the caller's entry zone, one rung per structural level.
 // Deterministic only; no AI, no randomness, no probability claims.
 //
-// HONEST GEOMETRY RULES (owner directive):
-//   R1 CONSERVATIVE EDGE ONLY. A buy target takes the supply band's LOWER edge
-//      (sellers may appear at the zone's lower bound) — never the optimistic
-//      far edge. A sell target takes the demand band's UPPER edge — never the
-//      full-bounce bottom. Every printed price passes roundToTick with
-//      direction "up" (the trade-plan.ts convention: for buys, "up" never
-//      claims a level below the evidenced band; for sells, a higher target is
-//      farther from the entry, i.e. LESS printed reward — rounding can never
-//      flatter the ladder).
+// HONEST GEOMETRY RULES (owner directive — v2 recalibration):
+//   R1 CONSERVATIVE EDGE ONLY, THEN STEP BACK FROM THE WALL. A buy rung takes
+//      the supply band's LOWER edge, a sell rung the demand band's UPPER edge —
+//      then the OWNER'S PRE-WALL BUFFER prints the target 0.5% BEFORE the wall
+//      (buy: edge×(1−0.5%) rounded DOWN, sell: edge×(1+0.5%) rounded UP) — you
+//      do not sell INTO the wall, you exit just before it. The rounding
+//      direction always makes the printed reward HARDER, never flattered.
+//      Every printed price passes roundToTick (the trade-plan.ts convention).
 //   R2 MEANINGFUL ZONES ONLY. A rung must sit on a zone with
 //      strength >= MIN_TARGET_STRENGTH (20) or touches >= MIN_TARGET_TOUCHES
 //      (2) — one stale single-touch band is not a target. The gate is fixed
 //      and documented; the ladder never cherry-picks.
-//   R3 NEVER SKIP A NEARER MEANINGFUL ZONE. T1 is the NEAREST meaningful zone
-//      beyond the entry band, whatever its distance — if it sits inside the
-//      5% horizon that is the CALLER's eligibility problem (poor R/R → their
-//      gate), not this module's. TARGET_HORIZON_PCT is exported only as the
-//      caller's lens; it filters nothing here.
+//   R3′ STRONG-WALL ANCHORING (owner directive, replaces the v1 never-skip):
+//      T1 anchors to the NEAREST STRONG zone beyond the entry band
+//      (strength >= STRONG_TARGET_STRENGTH). Weaker near shelves are skipped
+//      BY DESIGN — a soft shelf the stock can clear inside one session is not
+//      a target (owner's example: a 100 EGP stock with a weak 103/104 wall
+//      walks to the NEXT real wall). The number of skipped weak zones is
+//      disclosed in whyAr; HORIZON_PCT stays the caller's lens and filters
+//      nothing here.
 //   R4 T2 = next STRONGER rung beyond T1 (zone strength >= T1's, or the major
 //      confirmed swing high/low) at least SEPARATION_PCT (2%) beyond T1's
 //      printed price — a rung 0.5% past T1 is the same level, not a rung. The
@@ -34,8 +36,8 @@
 //      meaningful (20-59) zone beyond T2 does NOT justify a third rung — the
 //      ladder honestly stops at T2 rather than manufacturing a farther number.
 //   R6 MEASURED-MOVE FALLBACK (kind "measured_move", strength null): ONLY when
-//      the map offers NO meaningful zone beyond the entry band at all — zones
-//      always take precedence over projections. The projection mirrors
+//      the map offers NO STRONG zone beyond the entry band at all — strong
+//      zones always take precedence over projections. The projection mirrors
 //      trade-plan.ts: the recent 40-session range height applied to the entry
 //      MID (needs >= 20 valid sessions in the window; a zero-height window
 //      projects nothing), and whyAr discloses the projection basis verbatim.
@@ -43,24 +45,30 @@
 //      the entry, so the ladder will not invent rungs past a projection.
 //   R7 ARABIC EVIDENCE. Every whyAr cites the zone's real fields (touch
 //      count, last-touch age in sessions, rejection wicks, failed breakouts,
-//      volume ratio, band bounds) or the real swing-extreme ts — never a
-//      generic template, never a probability.
+//      volume ratio, band bounds), the pre-wall buffer, and any skipped weak
+//      shelves — never a generic template, never a probability.
 // =============================================================================
 
 import type { ResistanceMap, ResistanceZone } from "./resistance-map"
 import { strengthAt } from "./resistance-map"
 import { roundToTick, type TickDirection } from "./trade-plan"
 
-export const OPPORTUNITY_TARGETS_VERSION = "opportunity-targets@1"
+export const OPPORTUNITY_TARGETS_VERSION = "opportunity-targets@2"
 
-/** Every rung rule, in one place (see header R1-R6). */
+/** Every rung rule, in one place (see header R1′-R6). */
 export const TARGET_RULES = {
-  /** Caller's eligibility lens only — NOT a filter in this module (R3). */
+  /** Caller's eligibility lens only — NOT a filter in this module (R3′). */
   HORIZON_PCT: 5,
   /** R2: minimum zone strength for a meaningful rung */
   MIN_TARGET_STRENGTH: 20,
   /** R2: ...or minimum touch count for a meaningful rung */
   MIN_TARGET_TOUCHES: 2,
+  /** R3′ (owner directive): minimum zone strength for a STRONG wall — T1
+   *  anchors to the nearest strong zone; weaker near shelves are skipped */
+  STRONG_TARGET_STRENGTH: 45,
+  /** R1′ (owner directive "قبلها بنص %"): every wall rung prints 0.5% BEFORE
+   *  the wall — you exit before the rejection zone, never into it */
+  PREWALL_BUFFER_PCT: 0.5,
   /** R4/R5: minimum separation between consecutive rungs (percent) */
   SEPARATION_PCT: 2,
   /** R5: zone strength that justifies a T3 ("dominant") */
@@ -101,6 +109,18 @@ function meaningful(z: ResistanceZone): boolean {
   return z.strength >= TARGET_RULES.MIN_TARGET_STRENGTH || z.touches >= TARGET_RULES.MIN_TARGET_TOUCHES
 }
 
+/**
+ * R1′ pre-wall print (owner directive "الهدف قبل الجدار بنص %"): the rung
+ * prints 0.5% BEFORE the wall — buys take edge×(1−buf) rounded DOWN, sells
+ * edge×(1+buf) rounded UP; the rounding direction always makes the printed
+ * reward HARDER, never flattered (R1).
+ */
+function wallPrint(edge: number, isBuy: boolean, tick: RoundToTick): number {
+  const buf = TARGET_RULES.PREWALL_BUFFER_PCT / 100
+  const raw = isBuy ? edge * (1 - buf) : edge * (1 + buf)
+  return tick(raw, 0.01, isBuy ? "down" : "up")
+}
+
 // ---------------------------------------------------------------- Arabic notes
 
 /** Arabic session-count noun: 1 جلسة واحدة / 2 جلستين / n جلسات. */
@@ -110,15 +130,32 @@ function sessionsAr(n: number): string {
   return `${n} جلسات`
 }
 
-function zoneWhyAr(labelAr: string, z: ResistanceZone, side: "buy" | "sell", price: number): string {
+/** Arabic zone-count noun: 1 منطقة واحدة / 2 منطقتين / n مناطق. */
+function zonesAr(n: number): string {
+  if (n === 1) return "منطقة واحدة"
+  if (n === 2) return "منطقتين"
+  return `${n} مناطق`
+}
+
+function zoneWhyAr(
+  labelAr: string,
+  z: ResistanceZone,
+  side: "buy" | "sell",
+  price: number,
+  skippedWeak = 0,
+): string {
   const isBuy = side === "buy"
   const kindAr = isBuy ? "منطقة عرض" : "منطقة طلب"
   const pressureAr = isBuy ? "ضغط بيعي" : "ضغط شرائي"
   const edgeAr = isBuy ? "الحافة السفلى" : "الحافة العليا"
   const wickAr = isBuy ? "بذيول عليا واضحة" : "بذيول سفلى واضحة"
   const parts: string[] = [
-    `${labelAr} عند ${price} — ${edgeAr} ل${kindAr} تمتد من ${z.low} إلى ${z.high}، سبق أن ظهر عندها ${pressureAr} في ${sessionsAr(z.touches)}، آخرها ${sessionsAr(z.lastTouchAgeSessions)} مضت`,
+    `${labelAr} عند ${price} — مطبوع قبل ${edgeAr} ل${kindAr} (الجدار من ${z.low} إلى ${z.high}) بفاصل ${TARGET_RULES.PREWALL_BUFFER_PCT}%، سبق أن ظهر عندها ${pressureAr} في ${sessionsAr(z.touches)}، آخرها ${sessionsAr(z.lastTouchAgeSessions)} مضت`,
   ]
+  if (skippedWeak > 0)
+    parts.push(
+      `وبعد تخطي ${zonesAr(skippedWeak)} أضعف قربها (قوة كل منها دون ${TARGET_RULES.STRONG_TARGET_STRENGTH}) لكونها قابلة للعبور في جلسة واحدة`,
+    )
   if (z.rejectionSessions > 0) parts.push(`${z.rejectionSessions} منها ${wickAr}`)
   if (z.failedBreakouts > 0) parts.push(`وصمدت أمام ${z.failedBreakouts} محاولة ${isBuy ? "اختراق" : "كسر"} فاشلة`)
   if (z.touchVolRatio !== null && z.touchVolRatio >= 1.5) parts.push(`وحجم التداول عند اللمسات بلغ ${z.touchVolRatio} ضعف وسط السلسلة`)
@@ -168,11 +205,14 @@ export function buildTargetLadder(
   const tick = roundToTickFn // injected (tests may pass a coarser tick)
   const isBuy = side === "buy"
 
-  // ---- T1: the NEAREST meaningful zone beyond the entry band (R2 + R3) ----
+  // ---- T1: the NEAREST STRONG zone beyond the entry band (R2 floor + R3′) ----
+  // Weaker near shelves are skipped BY DESIGN (owner directive): a soft shelf
+  // clearable inside one session is not a target; the skip count is disclosed.
   const beyondEntry = map.zones
     .filter((z) => (isBuy ? z.kind === "supply" && z.low > entryHigh : z.kind === "demand" && z.high < entryLow))
     .sort((a, b) => (isBuy ? a.low - b.low : b.high - a.high) || b.strength - a.strength)
-  const t1zone = beyondEntry.find(meaningful)
+  const t1zone = beyondEntry.find((z) => z.strength >= TARGET_RULES.STRONG_TARGET_STRENGTH) ?? null
+  const skippedWeak = t1zone ? beyondEntry.indexOf(t1zone) : 0
 
   const targets: LadderTarget[] = []
   const usedExtremes = new Set<string>()
@@ -180,15 +220,16 @@ export function buildTargetLadder(
 
   if (t1zone) {
     const edge = isBuy ? t1zone.low : t1zone.high
+    const price = wallPrint(edge, isBuy, tick)
     targets.push({
       label: "T1",
-      price: tick(edge, 0.01, "up"),
+      price,
       kind: "zone",
       strength: t1zone.strength,
-      whyAr: zoneWhyAr("الهدف الأول", t1zone, side, tick(edge, 0.01, "up")),
+      whyAr: zoneWhyAr("الهدف الأول", t1zone, side, price, skippedWeak),
     })
   } else {
-    // ---- R6 measured-move fallback: zones ALWAYS take precedence ----
+    // ---- R6 measured-move fallback: STRONG zones ALWAYS take precedence ----
     const m = map.measured
     if (m.height === null || !(m.height > 0) || m.low === null || m.high === null) return null
     const mid = (entryLow + entryHigh) / 2
@@ -237,11 +278,11 @@ export function buildTargetLadder(
   if (t2zone && (!t2Extreme || (isBuy ? t2zone.low <= t2Extreme.price : t2zone.high >= t2Extreme.price))) {
     // nearest wins; a tie goes to the real band (R4 tie-break)
     const edge = isBuy ? t2zone.low : t2zone.high
-    const price = tick(edge, 0.01, "up")
+    const price = wallPrint(edge, isBuy, tick)
     t2 = { label: "T2", price, kind: "zone", strength: t2zone.strength, whyAr: zoneWhyAr("الهدف الثاني", t2zone, side, price) }
     t2zoneRef = t2zone
   } else if (t2Extreme) {
-    const price = tick(t2Extreme.price, 0.01, "up")
+    const price = wallPrint(t2Extreme.price, isBuy, tick)
     const strength = strengthAt(map, isBuy ? "supply" : "demand", t2Extreme.price)
     t2 = {
       label: "T2",
@@ -281,10 +322,10 @@ export function buildTargetLadder(
 
   if (t3zone && (!t3Extreme || (isBuy ? t3zone.low <= t3Extreme.price : t3zone.high >= t3Extreme.price))) {
     const edge = isBuy ? t3zone.low : t3zone.high
-    const price = tick(edge, 0.01, "up")
+    const price = wallPrint(edge, isBuy, tick)
     targets.push({ label: "T3", price, kind: "zone", strength: t3zone.strength, whyAr: zoneWhyAr("الهدف الثالث", t3zone, side, price) })
   } else if (t3Extreme) {
-    const price = tick(t3Extreme.price, 0.01, "up")
+    const price = wallPrint(t3Extreme.price, isBuy, tick)
     const strength = strengthAt(map, isBuy ? "supply" : "demand", t3Extreme.price)
     targets.push({
       label: "T3",

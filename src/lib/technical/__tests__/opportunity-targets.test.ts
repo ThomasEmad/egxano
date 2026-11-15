@@ -1,19 +1,20 @@
-// Opportunity target ladder tests — opportunity-targets@1 contract:
-//   • CONSERVATIVE EDGE ONLY: a buy rung prints the supply band's LOWER edge
-//     (never the optimistic far edge), a sell rung the demand band's UPPER
-//     edge; every printed price passes roundToTick with direction "up";
+// Opportunity target ladder tests — opportunity-targets@2 contract:
+//   • CONSERVATIVE EDGE + PRE-WALL BUFFER: a buy rung prints the supply band's
+//     LOWER edge MINUS 0.5% (rounded DOWN), a sell rung the demand band's UPPER
+//     edge PLUS 0.5% (rounded UP) — the owner's "الهدف قبل الجدار بنص %";
 //   • rungs sit on MEANINGFUL zones only (strength ≥ 20 or touches ≥ 2);
-//   • T1 is the NEAREST meaningful zone beyond the entry band — the ladder
-//     never skips a nearer meaningful zone to manufacture a farther target,
-//     and the 5% horizon filters NOTHING here (it is the caller's lens);
+//   • T1 anchors to the NEAREST STRONG zone (strength ≥ 45) beyond the entry
+//     band — weak near shelves (clearable in a session) are skipped BY DESIGN
+//     and the skip count is disclosed in whyAr; the 5% horizon filters nothing
+//     here (it is the caller's lens);
 //   • T2 = next STRONGER rung (strength ≥ T1's, or the major confirmed swing
 //     extreme) at ≥ 2% separation and strictly beyond the previous band;
 //   • T3 ONLY on structural justification: a dominant zone (strength ≥ 60) or
 //     the major swing extreme clearly beyond T2 — otherwise the ladder
 //     honestly stops at T2;
-//   • measured-move fallback ONLY when no meaningful zone exists on the target
-//     side at all — zones always take precedence over projections; a measured
-//     T1 is the whole ladder; whyAr always cites the real computed evidence.
+//   • measured-move fallback ONLY when no STRONG zone exists on the target
+//     side at all — strong zones always take precedence over projections; a
+//     measured T1 is the whole ladder; whyAr always cites the real evidence.
 //
 // Rung rules are pinned on hand-built ResistanceMap literals (the ladder's
 // input contract); the end-to-end block runs the real Fixture A map from
@@ -117,174 +118,195 @@ function buildABars(): Bar[] {
   return bars
 }
 
-describe("buildTargetLadder — conservative edge + tick rounding (R1)", () => {
-  it("buy T1 prints the supply band's LOWER edge, never the far edge", () => {
+describe("buildTargetLadder — conservative edge + pre-wall buffer + tick rounding (R1′)", () => {
+  it("buy T1 prints the supply band's LOWER edge MINUS the 0.5% pre-wall buffer, never the far edge", () => {
     const map = mapOf([zone("supply", 109.89, 111.21, 5, 88, { rejections: 5, age: 9, volRatio: 1.8 })])
     const ladder = buy(map, 100, 101)
-    expect(rungs(ladder)).toEqual([["T1", 109.89, "zone", 88]])
+    expect(rungs(ladder)).toEqual([["T1", 109.34, "zone", 88]]) // 109.89 × 0.995 → down
     const t1 = ladder!.targets[0]
-    expect(t1.price).toBeLessThan(111.21) // never the optimistic far edge
-    expect(t1.price).toBe(roundToTick(109.89, 0.01, "up"))
-    // Arabic note cites the REAL evidence: touches, last-touch age, wicks,
-    // failed breakout, volume ratio, band bounds
+    expect(t1.price).toBeLessThan(109.89) // strictly before the wall's near edge
+    expect(t1.price).toBe(roundToTick(109.89 * 0.995, 0.01, "down"))
+    // Arabic note cites the REAL evidence: the wall bounds, the buffer, the
+    // touches, last-touch age, wicks, failed breakout, volume ratio
     expect(t1.whyAr).toContain("109.89")
     expect(t1.whyAr).toContain("منطقة عرض")
+    expect(t1.whyAr).toContain("0.5%")
     expect(t1.whyAr).toContain("5 جلسات")
     expect(t1.whyAr).toContain("9 جلسات مضت")
     expect(t1.whyAr).toContain("بذيول عليا واضحة")
   })
 
-  it("rounds UP to the injected tick — 0.05 tick lifts 109.89 to 109.90", () => {
+  it("rounds DOWN to the injected tick — 0.05 tick drops the buffered 109.34 to 109.30", () => {
     const map = mapOf([zone("supply", 109.89, 111.21, 5, 88)])
     const coarse: typeof roundToTick = (p, t, d) => roundToTick(p, 0.05, d)
-    expect(buy(map, 100, 101, coarse)!.targets[0].price).toBe(109.9)
+    expect(buy(map, 100, 101, coarse)!.targets[0].price).toBe(109.3)
   })
 
-  it("sell T1 prints the demand band's UPPER edge (the first bounce shelf)", () => {
+  it("sell T1 prints the demand band's UPPER edge PLUS the buffer (cover before the bounce)", () => {
     const map = mapOf([zone("demand", 94.38, 95.52, 6, 63, { rejections: 6, age: 57 })])
     const ladder = sell(map, 100, 101)
-    expect(rungs(ladder)).toEqual([["T1", 95.52, "zone", 63]])
+    expect(rungs(ladder)).toEqual([["T1", 96, "zone", 63]]) // 95.52 × 1.005 → up
     expect(ladder!.targets[0].whyAr).toContain("منطقة طلب")
     expect(ladder!.targets[0].whyAr).toContain("ضغط شرائي")
-    expect(ladder!.targets[0].whyAr).toContain("الحافة العليا")
+    expect(ladder!.targets[0].whyAr).toContain("0.5%")
     expect(ladder!.targets[0].whyAr).toContain("57 جلسات مضت")
   })
 
   it("Arabic pluralization stays grammatical for 1 and 2 sessions", () => {
-    const one = mapOf([zone("supply", 120, 121, 1, 25, { age: 3 })])
+    const one = mapOf([zone("supply", 120, 121, 1, 50, { age: 3 })])
     expect(buy(one, 100, 101)!.targets[0].whyAr).toContain("جلسة واحدة")
-    const two = mapOf([zone("supply", 120, 121, 2, 30, { age: 3 })])
+    const two = mapOf([zone("supply", 120, 121, 2, 55, { age: 3 })])
     expect(buy(two, 100, 101)!.targets[0].whyAr).toContain("جلستين")
   })
 })
 
 describe("buildTargetLadder — rung walk on a three-tier map (R2-R5)", () => {
-  // Z1 → T1 (strength 40), Z2 → T2 (50 ≥ 40, 105 ≥ 100×1.02), Z3 → T3 (65 ≥ 60)
+  // Z1 → T1 (strength 50 ≥ 45 = strong), Z2 → T2 (55 ≥ 50, 105 ≥ 99.5×1.02),
+  // Z3 → T3 (70 ≥ 60); every rung prints edge × 0.995 rounded DOWN
   const threeTier = () =>
     mapOf([
-      zone("supply", 100, 102, 4, 40, { age: 30 }),
-      zone("supply", 105, 107, 4, 50, { age: 20 }),
-      zone("supply", 111, 113, 4, 65, { age: 15 }),
+      zone("supply", 100, 102, 4, 50, { age: 30 }),
+      zone("supply", 105, 107, 4, 55, { age: 20 }),
+      zone("supply", 111, 113, 4, 70, { age: 15 }),
     ])
 
   it("walks T1 < T2 < T3 ascending with zone rungs", () => {
     const ladder = buy(threeTier(), 96, 97)
     expect(rungs(ladder)).toEqual([
-      ["T1", 100, "zone", 40],
-      ["T2", 105, "zone", 50],
-      ["T3", 111, "zone", 65],
+      ["T1", 99.5, "zone", 50],
+      ["T2", 104.47, "zone", 55],
+      ["T3", 110.44, "zone", 70],
     ])
     expect(ladder!.targets.map((t) => t.price)).toEqual([...ladder!.targets.map((t) => t.price)].sort((a, b) => a - b))
   })
 
   it("minimum separation: a stronger zone only 1.5% past T1 is the SAME level, not a rung", () => {
     // 101.5 is ≥ T1's strength and beyond its band edge in price terms is
-    // 100×1.02 = 102 → 101.5 fails separation (and overlaps T1's band)
+    // 99.5×1.02 = 101.49 → 101.5 fails separation (and overlaps T1's band)
     const map = mapOf([
-      zone("supply", 100, 102, 4, 40, { age: 30 }),
+      zone("supply", 100, 102, 4, 50, { age: 30 }),
       zone("supply", 101.5, 103, 6, 90, { age: 5 }),
-      zone("supply", 105, 107, 4, 50, { age: 20 }),
+      zone("supply", 105, 107, 4, 55, { age: 20 }),
     ])
     expect(rungs(buy(map, 96, 97))).toEqual([
-      ["T1", 100, "zone", 40],
-      ["T2", 105, "zone", 50], // the too-close 101.5 zone is skipped
+      ["T1", 99.5, "zone", 50],
+      ["T2", 104.47, "zone", 55], // the too-close 101.5 zone is skipped
     ])
   })
 
   it("T2 strength gate: a weaker zone beyond T1 is not a rung; the major swing high is", () => {
     const weakOnly = mapOf(
-      [zone("supply", 100, 102, 4, 40, { age: 30 }), zone("supply", 105, 107, 4, 30, { age: 20 })],
+      [zone("supply", 100, 102, 4, 50, { age: 30 }), zone("supply", 105, 107, 4, 30, { age: 20 })],
       { majorHigh: null, majorLow: null },
     )
-    expect(rungs(buy(weakOnly, 96, 97))).toEqual([["T1", 100, "zone", 40]])
+    expect(rungs(buy(weakOnly, 96, 97))).toEqual([["T1", 99.5, "zone", 50]])
 
     const withExtreme = mapOf(
-      [zone("supply", 100, 102, 4, 40, { age: 30 }), zone("supply", 105, 107, 4, 30, { age: 20 })],
+      [zone("supply", 100, 102, 4, 50, { age: 30 }), zone("supply", 105, 107, 4, 30, { age: 20 })],
       { majorHigh: { price: 106.5, ts: "2025-05-02" }, majorLow: null },
     )
     const ladder = buy(withExtreme, 96, 97)
     expect(rungs(ladder)).toEqual([
-      ["T1", 100, "zone", 40],
-      ["T2", 106.5, "major_high", 30], // strength from the CONTAINING band
+      ["T1", 99.5, "zone", 50],
+      ["T2", 105.96, "major_high", 30], // 106.5 × 0.995 → down; strength from the CONTAINING band
     ])
-    expect(ladder!.targets[1].whyAr).toContain("106.5")
+    expect(ladder!.targets[1].whyAr).toContain("105.96")
     expect(ladder!.targets[1].whyAr).toContain("2025-05-02")
     expect(ladder!.targets[1].whyAr).toContain("القمة الهيكلية")
   })
 
   it("the major high inside T1's band is the same ceiling, not a farther rung", () => {
-    const map = mapOf([zone("supply", 100, 102, 4, 40, { age: 30 })], {
+    const map = mapOf([zone("supply", 100, 102, 4, 50, { age: 30 })], {
       majorHigh: { price: 101.5, ts: "2025-05-02" },
       majorLow: null,
     })
-    expect(rungs(buy(map, 96, 97))).toEqual([["T1", 100, "zone", 40]])
+    expect(rungs(buy(map, 96, 97))).toEqual([["T1", 99.5, "zone", 50]])
   })
 
   it("T3 gate: a meaningful (55) but non-dominant zone beyond T2 does NOT justify a third rung", () => {
     const map = mapOf([
-      zone("supply", 100, 102, 4, 40, { age: 30 }),
-      zone("supply", 105, 107, 4, 45, { age: 20 }),
+      zone("supply", 100, 102, 4, 50, { age: 30 }),
+      zone("supply", 105, 107, 4, 55, { age: 20 }),
       zone("supply", 111, 113, 4, 55, { age: 10 }),
     ])
     expect(rungs(buy(map, 96, 97))).toEqual([
-      ["T1", 100, "zone", 40],
-      ["T2", 105, "zone", 45],
+      ["T1", 99.5, "zone", 50],
+      ["T2", 104.47, "zone", 55],
     ])
   })
 
   it("T3 fires on a dominant zone (≥ 60) or the major swing high clearly beyond T2", () => {
     const dominant = mapOf([
-      zone("supply", 100, 102, 4, 40, { age: 30 }),
-      zone("supply", 105, 107, 4, 45, { age: 20 }),
+      zone("supply", 100, 102, 4, 50, { age: 30 }),
+      zone("supply", 105, 107, 4, 55, { age: 20 }),
       zone("supply", 111, 113, 6, 70, { age: 5 }),
     ])
-    expect(rungs(buy(dominant, 96, 97))[2]).toEqual(["T3", 111, "zone", 70])
+    expect(rungs(buy(dominant, 96, 97))[2]).toEqual(["T3", 110.44, "zone", 70])
 
     const viaExtreme = mapOf(
       [
-        zone("supply", 100, 102, 4, 40, { age: 30 }),
-        zone("supply", 105, 107, 4, 45, { age: 20 }),
+        zone("supply", 100, 102, 4, 50, { age: 30 }),
+        zone("supply", 105, 107, 4, 55, { age: 20 }),
         zone("supply", 111, 113, 4, 55, { age: 10 }), // not dominant
       ],
       { majorHigh: { price: 119, ts: "2024-12-15" }, majorLow: null },
     )
     const ladder = buy(viaExtreme, 96, 97)
     expect(rungs(ladder)).toEqual([
-      ["T1", 100, "zone", 40],
-      ["T2", 105, "zone", 45],
-      ["T3", 119, "major_high", null], // no containing supply band → strength null
+      ["T1", 99.5, "zone", 50],
+      ["T2", 104.47, "zone", 55],
+      ["T3", 118.4, "major_high", null], // 119 × 0.995 → down; no containing supply band → strength null
     ])
-    expect(ladder!.targets[2].whyAr).toContain("119")
+    expect(ladder!.targets[2].whyAr).toContain("118.4")
     expect(ladder!.targets[2].whyAr).toContain("2024-12-15")
   })
 })
 
-describe("buildTargetLadder — anti-skip and meaningfulness (R2/R3)", () => {
-  it("T1 is the NEAREST meaningful zone even when a much stronger one sits farther", () => {
+describe("buildTargetLadder — strong-wall anchoring (R3′, owner directive)", () => {
+  it("T1 SKIPS weak near shelves and anchors to the nearest STRONG zone, disclosing the skip", () => {
+    // the owner's example: a soft 104-106 shelf (25 < 45) the stock can clear
+    // in a session is not a target — the 110-112 wall (80) anchors T1
     const map = mapOf([zone("supply", 104, 106, 2, 25, { age: 40 }), zone("supply", 110, 112, 6, 80, { age: 2 })])
-    expect(rungs(buy(map, 96, 97))[0]).toEqual(["T1", 104, "zone", 25])
+    const ladder = buy(map, 96, 97)
+    expect(rungs(ladder)).toEqual([["T1", 109.45, "zone", 80]]) // 110 × 0.995 → down
+    expect(ladder!.targets[0].whyAr).toContain("بعد تخطي منطقة واحدة أضعف قربها")
+    expect(ladder!.targets[0].whyAr).toContain("قابلة للعبور في جلسة واحدة")
   })
 
-  it("a non-meaningful nearer band (strength 15, 1 touch) is skipped by the R2 gate", () => {
-    const map = mapOf([zone("supply", 104, 106, 1, 15, { age: 40 }), zone("supply", 110, 112, 2, 25, { age: 2 })])
-    expect(rungs(buy(map, 96, 97))[0]).toEqual(["T1", 110, "zone", 25])
+  it("weak zones ONLY → no zone rung at all → the measured-move fallback (or honest null)", () => {
+    const weakOnly = mapOf(
+      [zone("supply", 104, 106, 1, 15, { age: 40 }), zone("supply", 110, 112, 2, 25, { age: 2 })],
+      { majorHigh: null, majorLow: null },
+    )
+    expect(buy(weakOnly, 96, 97)).toBeNull() // no measured window on the default map → abstain
+    const withMeasured = mapOf(
+      [zone("supply", 104, 106, 1, 15, { age: 40 }), zone("supply", 110, 112, 2, 25, { age: 2 })],
+      { majorHigh: null, majorLow: null },
+      { sessions: 40, low: 96, high: 116, height: 20 },
+    )
+    expect(rungs(buy(withMeasured, 96, 97))).toEqual([["T1", 116.5, "measured_move", null]]) // 96.5 + 20
   })
 
-  it("the 5% horizon filters nothing: a meaningful zone beyond it still wins over a projection", () => {
-    // measured height would print 120.5 — the real (far) zone at 130 wins
-    const map = mapOf([zone("supply", 130, 132, 3, 30, { age: 20 })], {
+  it("a STRONG zone beyond the horizon still wins over the projection (the lens filters nothing)", () => {
+    // measured height would print 120.5 — the real strong wall at 130 wins
+    const map = mapOf([zone("supply", 130, 132, 3, 50, { age: 20 })], {
       majorHigh: null,
       majorLow: null,
     }, { sessions: 40, low: 100, high: 120, height: 20 })
-    expect(rungs(buy(map, 100, 101))).toEqual([["T1", 130, "zone", 30]])
+    expect(rungs(buy(map, 100, 101))).toEqual([["T1", 129.35, "zone", 50]]) // 130 × 0.995 → down
+  })
+
+  it("a boundary-strength zone (exactly 45) is STRONG and anchors T1", () => {
+    const map = mapOf([zone("supply", 104, 106, 3, 45, { age: 10 })])
+    expect(rungs(buy(map, 96, 97))).toEqual([["T1", 103.48, "zone", 45]]) // 104 × 0.995 → down
   })
 })
 
 describe("buildTargetLadder — measured-move fallback (R6)", () => {
   const measured = { sessions: 40, low: 100, high: 120, height: 20 }
 
-  it("fires only when no meaningful zone exists on the target side; labeled, strength null, no T2", () => {
-    const map = mapOf([zone("demand", 94.38, 95.52, 6, 63, { age: 57 })], {
+  it("fires only when no STRONG zone exists on the target side; labeled, strength null, no T2", () => {
+    const map = mapOf([zone("demand", 94.38, 95.52, 1, 25, { age: 57 })], {
       majorHigh: null,
       majorLow: null,
     }, measured)
@@ -306,12 +328,12 @@ describe("buildTargetLadder — measured-move fallback (R6)", () => {
   })
 
   it("a zero/unknown measured height abstains instead of projecting", () => {
-    const zero = mapOf([zone("demand", 94.38, 95.52, 6, 63)], { majorHigh: null, majorLow: null }, { sessions: 40, low: 100, high: 100, height: null })
+    const zero = mapOf([zone("demand", 94.38, 95.52, 1, 25)], { majorHigh: null, majorLow: null }, { sessions: 40, low: 100, high: 100, height: null })
     expect(buy(zero, 100, 101)).toBeNull()
   })
 })
 
-describe("buildTargetLadder — sell-side mirroring (R1-R5)", () => {
+describe("buildTargetLadder — sell-side mirroring (R1′-R5)", () => {
   const demandLadder = () =>
     mapOf([
       zone("demand", 94.38, 95.52, 6, 63, { age: 57 }),
@@ -319,16 +341,16 @@ describe("buildTargetLadder — sell-side mirroring (R1-R5)", () => {
       zone("demand", 80, 82, 6, 70, { age: 90 }),
     ])
 
-  it("walks T1 > T2 > T3 descending on demand bands, upper edges only", () => {
+  it("walks T1 > T2 > T3 descending on demand bands, upper edges + buffer only", () => {
     const ladder = sell(demandLadder(), 100, 101)
     expect(rungs(ladder)).toEqual([
-      ["T1", 95.52, "zone", 63],
-      ["T2", 90, "zone", 63], // strength ≥ T1's, ≤ 95.52×0.98, below T1's band
-      ["T3", 82, "zone", 70], // dominant (70 ≥ 60), ≤ 90×0.98
+      ["T1", 96, "zone", 63], // 95.52 × 1.005 → up
+      ["T2", 90.45, "zone", 63], // 90 × 1.005 → up; strength ≥ T1's, ≤ 96×0.98, below T1's band
+      ["T3", 82.41, "zone", 70], // dominant (70 ≥ 60), 82 × 1.005 → up
     ])
     const prices = ladder!.targets.map((t) => t.price)
     expect(prices).toEqual([...prices].sort((a, b) => b - a))
-    expect(ladder!.targets[0].price).toBeGreaterThan(94.38) // never the deep edge
+    expect(ladder!.targets[0].price).toBeGreaterThan(95.52) // printed ABOVE the wall — cover before the bounce
   })
 
   it("a non-dominant deep demand zone does not justify a sell T3", () => {
@@ -336,7 +358,7 @@ describe("buildTargetLadder — sell-side mirroring (R1-R5)", () => {
       zone("demand", 94.38, 95.52, 6, 63, { age: 57 }),
       zone("demand", 88, 90, 5, 55, { age: 70 }),
     ])
-    expect(rungs(sell(map, 100, 101))).toEqual([["T1", 95.52, "zone", 63]]) // 55 < T1's 63 → no T2 either
+    expect(rungs(sell(map, 100, 101))).toEqual([["T1", 96, "zone", 63]]) // 55 < T1's 63 → no T2 either
   })
 })
 
@@ -354,11 +376,11 @@ describe("buildTargetLadder — abstention (honest insufficiency)", () => {
 describe("buildTargetLadder — end-to-end on the real Fixture A map", () => {
   const map = buildResistanceMap(buildABars())
 
-  it("buy [100, 101]: zone T1 at the conservative edge + major-high T2, no fabricated T3", () => {
+  it("buy [100, 101]: strong-zone T1 at the buffered edge + major-high T2, no fabricated T3", () => {
     const ladder = buy(map, 100, 101)
     expect(rungs(ladder)).toEqual([
-      ["T1", 109.89, "zone", 88],
-      ["T2", 122.05, "major_high", 32],
+      ["T1", 109.34, "zone", 88], // 109.89 × 0.995 → down
+      ["T2", 121.43, "major_high", 32], // 122.05 × 0.995 → down
     ])
     expect(ladder!.targets[0].whyAr).toContain("وصمدت أمام 1 محاولة اختراق فاشلة")
     expect(ladder!.targets[0].whyAr).toContain("1.8 ضعف وسط السلسلة")
@@ -369,21 +391,23 @@ describe("buildTargetLadder — end-to-end on the real Fixture A map", () => {
     expect(rungs(buy(map, 124, 125))).toEqual([["T1", 147.1, "measured_move", null]]) // 124.5 + 22.6
   })
 
-  it("buy just under the top band: the major high is inside T1's band → no T2", () => {
-    expect(rungs(buy(map, 120, 120.5))).toEqual([["T1", 121.32, "zone", 32]])
+  it("buy just under the top band: the top band is weak (32 < 45) → measured-move fallback", () => {
+    expect(rungs(buy(map, 120, 120.5))).toEqual([["T1", 142.85, "measured_move", null]]) // 120.25 + 22.6
   })
 
-  it("sell [100, 101]: one demand rung (no demand below 95.52×0.98 exists)", () => {
-    expect(rungs(sell(map, 100, 101))).toEqual([["T1", 95.52, "zone", 63]])
+  it("sell [100, 101]: one demand rung buffered above the wall (no demand below 96×0.98 exists)", () => {
+    expect(rungs(sell(map, 100, 101))).toEqual([["T1", 96, "zone", 63]])
   })
 
   it("sell above the 104.57 band: it is not BELOW the entry (strict edge) → skipped", () => {
-    expect(rungs(sell(map, 104, 105))).toEqual([["T1", 95.52, "zone", 63]])
+    expect(rungs(sell(map, 104, 105))).toEqual([["T1", 96, "zone", 63]])
   })
 
   it("exports the documented rung rules", () => {
     expect(TARGET_RULES.MIN_TARGET_STRENGTH).toBe(20)
     expect(TARGET_RULES.MIN_TARGET_TOUCHES).toBe(2)
+    expect(TARGET_RULES.STRONG_TARGET_STRENGTH).toBe(45)
+    expect(TARGET_RULES.PREWALL_BUFFER_PCT).toBe(0.5)
     expect(TARGET_RULES.SEPARATION_PCT).toBe(2)
     expect(TARGET_RULES.T3_MIN_STRENGTH).toBe(60)
     expect(TARGET_RULES.HORIZON_PCT).toBe(5)

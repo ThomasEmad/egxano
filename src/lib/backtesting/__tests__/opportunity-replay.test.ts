@@ -44,9 +44,10 @@ const PHASE_A = Array.from({ length: 4 }, () => [103, 105, 107, 110, 108, 106, 1
 /** Phase B decline into the decision close (100). */
 const PHASE_B = [108, 104, 101, 100]
 const BASE = () => barsFromCloses([...PHASE_A, ...PHASE_B]) // idx 0..43, close(43) = 100
-/** Z1 band [109.84, 111.14] → ladder T1 = 109.84; major extreme 120.5 → T2. */
-const T1 = 109.84
-const T2 = 120.5
+/** Z1 band [109.84, 111.14] → ladder T1 = 109.84 × 0.995 (the @2 pre-wall
+ *  buffer) = 109.29; major extreme 120.5 → T2 = 120.5 × 0.995 = 119.89. */
+const T1 = 109.29
+const T2 = 119.89
 
 // ---- stub engine ---------------------------------------------------------------
 
@@ -130,12 +131,12 @@ describe("opportunity-replay — decision-point eligibility", () => {
     expect(t.falseBreakout).toBe(false)
     expect(t.t2Reached).toBe(false)
     expect(t.gateUpheld).toBe(true)
-    expect(t.upsidePctToT1FromEntryHigh).toBeCloseTo(8.7525, 4)
+    expect(t.upsidePctToT1FromEntryHigh).toBeCloseTo(8.2079, 4)
     expect(t.window).toBe("train")
     const audit = auditUpsideGate(res.trades)
     expect(audit.checked).toBe(1)
     expect(audit.violations).toBe(0)
-    expect(audit.minUpsidePct).toBeCloseTo(8.7525, 4)
+    expect(audit.minUpsidePct).toBeCloseTo(8.2079, 4)
   })
 
   it("open fill below the entry zone fills at the open (never claims entryHigh)", () => {
@@ -168,7 +169,7 @@ describe("opportunity-replay — decision-point eligibility", () => {
     const t = res.trades[0]
     expect(t.fillCase).toBe("gap_through_open")
     expect(t.entry).toBe(105)
-    expect(t.upsidePctToT1FromEntryHigh).toBeCloseTo(8.7525, 4) // gate on entryHigh — upheld
+    expect(t.upsidePctToT1FromEntryHigh).toBeCloseTo(8.2079, 4) // gate on entryHigh — upheld
     expect(t.upsidePctToT1FromFill).toBeCloseTo(((T1 - 105) / 105) * 100, 4) // eroded, informational
     expect(t.upsidePctToT1FromFill).toBeLessThan(5)
     expect(auditUpsideGate(res.trades).violations).toBe(0)
@@ -316,7 +317,7 @@ describe("opportunity-replay — decision-point eligibility", () => {
   })
 
   it("strict 5% gate: upside 5.0005% passes, 4.9995% fails — exactly per OPPORTUNITY_THRESHOLDS", () => {
-    // T1 = 109.84; entryHigh 104.609 → upside 5.0005 (>5, eligible); 104.61 → 4.9995 (rejected)
+    // T1 = 109.29 (buffered); entryHigh 104.085 → upside 5.0005 (>5, eligible); 104.086 → 4.9996 (rejected)
     tsCounter = 0
     const passRows = [
       ...BASE(),
@@ -326,7 +327,7 @@ describe("opportunity-replay — decision-point eligibility", () => {
     ]
     const passEngine = stubEngine({
       buyWhen: (c) => c === 100,
-      plan: () => makePlan(103.56, 104.609, 92, 120.3, 2.0),
+      plan: () => makePlan(103.04, 104.085, 92, 120.3, 2.0),
     })
     const passRes = run(passRows, passEngine).res
     expect(passRes.funnel.qualifying).toBe(1)
@@ -342,15 +343,15 @@ describe("opportunity-replay — decision-point eligibility", () => {
     ]
     const failEngine = stubEngine({
       buyWhen: (c) => c === 100,
-      plan: () => makePlan(103.56, 104.61, 92, 120.3, 2.0),
+      plan: () => makePlan(103.04, 104.086, 92, 120.3, 2.0),
     })
     const failRes = run(failRows, failEngine).res
     expect(failRes.funnel.qualifying).toBe(0)
     expect(failRes.funnel.stateCounts.none).toBe(1)
     expect(failRes.trades).toHaveLength(0)
-    expect(upsidePctFromEntryHighToT1(104.609, T1)).toBeGreaterThan(5)
-    expect(upsidePctFromEntryHighToT1(104.61, T1)).toBeLessThan(5)
-    expect(upsidePctFromEntryHighToT1(104.61, T1)).toBeCloseTo(4.9995, 4)
+    expect(upsidePctFromEntryHighToT1(104.085, T1)).toBeGreaterThan(5)
+    expect(upsidePctFromEntryHighToT1(104.086, T1)).toBeLessThan(5)
+    expect(upsidePctFromEntryHighToT1(104.086, T1)).toBeCloseTo(4.9997, 4)
   })
 
   it("RR gate: plan RR 1.4 (>= 1.0 plan-tradable but < 1.5) is classified, not qualifying", () => {
@@ -374,7 +375,7 @@ describe("opportunity-replay — decision-point eligibility", () => {
 
   it("NO-CHASE: close above the entry zone with < 5% remaining upside classifies 'missed', no trade", () => {
     tsCounter = 0
-    // decision close 106 (>= entryHigh 95 override) — remaining upside to T1 = 3.62% < 5
+    // decision close 106 (>= entryHigh 95 override) — remaining upside to T1 = 3.1% < 5
     const rows = [
       ...BASE(),
       bar(104.9, 105.4, 104.6, 105.0),
@@ -385,8 +386,8 @@ describe("opportunity-replay — decision-point eligibility", () => {
     const { res } = run(rows, stubEngine({
       buyWhen: (c) => c === 106,
       // entryHigh 105 sits BELOW the 106 close (left behind) AND fails the 5%
-      // gate from entryHigh (4.61% < 5); remaining upside from the 106 close
-      // to T1 = 3.62% < 5 → the NO-CHASE rule classifies "missed"
+      // gate from entryHigh (4.09% < 5); remaining upside from the 106 close
+      // to T1 = 3.1% < 5 → the NO-CHASE rule classifies "missed"
       plan: () => makePlan(104, 105, 98, 116.15, 2.0),
     }))
     expect(res.funnel.planValidBuyCandidates).toBe(1)
