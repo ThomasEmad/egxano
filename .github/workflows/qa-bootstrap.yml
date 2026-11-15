@@ -39,10 +39,14 @@ jobs:
           const QA_EMAIL = "qa-review-1115@egxano-qa.local";
           const subId = process.env.QA_SUB_ID;
 
-          async function jget(url) {
-            const r = await fetch(url, { headers: { Authorization: `Bearer ${KEY}` } });
-            if (!r.ok) throw new Error(`neon api ${r.status}`);
-            return r.json();
+          const { execSync } = require("child_process");
+          function jget(url) {
+            // curl gives a clear network error message; node fetch masked it
+            const out = execSync(
+              `curl -sS --max-time 20 -H "Authorization: Bearer ${KEY}" "${url}"`,
+              { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }
+            );
+            return JSON.parse(out);
           }
 
           (async () => {
