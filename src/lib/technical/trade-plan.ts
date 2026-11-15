@@ -99,11 +99,28 @@ const fmtPrice = (x: number): string => x.toFixed(2)
  * is the safe fine-grained default. This helper exists so a real, verified
  * tick table can be dropped in without touching the plan geometry; do NOT
  * invent a price-band table here.
+ *
+ * DIRECTION MATTERS (remediation 2026-11-15). Nearest-rounding every level
+ * independently can make a plan look better than it is: a stop nudged 0.004
+ * closer or a target nudged 0.004 further changes the printed R/R without any
+ * change in the underlying analysis. Every level is therefore rounded in the
+ * direction that is CONSERVATIVE for the trader:
+ *   BUY  — entry UP (never fill better), stop DOWN (never tighter), target UP
+ *   SELL — entry DOWN (never fill better), stop UP (never tighter), target UP
+ *          (a higher sell target is farther away, i.e. less reward per unit risk)
+ *   "nearest" — display-only levels where direction carries no risk meaning
+ * The plan builder then RE-VALIDATES R/R on the rounded numbers, so a plan can
+ * only be rejected by rounding, never silently improved by it.
  */
-export function roundToTick(price: number, tick = 0.01): number {
+export type TickDirection = "nearest" | "up" | "down"
+
+export function roundToTick(price: number, tick = 0.01, dir: TickDirection = "nearest"): number {
   if (!Number.isFinite(price) || !(tick > 0)) return price
-  const t = Math.round(price / tick) * tick
-  return Math.round(t * 1e8) / 1e8
+  const steps = price / tick
+  // guard float dust (e.g. 100.0000000001 / 0.01) before choosing a direction
+  const snapped = Math.abs(steps - Math.round(steps)) < 1e-9 ? Math.round(steps) : steps
+  const q = dir === "up" ? Math.ceil(snapped) : dir === "down" ? Math.floor(snapped) : Math.round(snapped)
+  return Math.round(q * tick * 1e8) / 1e8
 }
 
 function validPrice(x: unknown): x is number {
@@ -239,11 +256,14 @@ export function buildTradePlan(p: TradePlanInput): TradePlan | null {
       }
     }
     if (!target) return null // nothing pays ≥ 1.5R → NO plan (no fabricated levels)
-    const entryLow = roundToTick(entryLowRaw)
-    const entryHigh = roundToTick(Math.max(entryHighRaw, entryLowRaw))
-    const stop = roundToTick(stopRaw)
-    const targetLow = roundToTick(target.low)
-    const targetHigh = roundToTick(Math.max(target.high, target.low))
+    // SELL conservative rounding: a LOWER entry and a CLOSER target both
+    // reduce reward and raise risk, and a HIGHER stop widens risk — so none of
+    // the three can flatter the printed R/R.
+    const entryLow = roundToTick(entryLowRaw, 0.01, "down")
+    const entryHigh = roundToTick(Math.max(entryHighRaw, entryLowRaw), 0.01, "down")
+    const stop = roundToTick(stopRaw, 0.01, "up")
+    const targetLow = roundToTick(target.low, 0.01, "up")
+    const targetHigh = roundToTick(Math.max(target.high, target.low), 0.01, "up")
     const entryMid = (entryLow + entryHigh) / 2
     const targetMid = (targetLow + targetHigh) / 2
     const rr = roundRR((entryMid - targetMid) / (stop - entryMid))
@@ -294,11 +314,15 @@ export function buildTradePlan(p: TradePlanInput): TradePlan | null {
     }
   }
   if (!target) return null // nothing pays ≥ 1.5R → NO plan (no fabricated levels)
-  const entryLow = roundToTick(entryLowRaw)
-  const entryHigh = roundToTick(Math.max(entryHighRaw, entryLowRaw))
-  const stop = roundToTick(stopRaw)
-  const targetLow = roundToTick(target.low)
-  const targetHigh = roundToTick(Math.max(target.high, target.low))
+  // BUY conservative rounding: a HIGHER entry and a FARTHER target both
+  // reduce reward, and a LOWER stop widens risk — so none of the three can
+  // flatter the printed R/R. The R/R below is then re-validated on these
+  // rounded numbers, so rounding can only reject a plan, never improve it.
+  const entryLow = roundToTick(entryLowRaw, 0.01, "up")
+  const entryHigh = roundToTick(Math.max(entryHighRaw, entryLowRaw), 0.01, "up")
+  const stop = roundToTick(stopRaw, 0.01, "down")
+  const targetLow = roundToTick(target.low, 0.01, "up")
+  const targetHigh = roundToTick(Math.max(target.high, target.low), 0.01, "up")
   const entryMid = (entryLow + entryHigh) / 2
   const targetMid = (targetLow + targetHigh) / 2
   const rr = roundRR((targetMid - entryMid) / (entryMid - stop))
