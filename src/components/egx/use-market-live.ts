@@ -3,11 +3,14 @@
 // useMarketLive — trading-hours-aware auto-refresh for market dashboards.
 //
 // What it does:
-//   • picks the poll cadence from the EGX session clock (60s while the market
-//     can move, 10 min outside it — the data itself only changes once per
-//     trading day, so we never burn egress for nothing);
-//   • pauses entirely when the tab is hidden (visibilitychange) and refetches
-//     the moment the user comes back — the "stale on return" bug this kills;
+//   • pulses every 30 seconds INSIDE the pulse window only (trading days
+//     09:45–15:00 Cairo — owner requirement: "تحديث كل 30 ثانية، اقفله بعد
+//     الساعة 3"); AFTER 15:00 and on weekends it runs NO timer at all — the
+//     daily data cannot move outside the session, so we never burn egress for
+//     nothing and the page stops "pretending" to be live;
+//   • pauses while the tab is hidden (visibilitychange) and refetches the
+//     moment the user comes back while the pulse is on — the "stale on
+//     return" bug this kills;
 //   • invalidates the given react-query key prefixes and stamps `lastUpdated`,
 //     so every panel re-renders against the freshest snapshot together.
 //
@@ -18,8 +21,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { useQueryClient } from "@tanstack/react-query"
 import { egxMarketStatus, type EgxMarketStatus } from "@/lib/market/egx-hours"
 
-const LIVE_INTERVAL_MS = 60_000 // market can move → poll every minute
-const IDLE_INTERVAL_MS = 600_000 // closed/weekend → every 10 minutes
+const PULSE_INTERVAL_MS = 30_000 // inside the pulse window → every 30 seconds
 
 export function useMarketLive(queryKeyPrefixes: string[] = []) {
   const queryClient = useQueryClient()
@@ -53,34 +55,25 @@ export function useMarketLive(queryKeyPrefixes: string[] = []) {
     return () => clearInterval(id)
   }, [])
 
-  // The heartbeat: one interval whose cadence follows market state, paused
-  // while the tab is hidden.
+  // The pulse: one 30s interval ONLY while the pulse window is open; outside
+  // it (after 15:00 / weekends) there is NO timer — nothing polls until the
+  // next session. Paused while the tab is hidden; returning to a visible tab
+  // inside the window refreshes immediately.
   useEffect(() => {
-    let timer: ReturnType<typeof setInterval> | null = null
-
-    const start = () => {
-      const ms = status.live ? LIVE_INTERVAL_MS : IDLE_INTERVAL_MS
-      if (timer) clearInterval(timer)
-      timer = setInterval(() => {
-        if (typeof document !== "undefined" && document.hidden) return // paused
-        void refresh("timer")
-      }, ms)
-    }
-
-    start()
+    if (!status.pulse) return // stopped — after 15:00 / non-trading days
+    const timer = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return // paused
+      void refresh("timer")
+    }, PULSE_INTERVAL_MS)
     const onVisibility = () => {
-      if (!document.hidden) {
-        // Coming back to the tab: refresh immediately, then restart cadence.
-        void refresh("visible")
-        start()
-      }
+      if (!document.hidden) void refresh("visible")
     }
     document.addEventListener("visibilitychange", onVisibility)
     return () => {
-      if (timer) clearInterval(timer)
+      clearInterval(timer)
       document.removeEventListener("visibilitychange", onVisibility)
     }
-  }, [status.live, refresh])
+  }, [status.pulse, refresh])
 
   return { status, lastUpdated, tick, refresh }
 }

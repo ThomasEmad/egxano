@@ -107,6 +107,16 @@ function priceStr(v: number | null | undefined): string {
   return typeof v === "number" && Number.isFinite(v) ? v.toFixed(2) : "—"
 }
 
+/** One cell of the tidy levels grid — replaces the scattered chips. */
+function LevelCell({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className="bg-background px-1 py-1.5">
+      <p className="text-[9px] font-medium text-muted-foreground">{label}</p>
+      <p className={`text-[11px] font-bold tabular ${tone ?? "text-foreground"}`} dir="ltr">{value}</p>
+    </div>
+  )
+}
+
 /** The card model — OpportunityDigestRow satisfies it structurally; the
  *  company technical tab builds the same shape from its own route payload. */
 export interface OpportunityCardModel {
@@ -161,7 +171,6 @@ export function OpportunityCardView({ model, ar }: { model: OpportunityCardModel
         : stateMeta.en
   const ready = readinessLabel(view, ar)
   const t1 = targets?.[0] ?? null
-  const t2 = targets?.[1] ?? null
   const isWatchingActivation = model.entryLow === null && model.activationLevel !== null
   const nameLine = ar ? (model.nameAr ?? model.nameEn ?? "") : (model.nameEn ?? "")
 
@@ -226,58 +235,84 @@ export function OpportunityCardView({ model, ar }: { model: OpportunityCardModel
           ) : null}
         </div>
 
-        {/* الدخول / الوقف / الهدف الأول (+T2) */}
+        {/* المستويات — شبكة منظمة (دخول/وقف/م-ع أو تفعيل/هدف/عائد) */}
         {isWatchingActivation ? (
-          <div className="flex flex-wrap gap-1.5">
-            <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
-              {ar ? "تفعيل: " : "Activation: "}
-              {ar ? "إغلاق " : "close "}
-              <span className="tabular" dir="ltr">{model.activationKind === "close_below" ? "<" : ">"} {priceStr(model.activationLevel)}</span>
-            </span>
-            <span className="rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-              {ar ? "الهدف الأول: " : "T1: "}
-              <span className="tabular" dir="ltr">{priceStr(t1?.price ?? null)}</span>
-            </span>
-          </div>
+          <>
+            <div className="grid grid-cols-3 gap-px overflow-hidden rounded-md border border-border/60 bg-border/40 text-center">
+              <LevelCell
+                label={ar ? "التفعيل" : "Activation"}
+                value={`${model.activationKind === "close_below" ? "<" : ">"} ${priceStr(model.activationLevel)}`}
+                tone="text-amber-600 dark:text-amber-400"
+              />
+              <LevelCell label={ar ? "الهدف الأول" : "T1"} value={priceStr(t1?.price ?? null)} />
+              <LevelCell
+                label={ar ? "العائد" : "Upside"}
+                value={view.upsidePctToT1 !== null ? pctStr(view.upsidePctToT1) : "—"}
+                tone={pctCls(view.upsidePctToT1)}
+              />
+            </div>
+            {model.activationConditionAr ? (
+              <p className="text-[10px] leading-relaxed text-muted-foreground">{model.activationConditionAr}</p>
+            ) : null}
+          </>
         ) : (
-          <div className="flex flex-wrap gap-1.5">
-            <span className="rounded-md border border-blue-500/40 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
-              {ar ? "دخول: " : "Entry: "}
-              <span className="tabular" dir="ltr">{zoneStr(model.entryLow, model.entryHigh)}</span>
-            </span>
-            <span className="rounded-md border border-negative/40 bg-negative/10 px-1.5 py-0.5 text-[10px] font-semibold text-negative">
-              {ar ? "وقف: " : "Stop: "}
-              <span className="tabular" dir="ltr">{priceStr(model.stop)}</span>
-            </span>
-            <span className="rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-              {ar ? "الهدف الأول: " : "T1: "}
-              <span className="tabular" dir="ltr">{priceStr(t1?.price ?? null)}</span>
-            </span>
-            {t2 ? (
-              <span className="rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                {ar ? "الهدف الثاني: " : "T2: "}
-                <span className="tabular" dir="ltr">{priceStr(t2.price)}</span>
-              </span>
-            ) : null}
-            {model.riskReward !== null ? (
-              <span className="rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                {ar ? "م/ع " : "R/R "}
-                <span className="tabular" dir="ltr">{model.riskReward.toFixed(2)}</span>
-              </span>
-            ) : null}
+          <div className="grid grid-cols-3 gap-px overflow-hidden rounded-md border border-border/60 bg-border/40 text-center">
+            <LevelCell
+              label={ar ? "الدخول" : "Entry"}
+              value={zoneStr(model.entryLow, model.entryHigh)}
+              tone="text-blue-600 dark:text-blue-400"
+            />
+            <LevelCell label={ar ? "الوقف" : "Stop"} value={priceStr(model.stop)} tone="text-negative" />
+            <LevelCell label={ar ? "م/ع" : "R/R"} value={model.riskReward !== null ? model.riskReward.toFixed(2) : "—"} />
           </div>
         )}
 
-        {/* العائد المتبقي — the EXACT number, never rounded into hope */}
-        <p className="text-[11px] font-semibold">
-          <span className="text-muted-foreground">{ar ? "العائد المتبقي حتى الهدف الأول: " : "Remaining upside to T1: "}</span>
-          <span className={`tabular ${pctCls(view.upsidePctToT1)}`} dir="ltr">
+        {/* سلّم الأهداف — بارز: كل هدف عند حاجز هيكلي حقيقي مع ملاحظته (الميزة التنافسية) */}
+        {targets && targets.length > 0 ? (
+          <div className="space-y-1.5 rounded-md border border-border/60 bg-muted/20 px-2 py-1.5">
+            <p className="text-[10px] font-bold text-foreground">
+              {ar ? "سلّم الأهداف — كل هدف عند حاجز هيكلي حقيقي موثق:" : "Target ladder — each rung at a real documented obstacle:"}
+            </p>
+            {targets.map((t, i) => {
+              const upsideFromEntry =
+                model.entryHigh !== null && Number.isFinite(model.entryHigh)
+                  ? ((t.price - (model.entryHigh as number)) / (model.entryHigh as number)) * 100
+                  : null
+              return (
+                <div key={t.label} className="flex items-start gap-1.5">
+                  <span
+                    className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-bold ${i === 0 ? "bg-positive/10 text-positive" : "bg-muted text-muted-foreground"}`}
+                    dir="ltr"
+                  >
+                    {t.label}
+                  </span>
+                  <span className="shrink-0 text-[11px] font-bold tabular text-foreground" dir="ltr">{priceStr(t.price)}</span>
+                  {upsideFromEntry !== null ? (
+                    <span className={`shrink-0 text-[10px] font-semibold tabular ${pctCls(upsideFromEntry)}`} dir="ltr">
+                      {pctStr(upsideFromEntry)}
+                    </span>
+                  ) : null}
+                  <p className="line-clamp-2 min-w-0 flex-1 text-[10px] leading-relaxed text-muted-foreground" title={t.whyAr}>
+                    {t.whyAr}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        ) : null}
+
+        {/* العائد المتبقي — رقم البوابة، بارز */}
+        <div className="flex items-baseline justify-between rounded-md border border-border/60 bg-muted/20 px-2 py-1.5">
+          <span className="text-[10px] font-medium text-muted-foreground">
+            {ar ? "العائد المتبقي حتى الهدف الأول" : "Remaining upside to T1"}
+          </span>
+          <span className={`text-sm font-bold tabular ${pctCls(view.upsidePctToT1)}`} dir="ltr">
             {view.upsidePctToT1 !== null ? pctStr(view.upsidePctToT1) : "—"}
           </span>
-          {view.state === "conditional" && view.upsidePctToT1 !== null ? (
-            <span className="text-[10px] font-normal text-muted-foreground"> {ar ? "(تقديري عند التفعيل)" : "(provisional at activation)"}</span>
-          ) : null}
-        </p>
+        </div>
+        {view.state === "conditional" && view.upsidePctToT1 !== null ? (
+          <p className="text-[9px] text-muted-foreground">{ar ? "تقديري عند التفعيل" : "provisional at activation"}</p>
+        ) : null}
 
         {/* ما الذي قد يفشل — factual only (rejections, else the row's negative reasons) */}
         {model.riskFactorsAr.length > 0 ? (
@@ -308,25 +343,14 @@ export function OpportunityCardView({ model, ar }: { model: OpportunityCardModel
           <p className="text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">{model.noteAr}</p>
         ) : null}
 
-        {/* Expandable technical section — ladder evidence + OQS components */}
-        {(targets && targets.length > 0) || model.oqs !== null ? (
+        {/* Expandable quality section — OQS components + note (the ladder with
+            its per-target evidence is shown in full ABOVE, never duplicated) */}
+        {model.oqs !== null || model.oqsNoteAr ? (
           <details className="rounded-md border border-border/60 bg-muted/20 px-2 py-1.5">
             <summary className="cursor-pointer text-[10px] font-semibold text-muted-foreground">
-              {ar ? "التفاصيل الفنية (سلّم الأهداف + تقييم الجودة)" : "Technical details (target ladder + quality score)"}
+              {ar ? "تقييم جودة الفرصة (OQS) ومكوّناته" : "Opportunity quality score (OQS) + components"}
             </summary>
             <div className="mt-2 space-y-2">
-              {targets && targets.length > 0 ? (
-                <ul className="space-y-1">
-                  {targets.map((t) => (
-                    <li key={t.label} className="text-[10px] leading-relaxed text-muted-foreground">
-                      <span className="font-bold text-foreground">
-                        {t.label} <span className="tabular" dir="ltr">{priceStr(t.price)}</span>
-                      </span>{" "}
-                      — {t.whyAr}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
               {model.oqs !== null ? (
                 <div className="space-y-1">
                   <p className="text-[10px] font-bold text-foreground">
@@ -343,11 +367,9 @@ export function OpportunityCardView({ model, ar }: { model: OpportunityCardModel
                       ))}
                     </div>
                   ) : null}
-                  {model.oqsNoteAr ? <p className="text-[10px] leading-relaxed text-muted-foreground">{model.oqsNoteAr}</p> : null}
                 </div>
-              ) : (
-                <p className="text-[10px] leading-relaxed text-muted-foreground">{model.oqsNoteAr}</p>
-              )}
+              ) : null}
+              {model.oqsNoteAr ? <p className="text-[10px] leading-relaxed text-muted-foreground">{model.oqsNoteAr}</p> : null}
             </div>
           </details>
         ) : null}
@@ -467,6 +489,11 @@ export function OpportunitiesStrip() {
         {ar
           ? "الترتيب بتقييم جودة الفرصة (OQS) — والفرصة المؤهلة يجب أن تجتاز بوابتي العائد المتبقي (> 5% حتى الهدف الأول) والمخاطرة (م/ع ≥ 1.5) على أرقام محسوبة فعليًا. الفرق المحكوم عليه بفشل يحمل أسبابه بالأرقام — ولا تُصنَّع فرص."
           : "Ranked by opportunity quality score (OQS) — qualifying requires BOTH strict gates: > 5% remaining upside to the ladder's T1 AND RR ≥ 1.5 on real computed numbers. Rejected reads carry their actual numbers — opportunities are never manufactured."}
+      </p>
+      <p className="text-[10px] leading-relaxed text-muted-foreground">
+        {ar
+          ? "التحديث التلقائي كل 30 ثانية خلال الجلسة (الأحد–الخميس حتى الساعة 3:00 مساءً بتوقيت القاهرة) ويتوقف بعدها تمامًا — ومصدر الأسعار متأخر ~15 دقيقة وليس لحظيًا."
+          : "Auto-refresh runs every 30 seconds during the session (Sun–Thu until 3:00 PM Cairo) and stops completely afterwards — prices are ~15 minutes delayed, not real-time."}
       </p>
 
       {/* Honest empty state — qualifying === 0 carries the exact server note */}

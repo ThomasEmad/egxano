@@ -250,8 +250,9 @@ export function SignalsView() {
     staleTime: gateActive ? 60_000 : 120_000,
   })
 
-  // While EGX is in session the board follows the price refresh cadence.
-  useMarketLive(["technical-signals"])
+  // While EGX is in session the board AND the opportunities strip follow the
+  // 30-second pulse cadence (the strip's query key rides the same invalidator).
+  useMarketLive(["technical-signals", "signal-opportunities"])
 
   const allRows = data?.rows ?? []
   const matched = (data as MarketSignalsResponse | undefined)?.matched
