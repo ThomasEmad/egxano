@@ -376,7 +376,12 @@ export function getCachedMarketSignals(): Promise<MarketSignalsOutput> {
   // v4: tech-signals@5 recalibration (decision gates, de-duplicated weights,
   // structure veto, hysteresis, structural trade plans) — the bump invalidates
   // stale v3 payloads whose scoring semantics no longer match the engine.
-  return cached("technical-signals:market:v4", CACHE_MS, async () => {
+  // v5: metric-parity remediation (2026-11-15) — rows now carry a canonical
+  // metric block + metricsSource, and non-canonical rows withhold their metrics
+  // instead of contradicting the company tab. The bump invalidates v4 payloads
+  // whose rows lack those fields (a persisted v4 snapshot would otherwise be
+  // served for up to 24h off-hours, hiding the fix and mislabeling its source).
+  return cached("technical-signals:market:v5", CACHE_MS, async () => {
     const payload = await buildMarketSignalsUncached()
     // Shared read model: every successful compute persists the payload so a
     // cold instance can serve instantly. The write is AWAITED inside the

@@ -12,7 +12,10 @@
 import { db } from "@/lib/db"
 import type { MarketSignalsOutput } from "./signals-service"
 
-const BOARD_SNAPSHOT_KEY = "technical-signals:board:v1"
+// v2 (2026-11-15): rows carry the canonical metric block + metricsSource.
+// Bumping the key retires v1 snapshots whose rows lack those fields, so a
+// pre-fix payload can never be served as if it were current.
+const BOARD_SNAPSHOT_KEY = "technical-signals:board:v2"
 
 export const BOARD_SNAPSHOT_FRESH_MS = 15 * 60_000
 export const BOARD_SNAPSHOT_MAX_MS = 24 * 60 * 60_000
