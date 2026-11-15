@@ -267,11 +267,32 @@ export function buildOpportunityLayer(input: OpportunityLayerInput): RowOpportun
 
   const plan = input.tradePlan ?? null
   const setup = input.setup ?? null
+
+  // ---- SETUP FRESHNESS GUARD (2026-11-15 owner bug report) ----
+  // A watching setup whose activation level sits far from the CURRENT close
+  // is stale: its trigger already fired (or became unreachable) and the
+  // provisional entry/stop are dead geometry. Drop it — the row honestly
+  // reads observation with no executable levels (targets still print from
+  // the current-price-anchored ladder; entry/stop stay empty). The guard runs
+  // BEFORE the side resolution so a dropped setup cannot lend its direction
+  // to the ladder while the row displays the ROW's own direction.
+  const setupStale =
+    !isConfirmed && setup
+      ? Math.abs(((setup.activation.level - input.lastClose) / input.lastClose) * 100) > SETUP_STALE_GAP_PCT
+      : false
+  const effectiveSetup = setupStale ? null : setup
+  let setupDroppedNoteAr: string | null = null
+  if (setupStale && setup) {
+    setupDroppedNoteAr = `مستوى التفعيل المراقَب (${setup.activation.level.toFixed(2)}) أصبح بعيدًا عن السعر الحالي (${input.lastClose.toFixed(2)}) — البنية التي أنتجت هذا المستوى لم تعد قائمة، فأُسقطت المستويات التقديرية بدل عرض أرقام ميتة، وتُعاد القراءة عند التحديث القادم.`
+  }
+
   // side: confirmed rows publish the plan's own bias (fall back to the row's
-  // signal); watching rows carry the direction on the setup.
+  // signal); watching rows carry the direction on the USABLE setup — a
+  // dropped (stale) setup falls back to the row's own signal direction so
+  // the ladder's side always matches the displayed direction chip.
   const side: "buy" | "sell" | null = isConfirmed
     ? (plan ? plan.bias : input.direction)
-    : (setup ? setup.direction : input.direction)
+    : (effectiveSetup ? effectiveSetup.direction : input.direction)
   if (side !== "buy" && side !== "sell") return null
 
   // ---- resistance map on the SAME stored daily candles (no refetch) ----
@@ -312,25 +333,10 @@ export function buildOpportunityLayer(input: OpportunityLayerInput): RowOpportun
     }
   }
 
-  // ---- SETUP FRESHNESS GUARD (2026-11-15 owner bug report) ----
-  // A watching setup whose activation level sits far from the CURRENT close
-  // is stale: its trigger already fired (or became unreachable) and the
-  // provisional entry/stop are dead geometry. Drop it — the row honestly
-  // reads observation with no executable levels (targets still print from
-  // the current-price-anchored ladder; entry/stop stay empty).
-  const setupStale =
-    !isConfirmed && setup
-      ? Math.abs(((setup.activation.level - input.lastClose) / input.lastClose) * 100) > SETUP_STALE_GAP_PCT
-      : false
-  const effectiveSetup = setupStale ? null : setup
-  let setupDroppedNoteAr: string | null = null
-  if (setupStale && setup) {
-    setupDroppedNoteAr = `مستوى التفعيل المراقَب (${setup.activation.level.toFixed(2)}) أصبح بعيدًا عن السعر الحالي (${input.lastClose.toFixed(2)}) — البنية التي أنتجت هذا المستوى لم تعد قائمة، فأُسقطت المستويات التقديرية بدل عرض أرقام ميتة، وتُعاد القراءة عند التحديث القادم.`
-  }
-
   // ---- entry basis per the opportunity.ts input contract: the plan's entry
   // zone when a plan exists, else the setup's activation level as a
-  // single-price basis (the daily close decides there).
+  // single-price basis (the daily close decides there). The setup freshness
+  // guard already ran above — a dropped setup cannot anchor the ladder.
   const entryLow = effectivePlan ? effectivePlan.entryLow : effectiveSetup ? effectiveSetup.activation.level : input.lastClose
   const entryHigh = effectivePlan ? effectivePlan.entryHigh : effectiveSetup ? effectiveSetup.activation.level : input.lastClose
 
