@@ -66,7 +66,7 @@ jobs:
                 `curl -sS --max-time 20 -H "Authorization: Bearer ${KEY}" "https://console.neon.tech/api/v2/users/me"`,
                 { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }
               );
-              console.log("RAW me payload:", meRaw.slice(0, 700));
+              console.log("RAW me payload:", meRaw.slice(0, 2600));
               const me = JSON.parse(meRaw);
               const orgIds = [];
               if (me.organizations) for (const o of me.organizations) orgIds.push(o.id || o);
