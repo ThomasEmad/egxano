@@ -134,11 +134,12 @@ export function NumbersTable({ rows, ar }: { rows: MarketSignalRow[]; ar: boolea
               // levels: the executable plan whenever one exists (any state) —
               // hiding them behind "actionable" left every row reading "—"
               // (2026-11-15 owner bug report). A watching row's provisional
-              // setup levels display with a "≈" prefix (recomputed at activation) —
-              // but never when the layer DROPPED the setup as stale (dead
-              // geometry, AMES bug): a dropped setup means no levels at all.
+              // setup levels display with a "≈" prefix (recomputed at activation)
+              // — but ONLY when the server actually vetted them: an attached
+              // layer that did not drop the setup. No layer (unclassified) or a
+              // dropped (stale) setup → no levels at all (dead geometry, AMES).
               const plan = r.tradePlan ?? null
-              const setup = op?.setupDropped ? null : (r.setup ?? null)
+              const setup = op && !op.setupDropped ? (r.setup ?? null) : null
               const entry = plan
                 ? zoneStr(plan.entryLow, plan.entryHigh)
                 : setup?.provisionalEntry
