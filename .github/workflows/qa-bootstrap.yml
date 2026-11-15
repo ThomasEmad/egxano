@@ -50,18 +50,18 @@ jobs:
           }
 
           (async () => {
-            const projects = await jget("https://api.neon.tech/v2/projects");
+            const projects = await jget("https://console.neon.tech/api/v2/projects");
             const uris = [];
             for (const p of projects.projects || []) {
               try {
-                const uri = await jget(`https://api.neon.tech/v2/projects/${p.id}/connection_uri?pooled=true`);
+                const uri = await jget(`https://console.neon.tech/api/v2/projects/${p.id}/connection_uri?pooled=true`);
                 if (uri?.uri) uris.push({ name: p.name, uri: uri.uri });
               } catch (e) {
                 try {
-                  const b = await jget(`https://api.neon.tech/v2/projects/${p.id}/branches`);
+                  const b = await jget(`https://console.neon.tech/api/v2/projects/${p.id}/branches`);
                   for (const br of b.branches || []) {
                     try {
-                      const u2 = await jget(`https://api.neon.tech/v2/projects/${p.id}/branches/${br.id}/connection_uri?pooled=true`);
+                      const u2 = await jget(`https://console.neon.tech/api/v2/projects/${p.id}/branches/${br.id}/connection_uri?pooled=true`);
                       if (u2?.uri) uris.push({ name: `${p.name}/${br.name}`, uri: u2.uri });
                     } catch {}
                   }
