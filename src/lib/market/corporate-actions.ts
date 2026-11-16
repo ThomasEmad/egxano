@@ -1,6 +1,6 @@
 // Corporate-action ex-date adjustment — the daily-change engine.
 //
-// A bonus issue, split, rights issue or cash dividend mechanically moves the
+// A bonus issue, split, merger, rights issue or cash dividend mechanically moves the
 // share price on the ex-date. TradingView's scanner `change` field (and any
 // naive prev-close comparison) reports that mechanical drop as a market loss:
 //   CANA (Suez Canal Bank) 2026-11-12: 0.5 bonus shares per share → the
@@ -48,13 +48,17 @@ export function perShareRatio(a: Pick<CorporateActionTerms, "ratioNumerator" | "
 export function adjustPrevClose(rawPrev: number, actions: CorporateActionTerms[]): number {
   let adj = rawPrev
   for (const a of actions) {
-    if (a.actionType === "stock_dividend" || a.actionType === "split") {
+    if (a.actionType === "stock_dividend" || a.actionType === "split" || a.actionType === "merger") {
       const ratio = perShareRatio(a)
       // stock_dividend: b new shares per 1 held → price scales by 1/(1+b).
       // split: s new shares replace 1 → price scales by 1/s. Both arrive as
       // numerator/denominator; stock_dividend's ratio is IN ADDITION to the
       // held share, a split's ratio REPLACES it.
-      if (ratio !== null && ratio > 0) adj = adj / (a.actionType === "split" ? ratio : 1 + ratio)
+      // merger: a share-for-share exchange converts each old share into r new
+      // ones → price scales by 1/r (same REPLACE semantics as a split). A
+      // merger recorded WITHOUT an exchange ratio is informational only —
+      // nothing is rescaled (owner mandate 2026-11-16: القاهرة للدواجن 27/9).
+      if (ratio !== null && ratio > 0) adj = adj / (a.actionType === "split" || a.actionType === "merger" ? ratio : 1 + ratio)
     } else if (a.actionType === "cash_dividend") {
       const d = a.cashPerShare
       if (d !== null && Number.isFinite(d) && d > 0 && adj > d) adj = adj - d
@@ -315,7 +319,7 @@ const CASH_FACTOR_MIN = 0.5
 const CASH_FACTOR_MAX = 2
 
 function factorIsPlausible(actionType: string, factor: number): boolean {
-  const isShare = actionType === "split" || actionType === "stock_dividend" || actionType === "rights"
+  const isShare = actionType === "split" || actionType === "stock_dividend" || actionType === "rights" || actionType === "merger"
   const min = isShare ? SHARE_FACTOR_MIN : CASH_FACTOR_MIN
   const max = isShare ? SHARE_FACTOR_MAX : CASH_FACTOR_MAX
   return factor >= min && factor <= max
@@ -324,10 +328,10 @@ function factorIsPlausible(actionType: string, factor: number): boolean {
 /** Multiplicative factor a share-type action applies going BACKWARD in time
  *  (the inverse of the price scale Yahoo bakes into its `close` series). */
 function shareEventInverseFactor(a: CorporateActionTerms): number | null {
-  if (a.actionType === "stock_dividend" || a.actionType === "split") {
+  if (a.actionType === "stock_dividend" || a.actionType === "split" || a.actionType === "merger") {
     const ratio = perShareRatio(a)
     if (ratio === null || ratio <= 0) return null
-    return a.actionType === "split" ? ratio : 1 + ratio
+    return a.actionType === "split" || a.actionType === "merger" ? ratio : 1 + ratio
   }
   return null
 }

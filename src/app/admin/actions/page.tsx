@@ -73,6 +73,7 @@ const TYPE_AR: Record<string, string> = {
   rights: "اكتتاب (حق انتساب)",
   stock_dividend: "توزيع أسهم مجانية (بونص)",
   split: "تقسيم",
+  merger: "اندماج",
   cash_dividend: "توزيعة نقدية",
   other: "أخرى",
 }
@@ -133,17 +134,37 @@ export default function AdminActionsPage() {
   const actionsQ = useQuery({
     queryKey: ["admin-corporate-actions"],
     enabled: adminOk === true,
+    // complaint 2026-11-16 ①: the default latest-100 window HID older manual
+    // splits — the ledger now fetches up to 1000 rows and the UI filters
     queryFn: () =>
-      fetch("/api/v1/admin/corporate-actions", { credentials: "include" }).then((r) =>
-        r.ok ? (r.json() as Promise<{ actions: ActionRow[] }>) : { actions: [] as ActionRow[] }
+      fetch("/api/v1/admin/corporate-actions?limit=1000", { credentials: "include" }).then((r) =>
+        r.ok ? (r.json() as Promise<{ actions: ActionRow[]; total?: number }>) : { actions: [] as ActionRow[], total: undefined }
       ),
   })
   const actions = actionsQ.data?.actions ?? []
+  const ledgerTotal = actionsQ.data?.total
+
+  // ── ledger filters (complaint ①): reach ANY past action in seconds ──────────
+  const [ledgerQuery, setLedgerQuery] = useState("")
+  const [ledgerSource, setLedgerSource] = useState<"all" | "admin" | "import">("all")
+  const filteredActions = useMemo(() => {
+    const q = ledgerQuery.trim().toLowerCase()
+    return actions.filter((a) => {
+      if (ledgerSource === "admin" && a.sourceName !== "MANUAL_ADMIN") return false
+      if (ledgerSource === "import" && a.sourceName === "MANUAL_ADMIN") return false
+      if (!q) return true
+      return (
+        (a.ticker ?? "").toLowerCase().includes(q) ||
+        (a.nameAr ?? "").includes(ledgerQuery.trim()) ||
+        (a.notes ?? "").toLowerCase().includes(q)
+      )
+    })
+  }, [actions, ledgerQuery, ledgerSource])
 
   // ── form state ─────────────────────────────────────────────────────────────
   const [coSearch, setCoSearch] = useState("")
   const [companyId, setCompanyId] = useState("")
-  const [actionType, setActionType] = useState<"rights" | "stock_dividend" | "split" | "cash_dividend">("stock_dividend")
+  const [actionType, setActionType] = useState<"rights" | "stock_dividend" | "split" | "cash_dividend" | "merger">("stock_dividend")
   const [sharesPerShare, setSharesPerShare] = useState("")
   const [subscriptionPrice, setSubscriptionPrice] = useState("")
   const [cashPerShare, setCashPerShare] = useState("")
@@ -199,6 +220,13 @@ export default function AdminActionsPage() {
     if (actionType === "cash_dividend") {
       const cash = Number(cashPerShare)
       if (!cashPerShare.trim() || !Number.isFinite(cash) || cash <= 0) return toast.error("اكتب التوزيعة النقدية للسهم (رقم أكبر من صفر)")
+    } else if (actionType === "merger") {
+      // exchange ratio OPTIONAL: a cash-out/delisting merger records the event
+      // without rescaling anything; a share-for-share merger records the ratio
+      if (sharesPerShare.trim()) {
+        const s = Number(sharesPerShare)
+        if (!Number.isFinite(s) || s <= 0) return toast.error("نسبة التبادل لازم تكون رقم أكبر من صفر (أو سيبها فاضية للاندماج المعلوماتي)")
+      }
     } else {
       const s = Number(sharesPerShare)
       if (!sharesPerShare.trim() || !Number.isFinite(s) || s <= 0) return toast.error("اكتب كام سهم لكل سهم (رقم أكبر من صفر)")
@@ -211,7 +239,11 @@ export default function AdminActionsPage() {
       companyId,
       actionType,
       // الإرسال كنص بيحافظ على الكسور العشرية زي ما هي (0.35 بتفضل 7/20 مش 0.35 البتاع الفلود)
-      ...(actionType === "cash_dividend" ? { cashPerShare: Number(cashPerShare) } : { sharesPerShare: sharesPerShare.trim() }),
+      ...(actionType === "cash_dividend"
+        ? { cashPerShare: Number(cashPerShare) }
+        : actionType === "merger" && !sharesPerShare.trim()
+          ? {}
+          : { sharesPerShare: sharesPerShare.trim() }),
       ...(actionType === "rights" ? { subscriptionPrice: Number(subscriptionPrice) } : {}),
       exDate,
       ...(notes.trim() ? { notes: notes.trim() } : {}),
@@ -377,6 +409,7 @@ export default function AdminActionsPage() {
   // ── render helpers ─────────────────────────────────────────────────────────
   const ratioText = (a: ActionRow): string => {
     if (a.actionType === "cash_dividend") return a.cashPerShare != null ? `${fmtNum(a.cashPerShare)} جنيه للسهم` : "—"
+    if (a.actionType === "merger" && a.sharesPerShare == null) return "سجل معلوماتي"
     return a.sharesPerShare != null ? `${fmtNum(a.sharesPerShare)} سهم لكل سهم` : "—"
   }
 
@@ -458,6 +491,7 @@ export default function AdminActionsPage() {
                 <option value="rights">{TYPE_AR.rights}</option>
                 <option value="stock_dividend">{TYPE_AR.stock_dividend}</option>
                 <option value="split">{TYPE_AR.split}</option>
+                <option value="merger">{TYPE_AR.merger}</option>
                 <option value="cash_dividend">{TYPE_AR.cash_dividend}</option>
               </select>
               <p className="text-[10px] leading-relaxed text-muted-foreground">
@@ -467,7 +501,9 @@ export default function AdminActionsPage() {
                     ? "الاكتتاب بيتحسب بمعادلة TERP — سعر الاكتتاب لازم."
                     : actionType === "split"
                       ? "التقسيم بيقسم سعر الإغلاق السابق على النسبة."
-                      : "البونص بيضبط الإغلاق السابق على معامل (1 + النسبة)."}
+                      : actionType === "merger"
+                        ? "الاندماج بنسبة تبادل (القديم → الجديد) بيضبط السلسلة زي التقسيم؛ من غير نسبة يتسجل كسجل معلوماتي بس من غير تعديل أسعار."
+                        : "البونص بيضبط الإغلاق السابق على معامل (1 + النسبة)."}
               </p>
             </div>
           </div>
@@ -549,11 +585,37 @@ export default function AdminActionsPage() {
 
       {/* c) الإجراءات المسجلة */}
       <Card>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between">
-          <CardTitle className="text-sm">الإجراءات المسجلة ({actions.length})</CardTitle>
-          <Button variant="outline" size="sm" onClick={() => actionsQ.refetch()} disabled={actionsQ.isFetching}>
-            تحديث
-          </Button>
+        <CardHeader className="pb-3 flex flex-col gap-3">
+          <div className="flex flex-row items-center justify-between">
+            <CardTitle className="text-sm">
+              الإجراءات المسجلة ({filteredActions.length}
+              {ledgerTotal != null && ledgerTotal > actions.length ? ` من أصل ${ledgerTotal}` : ""})
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={() => actionsQ.refetch()} disabled={actionsQ.isFetching}>
+              تحديث
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              placeholder="فلترة بالكود أو الاسم أو الملاحظات…"
+              value={ledgerQuery}
+              onChange={(e) => setLedgerQuery(e.target.value)}
+              className="h-8 w-56 text-xs"
+            />
+            <select
+              value={ledgerSource}
+              onChange={(e) => setLedgerSource(e.target.value as typeof ledgerSource)}
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+              aria-label="فلترة بالمصدر"
+            >
+              <option value="all">كل المصادر</option>
+              <option value="admin">الإدارية فقط</option>
+              <option value="import">الاستيراد فقط</option>
+            </select>
+            {ledgerTotal != null && ledgerTotal > 1000 ? (
+              <span className="text-[10px] text-amber-600 dark:text-amber-400">السجل أكبر من 1000 صف — استخدم الفلاتر أو حدد شركة</span>
+            ) : null}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[560px] overflow-y-auto">
@@ -575,12 +637,14 @@ export default function AdminActionsPage() {
                   <tr>
                     <td colSpan={8} className="p-6 text-center text-muted-foreground">بيجيب الإجراءات…</td>
                   </tr>
-                ) : actions.length === 0 ? (
+                ) : filteredActions.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-6 text-center text-muted-foreground">مفيش إجراءات مسجلة لسه</td>
+                    <td colSpan={8} className="p-6 text-center text-muted-foreground">
+                      {actions.length === 0 ? "مفيش إجراءات مسجلة لسه" : "مفيش نتائج للفلتر الحالي"}
+                    </td>
                   </tr>
                 ) : (
-                  actions.map((a) => (
+                  filteredActions.map((a) => (
                     <Fragment key={a.id}>
                       <tr className="border-b hover:bg-muted/40">
                         <td className="p-2">

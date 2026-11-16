@@ -21,7 +21,7 @@ import { detectSuspiciousGaps } from "@/lib/market/corporate-actions"
 // de-adjust/re-adjust, rights TERP). No chart editing, ever.
 
 const SOURCE_MANUAL_ADMIN = "MANUAL_ADMIN"
-const ALLOWED_ACTION_TYPES = ["rights", "stock_dividend", "split", "cash_dividend"] as const
+const ALLOWED_ACTION_TYPES = ["rights", "stock_dividend", "split", "cash_dividend", "merger"] as const
 type AllowedActionType = (typeof ALLOWED_ACTION_TYPES)[number]
 
 /** sharesPerShare → number|null straight from the BigInt pair (UI display). */
@@ -155,13 +155,21 @@ export async function GET(req: NextRequest) {
   }
 
   const companyId = params.get("companyId")
+  // Complaint 2026-11-16 ①: past splits added manually were INVISIBLE — the
+  // ledger capped at the latest 100 rows and there was no way to reach older
+  // ones. The window is now caller-controlled (up to 1000) with an optional
+  // source filter; the UI filters the full ledger client-side.
+  const limitRaw = Number(params.get("limit"))
+  const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 1000) : 100
+  const source = params.get("source") === SOURCE_MANUAL_ADMIN ? SOURCE_MANUAL_ADMIN : null
   const rows = await db.corporateAction.findMany({
-    where: companyId ? { companyId } : undefined,
+    where: { ...(companyId ? { companyId } : {}), ...(source ? { sourceName: source } : {}) },
     orderBy: { exDate: "desc" },
-    ...(companyId ? {} : { take: 100 }),
+    take: limit,
     select: selectWithCompany,
   })
-  return Response.json({ ok: true, actions: rows.map(serializeAction) })
+  const total = await db.corporateAction.count()
+  return Response.json({ ok: true, total, actions: rows.map(serializeAction) })
 }
 
 export async function POST(req: NextRequest) {
@@ -178,7 +186,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "companyId required" }, { status: 400 })
   }
   if (!actionType || !ALLOWED_ACTION_TYPES.includes(actionType as AllowedActionType)) {
-    return Response.json({ error: "actionType must be one of rights|stock_dividend|split|cash_dividend" }, { status: 400 })
+    return Response.json({ error: "actionType must be one of rights|stock_dividend|split|cash_dividend|merger" }, { status: 400 })
   }
   const exISO = isoDay(exDate)
   if (!exISO) return Response.json({ error: "exDate must be YYYY-MM-DD" }, { status: 400 })
@@ -199,6 +207,17 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "cash dividends need cashPerShare > 0 (التوزيعة النقدية للسهم)" }, { status: 400 })
     }
     cashPerShare = cash
+  } else if (type === "merger") {
+    // merger: the exchange ratio is OPTIONAL — a share-for-share merger
+    // records the ratio (each old share → r new ones, the engine rescales
+    // exactly like a split); a cash-out/delisting merger records NO ratio and
+    // the engine leaves the series untouched (informational only).
+    if (body.sharesPerShare !== undefined && body.sharesPerShare !== null && String(body.sharesPerShare).trim() !== "") {
+      ratio = fractionOfSharesPerShare(body.sharesPerShare)
+      if (!ratio) {
+        return Response.json({ error: "sharesPerShare must be a positive decimal (max 4 fractional digits after reduction)" }, { status: 400 })
+      }
+    }
   } else {
     ratio = fractionOfSharesPerShare(body.sharesPerShare)
     if (!ratio) {

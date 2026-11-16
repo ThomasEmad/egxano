@@ -1,11 +1,14 @@
 import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
-import { adminLogin, setAdminCookie, clearAdminCookie, getAdminTokenFromRequest } from "@/lib/admin-auth"
+import { adminLogin, adminLoginWithCredentials, setAdminCookie, clearAdminCookie, getAdminTokenFromRequest } from "@/lib/admin-auth"
 import { hashToken } from "@/lib/secure-compare"
 import { audit } from "@/lib/audit"
 import { checkEndpointRateLimit, getClientIp } from "@/lib/rate-limit"
 
-// POST /api/v1/admin/login — exchange the admin passcode for a session cookie.
+// POST /api/v1/admin/login — exchange the admin passcode OR the admin
+// account's email + password for a session cookie (owner mandate 2026-11-16:
+// the owner logs in with an ACCOUNT they chose, every admin surface accepts
+// either minted session identically).
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIp(req)
@@ -19,10 +22,19 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => null)
-    const token = await adminLogin(body?.passcode)
+    const viaAccount = typeof body?.email === "string" && body.email.trim() !== ""
+    const token = viaAccount
+      ? await adminLoginWithCredentials(body?.email, body?.password)
+      : await adminLogin(body?.passcode)
     if (!token) {
-      await audit("ADMIN_LOGIN_FAILED", { actor: "unknown", details: "Invalid admin passcode" })
-      return Response.json({ error: "INVALID_PASSCODE", message: "Invalid admin passcode" }, { status: 401 })
+      await audit("ADMIN_LOGIN_FAILED", {
+        actor: "unknown",
+        details: viaAccount ? "Invalid admin email/password" : "Invalid admin passcode",
+      })
+      return Response.json(
+        { error: viaAccount ? "INVALID_CREDENTIALS" : "INVALID_PASSCODE", message: viaAccount ? "الإيميل أو كلمة المرور غير صحيحة" : "Invalid admin passcode" },
+        { status: 401 },
+      )
     }
 
     const session = await db.adminSession.findUnique({

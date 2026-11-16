@@ -61,7 +61,7 @@ interface IngestBar {
   volume: number | null
 }
 
-interface YahooChartJson {
+export interface YahooChartJson {
   chart?: {
     result?: Array<{
       meta?: { regularMarketPrice?: number; regularMarketTime?: number }
@@ -101,8 +101,19 @@ async function fetchYahooChart(ticker: string): Promise<YahooChartJson["chart"] 
 
 /** Bars with a valid OHLC quadruple only (a bar missing open/high/low is
  * dropped — never partially stored), timestamps mapped to UTC-midnight
- * session dates. volume=null stays null. Empty array when nothing is valid. */
-function parseChartBars(chart: NonNullable<YahooChartJson["chart"]>): {
+ * session dates. volume=null stays null. Empty array when nothing is valid.
+ *
+ * Logical-error handling (owner audit 2026-11-16):
+ *   • candle GEOMETRY is validated — a Yahoo glitch bar whose low > high or
+ *     open/close outside [low, high] would poison indicators and range math;
+ *     it is dropped, not stored.
+ *   • bars are DEDUPED per session day (Yahoo can repeat a session across
+ *     pages/resolutions) — a multi-row VALUES insert hitting the same
+ *     (companyId, ts) twice makes Postgres abort the whole statement with
+ *     "ON CONFLICT DO UPDATE command cannot affect row a second time", which
+ *     used to fail the entire company as STORE_FAILED. Last occurrence wins.
+ * Exported for tests. */
+export function parseChartBars(chart: NonNullable<YahooChartJson["chart"]>): {
   bars: IngestBar[]
   meta: { regularMarketPrice: number | null; regularMarketTime: number | null }
 } {
@@ -120,6 +131,9 @@ function parseChartBars(chart: NonNullable<YahooChartJson["chart"]>): {
     // downstream indicator, and close-only rows would corrupt range math.
     if (typeof o !== "number" || typeof h !== "number" || typeof l !== "number" || typeof c !== "number") continue
     if (![o, h, l, c].every((x) => Number.isFinite(x) && x > 0)) continue
+    // Candle geometry: low ≤ {open, close} ≤ high — anything else is a
+    // glitch (or a split boundary artifact) and gets dropped, never stored.
+    if (l > h || l > o || l > c || h < o || h < c) continue
     // Daily timestamps are session instants — normalize to UTC midnight so
     // session dates align with every other PriceBar row.
     bars.push({
@@ -131,8 +145,12 @@ function parseChartBars(chart: NonNullable<YahooChartJson["chart"]>): {
       volume: typeof q.volume?.[i] === "number" && Number.isFinite(q.volume[i] as number) ? (q.volume[i] as number) : null,
     })
   }
+  // Same-session dedup, last occurrence wins (the freshest row in the payload).
+  const byDay = new Map<string, IngestBar>()
+  for (const b of bars) byDay.set(b.ts.toISOString().slice(0, 10), b)
+  const deduped = [...byDay.values()]
   return {
-    bars,
+    bars: deduped,
     meta: {
       regularMarketPrice: typeof r?.meta?.regularMarketPrice === "number" ? r.meta.regularMarketPrice : null,
       regularMarketTime: typeof r?.meta?.regularMarketTime === "number" ? r.meta.regularMarketTime : null,
@@ -221,31 +239,12 @@ export async function ingestCandlesChunk(opts?: {
         continue
       }
 
-      // --- MarketPrice ownership guard ------------------------------------
-      // Yahoo's meta carries regularMarketPrice (the latest session price).
-      // When meta reports a price for TODAY and no MarketPrice row exists for
-      // today with sourceName "TRADINGVIEW_SCANNER", that empty gap is the
-      // tempting one to fill from this same fetch — and it is DELIBERATELY
-      // left empty: the TradingView scanner owns today's MarketPrice, and a
-      // second writer would create conflicting same-session price points.
-      // Whatever the check finds, NOTHING is written to MarketPrice here;
-      // the scanner's next refresh owns that insert.
-      const todayISO = new Date().toISOString().slice(0, 10)
-      const metaDayISO = meta.regularMarketTime
-        ? new Date(meta.regularMarketTime * 1000).toISOString().slice(0, 10)
-        : null
-      if (meta.regularMarketPrice !== null && meta.regularMarketPrice > 0 && metaDayISO === todayISO) {
-        const dayStart = new Date(`${todayISO}T00:00:00Z`)
-        await db.marketPrice.findFirst({
-          where: {
-            companyId: co.id,
-            sourceName: "TRADINGVIEW_SCANNER",
-            asOf: { gte: dayStart, lt: new Date(dayStart.getTime() + 86_400_000) },
-          },
-          select: { id: true },
-        })
-        // No write in either branch — skip. Scanner owns MarketPrice.
-      }
+      // --- MarketPrice ownership (deliberate no-op) -------------------------
+      // Yahoo's meta carries regularMarketPrice (the latest session price), and
+      // filling today's MarketPrice gap from this same fetch would be tempting
+      // — it is deliberately NOT done: the TradingView scanner owns today's
+      // MarketPrice and a second writer would create conflicting same-session
+      // price points. Nothing below reads or writes MarketPrice.
 
       await storeBars(co.id, bars)
       await pruneOldSessions(co.id)
