@@ -199,6 +199,29 @@ export default function AboutPage() {
             </p>
           </div>
         </section>
+
+        <section className="mt-10" aria-label={ar ? "تواصل معنا" : "Contact us"}>
+          <div className="rounded-xl border border-border/70 p-5">
+            <p className="text-sm font-medium text-foreground">{ar ? "تواصل معنا" : "Contact us"}</p>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              {ar
+                ? "عندك اقتراح لتحسين الموقع؟ أو عايز دردشة مجانية عن سهم معين؟ تواصل معنا مباشرة — الرد على الاقتراحات والأسئلة العامة مجاني:"
+                : "Got a suggestion for improving the site, or want a free chat about a specific stock? Reach us directly — suggestions and general questions are answered free of charge:"}
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+              <a href="https://wa.me/201211566147" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 font-medium text-primary underline-offset-2 hover:underline">
+                <span aria-hidden="true">💬</span>
+                <span>
+                  {ar ? "واتساب / اتصال" : "WhatsApp / call"}: <span dir="ltr">01211566147</span>
+                </span>
+              </a>
+              <a href="mailto:egxano@gmail.com" className="inline-flex items-center gap-1.5 font-medium text-primary underline-offset-2 hover:underline">
+                <span aria-hidden="true">✉️</span>
+                <span dir="ltr">egxano@gmail.com</span>
+              </a>
+            </div>
+          </div>
+        </section>
       </div>
     </LayoutShell>
   )

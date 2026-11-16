@@ -67,24 +67,18 @@ describe("fundamentalsWarnings — the disclosed-risk contract", () => {
     expect(w!.detailAr).not.toContain("احتيال")
   })
 
-  it("discloses a P/E above 40 computed LIVE from the close ÷ EPS (AXPH 2026-11-16)", () => {
-    // rising tape's last close ≈ 86 EGP: eps 1.5 → P/E ≈ 57 → warning fires
+  it("NEVER emits a valuation-multiple warning — removed at the owner's request (2026-11-17): even an extreme multiple stays silent", () => {
+    // owner: "تحذيرات مضاعف الربحية احذفها وسيب بس الشركات اللي بتخسر" —
+    // eps 1.5 with a high close would be P/E ≈ 57; no multiple warning exists
     const row = rowFor({ netProfitEgp: 10_000_000, epsEgp: 1.5 })
-    const w = row.warnings.find((x) => x.kind === "high_pe")
-    expect(w).toBeDefined()
-    expect(w!.ar).toContain("40")
-  })
-
-  it("does NOT fire the high-PE warning when the LIVE multiple is low (AXPH: 1490 price, eps ~135 → 11)", () => {
-    // a stale STORED p_e row would have said 40+; the live math says 11
-    const row = rowFor({ netProfitEgp: 677_000_000, epsEgp: 135.5 })
-    expect(row.warnings.some((x) => x.kind === "high_pe")).toBe(false)
+    expect(row.warnings.every((x) => x.kind === "negative_profit" || x.kind === "thin_liquidity")).toBe(true)
+    expect(row.warnings.some((x) => x.ar.includes("مضاعف"))).toBe(false)
   })
 
   it("does NOT invent warnings when fundamentals are absent", () => {
     const row = rowFor(null)
     expect(row.warnings.some((x) => x.kind === "negative_profit")).toBe(false)
-    expect(row.warnings.some((x) => x.kind === "high_pe")).toBe(false)
+    expect(row.warnings.every((x) => x.kind === "negative_profit" || x.kind === "thin_liquidity")).toBe(true)
   })
 
   it("discloses a very thin traded value (the rising test tape trades ~86k EGP/day)", () => {

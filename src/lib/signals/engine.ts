@@ -18,7 +18,6 @@ import { buildBuyPlan, buildNearSetup, roundToTick } from "./plan"
 import { computeScore } from "./score"
 import {
   BUY_SCORE_MIN,
-  HIGH_PE_WARNING,
   MIN_BARS,
   NEAR_ACTIVATION_MAX_GAP_PCT,
   OPPORTUNITY_TYPE_AR,
@@ -114,7 +113,6 @@ function preEntryInvalidation(bars: Bar[], map: ZoneMap, m: MetricsBundle, activ
  *  speculates about any party or intent (owner mandate on phrasing). */
 function fundamentalsWarnings(
   f: Fundamentals | null | undefined,
-  lastClose: number,
   avgTradedValueEgp: number | null,
 ): SignalWarning[] {
   const out: SignalWarning[] = []
@@ -129,22 +127,10 @@ function fundamentalsWarnings(
         "A technical signal does not reflect earnings quality — the company booked a loss in its latest reported period. Review the financial statements before acting; technical improvement on loss-making fundamentals is more fragile.",
     })
   }
-  // P/E computed LIVE: current close ÷ the latest EPS. A stored p_e row goes
-  // stale when the price moves without a financials recompute (AXPH 2026-11-16
-  // showed a >40× warning while the real multiple was 11) — never again.
-  const eps = f && typeof f.epsEgp === "number" ? f.epsEgp : null
-  const peRatio = eps !== null && eps > 0 && lastClose > 0 ? lastClose / eps : null
-  if (peRatio !== null && peRatio > HIGH_PE_WARNING) {
-    out.push({
-      kind: "high_pe",
-      ar: `تنبيه تقييم: مضاعف الربحية (P/E) أعلى من ${HIGH_PE_WARNING}×`,
-      detailAr:
-        "السهم يُتداول بسعر مرتفع نسبيًا مقارنة بأرباحه الحالية — التقييم المرتفع يجعل السعر أكثر حساسية لأي تباطؤ في الأرباح. وازن حجم المركز مع ذلك.",
-      en: `Valuation alert: P/E above ${HIGH_PE_WARNING}×`,
-      detailEn:
-        "The share trades at a rich price relative to current earnings — high multiples make the price more sensitive to any earnings slowdown. Size positions accordingly.",
-    })
-  }
+  // Valuation-multiple warnings (high P/E) were REMOVED at the owner's
+  // request (2026-11-17: "تحذيرات مضاعف الربحية احذفها وسيب بس الشركات اللي
+  // بتخسر") — the disclosures here stay limited to loss-making fundamentals
+  // and thin liquidity.
   if (avgTradedValueEgp !== null && avgTradedValueEgp < THIN_TRADED_VALUE_EGP) {
     out.push({
       kind: "thin_liquidity",
@@ -230,7 +216,7 @@ export function computeCompanySignalV2(input: EngineInput): SignalRowV2 {
   }
   // disclosed risks travel with the row in EVERY state (a wait row with a
   // negative profit is still a fact the user should see in the details)
-  base.warnings = fundamentalsWarnings(input.fundamentals ?? null, m.lastClose, m.avgTradedValueEgp)
+  base.warnings = fundamentalsWarnings(input.fundamentals ?? null, m.avgTradedValueEgp)
 
   const { buyCandidates, nearCandidates, exit, map } = detectOpportunities(bars, m)
 

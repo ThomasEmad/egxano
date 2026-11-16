@@ -198,10 +198,11 @@ export interface SignalRowV2 {
 
 /** A disclosed risk next to the recommendation. Wording rule (owner mandate):
  *  factual, mechanics-based, and never accusatory — the site states what the
- *  DATA shows (a negative profit, a high multiple, a thin order book), it does
- *  not speculate about any party or intent. */
+ *  DATA shows (a negative profit, a thin order book), it does not speculate
+ *  about any party or intent. Valuation-multiple warnings were removed at the
+ *  owner's request (2026-11-17). */
 export interface SignalWarning {
-  kind: "negative_profit" | "high_pe" | "thin_liquidity"
+  kind: "negative_profit" | "thin_liquidity"
   /** short Arabic warning shown on the card itself */
   ar: string
   /** longer Arabic detail shown in the expanded view */
@@ -286,6 +287,3 @@ export const TARGET_MAX_UPSIDE_PCT = 20
  *  volume, last 20 sessions) below this means a thin order book — the row
  *  carries a liquidity warning. The wording is factual mechanics only. */
 export const THIN_TRADED_VALUE_EGP = 100_000
-/** Valuation disclosure threshold: a P/E above this multiples-of-earnings
- *  level carries the high-multiple warning next to the signal. */
-export const HIGH_PE_WARNING = 40

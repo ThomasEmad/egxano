@@ -37,7 +37,7 @@ export function AppFooter() {
   return (
     <footer className="mt-auto border-t border-border bg-surface-secondary">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
+        <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1.15fr]">
           <div>
             <EGXANOWordmark lang={lang} size={34} />
             <p className="mt-4 max-w-sm text-xs leading-relaxed text-muted-foreground">
@@ -63,6 +63,7 @@ export function AppFooter() {
             links={ACCOUNT_LINKS}
             ar={ar}
           />
+          <ContactColumn ar={ar} />
         </div>
 
         <div className="mt-10 border-t border-border/70 pt-6">
@@ -87,6 +88,38 @@ export function AppFooter() {
         </div>
       </div>
     </footer>
+  )
+}
+
+// Owner contact channels (2026-11-17): improvement suggestions or a FREE
+// chat about a specific stock — WhatsApp/phone + email, site-wide.
+function ContactColumn({ ar }: { ar: boolean }) {
+  const aCls = "inline-flex items-center gap-1.5 text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+  return (
+    <nav aria-label={ar ? "تواصل معنا" : "Contact us"}>
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground">{ar ? "تواصل معنا" : "Contact us"}</h2>
+      <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+        {ar
+          ? "لديك اقتراح لتحسين الموقع؟ أو عايز دردشة مجانية عن سهم معين؟ كلمنا مباشرة:"
+          : "Got a suggestion for the site, or want a free chat about a specific stock? Reach us directly:"}
+      </p>
+      <ul className="mt-3 space-y-2">
+        <li>
+          <a href="https://wa.me/201211566147" target="_blank" rel="noopener noreferrer" className={aCls}>
+            <span aria-hidden="true">💬</span>
+            <span>
+              {ar ? "واتساب / اتصال" : "WhatsApp / call"}: <span dir="ltr">01211566147</span>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a href="mailto:egxano@gmail.com" className={aCls}>
+            <span aria-hidden="true">✉️</span>
+            <span dir="ltr">egxano@gmail.com</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
   )
 }
 
