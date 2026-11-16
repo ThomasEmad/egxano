@@ -28,6 +28,8 @@ interface LiquiditySector {
   sector: string
   valueToday: number
   valuePrev: number | null
+  /** signed net: today − previous session (EGP). Null = no prior session. */
+  netValue: number | null
   changePct: number | null
   sharePct: number
   companies: number
@@ -85,7 +87,7 @@ export function SectorLiquidityHeatmap() {
     queryKey: ["market-liquidity-heatmap"],
     queryFn: () =>
       fetch("/api/v1/market/liquidity-heatmap").then((r) =>
-        r.ok ? (r.json() as Promise<{ asOf: string | null; prevAsOf: string | null; sectors: LiquiditySector[] }>) : null
+        r.ok ? (r.json() as Promise<{ asOf: string | null; prevAsOf: string | null; sessionLive?: boolean; sectors: LiquiditySector[] }>) : null
       ),
     staleTime: 60_000,
     refetchInterval: 180_000,
@@ -98,9 +100,13 @@ export function SectorLiquidityHeatmap() {
     rect,
   )
 
-  const flowingIn = sectors.filter((s) => (s.changePct ?? 0) > 0).length
-  const flowingOut = sectors.filter((s) => (s.changePct ?? 0) < 0).length
+  // net-flow counts follow the SIGNED net (today − yesterday), not the colour
+  const flowingIn = sectors.filter((s) => (s.netValue ?? 0) > 0).length
+  const flowingOut = sectors.filter((s) => (s.netValue ?? 0) < 0).length
   const total = sectors.reduce((a, s) => a + s.valueToday, 0)
+  const netTotal = sectors.every((s) => s.netValue !== null)
+    ? sectors.reduce((a, s) => a + (s.netValue ?? 0), 0)
+    : null
 
   return (
     <Card className="border-border/60 overflow-hidden">
@@ -114,11 +120,21 @@ export function SectorLiquidityHeatmap() {
               {data.prevAsOf ? ` ↔ ${data.prevAsOf}` : ""}
             </span>
           ) : null}
+          {data?.sessionLive ? (
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+              {ar ? "الجلسة جارية — تراكم اليوم جزئي" : "session live — today still accumulating"}
+            </span>
+          ) : null}
           {total > 0 ? (
             <span className="ms-auto flex items-center gap-2.5 text-[10px] font-semibold text-muted-foreground" dir="ltr">
-              <span className="text-positive">▲ {flowingIn}</span>
-              <span className="text-negative">▼ {flowingOut}</span>
+              <span className="text-positive">▲ {flowingIn} {ar ? "داخل" : "in"}</span>
+              <span className="text-negative">▼ {flowingOut} {ar ? "خارج" : "out"}</span>
               <span>Σ {fmtEgp(total, ar)}</span>
+              {netTotal !== null ? (
+                <span className={netTotal >= 0 ? "text-positive" : "text-negative"}>
+                  {ar ? "الصافي" : "net"} {netTotal >= 0 ? "+" : "−"}{fmtEgp(Math.abs(netTotal), ar)}
+                </span>
+              ) : null}
             </span>
           ) : null}
         </CardTitle>
@@ -160,29 +176,40 @@ export function SectorLiquidityHeatmap() {
                 {rects.map((r, i) => {
                   const s = sectors[i]
                   if (!s) return null
-                  const showBody = r.w > 92 && r.h > 52
+                  const showBody = r.w > 96 && r.h > 56
+                  const net = s.netValue
+                  const netText = net === null ? "—" : `${net >= 0 ? "+" : "−"}${fmtEgp(Math.abs(net), ar)}`
                   return (
-                    <div
+                    <a
                       key={s.sector}
-                      className="absolute flex flex-col justify-between overflow-hidden p-1.5 transition-[left,top,width,height] duration-300"
+                      href={`/sectors/${encodeURIComponent(s.sector)}`}
+                      className="absolute flex flex-col justify-between overflow-hidden rounded-lg p-2 transition-[left,top,width,height] duration-300 hover:z-10 hover:scale-[1.01] focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                       style={{ left: r.x, top: r.y, width: r.w, height: r.h, background: liquidityFill(s.changePct) }}
-                      title={`${sectorLabel(s.sector, lang)} — ${fmtEgp(s.valueToday, ar)} (${ar ? `نصيب ${s.sharePct}%` : `${s.sharePct}% share`}, ${s.companies} ${ar ? "شركة" : "cos"}, ${ar ? "التغير" : "chg"} ${fmtChg(s.changePct)})`}
+                      title={`${sectorLabel(s.sector, lang)} — ${ar ? "اليوم" : "today"} ${fmtEgp(s.valueToday, ar)} · ${ar ? "الصافي" : "net"} ${netText} (${fmtChg(s.changePct)}, ${ar ? `نصيب ${s.sharePct}%` : `${s.sharePct}% share`}, ${s.companies} ${ar ? "شركة" : "cos"})`}
                     >
                       <span className={`truncate text-[11px] font-bold leading-tight ${liquidityLabelTone(s.changePct)}`}>
                         {sectorLabel(s.sector, lang)}
                       </span>
                       {showBody ? (
                         <span className={`tabular-nums leading-tight ${liquidityLabelTone(s.changePct)}`}>
-                          <span className="block text-[11px] font-semibold" dir="ltr">{fmtEgp(s.valueToday, ar)}</span>
-                          <span className="block text-[10px]" dir="ltr">
-                            {fmtChg(s.changePct)} · {s.companies} {ar ? "شركة" : "cos"}
+                          <span className="block text-[13px] font-bold" dir="ltr">{netText}</span>
+                          <span className="block text-[9px] opacity-80">{ar ? "صافي السيولة" : "net liquidity"}</span>
+                          <span className="mt-1 block text-[10px] font-semibold" dir="ltr">
+                            {fmtChg(s.changePct)} · {fmtEgp(s.valueToday, ar)} · {s.companies} {ar ? "شركة" : "cos"}
                           </span>
                         </span>
                       ) : null}
-                    </div>
+                    </a>
                   )
                 })}
               </div>
+              {data?.sessionLive ? (
+                <p className="mt-3 rounded-lg border border-border/60 bg-muted/30 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
+                  {ar
+                    ? "الجلسة لسه شغالة: تراكم اليوم الجزئي بيتقارن بإجمالي أمس الكامل، فالخروج الظاهر أثناء الجلسة طبيعي — الصورة النهائية تتكل بعد الإغلاق. وبلأسلوب دائمًا: السيولة مش مرآة للسعر — يوم هابط ممكن يشوف سيولة أعلى من الأمس (بيع بحجم أكبر)."
+                    : "The session is still live: today's partial cumulative total is compared against yesterday's FULL total, so a visible outflow mid-session is expected — the final picture lands after the close. And liquidity is not a price mirror: a down day can still print higher liquidity than yesterday (heavier selling volume)."}
+                </p>
+              ) : null}
             </>
           )}
         </div>
