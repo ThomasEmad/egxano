@@ -1,0 +1,44 @@
+# 15-minute MarketPrice sync — the heartbeat of the technical signals.
+#
+# Why here and not on Vercel?
+#   • Vercel Hobby allows only DAILY cron jobs (verified 2026-11-17: the */
+#     expression rejected the whole deployment), and Pro costs ~$20/mo.
+#   • GitHub Actions schedules support */15 on the free tier, and the runner
+#     just calls the public endpoint — no market-provider egress involved
+#     (TradingView is fetched from Vercel Lambda, which reaches it fine;
+#     only Yahoo Finance blocks Vercel, and that stays in candles-refresh).
+#
+# Contract: GET /api/v1/cron/market with `Authorization: Bearer $CRON_SECRET`
+# (timing-safe compare inside the route). The secret was rotated 2026-11-17
+# and set identically on Vercel (project env) and here.
+#
+# Note: GitHub disables schedules on repos with 60 days of no activity —
+# the daily candles workflow and every push keep this repo active.
+
+name: prices-sync
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prices-sync
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Pull latest market prices (TradingView → MarketPrice)
+        run: |
+          code=$(curl -sS -o /tmp/sync-resp.json -w "%{http_code}" --max-time 120 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://egxano.vercel.app/api/v1/cron/market)
+          echo "HTTP $code"
+          head -c 600 /tmp/sync-resp.json; echo
+          [ "$code" = "200" ] || { echo "::error::prices sync failed (HTTP $code)"; exit 1; }
