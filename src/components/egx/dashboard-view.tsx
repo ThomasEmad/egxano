@@ -274,27 +274,12 @@ export function DashboardView({
       <div className="space-y-8">
       {/* ===== MARKET HEADER — investor-first, data not marketing ===== */}
       <section className="rounded-2xl border border-border/60 bg-card p-5 sm:p-6">
-        <div className="mb-4 flex items-center justify-between gap-3 border-b border-border/40 pb-4">
-          <div className="flex items-center gap-2.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icon-192.png" alt="EGXANO" className="h-9 w-9 rounded-lg" width={36} height={36} />
-            <div className="flex flex-col leading-tight">
-              <span className="text-sm font-bold tracking-tight text-foreground">EGXANO</span>
-              <span className="text-[10px] text-muted-foreground">{ar ? "تحليل بيانات البورصة المصرية" : "EGX market intelligence"}</span>
-            </div>
-          </div>
-          <button
-            onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending}
-            className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-60"
-            title={ar ? "سحب أحدث أسعار من مصدر السوق ثم إعادة حساب كل اللوحات" : "Pull the latest market snapshot then recompute every panel"}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${syncMutation.isPending ? "animate-spin" : ""}`} aria-hidden />
-            {syncMutation.isPending ? (ar ? "جارٍ التحديث…" : "Refreshing…") : ar ? "تحديث الآن" : "Refresh now"}
-          </button>
-        </div>
+        {/* UX 2026-11-17: no brand block here — the shell already shows EGXANO
+            on every breakpoint (sidebar ≥sm, mobile top bar <sm), and the
+            market-intelligence panel below is the single breadth surface.
+            Refresh sits inline with the freshness badge. */}
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
+          <div className="min-w-0 lg:flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <LiveMarketBadge ar={ar} on={[]} status={live.status} lastUpdated={live.lastUpdated} />
               {marketBreadth?.asOf ? (
@@ -302,6 +287,15 @@ export function DashboardView({
                   {new Date(marketBreadth.asOf).toLocaleString(ar ? "ar-EG" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                 </span>
               ) : null}
+              <button
+                onClick={() => syncMutation.mutate()}
+                disabled={syncMutation.isPending}
+                className="ms-auto flex items-center gap-1.5 rounded-xl border border-border/60 bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-60"
+                title={ar ? "سحب أحدث أسعار من مصدر السوق ثم إعادة حساب كل اللوحات" : "Pull the latest market snapshot then recompute every panel"}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${syncMutation.isPending ? "animate-spin" : ""}`} aria-hidden />
+                {syncMutation.isPending ? (ar ? "جارٍ التحديث…" : "Refreshing…") : ar ? "تحديث الآن" : "Refresh now"}
+              </button>
             </div>
             <h1 className="mt-2 text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               {ar ? "لوحة السوق — البورصة المصرية" : "Market overview — Egyptian Exchange"}
@@ -323,43 +317,7 @@ export function DashboardView({
             </div>
           </div>
 
-          <div className="grid shrink-0 grid-cols-2 gap-2.5 sm:grid-cols-4 lg:w-auto">
-            {/* Breadth: advancing / declining today — same snapshot as the
-                intelligence strip below (one fetch, one timestamp). */}
-            <div className="rounded-xl border border-border/60 bg-background/60 px-3.5 py-3 min-w-[104px]">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{ar ? "الاتساع السوقي" : "Breadth"}</p>
-              <p className="mt-1 flex items-baseline gap-2 text-lg font-bold tabular" dir="ltr">
-                <span className="text-positive">{marketBreadth?.advancing ?? "—"}</span>
-                <span className="text-[10px] text-muted-foreground">/</span>
-                <span className="text-negative">{marketBreadth?.declining ?? "—"}</span>
-              </p>
-              <p className="text-[10px] text-muted-foreground">{ar ? "صاعد / هابط" : "adv / dec"}</p>
-            </div>
-            {/* Traded value today */}
-            <div className="rounded-xl border border-border/60 bg-background/60 px-3.5 py-3 min-w-[104px]">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{ar ? "القيمة المتداولة" : "Traded value"}</p>
-              <p className="mt-1 text-lg font-bold tabular" dir="ltr">
-                {marketBreadth?.tradedValue != null ? formatEgp(marketBreadth.tradedValue) : "—"}
-              </p>
-              <p className="text-[10px] text-muted-foreground">EGP</p>
-            </div>
-            {/* SMA status — rendered from the SAME snapshot as the strip below
-                so the two rows can never disagree (the old bug: this hero read
-                one pipeline while the strip read another). */}
-            <div className="rounded-xl border border-border/60 bg-background/60 px-3.5 py-3 min-w-[104px]">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{ar ? "فوق SMA20" : "Above SMA20"}</p>
-              <p className="mt-1 text-lg font-bold tabular" dir="ltr">
-                {intel?.breadth.pctAboveSma20 != null ? `${intel.breadth.pctAboveSma20.toFixed(0)}%` : "—"}
-              </p>
-              <p className="text-[10px] text-muted-foreground">{ar ? "من شركات السوق" : "of the market"}</p>
-            </div>
-            <div className="rounded-xl border border-border/60 bg-background/60 px-3.5 py-3 min-w-[104px]">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{ar ? "فوق SMA50" : "Above SMA50"}</p>
-              <p className="mt-1 text-lg font-bold tabular" dir="ltr">
-                {intel?.breadth.pctAboveSma50 != null ? `${intel.breadth.pctAboveSma50.toFixed(0)}%` : "—"}
-              </p>
-              <p className="text-[10px] text-muted-foreground">{ar ? "من شركات السوق" : "of the market"}</p>
-            </div>
+          <div className="grid shrink-0 grid-cols-2 gap-2.5 lg:w-auto">
             {/* Companies tracked */}
             <div className="rounded-xl border border-border/60 bg-background/60 px-3.5 py-3 min-w-[104px]">
               <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{t("dash.companiesTracked")}</p>

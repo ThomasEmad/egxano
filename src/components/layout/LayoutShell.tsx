@@ -31,6 +31,17 @@ export function LayoutShell({
 }: LayoutShellProps) {
   const { lang } = useI18n()
   const [isMobile, setIsMobile] = useState(false)
+  const ar = lang === "ar"
+
+  // Keyboard a11y: first tab stops on a visible skip link to #main-content.
+  const skipLink = (
+    <a
+      href="#main-content"
+      className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:start-2 focus:z-[100] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground"
+    >
+      {ar ? "تخطَّ إلى المحتوى" : "Skip to content"}
+    </a>
+  )
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
@@ -42,6 +53,7 @@ export function LayoutShell({
   if (chrome === "marketing") {
     return (
       <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
+        {skipLink}
         <PublicHeader />
         <main id="main-content" className={cn("min-h-[60vh]", flush ? "pb-16" : "pb-10")}>
           {children}
@@ -53,6 +65,7 @@ export function LayoutShell({
 
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
+      {skipLink}
       {/* Desktop sidebar (sm+): brand + primary navigation. Uses logical
           `start-0` so it sits on the right under RTL automatically. */}
       <AppSidebar />
@@ -84,9 +97,9 @@ export function LayoutShell({
             "min-h-[calc(100vh-3.5rem)]",
             flush
               ? isMobile
-                ? "pb-20"
+                ? "pb-24"
                 : ""
-              : `pt-5 pb-6 px-5 sm:px-6 lg:px-8 ${isMobile ? "pb-20" : "pb-8"}`,
+              : `pt-5 pb-6 px-5 sm:px-6 lg:px-8 ${isMobile ? "pb-24" : "pb-8"}`,
           )}
         >
           {children}

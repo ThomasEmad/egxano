@@ -62,7 +62,6 @@ export function TopHeader({ className }: TopHeaderProps = {}) {
 
   useEffect(() => {
     // Hydration-safe theme/session gating (same pattern as Sidebar).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true)
   }, [])
 
@@ -209,18 +208,9 @@ export function TopHeader({ className }: TopHeaderProps = {}) {
       )}
     >
       <div className="flex h-full items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        {/* Brand mark — keeps EGXANO visible at the very top of every page,
-            including the dashboard where the sidebar may be hidden on mobile */}
-        <Link
-          href="/"
-          className="flex shrink-0 items-center gap-2"
-          aria-label="EGXANO — Home"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icon-192.png" alt="" className="h-7 w-7 rounded-md" width={28} height={28} />
-          <span className="hidden text-sm font-bold tracking-tight text-foreground sm:inline">EGXANO</span>
-        </Link>
-
+        {/* UX 2026-11-17: no brand mark here — TopHeader is desktop-only and
+            the sidebar already carries the wordmark at every ≥sm viewport,
+            so this was a second logo in the same screenful. */}
         {/* Market ticker — the signature trading-platform strip. Fixed width
             so it can never squeeze the search; hidden below lg. */}
         <div className="hidden lg:block w-[300px] xl:w-[440px] shrink-0 overflow-hidden">

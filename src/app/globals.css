@@ -456,7 +456,13 @@
   @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
 }
 
-/* Tabular Numbers */
+/* Tabular Numbers — .tabular is the legacy alias used across 200+ call
+   sites; keep both pointing at the same numeric alignment. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
 .tnum {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;

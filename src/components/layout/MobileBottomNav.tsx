@@ -22,9 +22,13 @@ export function MobileBottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 flex h-14 items-center justify-around border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+      className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t border-border bg-background pb-[env(safe-area-inset-bottom)]"
       aria-label="Bottom navigation"
     >
+      {/* Opaque bar (was 80-95% translucent): page text bled through it, and
+          headless/low-power browsers skip the backdrop blur. Inner row keeps
+          the 3.5rem height; safe-area padding lifts it above the home bar. */}
+      <div className="flex h-14 w-full max-w-lg items-center justify-around">
       {MOBILE_NAV.map((item) => {
         const active = pathname === item.href
         return (
@@ -43,6 +47,7 @@ export function MobileBottomNav() {
           </Link>
         )
       })}
+      </div>
     </nav>
   )
 }
