@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 import {
   ArrowRight,
   BellRing,
@@ -129,9 +130,20 @@ export function DashboardView({
   // dashboard query (prices, breadth, sectors, treemap, valuation) against it.
   const syncMutation = useMutation({
     mutationFn: () =>
-      fetch("/api/v1/market/sync", { method: "POST" }).then((r) =>
-        r.json() as Promise<{ ok?: boolean; asOf?: string | null; error?: string }>
-      ),
+      fetch("/api/v1/market/sync", { method: "POST" }).then(async (r) => {
+        const json = (await r.json()) as { ok?: boolean; asOf?: string | null; error?: string; message?: string }
+        if (!r.ok || json.ok === false) {
+          // the refresh button must NEVER fail silently (owner 2026-11-16)
+          throw new Error(json.message ?? json.error ?? `HTTP ${r.status}`)
+        }
+        return json
+      }),
+    onSuccess: (json) => {
+      toast.success(
+        `تم سحب أحدث أسعار الجلسة${json.asOf ? ` — ${new Date(json.asOf).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })}` : ""} وسيُعاد بناء اللوحات فورًا`,
+      )
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "فشل تحديث الجلسة — حاول بعد دقائق"),
     onSettled: () => {
       queryClient.invalidateQueries()
     },

@@ -31,6 +31,19 @@ function inClause(companyIds: string[] | undefined, params: unknown[]): string {
   return `AND mp."companyId" IN (${placeholders})`
 }
 
+
+/** The owner's manual price overrides for the given companies (read-time
+ *  application — ingestion can never clobber the owner's value; audited). */
+async function overrideMapFor(companyIds: string[]): Promise<Map<string, { price: number }>> {
+  try {
+    const { getAdminPriceOverrides } = await import("./price-override")
+    return await getAdminPriceOverrides(companyIds)
+  } catch {
+    // the override layer is best-effort on top of the feed — never breaks reads
+    return new Map()
+  }
+}
+
 /** Latest price per company — one row per company via DISTINCT ON. */
 export async function latestPricesPerCompany(
   companyIds?: string[],
@@ -45,7 +58,13 @@ export async function latestPricesPerCompany(
      ORDER BY mp."companyId", mp."asOf" DESC`,
     ...params,
   )
-  return new Map(rows.map((r) => [r.companyId, r]))
+  const out = new Map(rows.map((r) => [r.companyId, r]))
+  const ovs = await overrideMapFor([...out.keys()])
+  for (const [id, ov] of ovs) {
+    const row = out.get(id)
+    if (row) row.price = ov.price
+  }
+  return out
 }
 
 /** Latest two prices per company (last close + previous close). */
@@ -69,6 +88,11 @@ export async function latestTwoPerCompany(
     const entry = out.get(r.companyId) ?? { last: r as PriceRow, prev: null }
     if (r.rn === 2) entry.prev = r
     out.set(r.companyId, entry)
+  }
+  const ovs = await overrideMapFor([...out.keys()])
+  for (const [id, ov] of ovs) {
+    const entry = out.get(id)
+    if (entry) entry.last.price = ov.price
   }
   return out
 }
@@ -116,6 +140,11 @@ export async function latestAndBaselinePerCompany(
   for (const last of latest) {
     const base = beforeMap.get(last.companyId) ?? earliestMap.get(last.companyId) ?? null
     out.set(last.companyId, { last, base })
+  }
+  const ovs = await overrideMapFor([...out.keys()])
+  for (const [id, ov] of ovs) {
+    const entry = out.get(id)
+    if (entry) entry.last.price = ov.price
   }
   return out
 }

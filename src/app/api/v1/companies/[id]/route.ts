@@ -45,6 +45,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         isDemoData: false,
       }
     : await getLatestPrice(companyId)
+  // owner manual price override (2026-11-16): the owner's value IS the price,
+  // live, on every surface — no user-visible marker (audited server-side)
+  try {
+    const { getAdminPriceOverride } = await import("@/lib/market/price-override")
+    const ov = await getAdminPriceOverride(companyId)
+    if (ov && price) {
+      price.price = ov.price
+      price.asOf = price.asOf ?? new Date(ov.updatedAt)
+    }
+  } catch {
+    // best-effort
+  }
   const [presets, periods, latestReport] = await Promise.all([
     db.scannerRule.findMany({ where: { isPreset: true, isActive: true } }),
     latestCalcPeriodKeys(companyId),

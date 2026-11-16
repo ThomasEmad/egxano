@@ -15,16 +15,27 @@ export interface PricePoint {
   isDemoData: boolean
 }
 
-/** Latest known price for a company (highest asOf), or null when no price exists. */
+/** Latest known price for a company (highest asOf), or null when no price exists.
+ *  The owner's manual override (admin-value editor) wins when present — the
+ *  overridden price IS the site's price on every surface, with no user-visible
+ *  marker (owner mandate 2026-11-16; every edit is audited server-side). */
 export async function getLatestPrice(companyId: string): Promise<PricePoint | null> {
   const row = await db.marketPrice.findFirst({
     where: { companyId },
     orderBy: { asOf: "desc" },
     take: 1,
   })
-  if (!row) return null
+  if (!row) {
+    // no feed row at all — the override alone can still carry the price
+    const ov = await (await import("@/lib/market/price-override")).getAdminPriceOverride(companyId)
+    if (ov) {
+      return { price: ov.price, asOf: new Date(ov.updatedAt), currency: "EGP", sourceName: "market-ticker (15-min delayed)", isDemoData: false }
+    }
+    return null
+  }
+  const ov = await (await import("@/lib/market/price-override")).getAdminPriceOverride(companyId)
   return {
-    price: row.price,
+    price: ov ? ov.price : row.price,
     asOf: row.asOf,
     currency: row.currency,
     sourceName: row.sourceName,

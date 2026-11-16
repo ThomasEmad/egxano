@@ -69,6 +69,31 @@ export async function GET(req: NextRequest) {
       const valid = snap.movers.filter(
         (m) => Number.isFinite(m.price) && m.price > 0 && Number.isFinite(m.changePct) && Math.abs(m.changePct) <= 50,
       )
+      // owner manual price overrides (2026-11-16): the strip shows the owner's
+      // value with the implied previous close preserved — invisible to users
+      try {
+        const [overrideMap, companies] = await Promise.all([
+          import("@/lib/market/price-override").then((m) => m.getAllAdminPriceOverrides()),
+          db.company.findMany({ where: { isActive: true }, select: { id: true, ticker: true } }),
+        ])
+        const companyIdOf = new Map(companies.map((c) => [c.id, c.ticker.toUpperCase()]))
+        const overrideByTicker = new Map<string, { price: number; updatedAt: string }>()
+        for (const [cid, ov] of Object.entries(overrideMap)) {
+          const tk = companyIdOf.get(cid)
+          if (tk && typeof ov?.price === "number" && ov.price > 0) overrideByTicker.set(tk, ov)
+        }
+        if (overrideByTicker.size > 0) {
+          const { adjustedChangePctForOverride } = await import("@/lib/market/price-override")
+          for (const m of valid) {
+            const ov = overrideByTicker.get(m.ticker.toUpperCase())
+            if (!ov) continue
+            m.changePct = adjustedChangePctForOverride(m.price, m.changePct, ov.price)
+            m.price = ov.price
+          }
+        }
+      } catch {
+        // best-effort — the feed stands
+      }
       gainers = [...valid].sort((a, b) => b.changePct - a.changePct).slice(0, 8)
       losers = [...valid].sort((a, b) => a.changePct - b.changePct).slice(0, 8)
       // Most active by share volume — only from snapshot rows that carry volume

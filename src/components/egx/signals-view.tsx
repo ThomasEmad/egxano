@@ -24,7 +24,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { useQuery } from "@tanstack/react-query"
+import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -238,6 +238,11 @@ function OpportunityCard({ row, ar }: { row: Exclude<BoardRow, GatedRowV2>; ar: 
             </div>
           </div>
           <div className="text-end">
+            {/* ① owner mandate: this number is the stock's CURRENT price (last
+                stored close from the market feed) — labeled as such so it can
+                never be mistaken for an entry level; it refreshes on the
+                15-minute board cycle. */}
+            <div className="text-[10px] font-medium text-muted-foreground">{ar ? "السعر الحالي" : "Current price"}</div>
             <div className="text-lg font-bold tabular-nums text-foreground">{fmt(row.lastClose)}</div>
             <div className={`text-xs font-semibold tabular-nums ${pctCls(row.changePct)}`}>
               {row.changePct !== null ? (
@@ -381,7 +386,28 @@ export function SignalsView() {
     queryKey: ["signals-board-v2", query],
     queryFn: () => api.technicalSignals(query),
     staleTime: 5 * 60_000,
+    // ① owner mandate 2026-11-16: the price on every card is the stock's real
+    // price and must move on its own — refetch every 15 minutes.
+    refetchInterval: 15 * 60_000,
+    // ③ owner complaint: typing in the search box MUST NOT blank the page —
+    // the previous rows stay on screen while the filtered fetch runs.
+    placeholderData: keepPreviousData,
   })
+
+  // ④ the refresh button must actually refresh: nudge the server-side market
+  // pull first (rate-limited public endpoint — a successful sync also
+  // invalidates the server caches), THEN refetch — the response is rebuilt
+  // rows, not the same 10-minute-old board.
+  const [sessionRefreshing, setSessionRefreshing] = useState(false)
+  const handleSessionRefresh = async () => {
+    setSessionRefreshing(true)
+    try {
+      await fetch("/api/v1/market/sync", { method: "POST" }).catch(() => null)
+      await refetch()
+    } finally {
+      setSessionRefreshing(false)
+    }
+  }
 
   // client-side re-sort mirrors the server sort keys (the server already ran
   // the same engine, so this only re-orders the rows the caller can see)
@@ -473,9 +499,15 @@ export function SignalsView() {
         <div className="flex items-center gap-2">
           <LiveMarketBadge ar={ar} on={[]} status={liveStatus} lastUpdated={liveUpdated} />
           <Badge variant="outline" className="text-[11px]">{data.version}</Badge>
-          <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => void refetch()} disabled={isRefetching}>
-            <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`} />
-            {ar ? "تحديث" : "Refresh"}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={() => void handleSessionRefresh()}
+            disabled={isRefetching || sessionRefreshing}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefetching || sessionRefreshing ? "animate-spin" : ""}`} />
+            {sessionRefreshing ? (ar ? "جارٍ تحديث الجلسة…" : "Refreshing session…") : ar ? "تحديث الجلسة" : "Refresh"}
           </Button>
         </div>
       </div>
@@ -498,6 +530,7 @@ export function SignalsView() {
             {ar ? "حُسبت" : "computed"}: {new Date(data.computedAt).toLocaleString(ar ? "ar-EG" : "en-GB", { dateStyle: "short", timeStyle: "short" })}
           </span>
         ) : null}
+        <span>{ar ? "الأسعار تتحدث تلقائيًا كل 15 دقيقة أثناء الجلسة" : "prices refresh automatically every 15 minutes during the session"}</span>
       </div>
 
       {/* ---- summary chips (counts are public even for free callers) ---- */}

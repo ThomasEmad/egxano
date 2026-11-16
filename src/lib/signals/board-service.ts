@@ -17,6 +17,7 @@ import { db } from "@/lib/db"
 import { cached } from "@/lib/server-cache"
 import { applyCorporateActionAdjustments, loadSeriesActionsByCompany, type SeriesBar } from "@/lib/market/corporate-actions"
 import { effectiveEgxSessionDate } from "@/lib/market/egx-session"
+import { applyAdminPriceOverrideToLastBar, getAdminPriceOverride, getAdminPriceOverrides } from "@/lib/market/price-override"
 import { computeCompanySignalV2, type CompanyIdentity } from "./engine"
 import { SIGNALS_V2_VERSION, type Fundamentals, type SignalRowV2, type SignalState } from "./types"
 
@@ -253,6 +254,10 @@ async function buildBoardUncached(): Promise<BoardOutputV2> {
   let breadthMeasured = 0
   let breadthAbove = 0
 
+  // owner manual price overrides (2026-11-16): patched onto the LAST bar of
+  // each merged series so indicators/plans/scores read the owner's value
+  const overrides = await getAdminPriceOverrides(ids)
+
   for (const [companyId, days] of byDay) {
     const c = companyById.get(companyId)
     if (!c) continue
@@ -260,6 +265,8 @@ async function buildBoardUncached(): Promise<BoardOutputV2> {
       if (!asOf || day > asOf) asOf = day
     }
     let series = [...days.values()].sort((a, b) => a.ts.localeCompare(b.ts))
+    const companyOverride = overrides.get(companyId) ?? null
+    if (companyOverride && series.length > 0) applyAdminPriceOverrideToLastBar(series, companyOverride)
 
     // corporate-action continuity: rescale sessions before each ex-date so
     // bonus/split/cash events are not read as market losses (same engine v1)
@@ -412,6 +419,8 @@ async function buildCompanySignalUncached(companyId: string): Promise<SignalRowV
   }
 
   let series = [...byDay.values()].sort((a, b) => a.ts.localeCompare(b.ts))
+  const singleOverride = await getAdminPriceOverride(companyId)
+  if (singleOverride && series.length > 0) applyAdminPriceOverrideToLastBar(series, singleOverride)
   if (series.length >= 2) {
     try {
       const actions = await loadSeriesActionsByCompany([companyId], series[0].ts, series[series.length - 1].ts)

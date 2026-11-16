@@ -55,6 +55,7 @@ import { PremiumGate } from "@/components/egx/premium-gate"
 import { HealthTab } from "@/components/egx/health-tab"
 import { TechnicalTab } from "@/components/egx/technical-tab"
 import { FScoreCard } from "@/components/egx/f-score-card"
+import { AdminValueEditor } from "@/components/egx/admin-value-editor"
 import { QaBox } from "@/components/egx/qa-box"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -444,6 +445,9 @@ export function CompanyDetail({
           <PeersTab companyId={companyId} />
         </TabsContent>
       </Tabs>
+
+      {/* owner-only live value editor (renders null without an admin session) */}
+      <AdminValueEditor companyId={companyId} />
     </div>
   )
 }

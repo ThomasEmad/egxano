@@ -441,6 +441,15 @@ export async function buildTechnicalBundle(companyId: string, context: MarketCon
   // daily segment, and the trim is disclosed.
   const trimmed = contiguousSuffix(merged.bars)
   const bars = trimmed.bars
+  // owner manual price override (2026-11-16): patched onto the last bar so the
+  // chart, indicators and every level reflect the owner's value live
+  try {
+    const { getAdminPriceOverride, applyAdminPriceOverrideToLastBar } = await import("@/lib/market/price-override")
+    const ov = await getAdminPriceOverride(companyId)
+    if (ov) applyAdminPriceOverrideToLastBar(bars, ov)
+  } catch {
+    // best-effort — the feed remains the fallback
+  }
   const trimNote =
     trimmed.cut > 0
       ? `${trimmed.cut} pre-gap session${trimmed.cut === 1 ? "" : "s"} before a >${TRIM_GAP_DAYS}-calendar-day data gap were excluded — the reading covers the contiguous daily segment only.`

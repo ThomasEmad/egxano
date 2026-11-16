@@ -5,7 +5,8 @@
 // figures and the disclosed warnings render identically on every surface.
 // Pure presentation: no fetching, no state.
 
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, Flag, LogIn, ShieldAlert, Target } from "lucide-react"
+import type { ReactNode } from "react"
 import { SCORE_GROUP_AR, type Evidence, type SignalState, type SignalWarning, type TradePlanV2 } from "@/lib/signals/types"
 
 function fmt(v: number | null | undefined, digits = 2): string {
@@ -56,35 +57,95 @@ export const V2_STATE_META: Record<SignalState, { ar: string; en: string; chipCl
 
 // ---------------------------------------------------------------------------
 // Level strip — the shared plan grid (confirmed or provisional), with the
-// approximate return to target and risk to stop (owner addition 2026-11-16)
+// approximate return to target and risk to stop (owner addition 2026-11-16).
+// 2026-11-16 redesign (owner request): the entry/stop/target cards get a
+// distinct semantic color, an icon, a large figure and the derived percent —
+// visually ordered entry → stop → targets like a trade ticket.
 // ---------------------------------------------------------------------------
 
 export function LevelStrip({ plan, provisional, ar }: { plan: TradePlanV2; provisional?: boolean; ar: boolean }) {
-  const cell = (label: string, value: string, sub?: { text: string; cls: string }, cls = "text-foreground") => (
-    <div className="min-w-[84px] flex-1 rounded-md border border-border/60 bg-background/60 px-2 py-1.5 text-center">
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className={`text-sm font-bold tabular-nums ${cls}`}>{value}</div>
-      {sub ? <div className={`text-[10px] font-semibold tabular-nums ${sub.cls}`}>{sub.text}</div> : null}
-    </div>
-  )
+  const cell = (
+    opts: {
+      label: string
+      value: string
+      valueCls?: string
+      icon: ReactNode
+      tone: "entry" | "stop" | "target"
+      sub?: { text: string; cls: string }
+      wide?: boolean
+    },
+  ) => {
+    const toneCls =
+      opts.tone === "entry"
+        ? "border-blue-500/40 bg-blue-500/[0.07]"
+        : opts.tone === "stop"
+          ? "border-negative/40 bg-negative/[0.07]"
+          : "border-positive/45 bg-positive/[0.07]"
+    const labelCls =
+      opts.tone === "entry" ? "text-blue-700 dark:text-blue-300" : opts.tone === "stop" ? "text-negative" : "text-positive"
+    return (
+      <div
+        className={`group relative flex-1 overflow-hidden rounded-xl border ${toneCls} px-3 py-2.5 text-center transition-shadow hover:shadow-md ${opts.wide ? "min-w-[150px]" : "min-w-[110px]"}`}
+      >
+        <div className={`flex items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-wide ${labelCls}`}>
+          {opts.icon}
+          {opts.label}
+        </div>
+        <div className={`mt-1 text-base font-extrabold tabular-nums ${opts.valueCls ?? "text-foreground"}`} dir="ltr">
+          {opts.value}
+        </div>
+        {opts.sub ? <div className={`mt-0.5 text-[11px] font-bold tabular-nums ${opts.sub.cls}`} dir="ltr">{opts.sub.text}</div> : null}
+      </div>
+    )
+  }
   const tag = provisional ? (ar ? "تقديري — يُعاد حسابه عند التفعيل" : "provisional — recomputed at activation") : ar ? "مستويات تنفيذية" : "executable levels"
   return (
     <div>
-      <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-        <span>{tag}</span>
-        <span className="font-semibold text-foreground">R/R {fmt(plan.riskReward)}</span>
+      <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+        <span className="rounded-full bg-muted px-2 py-0.5 font-medium">{tag}</span>
+        <span className="rounded-full border border-border/70 bg-background px-2 py-0.5 font-semibold text-foreground">
+          {ar ? "مخاطرة/عائد" : "R/R"} {fmt(plan.riskReward)}
+        </span>
         {plan.target1ReturnPct !== undefined ? (
-          <span className="font-semibold text-positive">
-            {ar ? "العائد حتى الهدف ≈ " : "est. return ≈ "}
-            {pctStr(plan.target1ReturnPct)}
+          <span className="rounded-full border border-positive/40 bg-positive/10 px-2 py-0.5 font-bold text-positive">
+            {ar ? "العائد حتى الهدف ≈" : "est. return ≈"} {pctStr(plan.target1ReturnPct)}
           </span>
         ) : null}
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        {cell(ar ? "دخول" : "Entry", `${fmt(plan.entryLow)}–${fmt(plan.entryHigh)}`)}
-        {cell(ar ? "وقف" : "Stop", fmt(plan.stop), plan.stopRiskPct !== undefined ? { text: `−${plan.stopRiskPct.toFixed(1)}%`, cls: "text-negative" } : undefined, "text-negative")}
-        {cell(ar ? "الهدف الأول" : "Target 1", fmt(plan.target1), plan.target1ReturnPct !== undefined ? { text: pctStr(plan.target1ReturnPct), cls: "text-positive" } : undefined, "text-positive")}
-        {plan.target2 !== null ? cell(ar ? "الهدف الثاني" : "Target 2", fmt(plan.target2), plan.target2ReturnPct !== null ? { text: pctStr(plan.target2ReturnPct), cls: "text-positive" } : undefined, "text-positive") : null}
+      <div className="flex flex-wrap items-stretch gap-2">
+        {cell({
+          label: ar ? "الدخول" : "Entry",
+          value: `${fmt(plan.entryLow)} – ${fmt(plan.entryHigh)}`,
+          icon: <LogIn className="h-3 w-3" aria-hidden />,
+          tone: "entry",
+          wide: true,
+        })}
+        {cell({
+          label: ar ? "الوقف" : "Stop",
+          value: fmt(plan.stop),
+          valueCls: "text-negative",
+          icon: <ShieldAlert className="h-3 w-3" aria-hidden />,
+          tone: "stop",
+          sub: plan.stopRiskPct !== undefined ? { text: `−${plan.stopRiskPct.toFixed(1)}%`, cls: "text-negative" } : undefined,
+        })}
+        {cell({
+          label: ar ? "الهدف الأول" : "Target 1",
+          value: fmt(plan.target1),
+          valueCls: "text-positive",
+          icon: <Target className="h-3 w-3" aria-hidden />,
+          tone: "target",
+          sub: plan.target1ReturnPct !== undefined ? { text: pctStr(plan.target1ReturnPct), cls: "text-positive" } : undefined,
+        })}
+        {plan.target2 !== null
+          ? cell({
+              label: ar ? "الهدف الثاني" : "Target 2",
+              value: fmt(plan.target2),
+              valueCls: "text-positive",
+              icon: <Flag className="h-3 w-3" aria-hidden />,
+              tone: "target",
+              sub: plan.target2ReturnPct !== null ? { text: pctStr(plan.target2ReturnPct), cls: "text-positive" } : undefined,
+            })
+          : null}
       </div>
     </div>
   )
