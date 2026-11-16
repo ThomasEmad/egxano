@@ -135,6 +135,65 @@ function recoveryReasonAr(pnlPct: number, recoveryPct: number): string {
   return `لو بعت دلوقتي بخسارة ${pct1(pnlPct)}، محتاج إن أي سهم تاني تعمل فيه ${pct1(recoveryPct)} عشان تعوّض وترجع لنقطة البداية — ودي رياضيات مش رأي.`
 }
 
+/** OWNER RULE (2026-11-18): a support more than 15% below the close, or one
+ *  touched only once, is NOT a trusted floor — EGX makers paint single-touch
+ *  lows all the time to grab liquidity. The practical support becomes EMA20,
+ *  the dynamic line the market actually respects. Falls back to the raw zone
+ *  (flagged as weak) when no EMA20 sits below the close. */
+export const NEAR_SUPPORT_MAX_GAP_PCT = 15
+
+export interface EffectiveSupport {
+  kind: "zone" | "ema20"
+  /** the line the user watches (zone high edge, or the EMA20 value) */
+  level: number
+  low?: number
+  high?: number
+  touches?: number
+  gapPct: number
+  basisAr: string
+}
+
+export function pickEffectiveSupport(supports: LevelLine[], close: number, ema20: number | null): EffectiveSupport | null {
+  const nearest = supports.find((s) => s.high < close) ?? null
+  if (nearest !== null && nearest.touches >= 2 && Math.abs(nearest.distFromPricePct) <= NEAR_SUPPORT_MAX_GAP_PCT) {
+    return {
+      kind: "zone",
+      level: nearest.high,
+      low: nearest.low,
+      high: nearest.high,
+      touches: nearest.touches,
+      gapPct: Math.abs(nearest.distFromPricePct),
+      basisAr: `دعم ${nearest.touches}× مختبَر (${fmt(nearest.low)}–${fmt(nearest.high)}) على بعد ${pct1(Math.abs(nearest.distFromPricePct))}`,
+    }
+  }
+  if (ema20 !== null && ema20 < close) {
+    const why = nearest === null
+      ? "مفيش دعم مسجل تحت السعر"
+      : nearest.touches < 2
+        ? `أقرب دعم مسجل اتلمس مرة واحدة بس (${fmt(nearest.low)}–${fmt(nearest.high)}) — لمسة واحدة مش دعم`
+        : `أقرب دعم مسجل بعيد ${pct1(Math.abs(nearest.distFromPricePct))} — مسافة طويلة جدًا`
+    return {
+      kind: "ema20",
+      level: ema20,
+      gapPct: ((close - ema20) / close) * 100,
+      basisAr: `${why} — فالبطانة العملية هي EMA20 عند ${fmt(ema20)}، الخط الديناميكي اللي السوق بيحترمه فعلًا`,
+    }
+  }
+  if (nearest) {
+    // nothing better exists — use the raw zone but flag its weakness honestly
+    return {
+      kind: "zone",
+      level: nearest.high,
+      low: nearest.low,
+      high: nearest.high,
+      touches: nearest.touches,
+      gapPct: Math.abs(nearest.distFromPricePct),
+      basisAr: `أقرب دعم (${fmt(nearest.low)}–${fmt(nearest.high)}) — ضعيف (${nearest.touches < 2 ? "لمسة واحدة بس" : `بعيد ${pct1(Math.abs(nearest.distFromPricePct))}`}) فاختفاه مش دليل أمان`,
+    }
+  }
+  return null
+}
+
 function deepLossQuestionAr(): ReviewQuestion {
   return {
     promptAr: "سؤال بحاول أفكر معاك فيه: هل شايف إن السهم ممكن يهبط 10٪ كمان من السعر الحالي؟",
@@ -143,7 +202,7 @@ function deepLossQuestionAr(): ReviewQuestion {
     yesOutcomeAr:
       "اختيارك (متوقع هبوط إضافي): الخطة تبقى بيع مع أول ارتداد — مش في قاع الذعر. أول جلسة قوية بتفتح وتصعد، ابدأ التخفيف وخرج بالباقي بدل ما تستنى قاع أعمق.",
     noOutcomeAr:
-      "اختيارك (مفيش هبوط إضافي متوقع): يبقى الانتظار للارتداد قرار منطقي — بس خلي خط الإلغاء اللي تحت تنبيهًا آليًا، وخرج في نطاق الخسارة 20–25٪ بلا تردد لما يوصلك.",
+      "اختيارك (مفيش هبوط إضافي متوقع): يبقى الانتظار للارتداد قرار منطقي — بس تابع الفرد جيدًا على الشاشة كل يوم، وخرج في نطاق الخسارة 20–25٪ بلا تردد لما يوصلك، والحكم بالإغلاق الفعلي مش باللمسة.",
     answeredAr: null,
   }
 }
@@ -157,6 +216,9 @@ export function reviewPosition(input: ReviewInput): PositionReview {
   const cushion = readCushion(bars, map)
   const { supports, resistances } = levelLines(map, close, avgBuyPrice)
   const nearestSupportBelowClose = supports.find((s) => s.high < close) ?? null
+  // owner rule: far (>15%) or single-touch supports are replaced by EMA20 as
+  // the practical floor — used for every stop/trailing line shown to the user
+  const effSupport = pickEffectiveSupport(supports, close, mt?.ema20 ?? null)
   const trendAr = trendTextAr(close, mt?.ema20 ?? null, mt?.ema50 ?? null)
   const deepLoss = pnlPct <= -DEEP_LOSS_PCT
   const recoveryPct = pnlPct < 0 ? Math.round(recoveryNeededPct(avgBuyPrice, close) * 10) / 10 : null
@@ -217,15 +279,15 @@ export function reviewPosition(input: ReviewInput): PositionReview {
     }
     invalidationAr = cushion.cushionLevel !== null
       ? `أي إغلاق يومي تحت البطانة (${fmt(cushion.cushionLevel)}) يقلب الخطة لتقليل فوري في السوق — الانتظار له حد مش أبدية`
-      : nearestSupportBelowClose
-        ? `أي إغلاق يومي تحت ${fmt(nearestSupportBelowClose.high)} يقلب الخطة لتقليل فوري`
+      : effSupport
+        ? `أي إغلاق يومي تحت ${fmt(effSupport.level)} يقلب الخطة لتقليل فوري`
         : "أي إغلاق يومي تحت قاع آخر 60 جلسة يقلب الخطة لتقليل فوري"
     reasonsAr.push(
       `الصريح الموجع أولًا: متوسط شراءك ${fmt(avgBuyPrice)} والسعر دلوقتي ${fmt(close)} — يعني إنت تحت الماء ${pct1(pnlPct)} (${fmt(pnlPerShare)} جنيه/سهم).`,
       recoveryReasonAr(pnlPct, recoveryPct ?? 0),
       `وعشان حجم الصورة يبان: خسارة 20٪ تحتاج +25٪ للتعويض، وخسارة 25٪ تحتاج +33٪، وخسارة 50٪ تحتاج +100٪ — كل ما الخسارة بتتعمق، التعويض بيتضاعف. عشان كده البيع بخسارة كبيرة دلوقتي صعب جدًا، والانتظار للارتداد هو الحل الأنسب.`,
       breakFactAr + "، " + trendFactAr + ".",
-      openFieldAr + " — فمفيش بيع عشوائي من غير خط، ومفيش انتظار من غير تنبيه.",
+      openFieldAr + " — فمفيش بيع عشوائي، ومفيش انتظار من غير متابعة يومية للفرد على الشاشة.",
       `خطة الارتداد (owner mandate): لما السعر يرتد للنطاق ${fmt(reboundZoneLow)}–${fmt(reboundZoneHigh)} تكون خسارتك في حدود 20–25٪ وساعتها الخروج بيكون قرار منظم مش هروب${
         close >= reboundZoneLow && close <= reboundZoneHigh ? " — وإنت أصلًا جوه النطاق ده دلوقتي، فأي قوة إضافية خد فيها قرار التخفيف" : ""
       }.`,
@@ -309,20 +371,20 @@ export function reviewPosition(input: ReviewInput): PositionReview {
   // ---------- 4) in profit → hold with the trailing line drawn
   if (pnlPct >= 0) {
     decision = "hold"
-    const supLine = nearestSupportBelowClose
+    const supLine = effSupport
     headlineAr = supLine
-      ? `إنت رابح ${pct1(pnlPct)} والسهم واقف فوق دعمه — احتفظ، ورسمت لك خط الخروج تحت`
-      : `إنت رابح ${pct1(pnlPct)} — احتفظ بس مفيش دعم واضح تحت، فخلي عينك على السوق`
+      ? `إنت رابح ${pct1(pnlPct)} والسهم واقف فوق خط دفاعه — احتفظ، ورسمت لك الخط تحت`
+      : `إنت رابح ${pct1(pnlPct)} — احتفظ بس مفيش بطانة معتمدة تحت، فخلي عينك على الشاشة`
     invalidationAr = supLine
-      ? `أي إغلاق يومي تحت أقرب دعم (${fmt(supLine.high)}) يقلب القرار لمراجعة فورية`
-      : "مفيش دعم مسجل تحت السعر — راجع القرار عند أي إغلاق تحت قاع آخر 60 جلسة"
-    planAr = supLine ? `الخطة: الاحتفاظ بشريط الدعم (${fmt(supLine.high)}) كخط دفاع — أي إغلاق تحته نراجع كل حاجة من الأول.` : null
+      ? `أي إغلاق يومي تحت ${fmt(supLine.level)} يقلب القرار لمراجعة فورية — والحكم بالإغلاق الفعلي مش باللمسة (الكسور الكاذبة كتير في السوق المصري)`
+      : "مفيش دعم معتمد تحت السعر — راجع القرار عند أي إغلاق تحت قاع آخر 60 جلسة"
+    planAr = supLine ? `الخطة: الاحتفاظ ببطانة ${fmt(supLine.level)} كخط دفاع — أي إغلاق تحته نراجع كل حاجة من الأول، والحكم بالإغلاق مش باللمسة عشان الكسور الكاذبة.` : null
     reasonsAr.push(
       `الأساسي أولًا: متوسطك ${fmt(avgBuyPrice)} والسعر ${fmt(close)} — يعني إنت ${pct1(pnlPct)} (${pnlPerShare >= 0 ? "+" : ""}${fmt(pnlPerShare)} جنيه/سهم). المركز مش في منطقة خطر.`,
       `القراءة الفنية: ${trendAr}${mt?.rsi14 ? ` وRSI ${fmt(mt.rsi14)} (${mt.rsi14 > 70 ? "منطقة تشبع شرائي — متصدقش إن الصعود مستحيل يتوقف، خد أرباح جزئية لو عاجلك" : mt.rsi14 < 30 ? "منطقة تشبع بيعي — أرضية محتملة" : "منطقة متوازنة"})` : ""}.`,
       supLine
-        ? `خط الدفاع: أقرب دعم تحتك (${fmt(supLine.high)}–${fmt(supLine.low)})، ${supLine.touches}× مختبَر، على بعد ${pct1(Math.abs(supLine.distFromPricePct))} — طالما السعر فوقه، القصة سليمة.`
-        : "ملاحظة أمانة: مفيش دعم مسجل تحت السعر الحالي — الرحلة صاعدة بلا بطانة، فلو عاجلك الربح خد جزء منه.",
+        ? `خط الدفاع: ${supLine.basisAr} — طالما السعر فوقه بالإغلاق، القصة سليمة.`
+        : "ملاحظة أمانة: مفيش دعم معتمد تحت السعر الحالي — الرحلة صاعدة بلا بطانة، فلو عاجلك الربح خد جزء منه.",
       resistances.length
         ? `الحلم فوق: أقرب مقاومة عند ${fmt(resistances[0].low)}–${fmt(resistances[0].high)} على بعد ${pct1(resistances[0].distFromPricePct)} — دي أول منطقة تستحق قرار أرباح جزئي.`
         : "مفيش مقاومة مسجلة فوق — السهم في فضاء مفتوح، بس خد بالك إن الفضاء المفتوح بيقطع بسرعة.",
@@ -338,8 +400,10 @@ export function reviewPosition(input: ReviewInput): PositionReview {
 
   // ---------- 5) small loss (above −20%) → protect the remaining capital
   const trendBroken = (mt?.ema20 ?? null) !== null && (mt?.ema50 ?? null) !== null && mt!.ema20! < mt!.ema50! && close < mt!.ema50!
-  const supLine = nearestSupportBelowClose
-  const closeCushion = supLine !== null && Math.abs(supLine.distFromPricePct) <= EXIT_SUPPORT_CUSHION_WAIT_PCT
+  // the cushion decision rule stays zone-based (owner constants); the DISPLAY
+  // floor and the stop line follow the effective-support rule (EMA20 fallback)
+  const supZone = nearestSupportBelowClose
+  const closeCushion = supZone !== null && Math.abs(supZone.distFromPricePct) <= EXIT_SUPPORT_CUSHION_WAIT_PCT
   if (trendBroken && !closeCushion) {
     decision = "exit"
     headlineAr = "إنت تحت الماء والاتجاه اتكسر — الخسارة الصغيرة دلوقتي أفضل من الكبيرة بعدين"
@@ -357,23 +421,23 @@ export function reviewPosition(input: ReviewInput): PositionReview {
     headlineAr = closeCushion
       ? "إنت خاسر بس السعر لاسك على دعم قريب — انتظر بإغلاق واحد يحسم"
       : "إنت خاسر بس البنية لسه مكسورة جزئيًا — انتظر بإطار واضح مش بالعاطفة"
-    invalidationAr = supLine
-      ? `أي إغلاق يومي تحت ${fmt(supLine.high)} يقلب القرار لخروج فوري`
+    invalidationAr = effSupport
+      ? `أي إغلاق يومي تحت ${fmt(effSupport.level)} يقلب القرار لخروج فوري — والحكم بالإغلاق مش باللمسة`
       : "أي إغلاق يومي تحت قاع آخر 60 جلسة يقلب القرار لخروج فوري"
-    planAr = supLine
-      ? `الخطة: انتظر بإطار — أي إغلاق يومي تحت ${fmt(supLine.high)} = خروج بلا نقاش، وأي ثبات فوق الدعم = الاستمرار.`
+    planAr = effSupport
+      ? `الخطة: راقب الشاشة يوميًا — أي إغلاق يومي تحت ${fmt(effSupport.level)} = خروج بلا نقاش، وأي ثبات فوقه بالإغلاق = الاستمرار.`
       : "الخطة: راقب القاع الأخير — كسره بإغلاق يعني خروج، وثباته يعني استمرار الانتظار."
     reasonsAr.push(
       `الوضع: متوسطك ${fmt(avgBuyPrice)} والسعر ${fmt(close)} — خسارة ${pct1(pnlPct)} (${fmt(pnlPerShare)} جنيه/سهم). القرار دلوقتي بيتاخد بالأرقام مش بالأمل.`,
       recoveryReasonAr(pnlPct, recoveryPct ?? 0),
       `الاتجاه: ${trendAr}${row.score !== null ? ` ودرجة المحرك ${row.score}/100 (${row.state === "near" ? "إعداد قريب من التفعيل" : "لا فرصة مناسبة دلوقتي"})` : ""}.`,
-      supLine
-        ? `أرضية اللعبة: أقرب دعم تحت السعر (${fmt(supLine.high)}–${fmt(supLine.low)}) على بعد ${pct1(Math.abs(supLine.distFromPricePct))}${closeCushion ? " — قريب جدًا فالبيع هنا بيقفل الخسارة عند أدنى نقطة، والسوق هيحسم قريب" : " — طالما واقف فوقه، الاحتفاظ المشروط منطقي"}.`
-        : "أرضية اللعبة: مفيش دعم مسجل تحت السعر الحالي — الخط الفاصل الوحيد هو قاع آخر 60 جلسة، وخليه تنبيه آلي مش قرار مزاج.",
+      effSupport
+        ? `أرضية اللعبة: ${effSupport.basisAr}${closeCushion ? " — قريب جدًا فالبيع هنا بيقفل الخسارة عند أدنى نقطة، والسوق هيحسم قريب" : " — طالما السعر واقف فوقه بالإغلاق، الاحتفاظ المشروط منطقي"}.`
+        : "أرضية اللعبة: مفيش دعم معتمد تحت السعر الحالي — الخط الفاصل الوحيد هو قاع آخر 60 جلسة، ومتابعتك للفرد لازم تكون يومية على الشاشة.",
       trendBroken
         ? "الاتجاه العام ضعيف بس الدعم القريب هو اللي بيمسك المركز — كسبنا وقت، مش أكتر: أي كسر للبطانة يعني خروج."
         : "الهيكل لسه ماسك: السعر تحت متوسطك بس مش تحت بنية الدعم — بنستنى إما الارتداد أو الكسر، والاتنين واضحين.",
-      "سلامة نفسك قبل السهم: حط التنبيه عند خط الإلغاء اللي تحت وخلي القرار آلي — القرارات اللي بتتاخد في ساعة الصفر هي الأغلط.",
+      "قاعدة السوق المصري: الستوب الآلي بيوقّعك في الكسور الكاذبة — الصنّاع بيكسروا المستويات لمرة واحدة عشان يجمعوا السيولة ويرجّعوا السعر، فمتابعة الفرد جيدًا على الشاشة هي الحماية الحقيقية، والحكم على أي كسر يكون بالإغلاق الفعلي والحجم قبل أي حركة.",
     )
   }
 

@@ -192,3 +192,65 @@ describe("reviewPosition — the deep-loss regime (pnl ≤ −20%)", () => {
     expect(DEEP_LOSS_PCT).toBe(20)
   })
 })
+
+// =============================================================================
+// OWNER MANDATE (2026-11-18) — round two:
+//   • a support >15% away or touched only once is NOT a floor → EMA20 is the
+//     practical support (EGX makers paint single-touch lows constantly)
+//   • NO auto-stop advice: makers fake-break levels to grab liquidity — the
+//     user watches the stock on screen and judges by the CLOSE
+// =============================================================================
+
+import { NEAR_SUPPORT_MAX_GAP_PCT, pickEffectiveSupport } from "../review"
+import type { LevelLine } from "../types"
+
+describe("pickEffectiveSupport — the EMA20 fallback rule", () => {
+  const line = (overrides: Partial<LevelLine>): LevelLine => ({
+    kind: "support", low: 90, high: 91, touches: 2, broken: false, lastTouchTs: "2026-03-01",
+    distFromPricePct: 5, distFromAvgPct: 0, noteAr: "", ...overrides,
+  })
+
+  it(`a 2× support within ${NEAR_SUPPORT_MAX_GAP_PCT}٪ stays the floor`, () => {
+    const eff = pickEffectiveSupport([line({ touches: 3, distFromPricePct: 6 })], 100, 95)
+    expect(eff).not.toBeNull()
+    expect(eff!.kind).toBe("zone")
+    expect(eff!.level).toBe(91)
+  })
+
+  it("a single-touch support is replaced by EMA20", () => {
+    const eff = pickEffectiveSupport([line({ touches: 1, distFromPricePct: 4 })], 100, 96.5)
+    expect(eff!.kind).toBe("ema20")
+    expect(eff!.level).toBe(96.5)
+    expect(eff!.basisAr).toContain("لمسة واحدة")
+    expect(eff!.basisAr).toContain("EMA20")
+  })
+
+  it("a support farther than 15٪ is replaced by EMA20", () => {
+    const eff = pickEffectiveSupport([line({ touches: 4, distFromPricePct: 18 })], 100, 97)
+    expect(eff!.kind).toBe("ema20")
+    expect(eff!.basisAr).toContain("بعيد")
+  })
+
+  it("no EMA20 below the close → the raw zone survives, flagged weak", () => {
+    const eff = pickEffectiveSupport([line({ touches: 1, distFromPricePct: 20 })], 100, null)
+    expect(eff!.kind).toBe("zone")
+    expect(eff!.basisAr).toContain("ضعيف")
+  })
+})
+
+describe("the fake-break doctrine — no auto-stop advice", () => {
+  it("the report teaches close-based judgment and names the makers' fake breaks", () => {
+    const bars = cushionSeries(100, 106.5) // small loss, cushion right under
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({ row: rowOver(bars, { state: "wait" }), bars, map, avgBuyPrice: 110 })
+    const all = r.reasonsAr.join(" ") + " " + r.invalidationAr + " " + (r.planAr ?? "")
+    expect(all).toContain("كاذب")
+    expect(all).toContain("الصنّاع")
+    expect(all).toContain("بالإغلاق")
+    // zero auto-stop INSTRUCTIONS (the doctrine sentence itself names the trap)
+    expect(all).not.toContain("خلي القرار آلي")
+    expect(all).not.toContain("تنبيه آلي")
+    expect(all).not.toContain("حط التنبيه")
+    expect(all).toContain("الشاشة")
+  })
+})
