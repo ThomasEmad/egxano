@@ -9,8 +9,21 @@
 //     paying user ever silently drops to the free tier.
 //   • New third plan PRO_3M: 3 months, 450 EGP total, promo = 50% off the
 //     FIRST MONTH ONLY (first cycle 375 EGP instead of 450).
+//
+// 2026-11-16 owner addition: a FULL-FEATURE FREE TRIAL month for ANY user.
+// The TRIAL plan id is resolved by subscription.ts from the user's signup
+// date (no DB subscription row, no migration): every account gets
+// TRIAL_DURATION_DAYS of the entire product, starting no later than
+// TRIAL_EPOCH_ISO + TRIAL_DURATION_DAYS so pre-existing accounts get a full
+// month from the feature's deploy, not a prorated remainder.
 
-export type PlanId = "FREE" | "PRO" | "PRO_3M"
+export type PlanId = "FREE" | "PRO" | "PRO_3M" | "TRIAL"
+
+/** Trial window: 30 days of full access, keyed off the account's createdAt. */
+export const TRIAL_DURATION_DAYS = 30
+/** The deploy date of the trial feature — every account created BEFORE this
+ *  instant still gets a full 30-day trial from this instant onward. */
+export const TRIAL_EPOCH_ISO = "2026-11-16T00:00:00.000Z"
 
 export interface PlanLimits {
   /** Rows fully visible on the technical signals board (rest locked). */
@@ -143,6 +156,39 @@ export const PLANS: Record<PlanId, PlanDef> = {
       ads: false,
     },
   },
+  /** The automatic full-feature trial month (2026-11-16 owner mandate). NOT
+   *  sellable and NOT rendered on the /premium grid — resolved from the
+   *  account's signup date in subscription.ts; every limit is the full
+   *  experience so the user judges the whole product. */
+  TRIAL: {
+    id: "TRIAL",
+    nameAr: "التجربة المجانية الكاملة",
+    nameEn: "Free Trial",
+    taglineAr: "شهر كامل بكل المميزات — تُمنح تلقائيًا لأي مستخدم",
+    price: 0,
+    offerPrice: null,
+    offerActive: false,
+    offerLabelAr: null,
+    currency: "EGP",
+    durationDays: TRIAL_DURATION_DAYS,
+    featuresAr: [
+      "شهر كامل بكل مميزات الموقع بلا استثناء — تُمنح تلقائيًا عند إنشاء الحساب",
+      "لوحة الإشارات الفنية كاملة لكل الشركات + مستويات الدخول والأهداف والوقف",
+      "التحليل الفني الشامل لكل شركة + أحداث الشركات + الماسحات المحفوظة",
+      "محفظة بلا حدود + قائمة مراقبة 50 سهم + 30 تنبيه سعر — وبدون إعلانات",
+    ],
+    limits: {
+      signalsRows: "ALL",
+      portfolioHoldings: "UNLIMITED",
+      qaPerDay: 60,
+      alerts: 30,
+      watchlist: 50,
+      events: true,
+      scanners: true,
+      pdfReport: true,
+      ads: false,
+    },
+  },
 }
 
 /** Rows visible for free users on the signals board (kept for quick import). */
@@ -153,8 +199,10 @@ export function effectiveFirstMonthPrice(plan: PlanDef): number {
   return plan.offerActive && plan.offerPrice != null ? plan.offerPrice : plan.price
 }
 
-/** Which plans count as "paid/premium" for isPremiumUser-style checks. */
-export const PAID_PLAN_IDS: PlanId[] = ["PRO", "PRO_3M"]
+/** Which plans count as "paid/premium" for isPremiumUser-style checks.
+ *  TRIAL is deliberately included: the trial month is FULL access by design —
+ *  every gate that accepts a paying user must accept an active trial too. */
+export const PAID_PLAN_IDS: PlanId[] = ["PRO", "PRO_3M", "TRIAL"]
 
 /**
  * Retired plan names that still map to FULL paid access. Any subscriber whose

@@ -1,5 +1,5 @@
 // =============================================================================
-// Signals engine v2 (tech-signals@6) — state machine + no-lookahead tests.
+// Signals engine v2 (tech-signals@7) — state machine + no-lookahead tests.
 // The no-lookahead property is tested MECHANICALLY: mutating any FUTURE bar
 // must not change the row computed on an earlier prefix, and each row's asOf
 // must equal the prefix's own last session.

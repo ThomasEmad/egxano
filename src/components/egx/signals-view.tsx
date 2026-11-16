@@ -50,15 +50,13 @@ import { usePlan } from "@/lib/client/subscription"
 import { useI18n } from "@/lib/i18n"
 import { LiveMarketBadge } from "./live-market-badge"
 import { useMarketLive } from "./use-market-live"
+import { LevelStrip, WarningsStrip, EvidenceList } from "./signal-v2-bits"
 import { TIER_AR } from "@/lib/market/tiers"
 import {
   OPPORTUNITY_TYPE_AR,
   OPPORTUNITY_TYPE_EN,
-  SCORE_GROUP_AR,
-  type Evidence,
-  type NearSetup,
+  THIN_TRADED_VALUE_EGP,
   type SignalState,
-  type TradePlanV2,
 } from "@/lib/signals/types"
 import type { BoardRow, GatedRowV2, SignalsBoardResponse } from "@/lib/signals/board-service"
 
@@ -118,62 +116,13 @@ function ageLabel(sessions: number | null, ar: boolean): string {
 }
 
 // ---------------------------------------------------------------------------
-// Level strip — the shared plan grid (confirmed or provisional)
+// Level strip + warnings strip live in ./signal-v2-bits (shared with the
+// company technical tab so every surface renders the same plan block).
 // ---------------------------------------------------------------------------
-
-function LevelStrip({ plan, provisional, ar }: { plan: TradePlanV2; provisional?: boolean; ar: boolean }) {
-  const cell = (label: string, value: string, cls = "text-foreground") => (
-    <div className="min-w-[84px] flex-1 rounded-md border border-border/60 bg-background/60 px-2 py-1.5 text-center">
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className={`text-sm font-bold tabular-nums ${cls}`}>{value}</div>
-    </div>
-  )
-  const tag = provisional ? (ar ? "تقديري — يُعاد حسابه عند التفعيل" : "provisional — recomputed at activation") : ar ? "مستويات تنفيذية" : "executable levels"
-  return (
-    <div>
-      <div className="mb-1 flex items-center gap-2 text-[11px] text-muted-foreground">
-        <span>{tag}</span>
-        <span className="font-semibold text-foreground">
-          R/R {fmt(plan.riskReward)}
-        </span>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {cell(ar ? "دخول" : "Entry", `${fmt(plan.entryLow)}–${fmt(plan.entryHigh)}`)}
-        {cell(ar ? "وقف" : "Stop", fmt(plan.stop), "text-negative")}
-        {cell(ar ? "الهدف الأول" : "Target 1", fmt(plan.target1), "text-positive")}
-        {plan.target2 !== null ? cell(ar ? "الهدف الثاني" : "Target 2", fmt(plan.target2), "text-positive") : null}
-      </div>
-    </div>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // Row detail — the on-demand technical panel (evidence / bases / invalidation)
 // ---------------------------------------------------------------------------
-
-function EvidenceList({ items, ar }: { items: Evidence[]; ar: boolean }) {
-  const contributing = items.filter((e) => (e.points ?? 0) > 0)
-  const disclosed = items.filter((e) => (e.points ?? 0) <= 0)
-  return (
-    <ul className="space-y-1.5 text-sm leading-relaxed">
-      {contributing.map((e, i) => (
-        <li key={`c${i}`} className="flex gap-2">
-          <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-positive" />
-          <span>
-            {ar ? e.ar : e.en}
-            {e.group ? <span className="ms-1 text-xs text-muted-foreground">({SCORE_GROUP_AR[e.group]} +{e.points})</span> : null}
-          </span>
-        </li>
-      ))}
-      {disclosed.map((e, i) => (
-        <li key={`d${i}`} className="flex gap-2 text-muted-foreground">
-          <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
-          <span>{ar ? e.ar : e.en}</span>
-        </li>
-      ))}
-    </ul>
-  )
-}
 
 function RowDetail({ row, ar }: { row: Exclude<BoardRow, GatedRowV2>; ar: boolean }) {
   const m = row.metrics
@@ -182,6 +131,12 @@ function RowDetail({ row, ar }: { row: Exclude<BoardRow, GatedRowV2>; ar: boolea
       <div>
         <div className="mb-1.5 text-xs font-semibold text-muted-foreground">{ar ? "أدلة الإشارة (كل نقطة موثقة)" : "Signal evidence (every point documented)"}</div>
         <EvidenceList items={row.evidence} ar={ar} />
+        {(row.warnings?.length ?? 0) > 0 ? (
+          <div className="mt-3">
+            <div className="mb-1.5 text-xs font-semibold text-muted-foreground">{ar ? "تحذيرات مصاحبة (من البيانات المعلنة)" : "Disclosed warnings (from published data)"}</div>
+            <WarningsStrip warnings={row.warnings} ar={ar} />
+          </div>
+        ) : null}
       </div>
       <div className="space-y-3">
         {(row.plan || row.setup) && (
@@ -222,6 +177,14 @@ function RowDetail({ row, ar }: { row: Exclude<BoardRow, GatedRowV2>; ar: boolea
             {m?.perfM3 !== null && m?.perfM3 !== undefined ? <Badge variant="outline">{ar ? "3 أشهر" : "3M"} {pctStr(m.perfM3, 1)}</Badge> : null}
             {m?.atr14 !== null && m?.atr14 !== undefined ? <Badge variant="outline">ATR {fmt(m.atr14)}</Badge> : null}
             <Badge variant="outline">{liquidityLabel(row.quality.liquidity, ar)}</Badge>
+            {row.quality.avgTradedValueEgp !== null ? (
+              <Badge variant="outline">
+                {ar ? "متوسط التداول اليومي" : "avg daily value"}:{" "}
+                {row.quality.avgTradedValueEgp >= THIN_TRADED_VALUE_EGP
+                  ? `${(row.quality.avgTradedValueEgp / 1_000_000).toFixed(1)}M ${ar ? "ج" : "EGP"}`
+                  : `${Math.round(row.quality.avgTradedValueEgp / 1000).toLocaleString(ar ? "ar-EG" : "en-GB")}K ${ar ? "ج" : "EGP"}`}
+              </Badge>
+            ) : null}
             <Badge variant="outline">{ageLabel(row.quality.dataAgeSessions, ar)}</Badge>
             <Badge variant="outline">{ar ? "جلسات التاريخ" : "history"}: {row.quality.bars}</Badge>
           </div>
@@ -304,6 +267,12 @@ function OpportunityCard({ row, ar }: { row: Exclude<BoardRow, GatedRowV2>; ar: 
           ) : null}
         </div>
 
+        {(row.warnings?.length ?? 0) > 0 ? (
+          <div className="mt-2">
+            <WarningsStrip warnings={row.warnings} ar={ar} compact={true} />
+          </div>
+        ) : null}
+
         {row.evidence.length > 0 ? (
           <div className="mt-3 border-t border-border/60 pt-2">
             <EvidenceList items={row.evidence.slice(0, isBuy ? 3 : 2)} ar={ar} />
@@ -338,10 +307,14 @@ function BoardTableRow({ row, ar, expanded, onToggle }: { row: BoardRow; ar: boo
   const meta = locked ? null : STATE_META[row.state]
   const plan = locked ? null : row.plan
   const prov = locked ? null : row.setup?.provisional ?? null
+  const warnCount = locked ? 0 : (row.warnings?.length ?? 0)
   return (
     <>
       <TableRow className="cursor-pointer hover:bg-muted/40" onClick={onToggle}>
-        <TableCell className="whitespace-nowrap font-bold">{locked ? row.ticker : <Link href={`/company/${row.companyId}?tab=technical`} className="hover:text-primary">{row.ticker}</Link>}</TableCell>
+        <TableCell className="whitespace-nowrap font-bold">
+          {locked ? row.ticker : <Link href={`/company/${row.companyId}?tab=technical`} className="hover:text-primary">{row.ticker}</Link>}
+          {warnCount > 0 ? <AlertTriangle className="ms-1 inline h-3 w-3 text-amber-500" aria-label={ar ? "تحذيرات مصاحبة" : "warnings"} /> : null}
+        </TableCell>
         <TableCell>
           {meta ? (
             <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${meta.chipCls}`}>
@@ -359,6 +332,7 @@ function BoardTableRow({ row, ar, expanded, onToggle }: { row: BoardRow; ar: boo
         <TableCell className="whitespace-nowrap tabular-nums">{plan ? fmt(plan.entryLow) : prov ? `${fmt(prov.entryLow)}~` : "—"}</TableCell>
         <TableCell className="whitespace-nowrap tabular-nums text-negative">{plan ? fmt(plan.stop) : prov ? `${fmt(prov.stop)}~` : "—"}</TableCell>
         <TableCell className="whitespace-nowrap tabular-nums text-positive">{plan ? fmt(plan.target1) : prov ? `${fmt(prov.target1)}~` : "—"}</TableCell>
+        <TableCell className="tabular-nums text-positive">{(plan?.target1ReturnPct ?? prov?.target1ReturnPct) != null ? pctStr(plan?.target1ReturnPct ?? prov?.target1ReturnPct, 1) : "—"}</TableCell>
         <TableCell className="tabular-nums">{(plan?.riskReward ?? prov?.riskReward) ? fmt(plan?.riskReward ?? prov?.riskReward) : "—"}</TableCell>
         <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{row.asOf ?? "—"}</TableCell>
         <TableCell className="w-6">
@@ -367,7 +341,7 @@ function BoardTableRow({ row, ar, expanded, onToggle }: { row: BoardRow; ar: boo
       </TableRow>
       {expanded && !locked ? (
         <TableRow>
-          <TableCell colSpan={12} className="bg-muted/20 p-4">
+          <TableCell colSpan={13} className="bg-muted/20 p-4">
             <RowDetail row={row} ar={ar} />
           </TableCell>
         </TableRow>
@@ -660,6 +634,7 @@ export function SignalsView() {
                 <TableHead>{ar ? "دخول" : "Entry"}</TableHead>
                 <TableHead>{ar ? "وقف" : "Stop"}</TableHead>
                 <TableHead>{ar ? "هدف 1" : "T1"}</TableHead>
+                <TableHead>{ar ? "العائد" : "Return"}</TableHead>
                 <TableHead>R/R</TableHead>
                 <TableHead>{ar ? "تحديث" : "As of"}</TableHead>
                 <TableHead />
@@ -677,7 +652,7 @@ export function SignalsView() {
               ))}
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={12} className="py-6 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={13} className="py-6 text-center text-sm text-muted-foreground">
                     {ar ? "لا نتائج مطابقة للفلاتر الحالية" : "No rows match the current filters"}
                   </TableCell>
                 </TableRow>
@@ -687,8 +662,8 @@ export function SignalsView() {
         </div>
         <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
           {ar
-            ? "المستويات المسبوقة بـ ~ تقديرية (قرب التفعيل) وتُعاد كتابتها عند تحقق الشرط. EGX تفرض حدود تذبذب يومية فقد يفتح السعر فوق/تحت مستوى دون تداوله؛ الأسعار أسعار عامة مؤجلة وليست توصية استثمارية."
-            : "Levels prefixed with ~ are provisional (near activation) and are rewritten when the trigger fires. EGX daily price limits can gap through a level without trading it; quotes are delayed public prices, not investment advice."}
+            ? "المستويات المسبوقة بـ ~ تقديرية (قرب التفعيل) وتُعاد كتابتها عند تحقق الشرط. العائد والمخاطرة أرقام تقريبية محسوبة من متوسط نطاق الدخول إلى الهدف الأول/وقف الخسارة ولا تشمل العمولات أو فروق التنفيذ. علامة ⚠ تعني وجود تحذير مصاحب (أساسيات أو سيولة) موثق في تفاصيل الصف. EGX تفرض حدود تذبذب يومية فقد يفتح السعر فوق/تحت مستوى دون تداوله؛ الأسعار أسعار عامة مؤجلة وليست توصية استثمارية."
+            : "Levels prefixed with ~ are provisional (near activation) and are rewritten when the trigger fires. Return/risk figures are approximate, computed from the entry-band mid to target 1 / the stop, excluding fees and slippage. A ⚠ marker means a disclosed warning (fundamentals or liquidity) documented in the row detail. EGX daily price limits can gap through a level without trading it; quotes are delayed public prices, not investment advice."}
         </p>
       </section>
     </div>

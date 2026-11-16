@@ -10,28 +10,33 @@ import { publicCacheControl } from "@/lib/public-cache"
 const TTL_SECONDS = 300
 
 export async function GET() {
-  const plans = (Object.keys(PLANS) as PlanId[]).map((id) => {
-    const p = PLANS[id]
-    return {
-      id: p.id,
-      nameAr: p.nameAr,
-      nameEn: p.nameEn,
-      taglineAr: p.taglineAr,
-      price: p.price,
-      offerPrice: p.offerPrice,
-      offerActive: p.offerActive,
-      offerLabelAr: p.offerLabelAr,
-      currency: p.currency,
-      durationDays: p.durationDays,
-      featuresAr: p.featuresAr,
-      limits: p.limits,
-    }
-  })
+  // TRIAL is not sellable — it is granted automatically (see entitlements.ts),
+  // so the pricing catalog lists only the purchasable plans.
+  const plans = (Object.keys(PLANS) as PlanId[])
+    .filter((id) => id !== "TRIAL")
+    .map((id) => {
+      const p = PLANS[id]
+      return {
+        id: p.id,
+        nameAr: p.nameAr,
+        nameEn: p.nameEn,
+        taglineAr: p.taglineAr,
+        price: p.price,
+        offerPrice: p.offerPrice,
+        offerActive: p.offerActive,
+        offerLabelAr: p.offerLabelAr,
+        currency: p.currency,
+        durationDays: p.durationDays,
+        featuresAr: p.featuresAr,
+        limits: p.limits,
+      }
+    })
 
   return Response.json(
     {
       ok: true,
-      offerNoteAr: "خصم 50% على أول شهر لخطة الـ 3 شهور (أول دورة 375 بدل 450) — وأول شهر بخصم 40% على برو",
+      offerNoteAr:
+        "خصم 50% على أول شهر لخطة الـ 3 شهور (أول دورة 375 بدل 450) — وأول شهر بخصم 40% على برو. كل حساب جديد (والقديم أيضًا) يحصل تلقائيًا على تجربة مجانية كاملة لمدة شهر بكل المميزات.",
       plans,
     },
     { headers: { "Cache-Control": publicCacheControl(TTL_SECONDS) } },

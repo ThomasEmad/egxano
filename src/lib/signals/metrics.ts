@@ -39,6 +39,22 @@ export function relVol(bars: Bar[]): number | null {
   return last.volume / mean
 }
 
+/** Mean close × volume (plain EGP) over the last ≤20 sessions that carry a
+ *  usable volume — the ABSOLUTE traded-value liquidity read. null when fewer
+ *  than 5 sessions have volume data (the disclosure then stays "unknown"
+ *  instead of inventing a liquidity verdict from thin data). */
+export function avgTradedValueEgp(bars: Bar[], n = 20): number | null {
+  const window: number[] = []
+  for (let i = bars.length - 1; i >= 0 && window.length < n; i--) {
+    const b = bars[i]
+    if (b.volume !== null && Number.isFinite(b.volume) && b.volume > 0 && Number.isFinite(b.close) && b.close > 0) {
+      window.push(b.close * b.volume)
+    }
+  }
+  if (window.length < 5) return null
+  return window.reduce((s, v) => s + v, 0) / window.length
+}
+
 /** Where the close sits in the 60-session high-low range, 0–100. */
 export function rangePos(closes: number[], n = 60): number | null {
   if (closes.length < n) return null
@@ -79,6 +95,7 @@ export interface MetricsBundle {
   rangePos60: number | null
   dailyVolPct: number | null
   hhHl: { hh: boolean; hl: boolean } | null
+  avgTradedValueEgp: number | null
 }
 
 /** Compute the full metric bundle for the CURRENT last bar of `bars`. */
@@ -117,6 +134,7 @@ export function computeMetrics(bars: Bar[]): MetricsBundle | null {
     rangePos60: rangePos(closes, 60),
     dailyVolPct: dailyVolPct(closes),
     hhHl: higherHighsLows(bars, 10),
+    avgTradedValueEgp: avgTradedValueEgp(bars),
   }
 }
 

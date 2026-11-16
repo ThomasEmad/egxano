@@ -1,5 +1,5 @@
 // =============================================================================
-// Signals board service v2 (tech-signals@6) — the data plumbing around the
+// Signals board service v2 (tech-signals@7) — the data plumbing around the
 // rebuilt engine. Loads the whole universe ONCE (batched, cached 10 min),
 // adjusts for corporate actions, anchors EGX sessions, runs the engine per
 // company, and publishes a sorted board with honest summary counts.
@@ -18,7 +18,7 @@ import { cached } from "@/lib/server-cache"
 import { applyCorporateActionAdjustments, loadSeriesActionsByCompany, type SeriesBar } from "@/lib/market/corporate-actions"
 import { effectiveEgxSessionDate } from "@/lib/market/egx-session"
 import { computeCompanySignalV2, type CompanyIdentity } from "./engine"
-import { SIGNALS_V2_VERSION, type SignalRowV2, type SignalState } from "./types"
+import { SIGNALS_V2_VERSION, type Fundamentals, type SignalRowV2, type SignalState } from "./types"
 
 /** Calendar-day window: ≈200 EGX sessions — deep enough for the 63-session
  *  momentum lookbacks and 90-session zone history, cheap enough to batch. */
@@ -94,6 +94,66 @@ export interface SignalsBoardResponse extends Omit<BoardOutputV2, "rows"> {
 
 function validBar(v: { open: number; high: number; low: number; close: number }): boolean {
   return [v.open, v.high, v.low, v.close].every((x) => Number.isFinite(x) && x > 0) && v.high >= v.low && v.close > 0
+}
+
+/** Statement-type preference for fundamentals (same rule as the pipeline:
+ *  CONSOLIDATED when any exists for the company, else STANDALONE). */
+const PERIOD_PRIORITY: Record<string, number> = { TTM: 5, ANNUAL: 4, NINE_MONTH: 3, SEMIANNUAL: 2, QUARTERLY: 1 }
+
+type FundRow = { companyId: string; code: string; periodType: string; fiscalYear: number; statementType: string; value: number | null }
+
+/** Batched fundamentals read for the warning layer — never blocks the board. */
+async function loadFundamentals(ids: string[]): Promise<Map<string, Fundamentals>> {
+  if (!ids.length) return new Map()
+  try {
+    const rows = await db.calculatedMetric.findMany({
+      where: { companyId: { in: ids }, code: { in: ["net_profit", "p_e"] }, valueStatus: "OK", value: { not: null } },
+      select: { companyId: true, code: true, periodType: true, fiscalYear: true, statementType: true, value: true },
+    })
+    return fundamentalsOf(rows)
+  } catch {
+    return new Map() // fundamentals are a disclosure layer — absence never blocks the board
+  }
+}
+
+/** Per (company, code) keep the freshest row of each statement type
+ *  (TTM > annual > interim, then fiscal year), then resolve per company with
+ *  the CONSOLIDATED-when-any rule and build the Fundamentals pair. */
+function fundamentalsOf(rows: FundRow[]): Map<string, Fundamentals> {
+  const byCompany = new Map<string, Map<string, Map<string, { periodPriority: number; fiscalYear: number; value: number }>>>()
+  for (const r of rows) {
+    if (r.value === null || !Number.isFinite(r.value)) continue
+    let byCode = byCompany.get(r.companyId)
+    if (!byCode) {
+      byCode = new Map()
+      byCompany.set(r.companyId, byCode)
+    }
+    let byStatement = byCode.get(r.code)
+    if (!byStatement) {
+      byStatement = new Map()
+      byCode.set(r.code, byStatement)
+    }
+    const cur = byStatement.get(r.statementType)
+    const pri = PERIOD_PRIORITY[r.periodType] ?? 0
+    if (!cur || pri > cur.periodPriority || (pri === cur.periodPriority && r.fiscalYear > cur.fiscalYear)) {
+      byStatement.set(r.statementType, { periodPriority: pri, fiscalYear: r.fiscalYear, value: r.value })
+    }
+  }
+  const out = new Map<string, Fundamentals>()
+  for (const [companyId, byCode] of byCompany) {
+    const hasConsolidated = [...byCode.values()].some((byStatement) => byStatement.has("CONSOLIDATED"))
+    const pick = (code: string): number | null => {
+      const byStatement = byCode.get(code)
+      if (!byStatement) return null
+      const chosen = hasConsolidated ? byStatement.get("CONSOLIDATED") : [...byStatement.values()].sort((a, b) => b.periodPriority - a.periodPriority || b.fiscalYear - a.fiscalYear)[0]
+      return chosen ? chosen.value : null
+    }
+    const netProfitEgp = pick("net_profit")
+    const peRatio = pick("p_e")
+    if (netProfitEgp === null && peRatio === null) continue
+    out.set(companyId, { netProfitEgp, peRatio })
+  }
+  return out
 }
 
 async function buildBoardUncached(): Promise<BoardOutputV2> {
@@ -183,6 +243,9 @@ async function buildBoardUncached(): Promise<BoardOutputV2> {
         )
       : new Map()
 
+  // one batched fundamentals load for the warning layer (net profit + P/E)
+  const fundamentalsById = await loadFundamentals(ids)
+
   const rows: SignalRowV2[] = []
   let asOf: string | null = null
   let scored = 0
@@ -245,7 +308,12 @@ async function buildBoardUncached(): Promise<BoardOutputV2> {
       sector: c.sector,
       marketTier: (c as { marketTier?: string }).marketTier ?? "MAIN",
     }
-    const row = computeCompanySignalV2({ bars: series, identity, todaySession })
+    const row = computeCompanySignalV2({
+      bars: series,
+      identity,
+      fundamentals: fundamentalsById.get(companyId) ?? null,
+      todaySession,
+    })
     rows.push(row)
     if (row.state === "wait" && row.quality.bars < 60) insufficient++
     else if (row.state !== "wait") scored++
@@ -309,7 +377,7 @@ async function persistBoardSnapshotV2(payload: BoardOutputV2): Promise<boolean> 
     const value = JSON.stringify(payload)
     await db.setting.upsert({
       where: { key: SNAPSHOT_KEY },
-      create: { key: SNAPSHOT_KEY, value, type: "json", description: "Signals board v2 snapshot (tech-signals@6)" },
+      create: { key: SNAPSHOT_KEY, value, type: "json", description: "Signals board v2 snapshot (tech-signals@7)" },
       update: { value },
     })
     return true

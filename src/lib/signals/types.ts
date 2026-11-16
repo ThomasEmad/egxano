@@ -1,5 +1,5 @@
 // =============================================================================
-// EGXANO Technical Signals Engine v2 — types (tech-signals@6)
+// EGXANO Technical Signals Engine v2 — types (tech-signals@7)
 // =============================================================================
 // A COMPLETE rebuild of the signal logic (the 2026-11-15 owner mandate): the
 // old pipeline (close-engine + stance overlay + opportunity layer + gates)
@@ -115,12 +115,22 @@ export interface TradePlanV2 {
   entryHigh: number
   /** technical stop — a STRUCTURE level (below the invalidated zone), never a flat % */
   stop: number
-  /** first target (always above entryHigh for a buy; above the LIVE close) */
+  /** first target (always above entryHigh for a buy; above the LIVE close;
+   *  never beyond the +20% upside cap — TARGET_MAX_UPSIDE_PCT) */
   target1: number
-  /** second target when structure justifies it (strictly above T1); null otherwise */
+  /** second target when structure justifies it AND it stays inside the +20%
+   *  upside cap (strictly above T1); null otherwise */
   target2: number | null
   /** exact risk/reward on the entry mid vs T1, rounded to 2dp */
   riskReward: number
+  /** approximate expected return, entry MID → target (%, 1dp, buy side) —
+   *  the number the investor reads as "what do I make if T1 hits" */
+  target1ReturnPct: number
+  /** same math to target 2; null when no T2 */
+  target2ReturnPct: number | null
+  /** approximate risk from the entry MID to the stop (%, 1dp) — shown next
+   *  to the return so the two ends of the trade are always visible together */
+  stopRiskPct: number
   /** what the target level IS (evidence-based, Arabic) */
   target1BasisAr: string
   target2BasisAr: string | null
@@ -176,10 +186,40 @@ export interface SignalRowV2 {
   invalidationAr: string | null
   /** displayed metrics (null when the bar anatomy is insufficient) */
   metrics: SignalMetrics | null
-  /** liquidity + data-quality disclosure */
+  /** Liquidity + data-quality disclosure */
   quality: RowQuality
+  /** fundamental / liquidity warnings the user must see next to the signal
+   *  (negative profit, expensive multiple, thin traded value). Empty when
+   *  nothing applies — warnings NEVER gate a signal out; they disclose. */
+  warnings: SignalWarning[]
   /** engine version for this row */
   engine: string
+}
+
+/** A disclosed risk next to the recommendation. Wording rule (owner mandate):
+ *  factual, mechanics-based, and never accusatory — the site states what the
+ *  DATA shows (a negative profit, a high multiple, a thin order book), it does
+ *  not speculate about any party or intent. */
+export interface SignalWarning {
+  kind: "negative_profit" | "high_pe" | "thin_liquidity"
+  /** short Arabic warning shown on the card itself */
+  ar: string
+  /** longer Arabic detail shown in the expanded view */
+  detailAr: string
+  /** English mirror */
+  en: string
+  detailEn: string
+}
+
+/** Fundamentals snapshot fed into the engine by the board service (batched
+ *  from the calculated-metrics read model). All nullable — absent data
+ *  simply produces no warning, never an invented one. */
+export interface Fundamentals {
+  /** latest net profit in plain EGP (TTM → annual → latest reported) */
+  netProfitEgp: number | null
+  /** latest P/E as computed by the financial pipeline (null when earnings
+   *  are negative — the negative-profit warning covers that case) */
+  peRatio: number | null
 }
 
 export interface SignalMetrics {
@@ -205,6 +245,10 @@ export interface RowQuality {
   ohlc: boolean
   /** "liquid" (relVol ≥ 1.5) | "normal" (≥ 1) | "thin" (present but < 1) | "unknown" */
   liquidity: "liquid" | "normal" | "thin" | "unknown"
+  /** mean close × volume over the last ≤20 sessions with volume, in plain
+   *  EGP — the ABSOLUTE traded-value liquidity read (null when volume data
+   *  is absent). Feeds the thin-liquidity warning. */
+  avgTradedValueEgp: number | null
   /** EGX sessions between asOf and the compute day (0 = today) */
   dataAgeSessions: number | null
   /** Arabic data-quality notes (insufficient history, missing volume, …) */
@@ -212,7 +256,11 @@ export interface RowQuality {
 }
 
 // ---- Engine-identifying constants (single source, imported by UI + API) ----
-export const SIGNALS_V2_VERSION = "tech-signals@6"
+// tech-signals@7 (2026-11-16): +20% target cap, return/risk figures on every
+// plan, fundamentals/liquidity warnings on every row (new required fields) —
+// the version bump also invalidates pre-deploy board snapshots whose rows
+// lack the new fields (a stale snapshot must never render as v7).
+export const SIGNALS_V2_VERSION = "tech-signals@7"
 
 /** A BUY publishes only when the score clears this bar — a balanced gate the
  *  evidence can genuinely reach (the old stacked conditions made BUYs
@@ -227,3 +275,15 @@ export const PLAN_RR_MIN = 1.2
 /** Minimum usable sessions for ANY reading (indicators need 50; below this
  *  the row is honestly "wait" with a data note, never a confident signal). */
 export const MIN_BARS = 60
+/** OWNER MANDATE (2026-11-16): no published target may sit farther than +20%
+ *  above the entry. A far-away resistance (e.g. a single-touch stale zone
+ *  +235% above the close) is NOT a tradeable target — T1/T2 are capped at
+ *  this horizon and a second target beyond it is dropped entirely. */
+export const TARGET_MAX_UPSIDE_PCT = 20
+/** Liquidity disclosure threshold: average daily traded VALUE (EGP, close ×
+ *  volume, last 20 sessions) below this means a thin order book — the row
+ *  carries a liquidity warning. The wording is factual mechanics only. */
+export const THIN_TRADED_VALUE_EGP = 100_000
+/** Valuation disclosure threshold: a P/E above this multiples-of-earnings
+ *  level carries the high-multiple warning next to the signal. */
+export const HIGH_PE_WARNING = 40

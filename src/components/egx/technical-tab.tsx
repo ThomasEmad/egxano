@@ -50,6 +50,8 @@ import type { VsaSnapshot } from "@/lib/technical/vsa"
 import type { ZonesSnapshot } from "@/lib/technical/zones"
 import type { QualityScore } from "@/lib/technical/quality"
 import { SIGNAL_META, STYLE_TAG_META, type TechStance, type WatchingSetup } from "@/lib/technical/signals"
+import { OPPORTUNITY_TYPE_AR, OPPORTUNITY_TYPE_EN, SCORE_GROUP_AR, SCORE_GROUP_MAX, type ScoreGroup, type SignalRowV2 } from "@/lib/signals/types"
+import { EvidenceList, LevelStrip, V2_STATE_META, WarningsStrip } from "./signal-v2-bits"
 import { OpportunityCardView, type OpportunityCardModel } from "./opportunities-strip"
 import type { RowOpportunity } from "@/lib/technical/signals-service"
 
@@ -787,6 +789,117 @@ function StanceCard({ companyId, stance, verdict, pos, neg, boardSignal, ar }: {
 }
 
 // ---------------------------------------------------------------------------
+// V2StanceCard — the stance hero reads from the REBUILT engine (tech-signals@6),
+// the SAME row the /signals board publishes. One engine, one score, one plan —
+// the company tab and the market board can never disagree again. The legacy v1
+// stance card above remains only as a fallback for older cached payloads.
+// ---------------------------------------------------------------------------
+
+function V2StanceCard({ row, ar }: { row: SignalRowV2; ar: boolean }) {
+  const meta = V2_STATE_META[row.state]
+  const tone = row.state === "buy" ? STANCE_CLS.buy : row.state === "exit" ? STANCE_CLS.sell : STANCE_CLS.hold
+  const groups = row.scoreGroups
+  const isExit = row.state === "exit"
+  return (
+    <Card className="p-0">
+      <CardHeader className="px-5 pb-2">
+        <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <span className="flex items-center gap-2">
+            <Gauge className="h-3.5 w-3.5 text-primary" aria-hidden />
+            {ar ? "الخلاصة الفنية" : "Technical stance"}
+          </span>
+          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${meta.chipCls}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${meta.dotCls}`} />
+            {ar ? meta.ar : meta.en}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 px-5 pb-5">
+        {/* score gauge + the five documented groups (trend 25 / momentum 20 /
+            volume 15 / structure 25 / quality 15 — the engine's own math) */}
+        <div className="flex flex-wrap items-center gap-5">
+          <ScoreGauge score={row.score} strokeCls={tone.stroke} textCls={tone.text} />
+          {row.score !== null && groups ? (
+            <div className="grid min-w-[220px] flex-1 gap-1.5">
+              {(Object.keys(SCORE_GROUP_MAX) as ScoreGroup[]).map((g) => {
+                const max = SCORE_GROUP_MAX[g]
+                const earned = groups[g]
+                const pct = max > 0 ? Math.round((earned / max) * 100) : 0
+                return (
+                  <div key={g} className="flex items-center gap-2">
+                    <span className="w-24 shrink-0 text-[11px] text-muted-foreground">{ar ? SCORE_GROUP_AR[g] : g}</span>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                      <div className={`h-full rounded-full ${tone.bar}`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="w-14 shrink-0 text-end text-[10px] tabular text-muted-foreground" dir="ltr">
+                      {earned}/{max}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            row.quality.notesAr[0] ? (
+              <p className="min-w-[220px] flex-1 text-xs leading-relaxed text-muted-foreground">{row.quality.notesAr[0]}</p>
+            ) : null
+          )}
+        </div>
+
+        {/* detection type + reading date + engine version */}
+        <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+          {row.type ? <Badge variant="outline">{ar ? OPPORTUNITY_TYPE_AR[row.type] : OPPORTUNITY_TYPE_EN[row.type]}</Badge> : null}
+          {row.asOf ? <span>{ar ? "آخر جلسة" : "as of"} <span className="tabular">{row.asOf}</span></span> : null}
+          <Badge variant="outline" className="text-[10px]">{row.engine}</Badge>
+        </div>
+
+        {/* why this read — the same evidence lines the board cites */}
+        {row.evidence.length > 0 ? (
+          <div className="space-y-1.5 rounded-lg border border-border/60 bg-muted/10 px-3 py-2.5">
+            <p className="text-xs font-semibold">{ar ? "ليه القرار ده؟" : "Why this read?"}</p>
+            <EvidenceList items={row.evidence} ar={ar} />
+          </div>
+        ) : null}
+
+        {/* plan / setup / exit — identical block to the board's */}
+        {row.plan ? (
+          <LevelStrip plan={row.plan} ar={ar} />
+        ) : row.setup ? (
+          <div className="space-y-2">
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+              <p className="text-xs font-semibold">{ar ? row.setup.activationAr : `Activation: a daily close above ${row.setup.activation.toFixed(2)}`}</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                {ar ? "المستويات أدناه تقديرية وتُحسب عند سعر التفعيل نفسه." : "Levels below are provisional, computed AT the activation price."}
+              </p>
+            </div>
+            <LevelStrip plan={row.setup.provisional} provisional={true} ar={ar} />
+          </div>
+        ) : isExit ? (
+          <div className="rounded-md border border-negative/30 bg-negative/5 px-3 py-2 text-sm text-negative">
+            {ar ? "إغلاق مركز شراء قائم — ليست دعوة للبيع على المكشوف (غير متاح في EGX)." : "Close an existing long — not a short-selling call (unavailable on EGX)."}
+          </div>
+        ) : (
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {ar ? "لا يوجد إعداد بنيوي قابل للنشر اليوم — لا تُصنَّع فرص عند غيابها." : "No publishable structural setup today — opportunities are never manufactured."}
+          </p>
+        )}
+
+        {row.invalidationAr ? (
+          <div className="rounded-md border border-negative/30 bg-negative/5 px-3 py-2 text-xs leading-relaxed text-negative">{row.invalidationAr}</div>
+        ) : null}
+
+        {(row.warnings?.length ?? 0) > 0 ? <WarningsStrip warnings={row.warnings} ar={ar} /> : null}
+
+        <p className="text-[10px] text-muted-foreground">
+          {ar
+            ? "قراءة المحرك القواعدي الموحّد (نفس محرك لوحة الإشارات): اتجاه 25 / زخم 20 / حجم 15 / بنية 25 / جودة 15 — كل نقطة موثقة أعلاه. ليست توصية استثمارية ولا سعرًا مستهدفًا."
+            : "The unified rules-engine read (same engine as the signals board): trend 25 / momentum 20 / volume 15 / structure 25 / quality 15 — every point cited above. Not investment advice and not a price target."}
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // "القصة في سطور" — client-composed story bullets (null-safe; a bullet simply
 // does not render when its input is missing). No number is invented here.
 // ---------------------------------------------------------------------------
@@ -1404,8 +1517,17 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
       {/* a. honest disclaimer — always first */}
       <DisclaimerBanner ar={ar} />
 
-      {/* b. rule-based stance hero with the trade plan */}
-      {stance ? <StanceCard companyId={companyId} stance={stance} verdict={verdict} pos={pos} neg={neg} boardSignal={(data as { boardSignal?: BoardSignal | null }).boardSignal ?? null} ar={ar} /> : null}
+      {/* b. rule-based stance hero with the trade plan — reads from the
+          REBUILT engine (tech-signals@6) when its row is available so this
+          card and the /signals board publish the SAME score, state and plan;
+          the legacy v1 stance card is the fallback for older payloads. */}
+      {(() => {
+        const signalsV2Row = data.signalsV2 ?? null
+        if (signalsV2Row) return <V2StanceCard row={signalsV2Row} ar={ar} />
+        return stance ? (
+          <StanceCard companyId={companyId} stance={stance} verdict={verdict} pos={pos} neg={neg} boardSignal={(data as { boardSignal?: BoardSignal | null }).boardSignal ?? null} ar={ar} />
+        ) : null
+      })()}
 
       {/* b2. opportunity layer (opportunity@1) — the SAME layer the board's
           "فرص اليوم" strip serves for this ticker; honest "none" when the

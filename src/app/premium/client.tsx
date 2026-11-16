@@ -198,7 +198,7 @@ export default function PremiumPage() {
   ]
 
   // Comparison rows — derived from PLANS limits so table and enforcement stay in sync.
-  const compareRows: { label: string; values: Record<PlanId, string | boolean> }[] = [
+  const compareRows: { label: string; values: Partial<Record<PlanId, string | boolean>> }[] = [
     {
       label: ar ? "شركات لوحة الإشارات الفنية" : "Signals board companies",
       values: {
@@ -254,6 +254,27 @@ export default function PremiumPage() {
           </p>
         </div>
         <Check className="h-8 w-8 text-success" aria-hidden />
+      </div>
+    )
+  } else if (isPremium) {
+    // No active DB subscription but premium truth is on — the automatic
+    // full-feature trial month (signup-date based, no DB row). Show its
+    // remaining days and an honest note about what happens after.
+    const t = (subStatus as { trial?: { active: boolean; daysLeft: number | null; endsAt: string | null } } | null)?.trial
+    statusBlock = (
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5">
+        <div>
+          <p className="flex items-center gap-2 font-bold text-amber-600 dark:text-amber-400">
+            <ShieldCheck className="h-5 w-5" aria-hidden />
+            {ar ? "تجربتك المجانية الكاملة نشطة — كل مميزات الموقع مفتوحة" : "Your full-feature free trial is active — everything is open"}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {ar
+              ? `متبقي ${t?.daysLeft ?? "—"} يوم من الشهر المجاني. بعد انتهائه يرجع الحساب تلقائيًا للباقة المجانية — اشترك في برو للاستمرار بلا انقطاع.`
+              : `${t?.daysLeft ?? "—"} days left of the free month. After it ends the account returns to the free tier — subscribe to Pro to continue without interruption.`}
+          </p>
+        </div>
+        <Check className="h-8 w-8 text-amber-500" aria-hidden />
       </div>
     )
   } else if (status === "PENDING") {

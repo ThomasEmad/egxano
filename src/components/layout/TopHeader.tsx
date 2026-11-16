@@ -105,6 +105,12 @@ export function TopHeader({ className }: TopHeaderProps = {}) {
   const loggedIn = !!me?.user
   const meName: string | null = me?.user?.name ?? me?.user?.email ?? null
   const isPremium = !!subscription?.isPremium
+  // The automatic full-feature trial month (from /subscription/me → trial).
+  // Only shown as TRIAL when the resolved plan IS the trial — a paying user
+  // whose signup trial window overlaps must still read as Premium.
+  const resolvedPlan = (subscription as { plan?: string } | null)?.plan
+  const trial = (subscription as { trial?: { active: boolean; daysLeft: number | null } } | null)?.trial ?? null
+  const trialActive = !!trial?.active && resolvedPlan === "TRIAL"
 
   const normalizedQuery = debouncedQuery.trim().toLowerCase()
   const { data: companySearch, isFetching: companySearching } = useQuery({
@@ -431,7 +437,11 @@ export function TopHeader({ className }: TopHeaderProps = {}) {
                 </span>
                 <span className="text-[11px] text-muted-foreground truncate max-w-[140px]">
                   {loggedIn
-                    ? (isPremium ? (ar ? "بريميوم" : "Premium") : (ar ? "مجاني" : "Free"))
+                    ? isPremium && !trialActive
+                      ? (ar ? "بريميوم" : "Premium")
+                      : trialActive
+                        ? (ar ? `تجربة مجانية${trial?.daysLeft ? ` — ${trial.daysLeft} يوم` : ""}` : `Free trial${trial?.daysLeft ? ` — ${trial.daysLeft}d` : ""}`)
+                        : (ar ? "مجاني" : "Free")
                     : (ar ? "للوصول الكامل" : "For full access")}
                 </span>
               </div>
@@ -477,8 +487,18 @@ export function TopHeader({ className }: TopHeaderProps = {}) {
             )}
           </div>
 
-          {/* Premium badge / upgrade link — never shown as account status to non-premium users */}
-          {isPremium ? (
+          {/* Premium badge / upgrade link — never shown as account status to non-premium users.
+              An active full-feature trial month shows its own amber chip with the days left. */}
+          {trialActive ? (
+            <Link
+              href="/premium"
+              className="hidden lg:flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-600 dark:text-amber-400 transition-colors hover:border-amber-500/60"
+              title={ar ? "تجربة مجانية كاملة لمدة شهر بكل المميزات" : "Full-feature free trial month"}
+            >
+              <Crown className="h-3.5 w-3.5" />
+              {ar ? `تجربة مجانية${trial?.daysLeft ? ` · ${trial.daysLeft} يوم` : ""}` : `Free trial${trial?.daysLeft ? ` · ${trial.daysLeft}d` : ""}`}
+            </Link>
+          ) : isPremium ? (
             <div className="hidden lg:flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1">
               <Crown className="h-3.5 w-3.5 text-primary" />
               <span className="text-xs font-bold text-primary tracking-tight">{ar ? "بريميوم" : "Premium"}</span>

@@ -18,18 +18,22 @@ import { buildBuyPlan, buildNearSetup, roundToTick } from "./plan"
 import { computeScore } from "./score"
 import {
   BUY_SCORE_MIN,
+  HIGH_PE_WARNING,
   MIN_BARS,
   NEAR_ACTIVATION_MAX_GAP_PCT,
   OPPORTUNITY_TYPE_AR,
   OPPORTUNITY_TYPE_EN,
   SIGNALS_V2_VERSION,
+  THIN_TRADED_VALUE_EGP,
   type Bar,
   type Evidence,
+  type Fundamentals,
   type NearSetup,
   type OpportunityType,
   type RowQuality,
   type SignalRowV2,
   type SignalState,
+  type SignalWarning,
   type TradePlanV2,
 } from "./types"
 
@@ -45,6 +49,9 @@ export interface CompanyIdentity {
 export interface EngineInput {
   bars: Bar[]
   identity: CompanyIdentity
+  /** latest fundamentals snapshot (nullable fields — absent data yields NO
+   *  warning, never an invented one) */
+  fundamentals?: Fundamentals | null
   /** effective EGX session date of the compute (YYYY-MM-DD) — injected, so
    *  the engine itself never touches the clock (replay passes bar dates) */
   todaySession: string
@@ -102,6 +109,47 @@ function preEntryInvalidation(bars: Bar[], map: ZoneMap, m: MetricsBundle, activ
   return "السيناريو يُلغى إذا تراجع السهم أكثر من 4% تحت الإغلاق الحالي قبل تحقق شرط التفعيل"
 }
 
+/** Disclosed risks computed from DATA ONLY — the wording states what the
+ *  recorded numbers show and the execution mechanics they imply; it never
+ *  speculates about any party or intent (owner mandate on phrasing). */
+function fundamentalsWarnings(f: Fundamentals | null | undefined, avgTradedValueEgp: number | null): SignalWarning[] {
+  const out: SignalWarning[] = []
+  if (f && typeof f.netProfitEgp === "number" && f.netProfitEgp < 0) {
+    out.push({
+      kind: "negative_profit",
+      ar: "تنبيه: صافي ربح الشركة في أحدث قوائمه سالب",
+      detailAr:
+        "الإشارة الفنية هنا لا تعكس جودة الأرباح — الشركة سجلت خسارة في آخر فترة معلنة. راجع القوائم المالية ونتائج الأعمال قبل أي قرار؛ التحسن الفني فوق أساسيات خاسرة أكثر هشاشة.",
+      en: "Alert: latest reported net profit is negative",
+      detailEn:
+        "A technical signal does not reflect earnings quality — the company booked a loss in its latest reported period. Review the financial statements before acting; technical improvement on loss-making fundamentals is more fragile.",
+    })
+  }
+  if (f && typeof f.peRatio === "number" && f.peRatio > HIGH_PE_WARNING) {
+    out.push({
+      kind: "high_pe",
+      ar: `تنبيه تقييم: مضاعف الربحية (P/E) أعلى من ${HIGH_PE_WARNING}×`,
+      detailAr:
+        "السهم يُتداول بسعر مرتفع نسبيًا مقارنة بأرباحه الحالية — التقييم المرتفع يجعل السعر أكثر حساسية لأي تباطؤ في الأرباح. وازن حجم المركز مع ذلك.",
+      en: `Valuation alert: P/E above ${HIGH_PE_WARNING}×`,
+      detailEn:
+        "The share trades at a rich price relative to current earnings — high multiples make the price more sensitive to any earnings slowdown. Size positions accordingly.",
+    })
+  }
+  if (avgTradedValueEgp !== null && avgTradedValueEgp < THIN_TRADED_VALUE_EGP) {
+    out.push({
+      kind: "thin_liquidity",
+      ar: "تنبيه سيولة: متوسط قيمة التداول اليومية منخفض جدًا",
+      detailAr:
+        "عدد أوامر الشراء والبيع في هذا السهم قليل — قد يستغرق تنفيذ أمر كبير وقتًا أو يتحرك السعر بعيدًا عن المستوى المعروض، والفرق بين سعر الشراء والبيع قد يكون واسعًا. استخدم أوامر بسعر محدد واختر حجم مركز يناسب هذه السيولة المحدودة.",
+      en: "Liquidity alert: average daily traded value is very low",
+      detailEn:
+        "This stock carries few orders — a large order may take time to fill or move the price away from the displayed level, and spreads can be wide. Use limit orders and size the position to fit the thin liquidity.",
+    })
+  }
+  return out
+}
+
 /** Post-entry invalidation per archetype (the daily close kills the scenario). */
 function postEntryInvalidation(type: OpportunityType, plan: TradePlanV2): string {
   const stopTxt = `إغلاق يومي تحت وقف الخسارة ${plan.stop.toFixed(2)} يُلغي السيناريو فورًا`
@@ -142,9 +190,11 @@ export function computeCompanySignalV2(input: EngineInput): SignalRowV2 {
       bars: bars.length,
       ohlc: bars.length > 0 && bars.every((b) => Number.isFinite(b.open) && Number.isFinite(b.high) && Number.isFinite(b.low)),
       liquidity: "unknown",
+      avgTradedValueEgp: null,
       dataAgeSessions: null,
       notesAr: [],
     },
+    warnings: [],
     engine: SIGNALS_V2_VERSION,
   }
   if (bars.length >= 2) {
@@ -164,10 +214,14 @@ export function computeCompanySignalV2(input: EngineInput): SignalRowV2 {
   }
   base.metrics = toSignalMetrics(m)
   base.quality.liquidity = liquidityOf(m.relVol)
+  base.quality.avgTradedValueEgp = m.avgTradedValueEgp
   base.quality.dataAgeSessions = base.asOf ? egxSessionsBetween(base.asOf, todaySession) : null
   if (base.quality.dataAgeSessions !== null && base.quality.dataAgeSessions > 4) {
     base.quality.notesAr.push(`آخر جلسة مسجلة ${base.asOf} — البيانات متأخرة ${base.quality.dataAgeSessions} جلسة`)
   }
+  // disclosed risks travel with the row in EVERY state (a wait row with a
+  // negative profit is still a fact the user should see in the details)
+  base.warnings = fundamentalsWarnings(input.fundamentals ?? null, m.avgTradedValueEgp)
 
   const { buyCandidates, nearCandidates, exit, map } = detectOpportunities(bars, m)
 

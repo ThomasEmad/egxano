@@ -3,6 +3,7 @@ import { findCompanyByKey } from "@/lib/company-lookup"
 import { buildTechnicalBundleWithContext } from "@/lib/market/intelligence/context"
 import { computeStanceFromSnapshot, type TechStance } from "@/lib/technical/signals"
 import { getCachedMarketSignals, companyOpportunityFromRows } from "@/lib/technical/signals-service"
+import { getSignalsBoard } from "@/lib/signals/board-service"
 import { cached } from "@/lib/server-cache"
 import { getCanonicalStance } from "@/lib/technical/stance-store"
 import { getSessionUser, USER_SESSION_COOKIE } from "@/lib/auth"
@@ -99,6 +100,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       boardSignal = null
       opportunity = null
     }
+    // The REBUILT engine's row (tech-signals@7) for this company — the SAME
+    // row the /signals board publishes, so the company tab's stance card and
+    // the board can never disagree again (one engine, one score, one plan).
+    // null only when the whole-universe compute is unavailable — the v1
+    // stance card then keeps rendering as the fallback.
+    let signalsV2: import("@/lib/signals/types").SignalRowV2 | null = null
+    try {
+      const board = await getSignalsBoard()
+      signalsV2 = board.rows.find((r) => r.companyId === company.id) ?? null
+    } catch {
+      signalsV2 = null
+    }
     return {
       snapshot: bundle.snapshot,
       hash: bundle.hash.slice(0, 16),
@@ -109,6 +122,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       stanceDataAsOf: canonical.dataAsOf.toISOString(),
       boardSignal,
       opportunity,
+      signalsV2,
     }
   })
 

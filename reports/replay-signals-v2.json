@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-15T23:05:48.435Z",
+  "generatedAt": "2026-11-16T00:13:15.122Z",
   "base": "https://egxano.vercel.app",
   "universeReplayed": [
     "COMI",
@@ -7,43 +7,61 @@
     "ETEL",
     "TMGH",
     "EGAL",
+    "HDBK",
+    "MFPC",
     "EAST",
     "ALCN",
     "ABUK",
+    "ORAS",
+    "EFIH",
+    "ADIB",
+    "EMFD",
+    "FWRY",
+    "SCTS",
     "EFID",
     "HRHO",
-    "CLHO",
-    "AMOC",
-    "ORHD"
+    "JUFO",
+    "BIOC",
+    "PHDC",
+    "OCDI",
+    "CANA",
+    "CIEB",
+    "HELI",
+    "FERC",
+    "ARCC",
+    "SCEM"
   ],
-  "skipped": [],
-  "sessionsReplayed": 5369,
+  "skipped": [
+    "QNBE",
+    "VLMRA"
+  ],
+  "sessionsReplayed": 11564,
   "stateCounts": {
-    "buy": 599,
-    "near": 888,
-    "wait": 3457,
-    "exit": 425
+    "buy": 1191,
+    "near": 1843,
+    "wait": 7786,
+    "exit": 744
   },
   "typeCounts": {
-    "exit_support": 376,
-    "reversal": 255,
-    "breakout": 575,
-    "retest": 516,
-    "bounce": 141,
-    "exit_trend": 49
+    "exit_support": 666,
+    "reversal": 523,
+    "breakout": 1145,
+    "retest": 1110,
+    "bounce": 256,
+    "exit_trend": 78
   },
   "invariants": {
     "violations": [],
     "violationCount": 0
   },
   "outcomes": {
-    "buySessions": 599,
-    "t1BeforeStop": 232,
-    "stopBeforeT1": 296,
-    "neitherWithin20": 71,
+    "buySessions": 1191,
+    "t1BeforeStop": 490,
+    "stopBeforeT1": 573,
+    "neitherWithin20": 128,
     "medianReturn10AfterT1": null,
-    "nearSessionsWith5Forward": 887,
-    "nearFiredWithin5": 330
+    "nearSessionsWith5Forward": 1830,
+    "nearFiredWithin5": 688
   },
   "examples": {
     "buy": [

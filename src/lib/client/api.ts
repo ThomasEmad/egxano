@@ -462,6 +462,10 @@ export const api = {
         /** Opportunity layer (opportunity@1) — the SAME layer the board strip
          *  serves for this ticker; null when the row is not a candidate. */
         opportunity?: import("@/lib/technical/signals-service").RowOpportunity | null
+        /** The REBUILT engine row (tech-signals@7) — the same row the /signals
+         *  board publishes; the company tab's stance card reads THIS so the
+         *  two surfaces can never disagree. */
+        signalsV2?: import("@/lib/signals/types").SignalRowV2 | null
       }>(r)
     ),
 

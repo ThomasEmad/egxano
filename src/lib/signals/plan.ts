@@ -13,7 +13,7 @@
 import { nearestResistanceAbove, type ZoneMap } from "./levels"
 import type { MetricsBundle } from "./metrics"
 import { round2 } from "./metrics"
-import type { TradePlanV2 } from "./types"
+import { TARGET_MAX_UPSIDE_PCT, type TradePlanV2 } from "./types"
 
 export interface PlanContext {
   /** live close the plan is anchored on (lastClose, or activation for NEAR) */
@@ -31,6 +31,11 @@ export function roundToTick(price: number): number {
   if (!Number.isFinite(price) || price <= 0) return price
   if (price >= 100) return Math.round(price * 20) / 20
   return Math.round(price * 100) / 100
+}
+
+/** 1dp percentage for the displayed approximate return/risk figures. */
+function round1Pct(x: number): number {
+  return Math.round(x * 10) / 10
 }
 
 /**
@@ -69,28 +74,50 @@ export function buildBuyPlan(ctx: PlanContext): TradePlanV2 | null {
 
   // ---- target 1: the nearest real resistance above; else a measured ATR move.
   // MUST be above the live close (the VLMRA invariant) — else no honest target.
+  // OWNER CAP (2026-11-16): no target beyond +20% from the entry anchor. A
+  // stale single-touch zone +235% away is not a tradeable target — the plan
+  // caps T1 at the horizon and says so in its basis line.
+  const targetCap = anchor * (1 + TARGET_MAX_UPSIDE_PCT / 100)
   const t1Cand = nearestResistanceAbove(map, Math.max(anchor, entryHigh))
   let target1: number
   let target1BasisAr: string
   const minT1 = anchor + atr * 0.6 // an honest first target at minimum
   if (t1Cand && t1Cand.low > Math.max(entryHigh, minT1)) {
-    target1 = roundToTick((t1Cand.low + t1Cand.high) / 2)
-    target1BasisAr = `منطقة مقاومة ${t1Cand.touches}× مختبَرة (${t1Cand.low.toFixed(2)}–${t1Cand.high.toFixed(2)})`
+    const zoneMid = (t1Cand.low + t1Cand.high) / 2
+    if (zoneMid <= targetCap) {
+      target1 = roundToTick(zoneMid)
+      target1BasisAr = `منطقة مقاومة ${t1Cand.touches}× مختبَرة (${t1Cand.low.toFixed(2)}–${t1Cand.high.toFixed(2)})`
+    } else {
+      target1 = roundToTick(targetCap)
+      target1BasisAr = `سقف الهدف +${TARGET_MAX_UPSIDE_PCT}% من الدخول — أقرب مقاومة مسجلة (${t1Cand.low.toFixed(2)}–${t1Cand.high.toFixed(2)}) أبعد من السقف فالهدف يُقيد عند السقف`
+    }
   } else {
-    target1 = roundToTick(anchor + atr * 1.6)
-    target1BasisAr = `حركة مقاسة بمقدار 1.6× ATR من الإغلاق (لا توجد مقاومة أعلى مسجلة)`
+    const measured = anchor + atr * 1.6
+    if (measured <= targetCap) {
+      target1 = roundToTick(measured)
+      target1BasisAr = `حركة مقاسة بمقدار 1.6× ATR من الإغلاق (لا توجد مقاومة أعلى مسجلة)`
+    } else {
+      target1 = roundToTick(targetCap)
+      target1BasisAr = `حركة مقاسة 1.6× ATR مقيدة بسقف الهدف +${TARGET_MAX_UPSIDE_PCT}% من الدخول`
+    }
   }
   if (target1 <= entryHigh || target1 <= anchor) return null // the published invariant
 
-  // ---- target 2: the next resistance above T1 when it gives ≥ 0.6×ATR more.
+  // ---- target 2: the next resistance above T1 ONLY while it stays inside
+  // the +20% horizon — a second target beyond the cap is dropped, never shown.
   let target2: number | null = null
   let target2BasisAr: string | null = null
   if (t1Cand) {
-    const above = map.zones.filter((z) => z.kind === "resistance" && !z.broken && z.low > target1 + atr * 0.6)
+    const above = map.zones.filter(
+      (z) => z.kind === "resistance" && !z.broken && z.low > target1 + atr * 0.6 && z.low <= targetCap,
+    )
     const next = above[0]
     if (next) {
-      target2 = roundToTick((next.low + next.high) / 2)
-      target2BasisAr = `منطقة المقاومة التالية ${next.touches}× مختبَرة (${next.low.toFixed(2)}–${next.high.toFixed(2)})`
+      const zoneMid = (next.low + next.high) / 2
+      if (zoneMid > target1 && zoneMid <= targetCap) {
+        target2 = roundToTick(zoneMid)
+        target2BasisAr = `منطقة المقاومة التالية ${next.touches}× مختبَرة (${next.low.toFixed(2)}–${next.high.toFixed(2)})`
+      }
     }
   }
   if (target2 !== null && target2 <= target1) {
@@ -98,7 +125,8 @@ export function buildBuyPlan(ctx: PlanContext): TradePlanV2 | null {
     target2BasisAr = null
   }
 
-  // ---- RR on the entry mid (exact math, rounded for display)
+  // ---- RR on the entry mid (exact math, rounded for display) + the displayed
+  // approximate return/risk percentages (entry MID → each level, 1dp)
   const entryMid = (entryLow + entryHigh) / 2
   const risk = entryMid - stop
   const reward = target1 - entryMid
@@ -114,6 +142,9 @@ export function buildBuyPlan(ctx: PlanContext): TradePlanV2 | null {
     target1,
     target2,
     riskReward,
+    target1ReturnPct: round1Pct(((target1 - entryMid) / entryMid) * 100),
+    target2ReturnPct: target2 === null ? null : round1Pct(((target2 - entryMid) / entryMid) * 100),
+    stopRiskPct: round1Pct(((entryMid - stop) / entryMid) * 100),
     target1BasisAr,
     target2BasisAr,
     stopBasisAr,

@@ -1,5 +1,5 @@
 // =============================================================================
-// GET /api/v1/technical/signals — the market-wide board (tech-signals@6).
+// GET /api/v1/technical/signals — the market-wide board (tech-signals@7).
 //
 // SERVES THE REBUILT ENGINE (src/lib/signals/*): four states — buy / near /
 // wait / exit — with plans whose math invariants are enforced server-side
