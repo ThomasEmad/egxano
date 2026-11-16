@@ -32,7 +32,7 @@ interface TreemapTile {
   cap: number | null
 }
 
-interface Rect {
+export interface Rect {
   x: number
   y: number
   w: number
@@ -48,7 +48,7 @@ function canvasHeight(boxW: number): number {
 const STRIP_PX = 15
 
 /** Squarified treemap (Bruls et al.) — values descending, aspect-ratio greedy. */
-function squarify(values: number[], rect: Rect): Rect[] {
+export function squarify(values: number[], rect: Rect): Rect[] {
   const total = values.reduce((a, b) => a + b, 0)
   if (total <= 0) return values.map(() => ({ ...rect }))
   const scaled = values.map((v) => (v / total) * rect.w * rect.h)

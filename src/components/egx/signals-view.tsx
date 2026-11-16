@@ -372,6 +372,7 @@ export function SignalsView() {
   const [sort, setSort] = useState<SortKey>("score")
   const [expanded, setExpanded] = useState<string | null>(null)
 
+  const [refreshNonce, setRefreshNonce] = useState(0)
   const query = useMemo(() => {
     const sp = new URLSearchParams()
     if (stateFilter !== "all") sp.set("signal", stateFilter)
@@ -379,8 +380,12 @@ export function SignalsView() {
     if (sector !== "all") sp.set("sector", sector)
     if (q.trim()) sp.set("q", q.trim())
     sp.set("sort", sort)
+    // cache-buster: bumping refreshNonce changes the URL (and the queryKey)
+    // so the post-sync refetch can never be served from the browser's
+    // max-age=60 HTTP cache nor keyed to the previous board
+    if (refreshNonce) sp.set("t", String(refreshNonce))
     return sp.toString()
-  }, [stateFilter, tier, sector, q, sort])
+  }, [stateFilter, tier, sector, q, sort, refreshNonce])
 
   const { data, isLoading, isError, error, refetch, isRefetching } = useQuery({
     queryKey: ["signals-board-v2", query],
@@ -396,14 +401,15 @@ export function SignalsView() {
 
   // ④ the refresh button must actually refresh: nudge the server-side market
   // pull first (rate-limited public endpoint — a successful sync also
-  // invalidates the server caches), THEN refetch — the response is rebuilt
-  // rows, not the same 10-minute-old board.
+  // invalidates the server caches), THEN bump the nonce: the queryKey change
+  // forces a network fetch of the REBUILT board (no-store client side, cache
+  // invalidated server side) — not the same 10-minute-old rows.
   const [sessionRefreshing, setSessionRefreshing] = useState(false)
   const handleSessionRefresh = async () => {
     setSessionRefreshing(true)
     try {
       await fetch("/api/v1/market/sync", { method: "POST" }).catch(() => null)
-      await refetch()
+      setRefreshNonce((n) => n + 1)
     } finally {
       setSessionRefreshing(false)
     }

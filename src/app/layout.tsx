@@ -111,7 +111,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ar" dir="rtl" className={`${geistSans.variable} ${geistMono.variable} ${plexArabic.variable}`}>
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <link rel="icon" type="image/png" sizes="64x64" href="/icon-64.png" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <link rel="manifest" href="/manifest.ts" />
         {adsenseClient ? <meta name="google-adsense-account" content={adsenseClient} /> : null}

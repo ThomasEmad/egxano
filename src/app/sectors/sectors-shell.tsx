@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { LayoutShell } from "@/components/layout/LayoutShell"
 import { SectorTreemap } from "@/components/egx/sector-treemap"
+import { SectorLiquidityHeatmap } from "@/components/egx/sector-liquidity-heatmap"
 import { LiveMarketBadge } from "@/components/egx/live-market-badge"
 import { useMarketLive } from "@/components/egx/use-market-live"
 import { useI18n } from "@/lib/i18n"
@@ -172,6 +173,12 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
         {/* Market heatmap (company tiles, price-change colored) */}
         <section aria-label={ar ? "الخريطة الحرارية للسوق" : "Market heatmap"} className="mb-8">
           <SectorTreemap />
+        </section>
+
+        {/* Sector LIQUIDITY heatmap — where the money traded today vs yesterday
+            (owner feature 2026-11-16: free FundaLens-style sector flow map) */}
+        <section aria-label={ar ? "خريطة سيولة القطاعات" : "Sector liquidity heatmap"} className="mb-8">
+          <SectorLiquidityHeatmap />
         </section>
 
         {/* Sector performance cards — colored by TODAY'S price change */}

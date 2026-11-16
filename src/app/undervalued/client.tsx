@@ -8,9 +8,10 @@
 // that is a financial-analysis term of art, while this screen states a
 // criteria-implied arithmetic reference.
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 import { ChevronDown, Gauge, Lock, Scale, Search } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -77,10 +78,14 @@ export default function UndervaluedPage() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [selected, setSelected] = useState<string[]>([])
 
+  const [criteriaNonce, setCriteriaNonce] = useState(0)
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["undervalued"],
+    queryKey: ["undervalued", criteriaNonce],
     queryFn: async () => {
-      const res = await fetch("/api/v1/undervalued")
+      // no-store + nonce: after the admin saves new criteria the server caches
+      // are already dropped — this must not be served from the browser's
+      // max-age copy or the owner sees the old screen for hours
+      const res = await fetch(`/api/v1/undervalued${criteriaNonce ? `?t=${criteriaNonce}` : ""}`, { cache: "no-store" })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       return (await res.json()) as { detected: number; results: Row[]; lastUpdated: string }
     },
@@ -119,6 +124,7 @@ export default function UndervaluedPage() {
               ? "شركات تحققت فيها معايير تقييم معلنة. القيمة المستنتجة نتيجة حسابية من هذه المعايير، والفجوة المعروضة ليست سعرًا مستهدفًا وليست توصية."
               : "Companies that met explicitly stated valuation criteria. The criteria-implied value is arithmetic from those criteria; the gap shown is not a price target and not a recommendation."}
           </p>
+          <ValuationCriteriaEditor ar={ar} onSaved={() => setCriteriaNonce((n) => n + 1)} />
         </header>
 
         {/* Filters with meaning */}
@@ -342,5 +348,99 @@ export default function UndervaluedPage() {
         )}
       </div>
     </LayoutShell>
+  )
+}
+
+// =============================================================================
+// ValuationCriteriaEditor — admin-only, LIVE on فحص التقييم (owner mandate
+// 2026-11-16: "التعديل على فحص التقييم مش موجود"). Edits the screen's verdict
+// thresholds stored in the Setting "valuation-criteria" (undervaluedPct /
+// expensivePct); POST /api/v1/admin/settings drops the server caches, the
+// nonce refetch rebuilds the list immediately. Invisible to non-admins.
+// =============================================================================
+
+function ValuationCriteriaEditor({ ar, onSaved }: { ar: boolean; onSaved: () => void }) {
+  const qc = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const { data: me } = useQuery({
+    queryKey: ["admin-me"],
+    queryFn: () =>
+      fetch("/api/v1/admin/me", { credentials: "include" }).then((r) => (r.ok ? (r.json() as Promise<{ isAdmin?: boolean }>) : null)),
+    staleTime: 5 * 60_000,
+  })
+  const { data: current } = useQuery({
+    queryKey: ["valuation-criteria"],
+    queryFn: () =>
+      fetch("/api/v1/admin/settings", { credentials: "include" }).then((r) =>
+        r.ok ? (r.json() as Promise<Record<string, unknown>>) : null
+      ),
+    enabled: open && me?.isAdmin === true,
+  })
+  const [undervaluedPct, setUndervaluedPct] = useState("15")
+  const [expensivePct, setExpensivePct] = useState("-15")
+
+  const openEditor = () => setOpen(true)
+  // sync the fields when the settings fetch resolves (the query is enabled
+  // only while the editor is open, so openEditor alone can race it)
+  useEffect(() => {
+    if (!open) return
+    const c = current?.["valuation-criteria"] as { undervaluedPct?: number; expensivePct?: number } | undefined
+    if (!c) return
+    // defer one microtask — synchronous setState inside an effect cascades
+    queueMicrotask(() => {
+      setUndervaluedPct(String(c.undervaluedPct ?? 15))
+      setExpensivePct(String(c.expensivePct ?? -15))
+    })
+  }, [open, current])
+
+  const save = async () => {
+    const u = Number(undervaluedPct)
+    const e = Number(expensivePct)
+    if (!Number.isFinite(u) || !Number.isFinite(e) || u <= e) {
+      toast.error(ar ? "قيم غير صالحة — نسبة القيمة المنخفضة لازم تكون أكبر من نسبة الارتفاع المكتوف" : "Invalid thresholds — undervalued % must exceed expensive %")
+      return
+    }
+    const r = await fetch("/api/v1/admin/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ key: "valuation-criteria", value: { undervaluedPct: u, expensivePct: e }, type: "json", description: "فحص التقييم — عتبات الحكم (نسبة الخصم المتوسط مقابل وسط القطاع)" }),
+    })
+    if (!r.ok) {
+      toast.error(ar ? "فشل الحفظ" : "Save failed")
+      return
+    }
+    toast.success(ar ? "المعايير اتحفظت — القائمة بتعيد البناء بالعتبات الجديدة" : "Criteria saved — the screen rebuilds with the new thresholds")
+    setOpen(false)
+    onSaved()
+    void qc.invalidateQueries()
+  }
+
+  if (me?.isAdmin !== true) return null
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={openEditor}
+        className="mt-2 inline-flex items-center gap-1 rounded-full border border-border bg-background/95 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
+      >
+        <Gauge className="h-3 w-3" aria-hidden />
+        {ar ? "وضع الأدمن — عدّل معايير الفحص" : "Admin mode — edit screen criteria"}
+      </button>
+    )
+  }
+  return (
+    <div className="mt-2 flex flex-wrap items-end gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5" dir="ltr">
+      <label className="text-[11px] text-muted-foreground">
+        <span className="block">{ar ? "قيمة منخفضة ≥ %" : "undervalued ≥ %"}</span>
+        <Input className="mt-1 h-8 w-24 text-xs tabular" value={undervaluedPct} onChange={(e2) => setUndervaluedPct(e2.target.value)} inputMode="decimal" />
+      </label>
+      <label className="text-[11px] text-muted-foreground">
+        <span className="block">{ar ? "مكتوف ≤ %" : "expensive ≤ %"}</span>
+        <Input className="mt-1 h-8 w-24 text-xs tabular" value={expensivePct} onChange={(e2) => setExpensivePct(e2.target.value)} inputMode="decimal" />
+      </label>
+      <Button size="sm" onClick={save}>{ar ? "حفظ" : "Save"}</Button>
+      <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>{ar ? "إلغاء" : "Cancel"}</Button>
+    </div>
   )
 }

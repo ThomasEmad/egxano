@@ -89,6 +89,44 @@ function pick(m: Map<string, { value: number | null; status: string; asOf: strin
   return v.value
 }
 
+/**
+ * Valuation-screen verdict thresholds, admin-editable (owner mandate
+ * 2026-11-16: "التعديل على فحص التقييم مش موجود"). Stored in the Setting
+ * table under "valuation-criteria" as JSON
+ * { undervaluedPct, expensivePct } via POST /api/v1/admin/settings; defaults
+ * keep the ±15% behaviour. 30s in-memory TTL so the per-company scoring loop
+ * pays at most one read.
+ */
+export interface ValuationCriteria {
+  undervaluedPct: number
+  expensivePct: number
+}
+const DEFAULT_VALUATION_CRITERIA: ValuationCriteria = { undervaluedPct: 15, expensivePct: -15 }
+const VALUATION_CRITERIA_KEY = "valuation-criteria"
+let valuationCriteriaCache: { at: number; value: ValuationCriteria } | null = null
+
+export function clearValuationCriteriaCache(): void {
+  valuationCriteriaCache = null
+}
+
+export async function getValuationCriteria(): Promise<ValuationCriteria> {
+  if (valuationCriteriaCache && Date.now() - valuationCriteriaCache.at < 30_000) return valuationCriteriaCache.value
+  let value = DEFAULT_VALUATION_CRITERIA
+  try {
+    const row = await db.setting.findUnique({ where: { key: VALUATION_CRITERIA_KEY }, select: { value: true } })
+    if (row?.value) {
+      const parsed = JSON.parse(row.value) as Partial<ValuationCriteria>
+      const u = Number(parsed.undervaluedPct)
+      const e = Number(parsed.expensivePct)
+      if (Number.isFinite(u) && Number.isFinite(e) && u > e) value = { undervaluedPct: u, expensivePct: e }
+    }
+  } catch {
+    // malformed setting → defaults; never break scoring on a bad admin edit
+  }
+  valuationCriteriaCache = { at: Date.now(), value }
+  return value
+}
+
 export async function computeCompanyScores(companyId: string): Promise<CompanyScores | null> {
   const company = await db.company.findUnique({ where: { id: companyId }, select: { id: true, sector: true } })
   if (!company) return null
@@ -186,7 +224,9 @@ export async function computeCompanyScores(companyId: string): Promise<CompanySc
 
   if (pe !== null || pb !== null) {
     // sector peers with valid multiples
-    const peers = await db.company.findMany({ where: { sector: company.sector, isActive: true }, select: { id: true } })
+    // excluded companies (admin flag) never skew sector medians — an illogical
+    // P/E/P/B in the baseline would mislabel every honest peer (2026-11-16)
+    const peers = await db.company.findMany({ where: { sector: company.sector, isActive: true, excludeFromRankings: false }, select: { id: true } })
     const peerIds = peers.map((p) => p.id)
     const peerMetrics = await db.calculatedMetric.findMany({
       where: { companyId: { in: peerIds }, code: { in: ["p_e", "p_b"] }, valueStatus: "OK", statementType: "CONSOLIDATED" },
@@ -221,7 +261,8 @@ export async function computeCompanyScores(companyId: string): Promise<CompanySc
     if (pbDiscountPct !== null) discounts.push(pbDiscountPct)
     if (discounts.length) {
       const avg = discounts.reduce((a, b) => a + b, 0) / discounts.length
-      verdict = avg >= 15 ? "undervalued" : avg <= -15 ? "expensive" : "fair"
+      const criteria = await getValuationCriteria()
+      verdict = avg >= criteria.undervaluedPct ? "undervalued" : avg <= criteria.expensivePct ? "expensive" : "fair"
     }
   } else if (!latestPrice) {
     verdict = "no-price"
@@ -264,7 +305,7 @@ export async function marketValuationScreen(limit = 24) {
     select: { companyId: true },
   })
   const activeFilers = new Set(recent.map((v) => v.companyId))
-  const companies = await db.company.findMany({ where: { isActive: true }, select: { id: true, ticker: true, nameAr: true, nameEn: true, sector: true } })
+  const companies = await db.company.findMany({ where: { isActive: true, excludeFromRankings: false }, select: { id: true, ticker: true, nameAr: true, nameEn: true, sector: true } })
   const screened = companies.filter((c) => activeFilers.has(c.id))
   const out: {
     companyId: string; ticker: string; name: string; sector: string

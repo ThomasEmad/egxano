@@ -154,7 +154,7 @@ function ownValues(r: { periodType: string; periodLabel: string; values: SourceV
   return out
 }
 
-interface PeriodBucket {
+export interface PeriodBucket {
   /** "CONSOLIDATED" | "STANDALONE" — part of the bucket identity, never mixed */
   statementType: "CONSOLIDATED" | "STANDALONE"
   periodKey: string
@@ -167,6 +167,47 @@ interface PeriodBucket {
   sourcePeriodKeys: string[]
   /** highest report version that contributed values (restatements overwrite older data) */
   version: number
+}
+
+/** 5% tolerance above the gross line absorbs rounding/printing noise. */
+const NET_ABOVE_GROSS_TOLERANCE = 1.05
+
+interface NetAboveGrossHit {
+  statementType: string
+  periodKey: string
+  periodType: string
+  net: number
+  gross: number
+}
+
+/**
+ * NET_PROFIT cannot exceed GROSS_PROFIT (same bucket, both positive): net is
+ * what remains AFTER the costs below the gross line. When a filing — or an
+ * extraction that assigned a gross-profit figure to the net-profit code —
+ * prints "net" above its own gross profit, the value is physically impossible.
+ *
+ * Owner report 2026-11-16: some companies showed إجمالي الربح values inside
+ * صافي الربح in the peers comparison. Compute-time quarantine: the impossible
+ * NET_PROFIT is removed from the bucket (niOf falls back to NET_PROFIT_PARENT;
+ * net_margin/roe/eps stop using it), the offending FinancialValue rows are
+ * flagged NEEDS_REVIEW (filing periods only — synthetic TTM sums match no
+ * single stored row, but their metrics are still protected), and the CALCULATE
+ * audit entry records it. Row-flagged values are excluded from future buckets
+ * by ownValues() so the quarantine sticks across recomputes.
+ */
+export function quarantineImpossibleNetProfits(buckets: PeriodBucket[]): NetAboveGrossHit[] {
+  const hits: NetAboveGrossHit[] = []
+  for (const b of buckets) {
+    const net = b.values["NET_PROFIT"]
+    const gross = b.values["GROSS_PROFIT"]
+    if (net === undefined || gross === undefined) continue
+    if (!(net > 0) || !(gross > 0)) continue
+    if (net > gross * NET_ABOVE_GROSS_TOLERANCE) {
+      delete b.values["NET_PROFIT"]
+      hits.push({ statementType: b.statementType, periodKey: b.periodKey, periodType: b.periodType, net, gross })
+    }
+  }
+  return hits
 }
 
 /**
@@ -546,6 +587,10 @@ export async function recomputeCompany(companyId: string): Promise<RecomputeResu
   }
   const allBuckets = [...ordered, ...ttmBuckets]
 
+  // Physics gate: a "net profit" above its own gross profit is impossible —
+  // quarantine it before any metric consumes it (see quarantineImpossibleNetProfits).
+  const quarantinedNet = quarantineImpossibleNetProfits(allBuckets)
+
   // Market data (observed price points — never fabricated)
   const latestPrice = await getLatestPrice(companyId)
   const priceValue = latestPrice?.price
@@ -685,6 +730,24 @@ export async function recomputeCompany(companyId: string): Promise<RecomputeResu
     if (calcRows.length) {
       await tx.calculatedMetric.createMany({ data: calcRows })
     }
+    // Flag the impossible source rows so data-quality review surfaces them and
+    // ownValues() skips them from the next recompute (quarantine sticks).
+    // Filing-period hits only — TTM hits are synthetic sums of stored rows.
+    const flaggableNets = quarantinedNet.filter((h) => h.periodType !== "TTM").map((h) => h.net)
+    if (flaggableNets.length) {
+      await tx.financialValue.updateMany({
+        where: {
+          companyId,
+          metricCode: "NET_PROFIT",
+          normalizedValue: { in: flaggableNets },
+          validationStatus: { in: ["VALID", "PENDING"] },
+        },
+        data: {
+          validationStatus: "NEEDS_REVIEW",
+          validationNotes: "NET_PROFIT exceeds GROSS_PROFIT for the same period — physically impossible, likely a gross-profit value misassigned to the net-profit code",
+        },
+      })
+    }
     if (detected.length) {
       await tx.financialEvent.createMany({
         data: detected.map((e) => ({
@@ -712,7 +775,7 @@ export async function recomputeCompany(companyId: string): Promise<RecomputeResu
       action: "CALCULATE",
       entityType: "Company",
       entityId: companyId,
-      details: `Recomputed ${calcRows.length} calculated metrics across ${allBuckets.length} period buckets (statement types: ${statementTypesUsed.join(", ") || "none"}; ${ttmBuckets.length} TTM; preferred for events: ${preferredStatementType}); detected ${detected.length} events (${detected.map((e) => e.eventType).join(", ") || "none"})`,
+      details: `Recomputed ${calcRows.length} calculated metrics across ${allBuckets.length} period buckets (statement types: ${statementTypesUsed.join(", ") || "none"}; ${ttmBuckets.length} TTM; preferred for events: ${preferredStatementType}); detected ${detected.length} events (${detected.map((e) => e.eventType).join(", ") || "none"})${quarantinedNet.length ? `; quarantined ${quarantinedNet.length} impossible NET_PROFIT rows (net > gross)` : ""}`,
     },
   })
 

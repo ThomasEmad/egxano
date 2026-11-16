@@ -54,10 +54,10 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   if (!(await isAdmin(req))) return await unauthorizedResponse()
   const body = await req.json()
-  const { id, ticker, nameEn, nameAr, sector, marketTier } = body
+  const { id, ticker, nameEn, nameAr, sector, marketTier, excludeFromRankings } = body
   if (!id) return Response.json({ error: "id required" }, { status: 400 })
 
-  const data: Record<string, string> = {}
+  const data: Record<string, string | boolean> = {}
   if (ticker) {
     const dup = await db.company.findFirst({ where: { ticker, id: { not: id } } })
     if (dup) return Response.json({ error: "ticker already exists" }, { status: 409 })
@@ -72,6 +72,10 @@ export async function PATCH(req: NextRequest) {
     }
     data.marketTier = marketTier
   }
+  // Owner mandate 2026-11-16: pull a company out of ranking surfaces when a
+  // figure is illogical — the flag filters rankings, the valuation screen and
+  // sector-median baselines (see computeCompanyScores / marketValuationScreen).
+  if (typeof excludeFromRankings === "boolean") data.excludeFromRankings = excludeFromRankings
   if (!Object.keys(data).length) return Response.json({ error: "nothing to update" }, { status: 400 })
 
   const updated = await db.company.update({ where: { id }, data })

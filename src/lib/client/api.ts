@@ -470,7 +470,11 @@ export const api = {
     ),
 
   technicalSignals: (query?: string) =>
-    fetch(`/api/v1/technical/signals${query ? `?${query}` : ""}`).then((r) =>
+    // cache: "no-store" — the route answers with cache-control max-age=60 +
+    // stale-while-revalidate; without no-store the browser serves its own copy
+    // and a "refresh" press never reaches the server (owner bug report
+    // 2026-11-16: زر التحديث مش شغال).
+    fetch(`/api/v1/technical/signals${query ? `?${query}` : ""}`, { cache: "no-store" }).then((r) =>
       handle<import("@/lib/signals/board-service").SignalsBoardResponse>(r)
     ),
 

@@ -31,6 +31,9 @@ import { Label } from "@/components/ui/label"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useI18n } from "@/lib/i18n"
+import { SECTORS } from "@/lib/sectors"
+import { MARKET_TIERS, TIER_AR, type MarketTier } from "@/lib/market/tiers"
+import { Switch } from "@/components/ui/switch"
 
 interface PriceState {
   asOf: string
@@ -65,7 +68,7 @@ interface ValueRow {
   group: string | null
 }
 interface EditorPayload {
-  company: { id: string; ticker: string; nameEn: string; sharesOutstanding: number | null }
+  company: { id: string; ticker: string; nameEn: string; nameAr?: string | null; sharesOutstanding: number | null; sector?: string; marketTier?: string; excludeFromRankings?: boolean }
   price: PriceState | null
   override: { price: number; volume?: number | null; updatedAt: string } | null
   bars: BarRow[]
@@ -149,6 +152,7 @@ export function AdminValueEditor({ companyId }: { companyId: string }) {
               <TabsTrigger value="bars" className="flex-1">{ar ? "الشموع" : "Bars"}</TabsTrigger>
               <TabsTrigger value="financial" className="flex-1">{ar ? "القوائم" : "Statements"}</TabsTrigger>
               <TabsTrigger value="actions" className="flex-1">{ar ? "الإجراءات" : "Actions"}</TabsTrigger>
+              <TabsTrigger value="company" className="flex-1">{ar ? "الشركة" : "Co."}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="price" className="space-y-3 pt-3">
@@ -162,6 +166,9 @@ export function AdminValueEditor({ companyId }: { companyId: string }) {
             </TabsContent>
             <TabsContent value="actions" className="pt-3">
               <ActionsTab companyId={companyId} ar={ar} />
+            </TabsContent>
+            <TabsContent value="company" className="pt-3">
+              <CompanyTab data={data ?? undefined} companyId={companyId} ar={ar} />
             </TabsContent>
           </Tabs>
         </SheetContent>
@@ -693,6 +700,122 @@ function ActionsTab({ companyId, ar }: { companyId: string; ar: boolean }) {
           )}
         </div>
       ) : null}
+    </div>
+  )
+}
+
+
+// =============================================================================
+// CompanyTab — company identity edited LIVE (owner mandate 2026-11-16: "الادمن
+// يقدر يعدل على كل تفصيلة صغيرة في الموقع"): ticker, names, sector, market
+// tier, and the excludeFromRankings pull-out (an illogical figure leaves the
+// rankings / valuation screen / sector medians without touching the data).
+// PATCHes /api/v1/admin/company-ops (audited) and invalidates all queries.
+// =============================================================================
+
+function CompanyTab({ data, companyId, ar }: { data: EditorPayload | undefined; companyId: string; ar: boolean }) {
+  const qc = useQueryClient()
+  const co = data?.company
+  const [ticker, setTicker] = useState("")
+  const [nameEn, setNameEn] = useState("")
+  const [nameAr, setNameAr] = useState("")
+  const [sector, setSector] = useState("")
+  const [tier, setTier] = useState("")
+  const [exclude, setExclude] = useState(false)
+
+  useEffect(() => {
+    if (!co) return
+    queueMicrotask(() => {
+      setTicker(co.ticker)
+      setNameEn(co.nameEn)
+      setNameAr(co.nameAr ?? "")
+      setSector(co.sector ?? "")
+      setTier(co.marketTier ?? "")
+      setExclude(co.excludeFromRankings ?? false)
+    })
+  }, [co])
+
+  const save = useMutation({
+    mutationFn: async (body: Record<string, unknown>) => {
+      const r = await fetch("/api/v1/admin/company-ops", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ id: companyId, ...body }),
+      })
+      const j = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string }
+      if (!r.ok || j.ok === false) throw new Error(j.error ?? `HTTP ${r.status}`)
+      return j
+    },
+    onSuccess: () => {
+      toast.success(ar ? "اتحفظ — كل صفحات الموقع بتتحدث بالقيمة الجديدة" : "Saved — every surface refetches now")
+      void qc.invalidateQueries()
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : ar ? "فشل الحفظ" : "Save failed"),
+  })
+
+  if (!data) return <p className="py-4 text-sm text-muted-foreground">{ar ? "جارٍ التحميل…" : "Loading…"}</p>
+
+  const dirty = co && (ticker !== co.ticker || nameEn !== co.nameEn || nameAr !== (co.nameAr ?? "") || sector !== (co.sector ?? "") || tier !== (co.marketTier ?? "") || exclude !== (co.excludeFromRankings ?? false))
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">{ar ? "الرمز (ticker)" : "Ticker"}</Label>
+          <Input className="h-8 text-xs" dir="ltr" value={ticker} onChange={(e) => setTicker(e.target.value.toUpperCase())} />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">{ar ? "القطاع" : "Sector"}</Label>
+          <select value={sector} onChange={(e) => setSector(e.target.value)} className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs" aria-label={ar ? "القطاع" : "Sector"}>
+            {SECTORS.map((sec) => (
+              <option key={sec} value={sec}>{sec}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-[10px] text-muted-foreground">{ar ? "الاسم بالإنجليزية" : "Name (EN)"}</Label>
+        <Input className="h-8 text-xs" dir="ltr" value={nameEn} onChange={(e) => setNameEn(e.target.value)} />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-[10px] text-muted-foreground">{ar ? "الاسم بالعربية" : "Name (AR)"}</Label>
+        <Input className="h-8 text-xs" value={nameAr} onChange={(e) => setNameAr(e.target.value)} />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-[10px] text-muted-foreground">{ar ? "الطبقة السوقية" : "Market tier"}</Label>
+        <select value={tier} onChange={(e) => setTier(e.target.value)} className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs" aria-label={ar ? "الطبقة السوقية" : "Market tier"}>
+          {MARKET_TIERS.map((t) => (
+            <option key={t} value={t}>{ar ? TIER_AR[t].full : TIER_AR[t].en}</option>
+          ))}
+        </select>
+      </div>
+      <div className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2">
+        <div className="min-w-0 pe-2">
+          <p className="text-[11px] font-medium">{ar ? "استبعاد من كل الترتيبات" : "Exclude from all rankings"}</p>
+          <p className="text-[10px] text-muted-foreground">
+            {ar ? "لما رقم يبقى غير منطقي — تختفي من الترتيبات وفحص التقييم ومن وسط القطاع (من غير حذف بيانات)." : "Hides from rankings, valuation screen and sector medians — data stays intact."}
+          </p>
+        </div>
+        <Switch checked={exclude} onCheckedChange={(v) => setExclude(v)} aria-label={ar ? "استبعاد من الترتيبات" : "Exclude from rankings"} />
+      </div>
+      <Button
+        size="sm"
+        className="w-full"
+        disabled={!dirty || save.isPending}
+        onClick={() =>
+          save.mutate({
+            ...(ticker !== co?.ticker ? { ticker } : {}),
+            ...(nameEn !== co?.nameEn ? { nameEn } : {}),
+            ...(nameAr !== (co?.nameAr ?? "") ? { nameAr } : {}),
+            ...(sector !== (co?.sector ?? "") ? { sector } : {}),
+            ...(tier !== (co?.marketTier ?? "") ? { marketTier: tier } : {}),
+            ...(exclude !== (co?.excludeFromRankings ?? false) ? { excludeFromRankings: exclude } : {}),
+          })
+        }
+      >
+        {save.isPending ? (ar ? "بيحفظ…" : "Saving…") : ar ? "حفظ بيانات الشركة" : "Save company"}
+      </Button>
     </div>
   )
 }

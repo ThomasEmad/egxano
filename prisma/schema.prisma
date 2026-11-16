@@ -36,6 +36,7 @@ model Company {
   listingStatus String   @default("LISTED") // LISTED | SUSPENDED | DELISTED
   isActive      Boolean  @default(true)
   isDemoData    Boolean  @default(false)
+  excludeFromRankings Boolean @default(false) // admin pull-out from rankings/valuation screens when a figure is illogical (2026-11-16)
   sharesOutstanding Float? // shares in units (for EPS calculation)
   website           String?
   descriptionEn String?

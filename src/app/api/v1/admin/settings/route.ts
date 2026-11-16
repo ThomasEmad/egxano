@@ -36,6 +36,15 @@ export async function POST(req: NextRequest) {
         update: { value, type, description: description ?? undefined },
         create: { key, value, type, description },
       })
+      // The valuation screen scores read these thresholds through a 30s TTL
+      // cache — drop it (and the persisted snapshot caches) so the new
+      // criteria apply on the next request instead of 30s+5min later.
+      if (key === "valuation-criteria") {
+        const { clearValuationCriteriaCache } = await import("@/lib/financial/scores")
+        const { invalidateServerCache } = await import("@/lib/server-cache")
+        clearValuationCriteriaCache()
+        invalidateServerCache()
+      }
       results[record.key] = record.type === "number" ? Number(record.value) : record.type === "boolean" ? record.value === "true" : record.value
     }
     return Response.json(results)

@@ -27,7 +27,7 @@ const BAR_SELECT = { id: true, ts: true, open: true, high: true, low: true, clos
 
 async function loadEditorPayload(companyId: string, reportId?: string | null) {
   const [company, latestPrice, bars] = await Promise.all([
-    db.company.findUnique({ where: { id: companyId }, select: { id: true, ticker: true, nameEn: true, nameAr: true, sharesOutstanding: true } }),
+    db.company.findUnique({ where: { id: companyId }, select: { id: true, ticker: true, nameEn: true, nameAr: true, sharesOutstanding: true, sector: true, marketTier: true, excludeFromRankings: true } }),
     db.marketPrice.findFirst({ where: { companyId }, orderBy: { asOf: "desc" }, take: 1, select: { asOf: true, price: true, volume: true, sourceName: true } }),
     db.priceBar.findMany({ where: { companyId }, orderBy: { ts: "desc" }, take: 15, select: BAR_SELECT }),
   ])

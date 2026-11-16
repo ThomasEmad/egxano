@@ -3,9 +3,10 @@
 import { cn } from "@/lib/utils"
 
 /**
- * The EGXANO mark: a graphite tile with an acid-lime "E" that reads as both the
- * initial and a market line breaking upward. It is theme-independent on
- * purpose — the brand mark must not change color with the UI theme.
+ * The EGXANO mark: the glowing green brand tile (owner's 2026-11-16 artwork) —
+ * white/green "E", rising bars and a growth arrow on a dark tile with a lime
+ * glow. Theme-independent on purpose — the brand mark must not change color
+ * with the UI theme.
  */
 export function EGXANOMark({
   className,
@@ -16,36 +17,22 @@ export function EGXANOMark({
   size?: number
   decorative?: boolean
 }) {
+  // Owner mandate 2026-11-16 — the mark is now the glowing green brand icon
+  // (white/green "E" over rising bars + growth arrow). Raster file lives in
+  // /icon-192.png (regenerated from the owner's artwork by
+  // scripts/regen-brand-assets.py); theme-independent by design, so the dark
+  // tile reads the same on light and dark UI.
   return (
-    <svg
+    // eslint-disable-next-line @next/next/no-img-element -- brand mark must not blur: fixed raster, explicit w/h
+    <img
+      src="/icon-192.png"
+      alt={decorative ? "" : "EGXANO"}
+      aria-hidden={decorative || undefined}
       width={size}
       height={size}
-      viewBox="0 0 32 32"
-      role={decorative ? undefined : "img"}
-      aria-label={decorative ? undefined : "EGXANO"}
-      aria-hidden={decorative || undefined}
-      className={cn("shrink-0", className)}
-    >
-      <rect
-        x="0.75"
-        y="0.75"
-        width="30.5"
-        height="30.5"
-        rx="7.25"
-        fill="var(--brand-ink)"
-        stroke="color-mix(in oklab, var(--brand-lime) 38%, transparent)"
-        strokeWidth="0.75"
-      />
-      <path
-        d="M7.5 23.5V10.5L16 19.2L24.5 10.5V23.5"
-        fill="none"
-        stroke="var(--brand-lime)"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="25.5" cy="6.75" r="1.9" fill="var(--brand-lime)" />
-    </svg>
+      className={cn("shrink-0 rounded-lg object-cover", className)}
+      style={{ filter: "drop-shadow(0 0 6px color-mix(in oklab, var(--brand-lime) 35%, transparent))" }}
+    />
   )
 }
 

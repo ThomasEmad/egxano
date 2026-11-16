@@ -104,8 +104,10 @@ async function metricRows(metric: string): Promise<LatestSelectionRow[]> {
 }
 
 async function activeCompanies(sector: string) {
+  // excludeFromRankings companies are pulled by the admin (illogical figure)
+  // — they never appear in any ranking surface (2026-11-16)
   return db.company.findMany({
-    where: { isActive: true, ...(sector ? { sector } : {}) },
+    where: { isActive: true, excludeFromRankings: false, ...(sector ? { sector } : {}) },
     select: { id: true, ticker: true, nameEn: true, nameAr: true, sector: true },
   })
 }

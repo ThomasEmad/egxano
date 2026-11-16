@@ -354,6 +354,23 @@
   }
 }
 
+/* Skeleton shimmer — the Skeleton primitive (ui/skeleton.tsx) applies this
+   class. It MUST exist: without it a skeleton renders as a fully transparent
+   empty div (invisible loading state — owner bug report 2026-11-16). */
+.skeleton-shimmer {
+  @apply relative overflow-hidden bg-muted;
+}
+
+.skeleton-shimmer::after {
+  content: '';
+  @apply absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent;
+  animation: shimmer 2s infinite;
+}
+
+.dark .skeleton-shimmer::after {
+  @apply via-white/10;
+}
+
 /* Gradient Text */
 .gradient-text {
   @apply bg-gradient-to-r from-primary to-emerald-500 bg-clip-text text-transparent;
