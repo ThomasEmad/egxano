@@ -246,17 +246,32 @@ export default function RankingsPage() {
     <LayoutShell showMobileNav={true}>
       <TooltipProvider delayDuration={100}>
         <div className="mx-auto w-full max-w-7xl space-y-4">
-          <header>
-            <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-foreground">
-              <ListOrdered className="h-5 w-5 text-primary" aria-hidden="true" />
-              {ar ? "ترتيب الشركات حسب مؤشر واحد" : "Rank companies by one metric"}
-            </h1>
-            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              {ar
-                ? "الترتيب هو فرز لقيمة مؤشر واحد، وليس حكمًا عامًا على الشركة. الاتجاه موضح لكل مؤشر، والفترة مطبوعة في كل صف."
-                : "A rank is a sort of one figure, not an overall judgement. The direction is stated for each metric, and every row prints its own period."}
-            </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">{directionLabel}</p>
+          <header className="flex flex-wrap items-start gap-4">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/25 to-primary/5 ring-1 ring-primary/30">
+              <ListOrdered className="h-6 w-6 text-primary" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl font-extrabold tracking-tight text-foreground sm:text-2xl">
+                {ar ? "ترتيب الشركات حسب مؤشر واحد" : "Rank companies by one metric"}
+              </h1>
+              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                {ar
+                  ? "الترتيب هو فرز لقيمة مؤشر واحد، وليس حكمًا عامًا على الشركة. الاتجاه موضح لكل مؤشر، والفترة مطبوعة في كل صف."
+                  : "A rank is a sort of one figure, not an overall judgement. The direction is stated for each metric, and every row prints its own period."}
+              </p>
+              <span
+                className={`mt-2 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                  isScale
+                    ? "border-border/60 bg-muted/40 text-muted-foreground"
+                    : direction === "asc"
+                      ? "border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                      : "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                }`}
+              >
+                {isScale ? <Scale className="h-3 w-3" aria-hidden="true" /> : direction === "asc" ? <span aria-hidden="true">↓</span> : <span aria-hidden="true">↑</span>}
+                {directionLabel}
+              </span>
+            </div>
           </header>
 
           {/* Basis + period pin */}
@@ -402,10 +417,29 @@ export default function RankingsPage() {
                       {visible.map((r, i) => {
                         const top = i < 3
                         const median = hasSectorMedian ? medianBySector.get(r.sector) ?? null : null
+                        // expressive value tint — sign-honest, never invented:
+                        // profit-like metrics color by sign; ratio/size metrics
+                        // stay neutral (a rank is a sort, not a verdict)
+                        const signTint = ["roe", "roa", "net_margin", "net_profit"].includes(metric)
+                          ? r.value > 0
+                            ? "text-positive"
+                            : r.value < 0
+                              ? "text-negative"
+                              : "text-muted-foreground"
+                          : ""
+                        // direction-aware median comparison
+                        const beatsMedian = median !== null && (direction === "desc" ? r.value > median : r.value < median)
+                        const trailsMedian = median !== null && !beatsMedian && (direction === "desc" ? r.value < median : r.value > median)
+                        // top-3 medals — gold / silver / bronze
+                        const MEDALS = [
+                          "bg-amber-400/20 text-amber-600 ring-1 ring-amber-400/50 dark:text-amber-400",
+                          "bg-slate-300/25 text-slate-600 ring-1 ring-slate-300/60 dark:text-slate-300",
+                          "bg-orange-500/15 text-orange-700 ring-1 ring-orange-500/40 dark:text-orange-400",
+                        ]
                         return (
                           <tr
                             key={r.companyId}
-                            className={`border-b border-border/40 transition-colors last:border-0 hover:bg-accent/30 ${top ? "bg-primary/[0.03]" : ""}`}
+                            className={`border-b border-border/40 transition-colors last:border-0 hover:bg-accent/30 ${top ? "bg-primary/[0.03]" : i % 2 === 1 ? "bg-muted/20" : ""} ${selected.includes(r.companyId) ? "bg-primary/[0.06] ring-1 ring-inset ring-primary/30" : ""}`}
                           >
                             <td className="p-2 text-center">
                               <input
@@ -417,20 +451,35 @@ export default function RankingsPage() {
                               />
                             </td>
                             <td className="p-3">
-                              <span className={`tabular text-xs ${top ? "font-bold text-primary" : "font-medium text-muted-foreground"}`}>{i + 1}</span>
+                              {top ? (
+                                <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-extrabold tabular ${MEDALS[i]}`}>{i + 1}</span>
+                              ) : (
+                                <span className="tabular text-xs font-medium text-muted-foreground">{i + 1}</span>
+                              )}
                             </td>
                             <td className="p-3">
                               <button
                                 type="button"
                                 onClick={() => router.push(`/company/${r.ticker}`)}
-                                className="flex min-w-0 items-center gap-2 text-start hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                className="flex min-w-0 items-center gap-2 text-start transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                               >
                                 <span className="font-bold">{r.ticker}</span>
                                 <span className="hidden max-w-56 truncate text-xs text-muted-foreground sm:inline">{pick(r.nameEn, r.nameAr ?? r.nameEn)}</span>
                               </button>
                             </td>
                             <td className="hidden p-3 text-xs text-muted-foreground sm:table-cell">{sectorLabel(r.sector, lang)}</td>
-                            <td className={`p-3 text-end font-bold tabular ${top ? "text-foreground" : ""}`}>{fmtValue(unit, r.value)}</td>
+                            <td className="p-3 text-end">
+                              <span className={`font-extrabold tabular ${signTint || (top ? "text-foreground" : "")}`}>{fmtValue(unit, r.value)}</span>
+                              {median !== null && (beatsMedian || trailsMedian) ? (
+                                <span
+                                  className={`ms-1 inline-block text-[10px] font-bold ${beatsMedian ? "text-positive" : "text-negative"}`}
+                                  title={ar ? (beatsMedian ? "أفضل من وسيط القطاع" : "أقل من وسيط القطاع") : beatsMedian ? "better than sector median" : "worse than sector median"}
+                                  aria-hidden="true"
+                                >
+                                  {beatsMedian ? "▲" : "▼"}
+                                </span>
+                              ) : null}
+                            </td>
                             {hasSectorMedian ? (
                               <td className="hidden p-3 text-end text-xs tabular text-muted-foreground md:table-cell">
                                 {median !== null ? fmtValue(unit, median) : "—"}

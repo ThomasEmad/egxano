@@ -19,7 +19,7 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { Info, Radar, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
+import { ArrowLeftRight, Info, Radar, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -118,60 +118,9 @@ function StatCell({ label, children }: { label: string; children: React.ReactNod
   )
 }
 
-/** Inline SVG sparkline of the cumulative A/D line — no chart lib, ≤60 points. */
-function AdLineSparkline({ points, note, ar }: { points: { day: string; value: number }[]; note: string; ar: boolean }) {
-  if (points.length < 2) {
-    return (
-      <p className="rounded-xl border border-border/50 bg-background/60 px-3 py-3 text-center text-[11px] text-muted-foreground">
-        {ar ? "يتراكم من اليوم الأول — الخط يتشكل مع أيام التداول." : "Accumulating from day one — the line takes shape as trading days accrue."}
-      </p>
-    )
-  }
-  const data = points.slice(-60)
-  const values = data.map((p) => p.value)
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const span = max - min || 1
-  const W = 100
-  const H = 32
-  const PAD = 2
-  const coords = data.map((p, i) => {
-    const x = PAD + (i / (data.length - 1)) * (W - 2 * PAD)
-    const y = H - PAD - ((p.value - min) / span) * (H - 2 * PAD)
-    return `${x.toFixed(2)},${y.toFixed(2)}`
-  })
-  return (
-    <div className="rounded-xl border border-border/50 bg-background/60 px-3 py-2">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
-          {ar ? "خط الصعود/الهبوط التراكمي" : "Cumulative A/D line"}
-        </span>
-        <span className={`tnum text-[11px] font-bold ${pctColor(values[values.length - 1])}`} dir="ltr">
-          {values[values.length - 1].toLocaleString("en-GB")}
-        </span>
-      </div>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="none"
-        className="mt-1 h-12 w-full"
-        role="img"
-        aria-label={ar ? "خط الصعود/الهبوط التراكمي" : "Cumulative advance/decline line"}
-      >
-        <polygon points={`${PAD},${H - PAD} ${coords.join(" ")} ${W - PAD},${H - PAD}`} fill="var(--primary)" fillOpacity="0.1" stroke="none" />
-        <polyline
-          points={coords.join(" ")}
-          fill="none"
-          stroke="var(--primary)"
-          strokeWidth="1.5"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      <p className="mt-1 text-[9px] text-muted-foreground" dir="ltr">{note}</p>
-    </div>
-  )
-}
+// (AdLineSparkline REMOVED 2026-11-17 — owner: «احذف خط الصعود/الهبوط التراكمي
+// من الداشبورد». The /api/v1/market/intelligence payload still carries adLine
+// for any future surface; the dashboard simply no longer renders it.)
 
 const ANOMALY_KIND: Record<string, { ar: string; en: string; cls: string }> = {
   volume_spike: { ar: "اندفاع حجم", en: "volume spike", cls: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400" },
@@ -415,65 +364,94 @@ export function MarketIntelligencePanel({
           <p className="text-[10px] text-muted-foreground">{conc.note}</p>
         ) : null}
 
-        {/* A/D line sparkline */}
-        <AdLineSparkline points={b.adLine} note={b.adLineNote} ar={ar} />
-
-        {/* Sector rotation matrix */}
+        {/* Sector-liquidity rotation matrix (renamed 2026-11-17: دوران السيولة) */}
         <div>
-          <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-            {ar ? "دوران القطاعات" : "Sector rotation"}
-          </p>
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+              <ArrowLeftRight className="h-3 w-3" aria-hidden />
+              {ar ? "دوران السيولة" : "Liquidity rotation"}
+            </p>
+            {intel.rotation.gaining.length > 0 && (
+              <span className="flex flex-wrap items-center gap-1 text-[10px]">
+                <span className="font-semibold text-positive">▲ {ar ? "سيولة داخلة:" : "in:"}</span>
+                {intel.rotation.gaining.slice(0, 3).map((s) => (
+                  <span key={s} className="rounded-full border border-positive/30 bg-positive/10 px-1.5 py-0.5 font-medium text-positive">
+                    {sectorLabel(s, lang)}
+                  </span>
+                ))}
+              </span>
+            )}
+            {intel.rotation.losing.length > 0 && (
+              <span className="flex flex-wrap items-center gap-1 text-[10px]">
+                <span className="font-semibold text-negative">▼ {ar ? "سيولة خارجة:" : "out:"}</span>
+                {intel.rotation.losing.slice(0, 3).map((s) => (
+                  <span key={s} className="rounded-full border border-negative/30 bg-negative/10 px-1.5 py-0.5 font-medium text-negative">
+                    {sectorLabel(s, lang)}
+                  </span>
+                ))}
+              </span>
+            )}
+          </div>
           {intel.rotation.sectors.length > 0 ? (
-            <div className="max-h-72 overflow-auto rounded-lg border border-border/50">
+            <div className="max-h-72 overflow-auto rounded-xl border border-border/50">
               <table className="w-full min-w-[420px] text-[11px]">
-                <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur">
+                <thead className="sticky top-0 z-10 border-b border-border/60 bg-card/95 backdrop-blur">
                   <tr className="text-muted-foreground">
-                    <th className="px-2.5 py-1.5 text-start font-medium">{ar ? "القطاع" : "Sector"}</th>
-                    <th className="px-2.5 py-1.5 text-start font-medium">{ar ? "التغير المرجّح" : "Cap-wtd Δ"}</th>
-                    <th className="px-2.5 py-1.5 text-start font-medium">{ar ? "حصة القيمة" : "Turnover share"}</th>
-                    <th className="px-2.5 py-1.5 text-start font-medium">{ar ? "Δ 5ج" : "Δ 5d"}</th>
-                    <th className="px-2.5 py-1.5 text-start font-medium">{ar ? "حجم نسبي" : "Rel vol"}</th>
+                    <th className="px-2.5 py-2 text-start font-semibold">{ar ? "القطاع" : "Sector"}</th>
+                    <th className="px-2.5 py-2 text-start font-semibold">{ar ? "التغير المرجّح" : "Cap-wtd Δ"}</th>
+                    <th className="px-2.5 py-2 text-start font-semibold">{ar ? "حصة السيولة" : "Liquidity share"}</th>
+                    <th className="px-2.5 py-2 text-start font-semibold">{ar ? "Δ 5ج" : "Δ 5d"}</th>
+                    <th className="px-2.5 py-2 text-start font-semibold">{ar ? "حجم نسبي" : "Rel vol"}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {intel.rotation.sectors.map((s) => {
+                  {intel.rotation.sectors.map((s, i) => {
                     const gaining = intel.rotation.gaining.includes(s.sector)
                     const losing = intel.rotation.losing.includes(s.sector)
+                    const share = s.turnoverSharePct
                     return (
                       <tr
                         key={s.sector}
-                        className={`border-t border-border/40 ${
-                          gaining ? "border-s-2 border-s-positive/50" : losing ? "border-s-2 border-s-negative/50" : ""
+                        className={`border-t border-border/40 transition-colors hover:bg-muted/40 ${i % 2 === 1 ? "bg-muted/20" : ""} ${
+                          gaining ? "border-s-2 border-s-positive/60 bg-positive/[0.04]" : losing ? "border-s-2 border-s-negative/60 bg-negative/[0.04]" : ""
                         }`}
                       >
-                        <td className="px-2.5 py-1.5">
-                          <span className="block max-w-[160px] truncate font-medium" title={sectorLabel(s.sector, lang)}>
+                        <td className="px-2.5 py-2">
+                          <span className="block max-w-[160px] truncate font-semibold" title={sectorLabel(s.sector, lang)}>
                             {sectorLabel(s.sector, lang)}
                           </span>
                           <span className="tnum text-[9px] text-muted-foreground" dir="ltr">
-                            {s.advancing}/{s.declining} · {s.companies}
+                            <span className="text-positive">{s.advancing}</span>/<span className="text-negative">{s.declining}</span> · {s.companies}
                           </span>
                         </td>
-                        <td className={`tnum px-2.5 py-1.5 font-bold ${pctColor(s.capWeightedChangePct)}`} dir="ltr">
-                          {pctStr(s.capWeightedChangePct)}
+                        <td className="px-2.5 py-2">
+                          <span className={`tnum inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 font-bold ${pctColor(s.capWeightedChangePct) === "text-positive" ? "border-positive/30 bg-positive/10" : pctColor(s.capWeightedChangePct) === "text-negative" ? "border-negative/30 bg-negative/10" : "border-border/50 bg-muted/30"}`} dir="ltr">
+                            {s.capWeightedChangePct !== null ? (s.capWeightedChangePct > 0 ? "▲" : s.capWeightedChangePct < 0 ? "▼" : "") : ""} {pctStr(s.capWeightedChangePct)}
+                          </span>
                         </td>
-                        <td className="px-2.5 py-1.5">
+                        <td className="px-2.5 py-2">
                           <div className="flex items-center gap-1.5">
-                            <span className="relative inline-block h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-muted">
+                            <span className={`relative inline-block h-1.5 w-14 shrink-0 overflow-hidden rounded-full ${gaining ? "bg-positive/20" : losing ? "bg-negative/20" : "bg-muted"}`}>
                               <span
-                                className="absolute inset-y-0 start-0 rounded-full bg-primary/70"
-                                style={{ width: `${Math.min(100, Math.max(0, s.turnoverSharePct ?? 0))}%` }}
+                                className={`absolute inset-y-0 start-0 rounded-full ${gaining ? "bg-positive" : losing ? "bg-negative" : "bg-primary/70"}`}
+                                style={{ width: `${Math.min(100, Math.max(0, share ?? 0))}%` }}
                               />
                             </span>
-                            <span className="tnum text-muted-foreground" dir="ltr">
-                              {s.turnoverSharePct !== null ? `${s.turnoverSharePct.toFixed(1)}%` : "—"}
+                            <span className={`tnum font-semibold ${gaining ? "text-positive" : losing ? "text-negative" : "text-muted-foreground"}`} dir="ltr">
+                              {share !== null ? `${share.toFixed(1)}%` : "—"}
                             </span>
                           </div>
                         </td>
-                        <td className={`tnum px-2.5 py-1.5 ${s.turnoverShareDelta5d !== null ? pctColor(s.turnoverShareDelta5d) : "text-muted-foreground"}`} dir="ltr">
-                          {s.turnoverShareDelta5d !== null ? `${s.turnoverShareDelta5d > 0 ? "+" : ""}${s.turnoverShareDelta5d.toFixed(1)}` : "—"}
+                        <td className="px-2.5 py-2">
+                          {s.turnoverShareDelta5d !== null ? (
+                            <span className={`tnum inline-flex items-center gap-0.5 font-semibold ${s.turnoverShareDelta5d > 0 ? "text-positive" : s.turnoverShareDelta5d < 0 ? "text-negative" : "text-muted-foreground"}`} dir="ltr">
+                              {s.turnoverShareDelta5d > 0 ? "▲" : s.turnoverShareDelta5d < 0 ? "▼" : ""} {Math.abs(s.turnoverShareDelta5d).toFixed(1)}
+                            </span>
+                          ) : (
+                            <span className="tnum text-muted-foreground" dir="ltr">—</span>
+                          )}
                         </td>
-                        <td className="tnum px-2.5 py-1.5 text-muted-foreground" dir="ltr">
+                        <td className="tnum px-2.5 py-2 text-muted-foreground" dir="ltr">
                           {s.medianRelVol !== null ? `${s.medianRelVol.toFixed(2)}×` : "—"}
                         </td>
                       </tr>

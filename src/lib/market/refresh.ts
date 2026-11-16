@@ -56,6 +56,11 @@ export interface SnapshotMoverRow {
   volume?: number
   /** scanner `market_cap_basic` when present — real market cap for weighting */
   cap?: number
+  /** scanner `value.traded` when present — the session's REAL traded value
+   *  (VWAP-based). Owner bug 2026-11-17: Σ volume×lastClose understated the
+   *  market total (10.78B vs the platforms' 11.2B) because trades execute at
+   *  every price of the session, not at the final print. */
+  valueTraded?: number
 }
 
 export interface MarketRefreshSummary {
@@ -118,6 +123,7 @@ export function buildSnapshotFromScanner(
     const changePct = num(d[3])
     const volume = num(d[4])
     const cap = num(d[6]) // market_cap_basic (added to the column list)
+    const traded = num(d[8]) // value.traded (added to the column list)
     if (!ticker || price === null || price <= 0 || changePct === null) continue
     const key = ticker.toUpperCase()
     const actions = actionsByTicker?.get(key)
@@ -142,6 +148,7 @@ export function buildSnapshotFromScanner(
       changePct: realChangePct,
       ...(volume !== null && volume > 0 ? { volume } : {}),
       ...(cap !== null && cap > 0 ? { cap } : {}),
+      ...(traded !== null && traded > 0 ? { valueTraded: traded } : {}),
     })
   }
 
@@ -195,7 +202,7 @@ async function runRefresh(): Promise<MarketRefreshSummary> {
         options: { lang: "en" },
         markets: ["egypt"],
         symbols: { query: { types: [] }, tickers: [] },
-        columns: ["name", "description", "close", "change", "volume", "update_mode", "market_cap_basic", "total_shares_outstanding"],
+        columns: ["name", "description", "close", "change", "volume", "update_mode", "market_cap_basic", "total_shares_outstanding", "value.traded"],
         sort: { sortBy: "name", sortOrder: "asc" },
         range: [0, 1000],
       }),
@@ -283,10 +290,11 @@ async function runRefresh(): Promise<MarketRefreshSummary> {
           asOf,
           price: m.price,
           // Liquidity columns (market-intelligence upgrade): session share
-          // volume and price × volume. Null when the scanner omits volume —
-          // never fabricated.
+          // volume and traded value. The REAL turnover (scanner value.traded)
+          // wins; volume × lastClose is only the fallback — it systematically
+          // understates the session total (owner bug 2026-11-17).
           volume: m.volume ?? null,
-          valueTraded: m.volume !== undefined && m.volume > 0 ? m.volume * m.price : null,
+          valueTraded: m.valueTraded ?? (m.volume !== undefined && m.volume > 0 ? m.volume * m.price : null),
           currency: "EGP",
           sourceName: SCANNER_SOURCE,
           isDemoData: false,

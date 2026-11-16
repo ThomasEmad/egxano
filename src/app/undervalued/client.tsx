@@ -114,16 +114,20 @@ export default function UndervaluedPage() {
   return (
     <LayoutShell showMobileNav={true}>
       <div className="mx-auto w-full max-w-5xl space-y-4">
-        <header>
-          <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-foreground">
-            <Gauge className="h-5 w-5 text-primary" aria-hidden="true" />
-            {ar ? "فحص التقييم — المعايير المتحققة" : "Valuation screen — criteria met"}
-          </h1>
-          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-            {ar
-              ? "شركات تحققت فيها معايير تقييم معلنة. القيمة المستنتجة نتيجة حسابية من هذه المعايير، والفجوة المعروضة ليست سعرًا مستهدفًا وليست توصية."
-              : "Companies that met explicitly stated valuation criteria. The criteria-implied value is arithmetic from those criteria; the gap shown is not a price target and not a recommendation."}
-          </p>
+        <header className="flex flex-wrap items-start gap-4">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/25 to-primary/5 ring-1 ring-primary/30">
+            <Gauge className="h-6 w-6 text-primary" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-extrabold tracking-tight text-foreground sm:text-2xl">
+              {ar ? "فحص التقييم — المعايير المتحققة" : "Valuation screen — criteria met"}
+            </h1>
+            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+              {ar
+                ? "شركات تحققت فيها معايير تقييم معلنة. القيمة المستنتجة نتيجة حسابية من هذه المعايير، والفجوة المعروضة ليست سعرًا مستهدفًا وليست توصية."
+                : "Companies that met explicitly stated valuation criteria. The criteria-implied value is arithmetic from those criteria; the gap shown is not a price target and not a recommendation."}
+            </p>
+          </div>
           <ValuationCriteriaEditor ar={ar} onSaved={() => setCriteriaNonce((n) => n + 1)} />
         </header>
 
@@ -220,7 +224,7 @@ export default function UndervaluedPage() {
               const gap = r.upside
               const open = expanded === r.companyId
               return (
-                <Card key={r.companyId} className="border-border/60">
+                <Card key={r.companyId} className={`border-border/60 transition-all hover:border-primary/40 hover:shadow-md ${selected.includes(r.companyId) ? "ring-1 ring-primary/40" : ""}`}>
                   <CardContent className="p-0">
                     <div className="flex items-start gap-2.5 p-3.5">
                       <input
@@ -235,7 +239,7 @@ export default function UndervaluedPage() {
                           <button
                             type="button"
                             onClick={() => router.push(`/company/${r.ticker}`)}
-                            className="flex min-w-0 items-center gap-2 text-start hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            className="flex min-w-0 items-center gap-2 text-start transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           >
                             <span className="text-sm font-bold">{r.ticker}</span>
                             <span className="truncate text-xs text-muted-foreground">{name}</span>
@@ -245,8 +249,8 @@ export default function UndervaluedPage() {
                               {ar ? "مراجعة" : "review"}
                             </Badge>
                           ) : null}
-                          <Badge variant="outline" className="text-[9px] text-muted-foreground">
-                            {ar ? `${r.criteriaMet.length} معيار` : `${r.criteriaMet.length} criteria`}
+                          <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">
+                            ✓ {ar ? `${r.criteriaMet.length} معيار متحقق` : `${r.criteriaMet.length} criteria met`}
                           </Badge>
                         </div>
                         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
@@ -262,15 +266,35 @@ export default function UndervaluedPage() {
                         </p>
                         <div className="mt-1.5 flex flex-wrap gap-1">
                           {r.criteriaMet.slice(0, 3).map((c) => (
-                            <span key={c} className="rounded border border-border/60 bg-muted/30 px-1.5 py-0.5 text-[9px] text-muted-foreground">
-                              {(ar ? CRITERIA_AR : CRITERIA_EN)[c] ?? c}
+                            <span key={c} className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 dark:text-emerald-400">
+                              ✓ {(ar ? CRITERIA_AR : CRITERIA_EN)[c] ?? c}
                             </span>
                           ))}
+                          {r.criteriaMet.length > 3 ? (
+                            <span className="rounded border border-border/60 bg-muted/30 px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                              +{r.criteriaMet.length - 3}
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                       <div className="shrink-0 text-end">
-                        <p className="tabular text-sm font-semibold text-foreground">{gap !== null ? `${gap > 0 ? "+" : ""}${gap.toFixed(1)}%` : "—"}</p>
-                        <p className="text-[9px] text-muted-foreground">{ar ? "الفجوة مقابل القيمة المستنتجة" : "gap vs criteria value"}</p>
+                        {gap !== null ? (
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-sm font-extrabold tabular ${
+                              gap > 0
+                                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                : gap < 0
+                                  ? "border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400"
+                                  : "border-border/60 bg-muted/30 text-muted-foreground"
+                            }`}
+                            dir="ltr"
+                          >
+                            {gap > 0 ? "▲" : gap < 0 ? "▼" : ""} {gap > 0 ? "+" : ""}{gap.toFixed(1)}%
+                          </span>
+                        ) : (
+                          <p className="tabular text-sm font-semibold text-muted-foreground">—</p>
+                        )}
+                        <p className="mt-0.5 text-[9px] text-muted-foreground">{ar ? "الفجوة مقابل القيمة المستنتجة" : "gap vs criteria value"}</p>
                         <button
                           type="button"
                           onClick={() => setExpanded(open ? null : r.companyId)}

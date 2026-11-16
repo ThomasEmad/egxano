@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest"
 import { buildSnapshotFromScanner, startOfUtcDay, type ScanRow } from "../refresh"
 import { isEgxRefreshWindow, newerSnapshot, parseSnapshot, type MarketSnapshot } from "../snapshot"
 
-const stock = (ticker: string, close: unknown, change: unknown, volume: unknown = 1000): ScanRow => ({
-  d: [ticker, `${ticker} descr`, close, change, volume, "delayed_streaming_900"],
+const stock = (ticker: string, close: unknown, change: unknown, volume: unknown = 1000, cap: unknown = null, traded: unknown = null): ScanRow => ({
+  d: [ticker, `${ticker} descr`, close, change, volume, "delayed_streaming_900", cap, 1_000_000, traded],
 })
 
 describe("buildSnapshotFromScanner", () => {
@@ -17,10 +17,17 @@ describe("buildSnapshotFromScanner", () => {
     )
     expect(movers).toHaveLength(2)
     expect(movers[0]).toEqual({ ticker: "ABUK", price: 80.98, changePct: 1.5, volume: 42_000 })
+    // missing value.traded column stays absent — never fabricated
+    expect(movers[0].valueTraded).toBeUndefined()
     expect(snapshot.asOf).toBe(t)
     expect(snapshot.pricesAsOf).toBe(t)
     expect(snapshot.delayMinutes).toBe(15)
     expect(snapshot.indices).toEqual([{ name: "EGX30", level: 35_000, changePct: 0.75 }])
+  })
+
+  it("carries the scanner's value.traded (real turnover) into the mover", () => {
+    const { movers } = buildSnapshotFromScanner([stock("COMI", 100, 1, 900_000, null, 112_000_000)], [], t)
+    expect(movers[0].valueTraded).toBe(112_000_000)
   })
 
   it("drops invalid rows: non-positive price, |change|>50, missing ticker, non-finite", () => {

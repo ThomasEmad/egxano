@@ -309,7 +309,7 @@ function CompaniesListing() {
               return (
                 <Card
                   key={c.id}
-                  className={`border-border/60 transition-colors hover:border-primary/40 ${compareMode ? "" : "cursor-pointer"}`}
+                  className={`border-border/60 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md ${checked ? "ring-1 ring-primary/40" : ""} ${compareMode ? "" : "cursor-pointer"}`}
                   role={compareMode ? undefined : "link"}
                   tabIndex={compareMode ? undefined : 0}
                   aria-label={compareMode ? undefined : name}
@@ -342,17 +342,17 @@ function CompaniesListing() {
                         ) : null}
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="flex h-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 px-2 text-[11px] font-bold text-primary">
+                            <span className="flex h-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 px-2.5 text-[11px] font-extrabold text-primary ring-1 ring-primary/25">
                               {c.ticker}
                             </span>
                             <span className="truncate text-sm font-bold text-foreground" title={name}>
                               {name}
                             </span>
                           </div>
-                          <p className="mt-1.5 text-[11px] text-muted-foreground">
-                            {sectorLabel(c.sector, lang)}
+                          <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            <span className="truncate">{sectorLabel(c.sector, lang)}</span>
                             {c.listingStatus === "SUSPENDED" ? (
-                              <span className="ms-2 rounded bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold text-warning">
+                              <span className="shrink-0 rounded bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold text-warning">
                                 {ar ? "موقوفة" : "Suspended"}
                               </span>
                             ) : null}
@@ -360,22 +360,25 @@ function CompaniesListing() {
                         </div>
                       </div>
                       <div className="shrink-0 text-end">
-                        <div className="tabular text-sm font-bold text-foreground">
+                        <div className="tabular text-lg font-extrabold leading-tight text-foreground" dir="ltr">
                           {price !== null ? price.toLocaleString(ar ? "ar-EG" : "en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
                         </div>
                         {chg !== null ? (
-                          <div className={`flex items-center justify-end gap-0.5 text-[11px] font-semibold tabular ${chg >= 0 ? "text-positive" : "text-negative"}`}>
+                          <div
+                            className={`mt-0.5 inline-flex items-center justify-end gap-0.5 rounded-full border px-2 py-0.5 text-[11px] font-bold tabular ${chg >= 0 ? "border-positive/30 bg-positive/10 text-positive" : "border-negative/30 bg-negative/10 text-negative"}`}
+                            dir="ltr"
+                          >
                             {chg >= 0 ? <TrendingUp className="h-3 w-3" aria-hidden="true" /> : <TrendingDown className="h-3 w-3" aria-hidden="true" />}
                             {chg >= 0 ? "+" : ""}
                             {chg.toFixed(2)}%
                           </div>
                         ) : (
-                          <div className="text-[11px] text-muted-foreground">{price !== null ? (ar ? "بلا تغير مسجل" : "no change recorded") : "—"}</div>
+                          <div className="mt-0.5 text-[11px] text-muted-foreground">{price !== null ? (ar ? "بلا تغير مسجل" : "no change recorded") : "—"}</div>
                         )}
                       </div>
                     </div>
 
-                    {/* Key figures — each with its period */}
+                    {/* Key figures — each in its own soft tile, with its period */}
                     <div className="grid grid-cols-3 gap-2 border-t border-border/40 pt-3">
                       <Figure label={ar ? "القيمة السوقية (ج.م)" : "Mkt cap (EGP)"} value={c.marketCap !== null ? formatEgp(c.marketCap, { withCurrency: false }) : null} period={null} />
                       <Figure
@@ -392,9 +395,17 @@ function CompaniesListing() {
                     </div>
                     <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                        <span>
+                        <span
+                          className={`rounded-full border px-1.5 py-0.5 font-semibold ${
+                            usable(roe) && roe.value > 0
+                              ? "border-positive/30 bg-positive/10 text-positive"
+                              : usable(roe) && roe.value < 0
+                                ? "border-negative/30 bg-negative/10 text-negative"
+                                : "border-border/60 bg-muted/30"
+                          }`}
+                        >
                           {ar ? "ROE" : "ROE"}{" "}
-                          <span className="font-bold tabular text-foreground">{usable(roe) ? `${roe.value.toFixed(1)}%` : "—"}</span>
+                          <span className="font-bold tabular">{usable(roe) ? `${roe.value.toFixed(1)}%` : "—"}</span>
                         </span>
                         {usable(roe) && roe.periodLabel ? <span>{roe.periodLabel}</span> : null}
                       </span>

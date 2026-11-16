@@ -29,6 +29,8 @@ export interface MoverInput {
   changePct: number
   volume: number | null
   cap: number | null
+  /** scanner value.traded — the session's real turnover (VWAP-based) */
+  valueTraded?: number | null
 }
 
 export interface VolumeBaseline {
@@ -345,9 +347,12 @@ export function computeIntelligence(input: IntelInput): MarketIntelligence {
   let tradedValue = 0
   let volumeCovered = 0
   for (const m of movers) {
-    if (m.volume !== null && m.volume > 0) {
+    const realTraded = m.valueTraded !== null && m.valueTraded !== undefined && m.valueTraded > 0
+    const hasVolume = m.volume !== null && m.volume > 0
+    if (realTraded || hasVolume) {
       volumeCovered++
-      tradedValue += m.volume * m.price
+      // the scanner's real turnover wins; volume × lastClose is the fallback
+      tradedValue += realTraded ? (m.valueTraded as number) : (m.volume as number) * m.price
     }
   }
   const volumeCoveragePct = priced ? r2((volumeCovered / priced) * 100, 1) : 0

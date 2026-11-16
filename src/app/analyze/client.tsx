@@ -408,10 +408,10 @@ export default function AnalyzeClient() {
             </Card>
           )}
 
-          {/* levels — every support & resistance */}
+          {/* levels — every support & resistance, color-coded (green floor / red ceiling) */}
           <div className="grid gap-5 md:grid-cols-2">
-            <LevelsTable title="الدعوم" rows={r.supports} emptyAr="لا توجد دعوم مسجلة تحت السعر" icon={<ArrowDownRight className="h-4 w-4" aria-hidden />} />
-            <LevelsTable title="المقاومات" rows={r.resistances} emptyAr="لا توجد مقاومات مسجلة فوق السعر" icon={<ArrowUpRight className="h-4 w-4" aria-hidden />} />
+            <LevelsTable title="الدعوم" rows={r.supports} emptyAr="لا توجد دعوم مسجلة تحت السعر" icon={<ArrowDownRight className="h-4 w-4" aria-hidden />} tone="support" />
+            <LevelsTable title="المقاومات" rows={r.resistances} emptyAr="لا توجد مقاومات مسجلة فوق السعر" icon={<ArrowUpRight className="h-4 w-4" aria-hidden />} tone="resistance" />
           </div>
 
           {/* technical snapshot */}
@@ -459,9 +459,12 @@ export default function AnalyzeClient() {
   )
 }
 
-function LevelsTable({ title, rows, emptyAr, icon }: { title: string; rows: import("@/lib/position/types").LevelLine[]; emptyAr: string; icon: React.ReactNode }) {
+function LevelsTable({ title, rows, emptyAr, icon, tone }: { title: string; rows: import("@/lib/position/types").LevelLine[]; emptyAr: string; icon: React.ReactNode; tone: "support" | "resistance" }) {
+  const tint = tone === "support"
+    ? { card: "border-emerald-500/30 bg-emerald-500/[0.04]", chip: "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" }
+    : { card: "border-red-500/30 bg-red-500/[0.04]", chip: "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400" }
   return (
-    <Card className="shadow-sm">
+    <Card className={`shadow-sm ring-1 ${tone === "support" ? "ring-emerald-500/25" : "ring-red-500/25"}`}>
       <CardContent className="p-5">
         <h3 className="mb-3 flex items-center gap-2 text-base font-bold">
           {icon}{title}
@@ -472,9 +475,9 @@ function LevelsTable({ title, rows, emptyAr, icon }: { title: string; rows: impo
         ) : (
           <div className="space-y-2">
             {rows.map((l, i) => (
-              <div key={i} className="rounded-lg border p-3 text-sm transition-colors hover:border-primary/40">
+              <div key={i} className={`rounded-lg border p-3 text-sm transition-colors ${tint.card} hover:shadow-sm`}>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-sm font-bold tabular-nums">{l.low.toFixed(2)}–{l.high.toFixed(2)}</span>
+                  <span className={`rounded-md border px-1.5 py-0.5 font-mono text-sm font-bold tabular ${tint.chip}`}>{l.low.toFixed(2)}–{l.high.toFixed(2)}</span>
                   <Badge variant="outline" className="text-[10px]">{l.touches}× لمسة</Badge>
                   {l.broken && <Badge variant="secondary" className="text-[10px]">مكسورة</Badge>}
                   <span className="ms-auto rounded-full bg-muted px-2 py-0.5 tabular-nums text-xs text-muted-foreground">

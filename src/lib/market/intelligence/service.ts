@@ -32,13 +32,15 @@ const ENRICH_PARTIAL_KEY = "market_enrichment_partial_v1"
 const ENRICH_CURSOR_KEY = "market_enrichment_cursor_v1"
 
 /** Parse the stored market snapshot JSON safely (untrusted content). */
-function readSnapshotMovers(snapshotValue: string): { asOf: string; delayMinutes: number; movers: { ticker: string; price: number; changePct: number; volume?: number; cap?: number }[] } | null {
+type SnapshotMoverParsed = { ticker: string; price: number; changePct: number; volume?: number; cap?: number; valueTraded?: number }
+
+function readSnapshotMovers(snapshotValue: string): { asOf: string; delayMinutes: number; movers: SnapshotMoverParsed[] } | null {
   try {
     const raw = JSON.parse(snapshotValue) as Record<string, unknown>
     const asOf = typeof raw.asOf === "string" ? raw.asOf : null
     const moversRaw = Array.isArray(raw.movers) ? raw.movers : null
     if (!asOf || !moversRaw) return null
-    const movers: { ticker: string; price: number; changePct: number; volume?: number; cap?: number }[] = []
+    const movers: SnapshotMoverParsed[] = []
     for (const m of moversRaw) {
       if (typeof m !== "object" || m === null) continue
       const r = m as Record<string, unknown>
@@ -48,7 +50,8 @@ function readSnapshotMovers(snapshotValue: string): { asOf: string; delayMinutes
       if (!ticker || price === null || changePct === null) continue
       const volume = typeof r.volume === "number" && r.volume > 0 ? r.volume : undefined
       const cap = typeof r.cap === "number" && r.cap > 0 ? r.cap : undefined
-      movers.push({ ticker, price, changePct, ...(volume ? { volume } : {}), ...(cap ? { cap } : {}) })
+      const valueTraded = typeof r.valueTraded === "number" && r.valueTraded > 0 ? r.valueTraded : undefined
+      movers.push({ ticker, price, changePct, ...(volume ? { volume } : {}), ...(cap ? { cap } : {}), ...(valueTraded ? { valueTraded } : {}) })
     }
     const delayMinutes = typeof raw.delayMinutes === "number" ? raw.delayMinutes : 15
     return { asOf, delayMinutes, movers }
@@ -175,6 +178,7 @@ export async function rebuildIntelligence(): Promise<MarketIntelligence | null> 
       changePct: m.changePct,
       volume: m.volume ?? null,
       cap: cap ?? null,
+      valueTraded: m.valueTraded ?? null,
     })
   }
 

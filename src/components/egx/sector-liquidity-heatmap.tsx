@@ -45,8 +45,18 @@ function liquidityFill(chg: number | null): string {
   return "var(--hm-flat)"
 }
 
+/** Owner redesign 2026-11-17: with no prior session the old map rendered a
+ *  dead GRAY WALL of dashes. First-day tiles now tint by the sector's LIQUIDITY
+ *  SHARE (accent) so the map is informative from day one — clearly marked as
+ *  "first tracking" instead of an empty "—". */
+function shareFill(sharePct: number): string {
+  const intensity = Math.min(Math.max((sharePct - 2) / 30, 0), 1)
+  const pct = Math.round(12 + intensity * 34)
+  return `color-mix(in oklab, var(--primary) ${pct}%, var(--hm-flat))`
+}
+
 function liquidityLabelTone(chg: number | null): string {
-  if (chg === null) return "text-muted-foreground"
+  if (chg === null) return "text-foreground"
   const intensity = Math.min(Math.abs(chg) / 40, 1)
   return intensity > 0.3 ? "text-white" : chg > 0 ? "text-positive" : chg < 0 ? "text-negative" : "text-muted-foreground"
 }
@@ -168,8 +178,8 @@ export function SectorLiquidityHeatmap() {
                   {ar ? "سيولة خارجية" : "flowing out"}
                 </span>
                 <span className="flex items-center gap-1">
-                  <span className="inline-block h-2.5 w-6 rounded-sm" style={{ background: liquidityFill(null) }} />
-                  {ar ? "بلا جلسة سابقة" : "no prior session"}
+                  <span className="inline-block h-2.5 w-6 rounded-sm" style={{ background: shareFill(30) }} />
+                  {ar ? "أول تتبع — الشدة = نصيب السيولة" : "first tracking — shade = liquidity share"}
                 </span>
               </div>
               <div ref={boxRef} className="relative w-full overflow-hidden rounded-xl" style={{ height: rect.h }}>
@@ -178,25 +188,39 @@ export function SectorLiquidityHeatmap() {
                   if (!s) return null
                   const showBody = r.w > 96 && r.h > 56
                   const net = s.netValue
-                  const netText = net === null ? "—" : `${net >= 0 ? "+" : "−"}${fmtEgp(Math.abs(net), ar)}`
+                  const netText = net === null ? null : `${net >= 0 ? "+" : "−"}${fmtEgp(Math.abs(net), ar)}`
+                  const firstTracking = s.changePct === null
                   return (
                     <a
                       key={s.sector}
                       href={`/sectors/${encodeURIComponent(s.sector)}`}
-                      className="absolute flex flex-col justify-between overflow-hidden rounded-lg p-2 transition-[left,top,width,height] duration-300 hover:z-10 hover:scale-[1.01] focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-                      style={{ left: r.x, top: r.y, width: r.w, height: r.h, background: liquidityFill(s.changePct) }}
-                      title={`${sectorLabel(s.sector, lang)} — ${ar ? "اليوم" : "today"} ${fmtEgp(s.valueToday, ar)} · ${ar ? "الصافي" : "net"} ${netText} (${fmtChg(s.changePct)}, ${ar ? `نصيب ${s.sharePct}%` : `${s.sharePct}% share`}, ${s.companies} ${ar ? "شركة" : "cos"})`}
+                      className="absolute flex flex-col justify-between overflow-hidden rounded-lg p-2.5 ring-1 ring-inset ring-black/10 transition-[left,top,width,height] duration-300 hover:z-10 hover:scale-[1.01] focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                      style={{ left: r.x, top: r.y, width: r.w, height: r.h, background: firstTracking ? shareFill(s.sharePct) : liquidityFill(s.changePct) }}
+                      title={`${sectorLabel(s.sector, lang)} — ${ar ? "اليوم" : "today"} ${fmtEgp(s.valueToday, ar)} · ${ar ? "الصافي" : "net"} ${netText ?? "—"} (${fmtChg(s.changePct)}, ${ar ? `نصيب ${s.sharePct}%` : `${s.sharePct}% share`}, ${s.companies} ${ar ? "شركة" : "cos"})`}
                     >
-                      <span className={`truncate text-[11px] font-bold leading-tight ${liquidityLabelTone(s.changePct)}`}>
-                        {sectorLabel(s.sector, lang)}
+                      <span className="flex items-start justify-between gap-1.5">
+                        <span className={`truncate text-[11.5px] font-bold leading-tight ${liquidityLabelTone(s.changePct)}`}>
+                          {sectorLabel(s.sector, lang)}
+                        </span>
+                        {firstTracking ? (
+                          <span className="shrink-0 rounded-full bg-background/70 px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground">
+                            {ar ? "أول تتبع" : "first"}
+                          </span>
+                        ) : (
+                          <span className={`shrink-0 rounded-full bg-background/70 px-1.5 py-0.5 text-[10px] font-bold tabular-nums ${s.changePct! > 0 ? "text-positive" : s.changePct! < 0 ? "text-negative" : "text-muted-foreground"}`} dir="ltr">
+                            {fmtChg(s.changePct)}
+                          </span>
+                        )}
                       </span>
                       {showBody ? (
                         <span className={`tabular-nums leading-tight ${liquidityLabelTone(s.changePct)}`}>
-                          <span className="block text-[13px] font-bold" dir="ltr">{netText}</span>
-                          <span className="block text-[9px] opacity-80">{ar ? "صافي السيولة" : "net liquidity"}</span>
-                          <span className="mt-1 block text-[10px] font-semibold" dir="ltr">
-                            {fmtChg(s.changePct)} · {fmtEgp(s.valueToday, ar)} · {s.companies} {ar ? "شركة" : "cos"}
-                          </span>
+                          <span className="block text-[15px] font-extrabold" dir="ltr">{fmtEgp(s.valueToday, ar)}</span>
+                          <span className="block text-[9px] opacity-75">{ar ? `سيولة اليوم · نصيب ${s.sharePct.toFixed(1)}٪ · ${s.companies} شركة` : `today · ${s.sharePct.toFixed(1)}% share · ${s.companies} cos`}</span>
+                          {netText !== null ? (
+                            <span className={`mt-1 block text-[10px] font-semibold ${net! >= 0 ? "text-positive" : "text-negative"}`} dir="ltr">
+                              {ar ? `الصافي ${netText}` : `net ${netText}`}
+                            </span>
+                          ) : null}
                         </span>
                       ) : null}
                     </a>

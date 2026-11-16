@@ -1,13 +1,15 @@
 "use client"
 
-// /sectors/[sector] — one sector's listed companies. Single language per render
-// (the previous version printed an English and an Arabic paragraph together),
-// localized table headers, explicit EGP units, and the price's own date.
+// /sectors/[sector] — one sector's listed companies. Owner redesign 2026-11-17
+// («صفحة قطاع البنوك UI سيء جدا»): gradient hero, icon stat tiles, and the
+// companies rendered as professional cards instead of a bare table — same
+// design language as the /companies grid. Single language per render,
+// localized labels, explicit EGP units, and the price's own date.
 
 import Link from "next/link"
-import { Info } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
+import { ArrowLeftRight, ArrowUpRight, Building2, CalendarDays, Coins, Info, Scale } from "lucide-react"
 import { LayoutShell } from "@/components/layout/LayoutShell"
+import { Badge } from "@/components/ui/badge"
 import { useI18n } from "@/lib/i18n"
 import { formatEgp } from "@/lib/financial/units"
 import { SectorPeriodSelect } from "./period-select"
@@ -39,6 +41,23 @@ interface SectorPageShellProps {
   years: number[]
 }
 
+function StatTile({ label, value, sub, icon, tone }: { label: string; value: string; sub?: string; icon: React.ReactNode; tone?: "primary" | "positive" | "negative" }) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-card shadow-sm transition-colors hover:border-primary/40">
+      <div className="flex items-start gap-3 p-3.5">
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${tone === "positive" ? "bg-positive/15 text-positive" : tone === "negative" ? "bg-negative/15 text-negative" : "bg-primary/15 text-primary"}`}>
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+          <p className={`mt-0.5 truncate text-lg font-bold tabular ${tone === "negative" ? "text-negative" : tone === "positive" ? "text-positive" : ""}`}>{value}</p>
+          {sub ? <p className="text-[10px] text-muted-foreground">{sub}</p> : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function SectorPageShell({ sector, ar: sectorAr, companies, latestMetric, latestPrice, year, years }: SectorPageShellProps) {
   const { lang } = useI18n()
   const ar = lang === "ar"
@@ -64,128 +83,144 @@ export function SectorPageShell({ sector, ar: sectorAr, companies, latestMetric,
 
   return (
     <LayoutShell showMobileNav={true}>
-      <div className="mx-auto w-full max-w-7xl space-y-4">
+      <div className="mx-auto w-full max-w-7xl space-y-5">
         <nav aria-label={ar ? "مسار التنقل" : "Breadcrumb"} className="text-xs text-muted-foreground">
-          <Link href="/" className="hover:underline">
+          <Link href="/" className="hover:text-primary hover:underline">
             {ar ? "الرئيسية" : "Home"}
           </Link>
           <span className="mx-1.5">/</span>
-          <Link href="/sectors" className="hover:underline">
+          <Link href="/sectors" className="hover:text-primary hover:underline">
             {ar ? "القطاعات" : "Sectors"}
           </Link>
           <span className="mx-1.5">/</span>
-          <span>{ar ? sectorAr : sector}</span>
+          <span className="font-medium text-foreground">{ar ? sectorAr : sector}</span>
         </nav>
 
-        <header className="max-w-3xl">
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
-            {ar ? `شركات قطاع ${sectorAr}` : `${sector} companies on the EGX`}
-          </h1>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            {ar
-              ? year
-                ? `${companies.length} شركة نشطة في قطاع ${sectorAr}، معروضة على السنة المالية ${year} — نفس الفترة لكل الشركات. الأسعار هي آخر لقطة مسجلة بتاريخها. «—» تعني عدم توفر قيمة موثوقة لهذه السنة، ولا تُعامل كصفر.`
-                : `${companies.length} شركة نشطة في قطاع ${sectorAr}. الأسعار هي آخر لقطة مسجلة بتاريخها، والإيراد وصافي الربح هما آخر قيمة سنوية متحقق منها مع طباعة الفترة. «—» تعني عدم توفر قيمة موثوقة، ولا تُعامل كصفر.`
-              : year
-                ? `${companies.length} active companies in the ${sector} sector, shown on fiscal year ${year} — the same period for every company. Prices are the latest recorded snapshot with their date. “—” means no authoritative value for that year; it is never treated as zero.`
-                : `${companies.length} active companies in the ${sector} sector. Prices are the latest recorded snapshot with their date; revenue and net profit are the latest verified annual figures with their period printed. “—” means no authoritative value is available — it is never treated as zero.`}
-          </p>
-          {years.length > 0 ? (
-            <div className="mt-3">
-              <SectorPeriodSelect sector={sector} year={year ? String(year) : "all"} years={years} />
+        {/* hero */}
+        <div className="overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-primary/10 via-card to-card shadow-sm">
+          <div className="flex flex-wrap items-start gap-4 p-5 md:p-6">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-primary/15 ring-1 ring-primary/30">
+              <Building2 className="h-7 w-7 text-primary" aria-hidden />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl">
+                {ar ? `قطاع ${sectorAr}` : `${sector} on the EGX`}
+              </h1>
+              <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+                {ar
+                  ? year
+                    ? `${companies.length} شركة نشطة، معروضة على السنة المالية ${year} — نفس الفترة لكل الشركات. الأسعار آخر لقطة مسجلة بتاريخها، و«—» تعني عدم توفر قيمة موثوقة (لا تُعامل كصفر).`
+                    : `${companies.length} شركة نشطة. الأسعار آخر لقطة مسجلة بتاريخها، والإيراد وصافي الربح آخر قيمة سنوية متحقق منها مع طباعة الفترة، و«—» تعني عدم توفر قيمة موثوقة (لا تُعامل كصفر).`
+                  : year
+                    ? `${companies.length} active companies on fiscal year ${year} — the same period for every company. “—” means no authoritative value; never zero.`
+                    : `${companies.length} active companies. Prices are the latest snapshot with their date; “—” means no authoritative value — never zero.`}
+              </p>
             </div>
-          ) : null}
-        </header>
-
-        {/* Sector summary — coverage-aware, never a roll-up of estimates */}
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          <Card className="border-border/60 p-3">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{ar ? "شركات نشطة" : "Active companies"}</p>
-            <p className="mt-1 text-lg font-semibold tabular">{companies.length}</p>
-          </Card>
-          <Card className="border-border/60 p-3">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{ar ? "لديها بيانات إيراد" : "With revenue data"}</p>
-            <p className="mt-1 text-lg font-semibold tabular">
-              {revenueValues.length}
-              <span className="text-xs font-normal text-muted-foreground"> / {companies.length}</span>
-            </p>
-          </Card>
-          <Card className="border-border/60 p-3">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{ar ? `إجمالي الإيرادات (${currency})` : `Total revenue (${currency})`}</p>
-            <p className="mt-1 text-lg font-semibold tabular">{revenueValues.length ? `${formatEgp(totalRevenue, { withCurrency: false })}` : "—"}</p>
-          </Card>
-          <Card className="border-border/60 p-3">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{ar ? `إجمالي صافي الربح (${currency})` : `Total net profit (${currency})`}</p>
-            <p className={`mt-1 text-lg font-semibold tabular ${profitValues.length && totalProfit < 0 ? "text-negative" : ""}`}>
-              {profitValues.length ? `${formatEgp(totalProfit, { withCurrency: false })}` : "—"}
-            </p>
-          </Card>
+            {years.length > 0 ? <SectorPeriodSelect sector={sector} year={year ? String(year) : "all"} years={years} /> : null}
+          </div>
         </div>
-        <p className="text-[10px] leading-relaxed text-muted-foreground">
+
+        {/* sector summary — coverage-aware, never a roll-up of estimates */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatTile label={ar ? "شركات نشطة" : "Active companies"} value={String(companies.length)} icon={<Building2 className="h-4 w-4" aria-hidden />} />
+          <StatTile
+            label={ar ? "لديها بيانات إيراد" : "With revenue data"}
+            value={String(revenueValues.length)}
+            sub={ar ? `من ${companies.length}` : `of ${companies.length}`}
+            icon={<Coins className="h-4 w-4" aria-hidden />}
+          />
+          <StatTile
+            label={ar ? `إجمالي الإيرادات (${currency})` : `Total revenue (${currency})`}
+            value={revenueValues.length ? formatEgp(totalRevenue, { withCurrency: false }) : "—"}
+            icon={<ArrowUpRight className="h-4 w-4" aria-hidden />}
+            tone="positive"
+          />
+          <StatTile
+            label={ar ? `إجمالي صافي الربح (${currency})` : `Total net profit (${currency})`}
+            value={profitValues.length ? formatEgp(totalProfit, { withCurrency: false }) : "—"}
+            icon={<Scale className="h-4 w-4" aria-hidden />}
+            tone={profitValues.length && totalProfit < 0 ? "negative" : "positive"}
+          />
+        </div>
+        <p className="-mt-3 text-[10px] leading-relaxed text-muted-foreground">
           {ar
             ? "المجاميع محسوبة على الشركات التي لديها قيم منشورة فقط — وليست إسقاطًا على بقية القطاع."
             : "Totals sum the companies with published values only — they are not an extrapolation to the rest of the sector."}
         </p>
 
-        <Card className="border-border/60 p-0">
-          <CardContent className="p-0">
-            {companies.length === 0 ? (
-              <p className="p-8 text-center text-sm text-muted-foreground">
-                {ar ? "لا توجد شركات نشطة في هذا القطاع بعد." : "No active companies in this sector yet."}
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <caption className="sr-only">
-                    {ar ? `شركات قطاع ${sectorAr} مع السعر والإيرادات وصافي الربح والفترة` : `${sector} companies with price, revenue, net profit and period`}
-                  </caption>
-                  <thead>
-                    <tr className="border-b border-border/40 bg-muted/30 text-[10px] uppercase tracking-wider text-muted-foreground">
-                      <th scope="col" className="p-3 text-start font-medium">{ar ? "الشركة" : "Company"}</th>
-                      <th scope="col" className="p-3 text-start font-medium">{ar ? "الرمز" : "Ticker"}</th>
-                      <th scope="col" className="p-3 text-end font-medium">{ar ? `السعر (${currency})` : `Price (${currency})`}</th>
-                      <th scope="col" className="hidden p-3 text-end font-medium sm:table-cell">{ar ? `الإيرادات السنوية (${currency})` : `Annual revenue (${currency})`}</th>
-                      <th scope="col" className="hidden p-3 text-end font-medium sm:table-cell">{ar ? `صافي الربح السنوي (${currency})` : `Annual net profit (${currency})`}</th>
-                      <th scope="col" className="hidden p-3 text-end font-medium md:table-cell">{ar ? "الفترة" : "Period"}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {list.map(({ company: c, revenue, profit, price, period }) => (
-                      <tr key={c.id} className="border-b border-border/40 last:border-0 hover:bg-accent/30">
-                        <td className="p-3">
-                          <Link href={`/company/${c.ticker}`} className="font-medium hover:text-primary hover:underline">
-                            {ar ? c.nameAr ?? c.nameEn : c.nameEn}
-                          </Link>
-                          {c.industry ? <span className="block text-[10px] text-muted-foreground">{c.industry}</span> : null}
-                        </td>
-                        <td className="p-3 font-bold">{c.ticker}</td>
-                        <td className="p-3 text-end tabular">
-                          {price ? price.price.toFixed(2) : "—"}
-                          <span className="ms-1 text-[10px] text-muted-foreground">{fmtDate(price?.asOf, lang)}</span>
-                        </td>
-                        <td className="hidden p-3 text-end tabular sm:table-cell">{revenue ? `${formatEgp(revenue.value, { withCurrency: false })}` : "—"}</td>
-                        <td className={`hidden p-3 text-end tabular sm:table-cell ${profit && profit.value < 0 ? "text-negative" : ""}`}>
-                          {profit ? `${formatEgp(profit.value, { withCurrency: false })}` : "—"}
-                        </td>
-                        <td className="hidden p-3 text-end text-[11px] text-muted-foreground md:table-cell">{period ?? "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* companies — professional cards, same language as /companies */}
+        {companies.length === 0 ? (
+          <div className="rounded-xl border border-border/60 p-10 text-center text-sm text-muted-foreground">
+            {ar ? "لا توجد شركات نشطة في هذا القطاع بعد." : "No active companies in this sector yet."}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <h2 className="flex items-center gap-2 text-base font-bold">
+              <Building2 className="h-4.5 w-4.5 text-primary" aria-hidden />
+              {ar ? `شركات القطاع (${companies.length})` : `Sector companies (${companies.length})`}
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {list.map(({ company: c, revenue, profit, price, period }) => (
+                <Link
+                  key={c.id}
+                  href={`/company/${c.ticker}`}
+                  className="group block rounded-xl border border-border/60 bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <Badge variant="secondary" className="font-mono text-[11px]">{c.ticker}</Badge>
+                      <p className="mt-1.5 truncate font-bold group-hover:text-primary">{ar ? c.nameAr ?? c.nameEn : c.nameEn}</p>
+                      {c.industry ? <p className="truncate text-[10px] text-muted-foreground">{c.industry}</p> : null}
+                    </div>
+                    <div className="shrink-0 text-end">
+                      <p className="text-[10px] text-muted-foreground">{ar ? "السعر" : "Price"}</p>
+                      <p className="text-base font-extrabold tabular" dir="ltr">{price ? price.price.toFixed(2) : "—"}</p>
+                      <p className="text-[9px] text-muted-foreground" dir="ltr">{fmtDate(price?.asOf, lang)}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/40 pt-3 text-sm">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">{ar ? "الإيرادات السنوية" : "Annual revenue"}</p>
+                      <p className="font-bold tabular">{revenue ? formatEgp(revenue.value, { withCurrency: false }) : "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">{ar ? "صافي الربح السنوي" : "Annual net profit"}</p>
+                      <p className={`font-bold tabular ${profit && profit.value < 0 ? "text-negative" : "text-positive"}`}>
+                        {profit ? formatEgp(profit.value, { withCurrency: false }) : "—"}
+                      </p>
+                    </div>
+                  </div>
+                  {period ? (
+                    <div className="mt-3 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <CalendarDays className="h-3 w-3" aria-hidden />
+                      <span>{ar ? "الفترة:" : "Period:"} <b className="font-semibold">{period}</b></span>
+                    </div>
+                  ) : null}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          <Link href={`/rankings?sector=${encodeURIComponent(sector)}`} className="text-primary hover:underline">
+        {/* related actions */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Link
+            href={`/rankings?sector=${encodeURIComponent(sector)}`}
+            className="flex items-center gap-3 rounded-xl border border-border/60 bg-card p-4 text-sm font-semibold shadow-sm transition-all hover:border-primary/50 hover:shadow-md"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
+              <ArrowLeftRight className="h-4 w-4" aria-hidden />
+            </span>
             {ar ? "رتّب شركات هذا القطاع حسب مؤشر" : "Rank companies in this sector"}
           </Link>
-          <Link href="/compare" className="text-primary hover:underline">
+          <Link
+            href="/compare"
+            className="flex items-center gap-3 rounded-xl border border-border/60 bg-card p-4 text-sm font-semibold shadow-sm transition-all hover:border-primary/50 hover:shadow-md"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
+              <ArrowLeftRight className="h-4 w-4 rotate-90" aria-hidden />
+            </span>
             {ar ? "قارن شركتين من هذا القطاع" : "Compare two companies from this sector"}
-          </Link>
-          <Link href="/sectors" className="text-muted-foreground hover:underline">
-            {ar ? "كل القطاعات" : "All sectors"}
           </Link>
         </div>
 

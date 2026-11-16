@@ -44,9 +44,13 @@ async function buildBreadth(): Promise<BreadthData> {
     const declining = valid.filter((m) => m.changePct < 0).length
     const unchanged = valid.filter((m) => m.changePct === 0).length
 
+    // the scanner's real value.traded wins; volume × lastClose is the fallback
     const withVolume = valid.filter((m) => typeof m.volume === "number" && m.volume >= 0)
     const tradedValue = withVolume.length
-      ? withVolume.reduce((sum, m) => sum + m.price * (m.volume as number), 0)
+      ? withVolume.reduce(
+          (sum, m) => sum + (m.valueTraded !== undefined && m.valueTraded > 0 ? m.valueTraded : m.price * (m.volume as number)),
+          0,
+        )
       : null
 
     return {
