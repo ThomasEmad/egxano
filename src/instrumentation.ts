@@ -50,7 +50,7 @@ export async function register() {
   // reads, which is fatal at 10k concurrent visitors. journal_mode is a
   // persistent DB property; asserting it here makes restores self-healing.
   // (Turso rejects PRAGMA statements over its HTTP protocol — skip there.)
-  // Postgres (Neon/Supabase) has no PRAGMA — skip for it too.
+  // Postgres (Neon) has no PRAGMA — skip for it too.
   const isPostgres = (process.env.DATABASE_URL || "").trim().startsWith("postgres")
   if (!process.env.TURSO_DATABASE_URL && !isPostgres) {
     try {

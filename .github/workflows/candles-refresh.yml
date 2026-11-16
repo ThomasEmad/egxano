@@ -6,7 +6,8 @@
 #     FETCH_FAILED from production, 200 OK from other IPs) — so the fetch must
 #     run from a GitHub runner instead, writing straight to the production DB.
 #
-# The secret CANDLE_DB_URL holds the production Postgres URL (Supabase).
+# The secret CANDLE_DB_URL holds the production Postgres URL (Neon,
+# DIRECT unpooled host — a GitHub runner, so pooling is not needed).
 # The script mirrors src/lib/market/candles.ts conventions exactly: UTC-midnight
 # session keys, full-OHLC bars only, bulk upsert ON CONFLICT, 380-session
 # retention, and it NEVER writes MarketPrice (TradingView scanner owns it).

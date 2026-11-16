@@ -1,11 +1,11 @@
 import { PrismaClient } from '@prisma/client'
 
-// Postgres-first Prisma client (Neon / Supabase / Vercel Postgres compatible).
+// Postgres-first Prisma client — Neon is the production database (owner
+// mandate 2026-11-17: Neon ONLY, any Supabase wiring was removed).
 //
-//   • DATABASE_URL = postgres://… (or postgresql://…) → standard Prisma engine.
-//     On serverless (Vercel) point it at the POOLED connection string
-//     (Supabase :6543 pgbouncer / Neon -pooler host) and keep the direct
-//     (unpooled) URL for migrations and one-off scripts.
+//   • DATABASE_URL = postgres://… → standard Prisma engine. On serverless
+//     (Vercel) point it at Neon's POOLED connection string (the -pooler host)
+//     and keep the direct (unpooled) URL for migrations and one-off scripts.
 //
 //   • Migration note: production ran on Turso/libSQL until the free plan's
 //     row-read quota blocked all queries. The stack moved to hosted Postgres;

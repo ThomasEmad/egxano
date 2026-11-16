@@ -2,7 +2,7 @@
 /**
  * prod-ops.ts — production ops toolkit for EGXANO price-candle ingestion.
  *
- * Talks directly to the production Postgres (Supabase) via Bun's built-in SQL
+ * Talks directly to the production Postgres (Neon) via Bun's built-in SQL
  * client — no Prisma involved (the repo schema targets sqlite for local dev;
  * this table set was provisioned additively on the production database).
  *
