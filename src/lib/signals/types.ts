@@ -283,6 +283,20 @@ export const MIN_BARS = 60
  *  +235% above the close) is NOT a tradeable target — T1/T2 are capped at
  *  this horizon and a second target beyond it is dropped entirely. */
 export const TARGET_MAX_UPSIDE_PCT = 20
+
+// ---------------------------------------------------------------------------
+// OWNER MANDATE (2026-11-17): a broken support is NOT automatically an exit.
+// When a support breaks, the distance from the live close down to the NEXT
+// support zone below (its nearest edge) decides the classification:
+//   gap ≥ 4%  → no cushion nearby, downside room is open → EXIT fires;
+//   gap ≤ 3%  → the next support sits right under the price → the break is
+//               classified WAIT (selling here locks the loss at the worst
+//               spot; the exit activates on a close below that cushion);
+//   3% < gap < 4% → borderline: WAIT with an explicit tighter-stop note.
+// No support below at all counts as an open field → EXIT.
+// ---------------------------------------------------------------------------
+export const EXIT_SUPPORT_CUSHION_EXIT_PCT = 4
+export const EXIT_SUPPORT_CUSHION_WAIT_PCT = 3
 /** Liquidity disclosure threshold: average daily traded VALUE (EGP, close ×
  *  volume, last 20 sessions) below this means a thin order book — the row
  *  carries a liquidity warning. The wording is factual mechanics only. */

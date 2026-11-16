@@ -9,7 +9,7 @@
 
 import { buildZoneMap, nearestResistanceAbove, type PriceZone, type ZoneMap } from "./levels"
 import type { MetricsBundle } from "./metrics"
-import type { Bar, OpportunityType } from "./types"
+import { EXIT_SUPPORT_CUSHION_EXIT_PCT, EXIT_SUPPORT_CUSHION_WAIT_PCT, type Bar, type OpportunityType } from "./types"
 
 export interface Detection {
   type: OpportunityType
@@ -21,6 +21,19 @@ export interface Detection {
   level: number
   /** for near setups: the close-based activation level */
   activation: number | null
+  /** OWNER MANDATE (2026-11-17) — the support-break cushion verdict, set ONLY
+   *  on exit_support detections. When `waitInstead`, the engine classifies the
+   *  row WAIT instead of EXIT: the next support sits right under the price
+   *  (gap ≤ 3%) or the gap is borderline (3–4%). */
+  cushion?: {
+    waitInstead: boolean
+    /** nearest edge of the next support below the broken one (null = none) */
+    level: number | null
+    /** % from the last close down to that level (null = no support below) */
+    gapPct: number | null
+    /** 3% < gap < 4% — borderline: wait, but tighten the mental stop */
+    borderline: boolean
+  }
 }
 
 function pct(x: number, y: number): number {
@@ -286,6 +299,45 @@ export function detectExit(bars: Bar[], map: ZoneMap, m: MetricsBundle): Detecti
   if (belowZones.length) {
     const z = belowZones.sort((a, b) => b.touches - a.touches)[0]
     const volFactor = m.relVol !== null && m.relVol >= 1.2
+
+    // OWNER MANDATE (2026-11-17) — the cushion rule: measure the gap from the
+    // live close down to the NEXT support zone below the broken one. A close
+    // cushion (≤3%) means selling here locks the loss at the worst spot →
+    // WAIT; an open field or a far cushion (≥4%) → EXIT fires. The gap is
+    // measured to the zone's nearest edge (its high) — the first place a
+    // bounce could form.
+    const cushions = map.zones.filter((z2) => z2.kind === "support" && z2.high < z.low)
+    const next = cushions.length ? cushions.reduce((a, b) => (b.high > a.high ? b : a)) : null
+    const gapPct = next ? ((last.close - next.high) / last.close) * 100 : null
+    const waitInstead = gapPct !== null && gapPct < EXIT_SUPPORT_CUSHION_EXIT_PCT
+    // borderline ONLY inside the (3%, 4%) band — a far cushion (≥4%) is a clean exit
+    const borderline = waitInstead && gapPct !== null && gapPct > EXIT_SUPPORT_CUSHION_WAIT_PCT
+    const cushionFacts: { ar: string; en: string }[] = []
+    if (waitInstead && next && gapPct !== null) {
+      cushionFacts.push({
+        ar: `لكن الدعم التالي (${next.high.toFixed(2)}–${next.low.toFixed(2)}) يبعد فقط ${gapPct.toFixed(1)}٪ عن السعر — بطانة قريبة تحدّ الهبوط، فالتصنيف انتظار ومتابعة وليس بيعًا فوريًا`,
+        en: `But the next support (${next.high.toFixed(2)}–${next.low.toFixed(2)}) sits only ${gapPct.toFixed(1)}% below — a close cushion limits the downside, so the break is classified WAIT, not an immediate sell`,
+      })
+      if (borderline) {
+        cushionFacts.push({
+          ar: `الفرق في المنطقة الحدّية بين 3٪ و4٪ — انتظار بوقف ذهني أضيق عند ${next.low.toFixed(2)}`,
+          en: `The gap sits in the borderline 3–4% band — wait with a tighter mental stop at ${next.low.toFixed(2)}`,
+        })
+      }
+    } else {
+      cushionFacts.push(
+        next && gapPct !== null
+          ? {
+              ar: `الدعم التالي (${next.high.toFixed(2)}) يبعد ${gapPct.toFixed(1)}٪ تحت السعر — لا بطانة قريبة تحمي السعر، فمساحة الهبوط مفتوحة`,
+              en: `The next support (${next.high.toFixed(2)}) is ${gapPct.toFixed(1)}% below — no close cushion, downside room is open`,
+            }
+          : {
+              ar: "لا يوجد دعم مسجل تحت الكسر — مساحة الهبوط مفتوحة بلا بطانة",
+              en: "No recorded support below the break — downside room is open with no cushion",
+            },
+      )
+    }
+
     return {
       type: "exit_support",
       strength: volFactor ? 0.8 : 0.55,
@@ -294,11 +346,18 @@ export function detectExit(bars: Bar[], map: ZoneMap, m: MetricsBundle): Detecti
           ar: `إغلاق اليوم (${last.close.toFixed(2)}) كسر دعم ${z.touches}× مختبَر (${z.low.toFixed(2)}–${z.high.toFixed(2)}) — سيناريو الخروج من مركز شراء`,
           en: `Today's close (${last.close.toFixed(2)}) broke a ${z.touches}-touch support (${z.low.toFixed(2)}–${z.high.toFixed(2)}) — exit scenario for an open long`,
         },
+        ...cushionFacts,
         ...(volFactor ? [{ ar: `الحجم ${m.relVol!.toFixed(2)}× يؤكد الكسر`, en: `Volume ${m.relVol!.toFixed(2)}× confirms the break` }] : []),
         { ar: "هذه إشارة لإغلاق مركز قائم — ليست دعوة للبيع على المكشوف (غير متاح في EGX)", en: "This closes an existing long — not a short-selling call (unavailable on EGX)" },
       ],
       level: z.low,
       activation: null,
+      cushion: {
+        waitInstead,
+        level: next ? next.high : null,
+        gapPct,
+        borderline,
+      },
     }
   }
 

@@ -36,6 +36,7 @@ import {
   Users,
   Bookmark,
   Bell as BellIcon,
+  BrainCircuit,
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -87,6 +88,7 @@ const NAV_GROUPS: NavGroup[] = [
     collapsible: true,
     items: [
       { href: "/signals", label: "الإشارات الفنية", labelAr: "الإشارات الفنية", icon: <Activity className="h-4 w-4" /> },
+      { href: "/analyze", label: "حلل سهمي", labelAr: "حلل سهمي", icon: <BrainCircuit className="h-4 w-4" /> },
       { href: "/dashboard#/custom", label: "الماسح المخصص", labelAr: "الماسح المخصص", icon: <Scale className="h-4 w-4" /> },
       { href: "/compare", label: "المقارنات", labelAr: "المقارنات", icon: <Scale className="h-4 w-4" /> },
       { href: "/dividends", label: "التوزيعات", labelAr: "التوزيعات", icon: <CalendarDays className="h-4 w-4" /> },

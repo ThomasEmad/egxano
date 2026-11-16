@@ -16,6 +16,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/rankings`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
     { url: `${baseUrl}/undervalued`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
     { url: `${baseUrl}/sectors`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${baseUrl}/analyze`, lastModified: now, changeFrequency: "weekly", priority: 0.75 },
     // /compare is intentionally noindex (user-selected companies), so it is
     // not advertised here.
     { url: `${baseUrl}/premium`, lastModified: now, changeFrequency: "weekly", priority: 0.6 },

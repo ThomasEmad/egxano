@@ -222,9 +222,6 @@ export function computeCompanySignalV2(input: EngineInput): SignalRowV2 {
 
   // ---------- EXIT wins over any buy candidate (no contradictory signals) ----------
   if (exit) {
-    // EXIT rows do not carry an entry plan — they close an existing long
-    base.state = "exit"
-    base.type = exit.type
     const score = computeScore({
       bars,
       m,
@@ -233,6 +230,31 @@ export function computeCompanySignalV2(input: EngineInput): SignalRowV2 {
       map,
       quality: { bars: bars.length, ohlc: base.quality.ohlc, liquidity: base.quality.liquidity, dataAgeSessions: base.quality.dataAgeSessions },
     })
+    // OWNER MANDATE (2026-11-17): a support break with a CLOSE cushion (next
+    // support ≤ 3% below, or the borderline 3–4% band) is classified WAIT —
+    // selling into a nearby cushion locks the loss at the worst spot. The row
+    // discloses the break honestly and hands the user the activation that
+    // DOES fire the exit: a daily close below the cushion level.
+    if (exit.cushion?.waitInstead) {
+      base.state = "wait"
+      base.type = null // wait rows carry no opportunity type
+      base.score = score.breakdown.total
+      base.scoreGroups = score.breakdown.groups
+      base.evidence = orderedEvidence(exit, score.evidence)
+      const cushionFloor = exit.cushion.level !== null
+        ? exit.cushion.level
+        : Math.min(...bars.slice(-60).map((b) => b.low))
+      base.invalidationAr = exit.cushion.level !== null
+        ? `الخروج الفعلي يُفعَّل بإغلاق يومي تحت الدعم التالي (${cushionFloor.toFixed(2)}) — تحته لا بطانة قريبة`
+        : `الخروج الفعلي يُفعَّل بإغلاق يومي تحت قاع آخر 60 جلسة (${cushionFloor.toFixed(2)}) — لا يوجد دعم مسجل تحته`
+      base.quality.notesAr.push(
+        "كسر دعم مُصنَّف انتظار (owner mandate): الدعم التالي قريب فالبيع هنا يقفل الخسارة في أسوأ مكان — راقب إغلاقات الجلسات القادمة تحت مستوى البطانة",
+      )
+      return base
+    }
+    // EXIT rows do not carry an entry plan — they close an existing long
+    base.state = "exit"
+    base.type = exit.type
     base.score = score.breakdown.total
     base.scoreGroups = score.breakdown.groups
     base.evidence = orderedEvidence(exit, score.evidence)

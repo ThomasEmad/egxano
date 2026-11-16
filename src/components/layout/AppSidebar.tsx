@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   Layers,
   Trophy,
+  BrainCircuit,
 } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
@@ -51,6 +52,7 @@ export const SECTIONS: NavSection[] = [
     items: [
       { href: "/dashboard", label: "Research home", labelAr: "لوحة البحث", icon: LayoutDashboard },
       { href: "/signals", label: "Technical signals", labelAr: "الإشارات الفنية", icon: Activity },
+      { href: "/analyze", label: "Analyze my stock", labelAr: "حلل سهمي", icon: BrainCircuit },
       { href: "/companies", label: "Companies", labelAr: "الشركات", icon: Building2 },
       { href: "/scanners", label: "Screeners", labelAr: "الماسحات", icon: ScanSearch },
       { href: "/compare", label: "Compare", labelAr: "المقارنة", icon: Scale },

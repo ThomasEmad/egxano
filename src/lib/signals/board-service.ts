@@ -19,7 +19,7 @@ import { applyCorporateActionAdjustments, loadSeriesActionsByCompany, type Serie
 import { effectiveEgxSessionDate } from "@/lib/market/egx-session"
 import { applyAdminPriceOverrideToLastBar, getAdminPriceOverride, getAdminPriceOverrides } from "@/lib/market/price-override"
 import { computeCompanySignalV2, type CompanyIdentity } from "./engine"
-import { SIGNALS_V2_VERSION, type Fundamentals, type SignalRowV2, type SignalState } from "./types"
+import { SIGNALS_V2_VERSION, type Bar, type Fundamentals, type SignalRowV2, type SignalState } from "./types"
 
 /** Calendar-day window: ≈200 EGX sessions — deep enough for the 63-session
  *  momentum lookbacks and 90-session zone history, cheap enough to batch. */
@@ -368,8 +368,22 @@ export function getSignalsBoard(): Promise<BoardOutputV2> {
 //   corporate-action pass rescales pre-ex-date sessions. Unit-tested.
 // ---------------------------------------------------------------------------
 
-/** One company's v2 row (uncached) — null when the company is gone/inactive. */
-async function buildCompanySignalUncached(companyId: string): Promise<SignalRowV2 | null> {
+export interface CompanySeries {
+  companyId: string
+  ticker: string
+  nameEn: string
+  nameAr: string | null
+  sector: string
+  marketTier: string
+  /** adjusted daily bars — the exact series the v2 row is computed on */
+  bars: Bar[]
+}
+
+/** One company's adjusted daily series (uncached) — null when the company is
+ *  gone/inactive. Shared by the signals row AND the position-review module
+ *  (حلل سهمي) so both read the same anatomy: same PriceBar/scanner merge,
+ *  same admin override, same corporate-action rescaling. */
+export async function getCompanySeriesUncached(companyId: string): Promise<CompanySeries | null> {
   const c = await db.company.findUnique({
     where: { id: companyId },
     select: { id: true, ticker: true, nameEn: true, nameAr: true, sector: true, marketTier: true, isActive: true },
@@ -437,10 +451,22 @@ async function buildCompanySignalUncached(companyId: string): Promise<SignalRowV
     }
   }
 
+  return { companyId: c.id, ticker: c.ticker, nameEn: c.nameEn, nameAr: c.nameAr, sector: c.sector, marketTier: c.marketTier, bars: series }
+}
+
+/** Cached per-company series (10 min — same cadence as the row cache). */
+export function getCompanySeriesCached(companyId: string): Promise<CompanySeries | null> {
+  return cached(`technical-signals:series:${companyId}`, CACHE_MS, () => getCompanySeriesUncached(companyId))
+}
+
+/** One company's v2 row (uncached) — null when the company is gone/inactive. */
+async function buildCompanySignalUncached(companyId: string): Promise<SignalRowV2 | null> {
+  const s = await getCompanySeriesUncached(companyId)
+  if (!s) return null
   const fundamentals = await loadFundamentals([companyId])
   return computeCompanySignalV2({
-    bars: series,
-    identity: { companyId: c.id, ticker: c.ticker, nameEn: c.nameEn, nameAr: c.nameAr, sector: c.sector, marketTier: c.marketTier },
+    bars: s.bars,
+    identity: { companyId: s.companyId, ticker: s.ticker, nameEn: s.nameEn, nameAr: s.nameAr, sector: s.sector, marketTier: s.marketTier },
     fundamentals: fundamentals.get(companyId) ?? null,
     todaySession: effectiveEgxSessionDate(new Date()),
   })
