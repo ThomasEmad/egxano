@@ -10,8 +10,13 @@
 //     row), or clear it back to the market feed
 //   • الشموع        — edit the last 15 daily bars (OHLC/volume) by hand
 //   • القوائم       — edit any financial statement value of the selected report
-// Every save PATCHes /api/v1/admin/company-values (audited server-side) and
-// invalidates the client queries — the page reflects the change immediately.
+//   • الإجراءات     — record/corporate actions LIVE on the company page
+//     (split / merger / bonus / rights / cash dividend + gap detection) —
+//     owner request 2026-11-16: "عايز أعدل live من صفحات الموقع الأساسية"
+//     instead of walking to the /admin dashboard. Saves hit the SAME
+//     /api/v1/admin/corporate-actions write path the dashboard uses; the
+//     ex-date adjustment engine applies to the chart/technical series on the
+//     next refetch (invalidateQueries fires immediately).
 // Users never see any marker that a value was hand-set (owner decision, full
 // owner responsibility; the server audit log is the owner's traceability).
 // =============================================================================
@@ -143,6 +148,7 @@ export function AdminValueEditor({ companyId }: { companyId: string }) {
               <TabsTrigger value="price" className="flex-1">{ar ? "السعر" : "Price"}</TabsTrigger>
               <TabsTrigger value="bars" className="flex-1">{ar ? "الشموع" : "Bars"}</TabsTrigger>
               <TabsTrigger value="financial" className="flex-1">{ar ? "القوائم" : "Statements"}</TabsTrigger>
+              <TabsTrigger value="actions" className="flex-1">{ar ? "الإجراءات" : "Actions"}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="price" className="space-y-3 pt-3">
@@ -153,6 +159,9 @@ export function AdminValueEditor({ companyId }: { companyId: string }) {
             </TabsContent>
             <TabsContent value="financial" className="pt-3">
               <FinancialTab data={data ?? undefined} saving={edit.isPending} onSave={(body) => edit.mutate(body)} ar={ar} />
+            </TabsContent>
+            <TabsContent value="actions" className="pt-3">
+              <ActionsTab companyId={companyId} ar={ar} />
             </TabsContent>
           </Tabs>
         </SheetContent>
@@ -392,6 +401,298 @@ function ValuesEditor({
           </Button>
         </div>
       ))}
+    </div>
+  )
+}
+
+// =============================================================================
+// ActionsTab — corporate actions edited LIVE on the company page (owner
+// request 2026-11-16: "عايز أعدل live من صفحات الموقع الأساسية"). Same write
+// path as the /admin dashboard (/api/v1/admin/corporate-actions): POST
+// records the action (the ex-date adjustment engine then rescales the chart/
+// technical series on refetch), DELETE removes a wrong row, ?detect= audits
+// the stored series for unrecorded >12% drops. Every success invalidates ALL
+// client queries so the chart reflects the change at once.
+// =============================================================================
+
+interface CompanyActionRow {
+  id: string
+  companyId: string
+  actionType: string
+  sharesPerShare: number | null
+  cashPerShare: number | null
+  exDate: string
+  subscriptionPrice: number | null
+  status: string | null
+  sourceName: string
+  notes: string | null
+}
+
+interface ActionGap {
+  ts: string
+  prevTs: string
+  dropPct: number
+  hasAction: boolean
+}
+
+const ACTION_TYPE_AR: Record<string, string> = {
+  rights: "اكتتاب",
+  stock_dividend: "بونص",
+  split: "تقسيم",
+  merger: "اندماج",
+  cash_dividend: "توزيعة نقدية",
+}
+
+function ActionsTab({ companyId, ar }: { companyId: string; ar: boolean }) {
+  const qc = useQueryClient()
+
+  const listQ = useQuery({
+    queryKey: ["admin-company-actions", companyId],
+    queryFn: () =>
+      fetch(`/api/v1/admin/corporate-actions?companyId=${encodeURIComponent(companyId)}`, { credentials: "include" }).then((r) =>
+        r.ok ? (r.json() as Promise<{ ok: boolean; actions: CompanyActionRow[] }>) : { ok: false, actions: [] as CompanyActionRow[] },
+      ),
+  })
+
+  // one shared mutation shape: POST records, DELETE ?id= removes — both then
+  // refresh the whole page (chart, technicals, dividends surfaces)
+  const write = useMutation({
+    mutationFn: async ({ method, body }: { method: "POST" | "DELETE"; body?: Record<string, unknown> }) => {
+      const url =
+        method === "DELETE"
+          ? `/api/v1/admin/corporate-actions?id=${encodeURIComponent(String(body?.id))}`
+          : "/api/v1/admin/corporate-actions"
+      const r = await fetch(url, {
+        method,
+        ...(method === "POST" ? { headers: { "Content-Type": "application/json" } } : {}),
+        credentials: "include",
+        ...(method === "POST" ? { body: JSON.stringify(body ?? {}) } : {}),
+      })
+      const j = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string }
+      if (!r.ok || j.ok === false) throw new Error(j.error ?? `HTTP ${r.status}`)
+      return j
+    },
+    onSuccess: () => {
+      toast.success(ar ? "اتسجل — الشارت والتحليل الفني بيتحدثوا دلوقتي" : "Recorded — chart and technicals refetch now")
+      void qc.invalidateQueries()
+      void listQ.refetch()
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : ar ? "فشل التسجيل" : "Failed"),
+  })
+
+  // ── add form state ──────────────────────────────────────────────────────────
+  const [type, setType] = useState("stock_dividend")
+  const [ratio, setRatio] = useState("")
+  const [subPrice, setSubPrice] = useState("")
+  const [cash, setCash] = useState("")
+  const [exDate, setExDate] = useState("")
+  const [notes, setNotes] = useState("")
+
+  const submitAdd = () => {
+    if (!exDate) {
+      toast.error(ar ? "حدد تاريخ الإجراء (ex-date)" : "Pick the ex-date")
+      return
+    }
+    const body: Record<string, unknown> = { companyId, actionType: type, exDate, ...(notes.trim() ? { notes: notes.trim() } : {}) }
+    if (type === "cash_dividend") {
+      const c = Number(cash)
+      if (!cash.trim() || !Number.isFinite(c) || c <= 0) {
+        toast.error(ar ? "اكتب التوزيعة النقدية للسهم (أكبر من صفر)" : "Cash per share must be > 0")
+        return
+      }
+      body.cashPerShare = c
+    } else if (type === "merger") {
+      // exchange ratio OPTIONAL — empty records an informational merger
+      if (ratio.trim()) {
+        const s = Number(ratio)
+        if (!Number.isFinite(s) || s <= 0) {
+          toast.error(ar ? "نسبة التبادل لازم تكون رقم أكبر من صفر" : "Exchange ratio must be > 0")
+          return
+        }
+        // string form keeps the typed decimals exact ("0.35" stays 7/20)
+        body.sharesPerShare = ratio.trim()
+      }
+    } else {
+      const s = Number(ratio)
+      if (!ratio.trim() || !Number.isFinite(s) || s <= 0) {
+        toast.error(ar ? "اكتب كام سهم لكل سهم (أكبر من صفر)" : "Shares per share must be > 0")
+        return
+      }
+      body.sharesPerShare = ratio.trim()
+      if (type === "rights") {
+        const sp = Number(subPrice)
+        if (!subPrice.trim() || !Number.isFinite(sp) || sp <= 0) {
+          toast.error(ar ? "اكتب سعر الاكتتاب" : "Subscription price must be > 0")
+          return
+        }
+        body.subscriptionPrice = sp
+      }
+    }
+    write.mutate(
+      { method: "POST", body },
+      {
+        onSuccess: () => {
+          // reset only the add-form fields (the company context stays)
+          setRatio("")
+          setSubPrice("")
+          setCash("")
+          setExDate("")
+          setNotes("")
+        },
+      },
+    )
+  }
+
+  // ── gap detection ───────────────────────────────────────────────────────────
+  const [gaps, setGaps] = useState<ActionGap[] | null>(null)
+  const detect = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`/api/v1/admin/corporate-actions?detect=${encodeURIComponent(companyId)}`, { credentials: "include" })
+      const j = (await r.json().catch(() => ({}))) as { ok?: boolean; gaps?: ActionGap[] }
+      if (!r.ok || j.ok === false) throw new Error(`HTTP ${r.status}`)
+      return j.gaps ?? []
+    },
+    onSuccess: (g) => setGaps(g),
+    onError: () => toast.error(ar ? "فشل فحص الفجوات" : "Gap scan failed"),
+  })
+
+  const ratioText = (a: CompanyActionRow): string => {
+    if (a.actionType === "cash_dividend") return a.cashPerShare != null ? `${a.cashPerShare} ج` : "—"
+    if (a.actionType === "merger" && a.sharesPerShare == null) return ar ? "معلوماتي" : "info"
+    return a.sharesPerShare != null ? `${a.sharesPerShare} سهم/سهم` : "—"
+  }
+
+  const actions = listQ.data?.actions ?? []
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        {ar
+          ? "سجل الإجراء هنا والسيرفر يطبّق التعديل تلقائيًا على الشارت والتحليل الفني في يوم الإجراء — من غير ما تعدّل أي شارت يدويًا."
+          : "Record the action here — the engine rescales the chart/technical series on the ex-date automatically."}
+      </p>
+
+      {/* add form */}
+      <div className="space-y-2 rounded-lg border border-border/60 p-3">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">{ar ? "النوع" : "Type"}</Label>
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+              className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs"
+              aria-label={ar ? "نوع الإجراء" : "Action type"}
+            >
+              {(["stock_dividend", "split", "merger", "rights", "cash_dividend"] as const).map((t) => (
+                <option key={t} value={t}>
+                  {ACTION_TYPE_AR[t]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">{ar ? "تاريخ الإجراء" : "Ex-date"}</Label>
+            <Input type="date" dir="ltr" className="h-8 text-xs" value={exDate} onChange={(e) => setExDate(e.target.value)} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {type === "cash_dividend" ? (
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">{ar ? "التوزيعة (جنيه/سهم)" : "Cash/share"}</Label>
+              <Input type="number" min={0} step="0.01" dir="ltr" className="h-8 text-xs" value={cash} onChange={(e) => setCash(e.target.value)} />
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">
+                {ar
+                  ? type === "merger"
+                    ? "نسبة التبادل (اختياري)"
+                    : "كام سهم لكل سهم"
+                  : type === "merger"
+                    ? "Exchange ratio (optional)"
+                    : "Shares per share"}
+              </Label>
+              <Input type="number" min={0} step="0.0001" dir="ltr" className="h-8 text-xs" value={ratio} onChange={(e) => setRatio(e.target.value)} />
+            </div>
+          )}
+          {type === "rights" ? (
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">{ar ? "سعر الاكتتاب" : "Sub. price"}</Label>
+              <Input type="number" min={0} step="0.01" dir="ltr" className="h-8 text-xs" value={subPrice} onChange={(e) => setSubPrice(e.target.value)} />
+            </div>
+          ) : null}
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">{ar ? "ملاحظات (اختياري)" : "Notes (optional)"}</Label>
+          <Input className="h-8 text-xs" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={ar ? "مصدر الإعلان…" : "announcement source…"} />
+        </div>
+        <Button size="sm" className="w-full" disabled={write.isPending} onClick={submitAdd}>
+          {write.isPending ? (ar ? "بيسجل…" : "Saving…") : ar ? "سجل الإجراء" : "Record action"}
+        </Button>
+      </div>
+
+      {/* recorded actions for THIS company */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] font-semibold">{ar ? `الإجراءات المسجلة (${actions.length})` : `Recorded (${actions.length})`}</p>
+          <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" disabled={detect.isPending} onClick={() => detect.mutate()}>
+            {detect.isPending ? (ar ? "بيفحص…" : "scanning…") : ar ? "فحص الفجوات" : "Scan gaps"}
+          </Button>
+        </div>
+        {listQ.isLoading ? (
+          <p className="py-2 text-[11px] text-muted-foreground">{ar ? "جارٍ التحميل…" : "Loading…"}</p>
+        ) : actions.length === 0 ? (
+          <p className="py-2 text-[11px] text-muted-foreground">{ar ? "مفيش إجراءات مسجلة للشركة دي" : "No recorded actions"}</p>
+        ) : (
+          actions.map((a) => (
+            <div key={a.id} className="flex items-center gap-2 rounded-md border border-border/60 px-2 py-1.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-medium">
+                  {ACTION_TYPE_AR[a.actionType] ?? a.actionType}
+                  <span className="ms-1 tabular-nums text-muted-foreground" dir="ltr">
+                    {a.exDate.slice(0, 10)}
+                  </span>
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {ratioText(a)}
+                  {a.notes ? <span className="ms-1">· {a.notes}</span> : null}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 w-6 shrink-0 p-0 text-red-500"
+                title={ar ? "حذف" : "Delete"}
+                disabled={write.isPending}
+                onClick={() => {
+                  if (confirm(ar ? `حذف ${ACTION_TYPE_AR[a.actionType] ?? a.actionType} ${a.exDate.slice(0, 10)}؟` : `Delete ${a.actionType} ${a.exDate.slice(0, 10)}?`)) {
+                    write.mutate({ method: "DELETE", body: { id: a.id } })
+                  }
+                }}
+              >
+                ×
+              </Button>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* gap scan results */}
+      {gaps ? (
+        <div className="space-y-1 rounded-lg border border-border/60 p-2">
+          {gaps.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground">{ar ? "مفيش فجوات مشبوهة فوق 12% في السلسلة." : "No suspicious >12% drops."}</p>
+          ) : (
+            gaps.map((g) => (
+              <p key={`${g.ts}-${g.prevTs}`} className={`text-[11px] ${g.hasAction ? "text-muted-foreground" : "font-semibold text-amber-600 dark:text-amber-400"}`}>
+                {g.hasAction
+                  ? `${ar ? "هبوط" : "drop"} ${g.dropPct}% ${g.ts} — ${ar ? "مغطى بإجراء مسجل" : "covered by a recorded action"}`
+                  : `${ar ? "فجوة مشبوهة" : "suspicious gap"} ${g.dropPct}% ${g.ts}`}
+              </p>
+            ))
+          )}
+        </div>
+      ) : null}
     </div>
   )
 }
