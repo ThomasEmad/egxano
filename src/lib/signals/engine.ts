@@ -382,12 +382,27 @@ export function computeCompanySignalV2(input: EngineInput): SignalRowV2 {
 
   // ---------- wait ----------
   base.state = "wait"
+  // Plain wait rows still publish a score (owner feedback 2026-11-17: the
+  // position-review card showed "انتظار · —/100" — an empty score reads as a
+  // broken engine). detection=null is a supported scorer input: the trend/
+  // momentum/volume/quality groups still score on real facts.
+  const waitScore = computeScore({
+    bars,
+    m,
+    detection: null,
+    plan: null,
+    map,
+    quality: { bars: bars.length, ohlc: base.quality.ohlc, liquidity: base.quality.liquidity, dataAgeSessions: base.quality.dataAgeSessions },
+  })
+  base.score = waitScore.breakdown.total
+  base.scoreGroups = waitScore.breakdown.groups
   base.evidence = [
     {
       ar: "لا يوجد إعداد بنيوي قابل للنشر اليوم — لا تُصنَّع فرص عند غيابها",
       en: "No publishable structural setup today — opportunities are never manufactured",
       group: null,
     },
+    ...waitScore.evidence,
   ]
   return base
 }

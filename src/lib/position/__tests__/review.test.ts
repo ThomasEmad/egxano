@@ -122,3 +122,73 @@ describe("reviewPosition — the decision ladder", () => {
     }
   })
 })
+
+// =============================================================================
+// OWNER MANDATE (2026-11-17) — the deep-loss regime: at −20% or deeper the
+// exit verdict collapses into انتظار للارتداد, the recovery math is spelled
+// out, and the follow-up question refines the plan.
+// =============================================================================
+
+import { DEEP_LOSS_PCT, recoveryNeededPct } from "../review"
+
+describe("recoveryNeededPct — the compounding math", () => {
+  it("matches the owner's table: −50%→+100%, −25%→+33.3%, −20%→+25%, −10%→+11.1%", () => {
+    expect(recoveryNeededPct(200, 100)).toBeCloseTo(100, 6)
+    expect(recoveryNeededPct(400 / 3, 100)).toBeCloseTo(100 / 3, 6)
+    expect(recoveryNeededPct(125, 100)).toBeCloseTo(25, 6)
+    expect(recoveryNeededPct(1000 / 9, 100)).toBeCloseTo(100 / 9, 6)
+  })
+})
+
+describe("reviewPosition — the deep-loss regime (pnl ≤ −20%)", () => {
+  it("far-cushion break + deep loss → WAIT (never exit) + recovery math + the question", () => {
+    const bars = cushionSeries(97) // close 103, far cushion 5.44%
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({ row: rowOver(bars, { state: "exit" }), bars, map, avgBuyPrice: 130 }) // pnl −20.8%
+    expect(r.decision).toBe("wait")
+    expect(r.pnlPct).toBeCloseTo(-20.8, 1)
+    expect(r.recoveryPct).toBeCloseTo(26.2, 1)
+    expect(r.question).not.toBeNull()
+    expect(r.question!.answeredAr).toBeNull()
+    expect(r.reasonsAr.some((x) => x.includes("+26.2٪"))).toBe(true) // the user's OWN number
+    expect(r.reasonsAr.some((x) => x.includes("+100٪"))).toBe(true) // the −50% example
+    expect(r.closingAr).toContain("قرار مؤكد")
+    // the cushion line is still the invalidation (waiting has a stop)
+    expect(r.invalidationAr).toContain("97.40")
+  })
+
+  it("the question answer refines the plan: yes → sell on the first rebound", () => {
+    const bars = cushionSeries(97)
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({ row: rowOver(bars, { state: "exit" }), bars, map, avgBuyPrice: 130, downsideAnswer: "yes" })
+    expect(r.decision).toBe("wait") // still holding NOW — the plan is the rebound exit
+    expect(r.planAr).toContain("أول ارتداد")
+    expect(r.question!.answeredAr).toBe(r.question!.yesOutcomeAr)
+    expect(r.headlineAr).toContain("أول ارتداد")
+  })
+
+  it("the question answer no → waiting is reasonable (with the stop intact)", () => {
+    const bars = cushionSeries(97)
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({ row: rowOver(bars, { state: "exit" }), bars, map, avgBuyPrice: 130, downsideAnswer: "no" })
+    expect(r.decision).toBe("wait")
+    expect(r.planAr).toContain("الانتظار")
+    expect(r.invalidationAr).toContain("97.40")
+  })
+
+  it("the −20% boundary: −19.8% stays in the normal ladder (no question), −20.1% enters the regime", () => {
+    const bars = cushionSeries(100, 106.5) // close 106.5, no break
+    const map = buildZoneMap(bars)
+    const above = reviewPosition({ row: rowOver(bars, { state: "wait" }), bars, map, avgBuyPrice: 132.8 }) // pnl −19.8%
+    expect(above.decision).toBe("wait")
+    expect(above.question).toBeNull()
+    const below = reviewPosition({ row: rowOver(bars, { state: "wait" }), bars, map, avgBuyPrice: 133.2 }) // pnl −20.1%
+    expect(below.decision).toBe("wait")
+    expect(below.question).not.toBeNull()
+    expect(below.recoveryPct).toBeGreaterThan(20)
+  })
+
+  it(`the threshold constant is exactly ${DEEP_LOSS_PCT}`, () => {
+    expect(DEEP_LOSS_PCT).toBe(20)
+  })
+})

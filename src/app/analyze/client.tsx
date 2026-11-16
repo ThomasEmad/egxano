@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { AlertTriangle, ArrowDownRight, ArrowUpRight, BrainCircuit, Loader2, Scale, Search, ShieldAlert, TrendingDown, TrendingUp } from "lucide-react"
+import { AlertTriangle, ArrowDownRight, ArrowUpRight, BrainCircuit, CircleHelp, Loader2, Lock, RotateCcw, Scale, Search, ShieldAlert, TrendingDown, TrendingUp } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -35,7 +35,23 @@ export default function AnalyzeClient() {
   const [selected, setSelected] = useState<CompanyHit | null>(null)
   const [avgBuy, setAvgBuy] = useState("")
   const [result, setResult] = useState<PositionReviewResult | null>(null)
+  const [authNeeded, setAuthNeeded] = useState(false)
+  const [limitInfo, setLimitInfo] = useState<{ errorAr: string; upgradeUrl: string } | null>(null)
+  /** the user's answer to the deep-loss question (null = not answered yet) */
+  const [answeredYes, setAnsweredYes] = useState<boolean | null>(null)
   const boxRef = useRef<HTMLDivElement>(null)
+
+  // daily quota chip — read-only snapshot, never consumes
+  const quota = useQuery({
+    queryKey: ["analyze-quota"],
+    queryFn: async () => {
+      const r = await fetch("/api/v1/position-review")
+      if (r.status === 401) return { quota: null as null, auth: true }
+      if (!r.ok) throw new Error("quota failed")
+      return (await r.json()) as { quota: { used: number; limit: number; remaining: number; unlimited: boolean } | null; auth?: boolean }
+    },
+    refetchOnWindowFocus: false,
+  })
 
   // debounced company search
   const [debounced, setDebounced] = useState("")
@@ -61,6 +77,17 @@ export default function AnalyzeClient() {
     return () => document.removeEventListener("mousedown", onDoc)
   }, [])
 
+  /** «حلل سهم آخر» — clear the pick and the report, keep the avg-buy value */
+  const resetForNextStock = () => {
+    setSelected(null)
+    setResult(null)
+    setQuery("")
+    setDebounced("")
+    setAnsweredYes(null)
+    setLimitInfo(null)
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
   const review = useMutation({
     mutationFn: async () => {
       const r = await fetch("/api/v1/position-review", {
@@ -68,18 +95,29 @@ export default function AnalyzeClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyId: selected!.id, avgBuyPrice: Number(avgBuy) }),
       })
+      if (r.status === 401) throw new Error("AUTH")
       if (r.status === 404) throw new Error("NOT_FOUND")
       if (r.status === 400) throw new Error("BAD_INPUT")
+      if (r.status === 429) {
+        const j = (await r.json()) as { errorAr?: string; upgradeUrl?: string }
+        throw Object.assign(new Error("LIMIT"), { limitAr: j.errorAr ?? "", upgradeUrl: j.upgradeUrl ?? "/premium" })
+      }
       if (!r.ok) throw new Error("SERVER")
       return (await r.json()) as PositionReviewResult
     },
     onSuccess: (data) => {
       setResult(data)
+      setAuthNeeded(false)
+      setLimitInfo(null)
+      setAnsweredYes(null) // a fresh report starts with the question unanswered
       if (data.notReviewableAr) toast.warning("التحليل غير متاح لهذا السهم الآن")
     },
     onError: (e) => {
-      if (e.message === "NOT_FOUND") toast.error("لم نجد هذا السهم — جرّب البحث برمز التداول")
-      else if (e.message === "BAD_INPUT") toast.error("متوسط الشراء لازم يكون رقم أكبر من صفر")
+      const err = e as Error & { limitAr?: string; upgradeUrl?: string }
+      if (err.message === "AUTH") setAuthNeeded(true)
+      else if (err.message === "LIMIT") setLimitInfo({ errorAr: err.limitAr ?? "", upgradeUrl: err.upgradeUrl ?? "/premium" })
+      else if (err.message === "NOT_FOUND") toast.error("لم نجد هذا السهم — جرّب البحث برمز التداول")
+      else if (err.message === "BAD_INPUT") toast.error("متوسط الشراء لازم يكون رقم أكبر من صفر")
       else toast.error("تعذر التحليل الآن — جرّب بعد قليل")
     },
   })
@@ -113,7 +151,39 @@ export default function AnalyzeClient() {
           اكتب متوسط سعر شراءك واختر السهم، والمحرك يقرأ الوضع معك كواحد صاحبك فاهم في البورصة: القرار، كل سبب وراه،
           كل الدعوم والمقاومات، والقراءة الفنية كاملة. التحليل مبني على بيانات تداول حقيقية — وهو ليس توصية استثمارية.
         </p>
+        {quota.data?.quota && (
+          <p className="text-xs font-medium text-primary">
+            {quota.data.quota.unlimited
+              ? "بريميوم — تحليل بلا حدود"
+              : `الحصة المجانية: متاح لك ${quota.data.quota.remaining} من ${quota.data.quota.limit} سهمين النهاردة (إعادة تحليل نفس السهم لا تحرق الحصة)`}
+            {!quota.data.quota.unlimited && quota.data.quota.remaining === 0 && (
+              <a href="/premium" className="ms-2 underline">ترقية لبريميوم — بلا حدود ←</a>
+            )}
+          </p>
+        )}
       </header>
+
+      {(authNeeded || quota.data?.auth) && !result && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="flex flex-wrap items-center gap-3 p-4 text-sm">
+            <Lock className="h-4 w-4 text-primary" aria-hidden />
+            <span>حلل سهمي متاح للمستخدمين المسجلين — سجّل دخولك (مجانًا) لحساب مركزك، والحصة المجانية سهمان مختلفان يوميًا.</span>
+            <a href="/login" className="inline-flex items-center gap-1 font-semibold text-primary hover:underline">تسجيل الدخول ←</a>
+          </CardContent>
+        </Card>
+      )}
+
+      {limitInfo && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardContent className="flex flex-wrap items-center gap-3 p-4 text-sm">
+            <Lock className="h-4 w-4 text-amber-500" aria-hidden />
+            <span>{limitInfo.errorAr}</span>
+            <a href={limitInfo.upgradeUrl} className="inline-flex items-center gap-1 font-semibold text-primary hover:underline">
+              ترقية لبريميوم — بلا حدود ←
+            </a>
+          </CardContent>
+        </Card>
+      )}
 
       {/* inputs */}
       <Card>
@@ -186,9 +256,12 @@ export default function AnalyzeClient() {
 
       {result?.notReviewableAr && (
         <Card className="border-amber-500/30 bg-amber-500/5">
-          <CardContent className="flex items-start gap-2 p-4 text-sm">
-            <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-500" aria-hidden />
-            <span>{result.notReviewableAr}</span>
+          <CardContent className="flex items-center gap-2 p-4 text-sm">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" aria-hidden />
+            <span className="flex-1">{result.notReviewableAr}</span>
+            <Button variant="outline" size="sm" onClick={resetForNextStock} className="shrink-0">
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden /> حلل سهم آخر
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -213,6 +286,11 @@ export default function AnalyzeClient() {
                 <span>{result?.ticker} — {result?.nameAr ?? ""}</span>
                 <span>متوسط شراءك: <b className="tabular-nums">{r.avgBuyPrice.toFixed(2)}</b></span>
                 <span>آخر سعر: <b className="tabular-nums">{r.lastClose.toFixed(2)}</b>{r.snapshot.asOf ? ` (${r.snapshot.asOf})` : ""}</span>
+                {r.recoveryPct !== null && (
+                  <span className="font-semibold text-amber-600 dark:text-amber-400">
+                    لو بعت دلوقتي: تحتاج {fmtSigned(r.recoveryPct)} في أي سهم تاني عشان تعوّض
+                  </span>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -229,8 +307,19 @@ export default function AnalyzeClient() {
                   </li>
                 ))}
               </ol>
+              <p className="mt-4 border-t pt-3 text-xs italic text-muted-foreground">{r.closingAr}</p>
             </CardContent>
           </Card>
+
+          {/* the concrete follow-up plan */}
+          {r.planAr && (
+            <Card className="border-primary/30 bg-primary/5">
+              <CardContent className="flex items-start gap-2 p-4 text-sm">
+                <BrainCircuit className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+                <div><b>الخطة:</b> {r.planAr}</div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* invalidation — the line in the sand */}
           <Card className="border-destructive/30">
@@ -239,6 +328,28 @@ export default function AnalyzeClient() {
               <div><b>خط الإلغاء:</b> {r.invalidationAr}</div>
             </CardContent>
           </Card>
+
+          {/* the deep-loss follow-up question — answered in-place, no extra call */}
+          {r.question && (
+            <Card className="border-sky-500/30 bg-sky-500/5">
+              <CardContent className="space-y-3 p-4 text-sm">
+                <div className="flex items-start gap-2">
+                  <CircleHelp className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" aria-hidden />
+                  <div className="font-semibold">{answeredYes === null ? r.question.promptAr : "إجابتك محسوبة في الخطة:"}</div>
+                </div>
+                {answeredYes === null ? (
+                  <div className="flex flex-wrap gap-2 ps-6">
+                    <Button size="sm" variant="outline" onClick={() => setAnsweredYes(true)}>{r.question.yesLabelAr}</Button>
+                    <Button size="sm" variant="outline" onClick={() => setAnsweredYes(false)}>{r.question.noLabelAr}</Button>
+                  </div>
+                ) : (
+                  <div className="ps-6 text-sm leading-relaxed text-foreground/90">
+                    {answeredYes ? r.question.yesOutcomeAr : r.question.noOutcomeAr}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* levels — every support & resistance */}
           <div className="grid gap-5 md:grid-cols-2">
@@ -258,7 +369,10 @@ export default function AnalyzeClient() {
                 <Snap label="الحجم النسبي" value={r.snapshot.relVol ? `${r.snapshot.relVol.toFixed(2)}×` : "—"} />
                 <Snap label="موقع النطاق 60 جلسة" value={r.snapshot.rangePos60 !== null ? `${Math.round(r.snapshot.rangePos60)}٪` : "—"} />
                 <Snap label="ATR (14)" value={r.snapshot.atr14?.toFixed(2) ?? "—"} />
-                <Snap label="حالة المحرك" value={`${stateAr(r.snapshot.signalState)} · ${r.snapshot.signalScore ?? "—"}/100`} />
+                {/* owner alignment: the engine-state cell shows THE SAME verdict
+                    as the decision banner (with the engine score), never a
+                    contradicting label */}
+                <Snap label="قرار المحرك النهائي" value={`${r.decisionAr} · ${r.snapshot.signalScore ?? "—"}/100`} />
               </div>
               <p className="mt-4 text-xs text-muted-foreground leading-relaxed">{r.levelsBasisAr}</p>
               {r.warningsAr.length > 0 && (
@@ -268,6 +382,13 @@ export default function AnalyzeClient() {
               )}
             </CardContent>
           </Card>
+
+          {/* «حلل سهم آخر» — the next-stock loop, right under the report */}
+          <div className="flex justify-center">
+            <Button variant="outline" onClick={resetForNextStock} className="h-10">
+              <RotateCcw className="h-4 w-4" aria-hidden /> حلل سهم آخر
+            </Button>
+          </div>
         </div>
       )}
 
@@ -276,10 +397,6 @@ export default function AnalyzeClient() {
       </p>
     </div>
   )
-}
-
-function stateAr(s: string): string {
-  return s === "buy" ? "فرصة شراء" : s === "near" ? "قرب تفعيل" : s === "exit" ? "خروج" : "انتظار"
 }
 
 function LevelsTable({ title, rows, emptyAr, icon }: { title: string; rows: import("@/lib/position/types").LevelLine[]; emptyAr: string; icon: React.ReactNode }) {

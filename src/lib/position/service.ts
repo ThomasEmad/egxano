@@ -15,7 +15,7 @@ import type { PositionReviewResult } from "./types"
  * price. Returns null only when the company itself is gone — otherwise a
  * result carries either the review or an honest "not reviewable" reason.
  */
-export async function buildPositionReview(companyId: string, avgBuyPrice: number): Promise<PositionReviewResult | null> {
+export async function buildPositionReview(companyId: string, avgBuyPrice: number, downsideAnswer?: "yes" | "no" | null): Promise<PositionReviewResult | null> {
   const series = await getCompanySeriesCached(companyId)
   if (!series) return null
 
@@ -25,6 +25,7 @@ export async function buildPositionReview(companyId: string, avgBuyPrice: number
     return {
       ...head,
       review: null,
+      quota: null, // the route fills the caller's quota after a successful build
       notReviewableAr: `التاريخ المتاح ${series.bars.length} جلسة فقط — أقل من الحد الأدنى ${MIN_BARS} جلسة لبناء المستويات وقراءة موثوقة`,
     }
   }
@@ -34,6 +35,7 @@ export async function buildPositionReview(companyId: string, avgBuyPrice: number
     return {
       ...head,
       review: null,
+      quota: null,
       notReviewableAr: "تعذر حساب المؤشرات الفنية من البيانات المتاحة — جرّب لاحقًا أو راجع صفحة حالة البيانات",
     }
   }
@@ -41,7 +43,8 @@ export async function buildPositionReview(companyId: string, avgBuyPrice: number
   const map = buildZoneMap(series.bars)
   return {
     ...head,
-    review: reviewPosition({ row, bars: series.bars, map, avgBuyPrice }),
+    review: reviewPosition({ row, bars: series.bars, map, avgBuyPrice, downsideAnswer: downsideAnswer ?? null }),
+    quota: null, // the route fills the caller's quota after consuming
     notReviewableAr: null,
   }
 }

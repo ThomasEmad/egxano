@@ -52,6 +52,21 @@ export interface TechnicalSnapshot {
   asOf: string | null
 }
 
+/** The friend's follow-up QUESTION (deep-loss regime only): "do you see another
+ *  10% of downside?" — both outcomes are pre-computed so the UI can answer it
+ *  with zero extra API calls (and zero quota burn). */
+export interface ReviewQuestion {
+  promptAr: string
+  yesLabelAr: string
+  noLabelAr: string
+  /** what the engine says IF the user answers yes (expects more downside) */
+  yesOutcomeAr: string
+  /** what the engine says IF the user answers no (no extra downside expected) */
+  noOutcomeAr: string
+  /** the client-side answer echo (null until the user answers) */
+  answeredAr: string | null
+}
+
 /** The full report — everything the friend would say, structured. */
 export interface PositionReview {
   decision: PositionDecision
@@ -65,8 +80,19 @@ export interface PositionReview {
   pnlPct: number
   /** signed EGP per share on the average buy */
   pnlPerShare: number
+  /** % gain needed on ANY OTHER stock to undo the current loss:
+   *  (avgBuy / close − 1) × 100 — the compounding-math the owner mandates
+   *  (−50% needs +100%, −25% needs +33.3%, −20% needs +25%). null in profit. */
+  recoveryPct: number | null
   /** EVERY reason, in order, the friend's voice — no hidden weighting */
   reasonsAr: string[]
+  /** the concrete follow-up plan when the decision is "wait" (e.g. sell on
+   *  the first rebound); null when the decision itself is the plan */
+  planAr: string | null
+  /** the deep-loss follow-up question (null outside the deep-loss regime) */
+  question: ReviewQuestion | null
+  /** the friend's honesty closer: thinking WITH you, never a certain order */
+  closingAr: string
   supports: LevelLine[]
   resistances: LevelLine[]
   /** how the levels were derived (honesty line, Arabic) */
@@ -79,6 +105,14 @@ export interface PositionReview {
   engine: string
 }
 
+/** The daily free-tier quota echo (null when not signed in). */
+export interface QuotaInfo {
+  used: number
+  limit: number
+  remaining: number
+  unlimited: boolean
+}
+
 /** Result wrapper for the API: null report means "not reviewable" with a
  *  reason (company missing, no price series at all). */
 export interface PositionReviewResult {
@@ -88,4 +122,5 @@ export interface PositionReviewResult {
   ticker: string
   nameAr: string | null
   sector: string
+  quota: QuotaInfo | null
 }

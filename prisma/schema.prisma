@@ -905,6 +905,7 @@ model User {
   subscription  Subscription?
   paymentRequests PaymentRequest[]
   smartAnalysisUsages SmartAnalysisUsage[]
+  positionReviewUsages PositionReviewUsage[]
   portfolioHoldings PortfolioHolding[]
   oauthAccounts OAuthAccount[]
   resetTokens   PasswordResetToken[]
@@ -1152,6 +1153,24 @@ model SmartAnalysisUsage {
 
   @@unique([userId, year, month])
   @@index([userId, year, month])
+}
+
+// One row per (user, EGX session day) — the free-tier daily quota for the
+// «حلل سهمي» position-review tool (owner mandate 2026-11-17: 2 stocks/day on
+// the free plan, unlimited for Premium). The day key uses the EGX session
+// date (Africa/Cairo) so the window rolls over with the trading day.
+model PositionReviewUsage {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day        String   // EGX session date, YYYY-MM-DD (Africa/Cairo)
+  usageCount Int      @default(0)
+  companyIds String   @default("[]") // JSON array of company ids analyzed today — re-analyzing the SAME stock never burns quota
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, day])
+  @@index([userId, day])
 }
 
 model Setting {
