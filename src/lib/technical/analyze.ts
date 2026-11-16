@@ -50,6 +50,57 @@ const MAX_BARS = 400
 const SPARSE_GAP_DAYS = 7
 /** Minimum daily sessions for the oscillator family to be meaningful. */
 const MIN_OSCILLATOR_BARS = 35
+/** Calendar-day gap that ends a contiguous segment (EGX holiday clusters can
+ *  reach ~2 weeks; anything wider is a DATA GAP, not a holiday). */
+export const TRIM_GAP_DAYS = 14
+
+/**
+ * The longest contiguous DAILY suffix of a bar series: walk backward from the
+ * last bar and cut at the first calendar gap wider than TRIM_GAP_DAYS.
+ * COMI 2026-11-16: the stored series mixed ~60 sparse bars from 2016-2017
+ * with the recent daily segment — indicators and the chart must read the
+ * LIVE segment, not a decade-wide scatter. Returns [trimmed bars, cutCount].
+ */
+export function contiguousSuffix(bars: Bar[], maxGapDays = TRIM_GAP_DAYS): { bars: Bar[]; cut: number } {
+  if (bars.length <= 1) return { bars, cut: 0 }
+  let start = bars.length - 1
+  while (start > 0) {
+    const gapDays = (Date.parse(bars[start].ts) - Date.parse(bars[start - 1].ts)) / 86_400_000
+    if (gapDays > maxGapDays) break
+    start--
+  }
+  return { bars: bars.slice(start), cut: start }
+}
+
+/**
+ * Calendar-anchored performance over N days: anchor = the latest bar at or
+ * before (last − N calendar days), accepted only when it sits within a
+ * bounded slack of the target — otherwise null. Index-based perfN on a
+ * gapped series invents numbers (COMI showed "+469% in a week" across a
+ * 9-year gap); a missing window must read "—" instead.
+ */
+export function perfByCalendarDays(bars: Bar[], days: number): number | null {
+  if (bars.length < 2 || days <= 0) return null
+  const last = bars[bars.length - 1]
+  const lastT = Date.parse(last.ts)
+  if (!Number.isFinite(lastT)) return null
+  const target = lastT - days * 86_400_000
+  let anchorIdx = -1
+  for (let i = bars.length - 2; i >= 0; i--) {
+    const t = Date.parse(bars[i].ts)
+    if (Number.isFinite(t) && t <= target) {
+      anchorIdx = i
+      break
+    }
+  }
+  if (anchorIdx < 0) return null
+  const anchorT = Date.parse(bars[anchorIdx].ts)
+  // slack: short windows tolerate a holiday cluster; long windows tolerate ~35%
+  const slackDays = days <= 7 ? 6 : Math.max(10, days * 0.35)
+  if ((target - anchorT) / 86_400_000 > slackDays) return null
+  const base = bars[anchorIdx].close
+  return base > 0 ? ((last.close - base) / base) * 100 : null
+}
 
 export interface TechSignal {
   code: string
@@ -385,7 +436,15 @@ export async function buildTechnicalBundle(companyId: string, context: MarketCon
   const live = await fetchRecentBarsForCompany(companyId)
 
   const merged = mergeSessionSeries(raw, priceRows, live && live.length >= 30 ? live : null)
-  const bars = merged.bars
+  // Contiguous-suffix trim: sparse ancient bars (COMI 2016-2017 scatter) must
+  // never dilute the live reading — indicators and the chart read the LIVE
+  // daily segment, and the trim is disclosed.
+  const trimmed = contiguousSuffix(merged.bars)
+  const bars = trimmed.bars
+  const trimNote =
+    trimmed.cut > 0
+      ? `${trimmed.cut} pre-gap session${trimmed.cut === 1 ? "" : "s"} before a >${TRIM_GAP_DAYS}-calendar-day data gap were excluded — the reading covers the contiguous daily segment only.`
+      : null
   const sourceByDay = merged.sourceByDay
   let syntheticCount = merged.syntheticCount
   if (bars.length > 0) {
@@ -396,6 +455,7 @@ export async function buildTechnicalBundle(companyId: string, context: MarketCon
     // our own ex-date math — source-agnostic and Yahoo-independent.
     let adjustedBars = bars
     let eventsApplied: { exDateISO: string; actionType: string; factor: number }[] = []
+    let eventsSkipped: { exDateISO: string; actionType: string; factor: number }[] = []
     try {
       const { applyCorporateActionAdjustments, loadCompanySeriesActions } = await import("@/lib/market/corporate-actions")
       const actions = await loadCompanySeriesActions(companyId, bars[0].ts, bars[bars.length - 1].ts)
@@ -406,6 +466,7 @@ export async function buildTechnicalBundle(companyId: string, context: MarketCon
         )
         adjustedBars = result.bars.map(({ source: _s, ...rest }) => rest)
         eventsApplied = result.eventsApplied
+        eventsSkipped = result.eventsSkipped
       }
     } catch {
       // Adjustment is best-effort — the raw series remains the honest fallback.
@@ -417,6 +478,13 @@ export async function buildTechnicalBundle(companyId: string, context: MarketCon
         `${eventsApplied.length} corporate-action ex-date${eventsApplied.length === 1 ? "" : "s"} (bonus/split/cash/rights) rescaled the series so ex-date mechanical moves are not read as market losses.`,
       )
     }
+    if (eventsSkipped.length > 0) {
+      const worst = eventsSkipped.reduce((a, b) => (Math.abs(b.factor - 1) > Math.abs(a.factor - 1) ? b : a))
+      bundle.snapshot.limitations.push(
+        `${eventsSkipped.length} recorded corporate-action event${eventsSkipped.length === 1 ? "" : "s"} with implausible terms (implied mechanical repricing ×${worst.factor.toFixed(2)}) were SKIPPED — the series stays raw rather than rescaled by a suspected data-entry error.`,
+      )
+    }
+    if (trimNote) bundle.snapshot.limitations.push(trimNote)
     bundle.candles = adjustedBars.slice(-260).map((b) => ({ t: b.ts, o: b.open, h: b.high, l: b.low, c: b.close }))
     // Honest disclosure: how many of the trailing sessions are close-only
     // scanner bars (no intraday high/low), and whether the freshest bar is
@@ -436,8 +504,14 @@ export async function buildTechnicalBundle(companyId: string, context: MarketCon
     return bundle
   }
 
-  const fallback = sanitizeBars(raw)
+  const fallbackTrim = contiguousSuffix(sanitizeBars(raw))
+  const fallback = fallbackTrim.bars
+  const fallbackTrimNote =
+    fallbackTrim.cut > 0
+      ? `${fallbackTrim.cut} pre-gap session${fallbackTrim.cut === 1 ? "" : "s"} before a >${TRIM_GAP_DAYS}-calendar-day data gap were excluded — the reading covers the contiguous daily segment only.`
+      : null
   const bundle = assembleBundle(fallback, context)
+  if (fallbackTrimNote) bundle.snapshot.limitations.push(fallbackTrimNote)
   bundle.candles = fallback.slice(-260).map((b) => ({ t: b.ts, o: b.open, h: b.high, l: b.low, c: b.close }))
   return bundle
 }
@@ -493,14 +567,15 @@ export function assembleBundle(bars: Bar[], context: MarketContextSection | null
     limitations.push(`Only ${bars.length} sessions stored — several indicators require more history.`)
   }
 
-  // --- Performance ---
+  // --- Performance (calendar-anchored: a gapped window reads null, never a
+  // fabricated number across a data gap; d1 stays the previous-session close) ---
   base.perf = {
     d1: perfN(closes, 1),
-    w1: perfN(closes, 5),
-    m1: perfN(closes, 21),
-    m3: perfN(closes, 63),
-    m6: perfN(closes, 126),
-    y1: perfN(closes, 252),
+    w1: perfByCalendarDays(bars, 7),
+    m1: perfByCalendarDays(bars, 30),
+    m3: perfByCalendarDays(bars, 91),
+    m6: perfByCalendarDays(bars, 182),
+    y1: perfByCalendarDays(bars, 365),
   }
 
   // --- Trend (EMA-first: every exposed trend reading is EMA-based; SMA is

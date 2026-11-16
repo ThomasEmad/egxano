@@ -217,9 +217,11 @@ export interface SignalWarning {
 export interface Fundamentals {
   /** latest net profit in plain EGP (TTM → annual → latest reported) */
   netProfitEgp: number | null
-  /** latest P/E as computed by the financial pipeline (null when earnings
-   *  are negative — the negative-profit warning covers that case) */
-  peRatio: number | null
+  /** latest earnings per share in EGP (TTM → annual → latest reported).
+   *  The P/E warning is computed LIVE as lastClose / eps — a STORED p_e row
+   *  goes stale whenever the market moves without a financials recompute
+   *  (AXPH 2026-11-16: the stored row said 40+, the real multiple was 11). */
+  epsEgp: number | null
 }
 
 export interface SignalMetrics {

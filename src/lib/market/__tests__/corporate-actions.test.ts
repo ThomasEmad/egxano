@@ -312,3 +312,68 @@ describe("detectSuspiciousGaps", () => {
     expect(detectSuspiciousGaps(bars, [])).toEqual([])
   })
 })
+
+describe("applyCorporateActionAdjustments — the plausibility guard (COMI 2026-11-16)", () => {
+  // A share event recorded with ~5.69× terms rescaled the WHOLE COMI history
+  // to ~22 EGP while the market traded ~128 — a data-entry error must be
+  // skipped and disclosed, never allowed to nuke the series.
+  const bogusHugeBonus: CorporateActionTerms = {
+    actionType: "stock_dividend",
+    ratioNumerator: BigInt(469),
+    ratioDenominator: BigInt(100), // 4.69 new per 1 held → factor ≈ 0.1757
+    cashPerShare: null,
+    subscriptionPrice: null,
+  }
+  const bogusAction = { exDateISO: "2026-11-12", terms: bogusHugeBonus }
+
+  it("skips an implausible share event and DISCLOSES it (series stays raw)", () => {
+    const bars = [
+      { ts: "2026-11-10", open: 128, high: 130, low: 127, close: 128.51, volume: 1e6, source: "scanner" as const },
+      { ts: "2026-11-11", open: 128.4, high: 129.4, low: 127.9, close: 128.9, volume: 1e6, source: "scanner" as const },
+      { ts: "2026-11-12", open: 128.2, high: 129.2, low: 128, close: 128.51, volume: 1e6, source: "scanner" as const },
+    ]
+    const { bars: adj, eventsApplied, eventsSkipped } = applyCorporateActionAdjustments(bars, [bogusAction])
+    expect(eventsApplied).toHaveLength(0)
+    expect(eventsSkipped).toHaveLength(1)
+    expect(eventsSkipped[0].factor).toBeCloseTo(1 / 5.69, 3)
+    // every bar keeps its REAL traded price — no catastrophic rescale
+    expect(adj[0].close).toBeCloseTo(128.51, 6)
+    expect(adj[1].close).toBeCloseTo(128.9, 6)
+    expect(adj[2].close).toBeCloseTo(128.51, 6)
+  })
+
+  it("skips an implausible cash dividend (a decimal-shifted 76 EGP on a 128 price)", () => {
+    const bogusCash = {
+      exDateISO: "2026-11-12",
+      terms: { actionType: "cash_dividend", ratioNumerator: null, ratioDenominator: null, cashPerShare: 76, subscriptionPrice: null } as CorporateActionTerms,
+    }
+    const bars = [
+      { ts: "2026-11-11", open: 128.4, high: 129.4, low: 127.9, close: 128.9, volume: 1e6, source: "scanner" as const },
+      { ts: "2026-11-12", open: 128.2, high: 129.2, low: 128, close: 128.51, volume: 1e6, source: "scanner" as const },
+    ]
+    const { bars: adj, eventsSkipped } = applyCorporateActionAdjustments(bars, [bogusCash])
+    expect(eventsSkipped).toHaveLength(1)
+    expect(adj[0].close).toBeCloseTo(128.9, 6) // untouched
+  })
+
+  it("still applies plausible events (a 1:1 bonus, factor 0.5, is inside the band)", () => {
+    const oneToOne: CorporateActionTerms = {
+      actionType: "stock_dividend",
+      ratioNumerator: BigInt(1),
+      ratioDenominator: BigInt(1),
+      cashPerShare: null,
+      subscriptionPrice: null,
+    }
+    const bars = [
+      { ts: "2026-11-11", open: 60, high: 61, low: 59, close: 60, volume: 1e6, source: "scanner" as const },
+      { ts: "2026-11-12", open: 30.2, high: 30.6, low: 30, close: 30.4, volume: 1e6, source: "scanner" as const },
+    ]
+    const { bars: adj, eventsApplied, eventsSkipped } = applyCorporateActionAdjustments(bars, [
+      { exDateISO: "2026-11-12", terms: oneToOne },
+    ])
+    expect(eventsSkipped).toHaveLength(0)
+    expect(eventsApplied).toHaveLength(1)
+    expect(adj[0].close).toBeCloseTo(30, 6) // ÷2 — the mechanical move is neutralized
+    expect(adj[1].close).toBeCloseTo(30.4, 6)
+  })
+})

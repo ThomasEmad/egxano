@@ -58,7 +58,7 @@ describe("avgTradedValueEgp — absolute liquidity read", () => {
 
 describe("fundamentalsWarnings — the disclosed-risk contract", () => {
   it("discloses a negative net profit next to the signal", () => {
-    const row = rowFor({ netProfitEgp: -5_000_000, peRatio: null })
+    const row = rowFor({ netProfitEgp: -5_000_000, epsEgp: null })
     const w = row.warnings.find((x) => x.kind === "negative_profit")
     expect(w).toBeDefined()
     expect(w!.ar).toContain("سالب")
@@ -67,11 +67,18 @@ describe("fundamentalsWarnings — the disclosed-risk contract", () => {
     expect(w!.detailAr).not.toContain("احتيال")
   })
 
-  it("discloses a P/E above 40 next to the signal", () => {
-    const row = rowFor({ netProfitEgp: 10_000_000, peRatio: 55 })
+  it("discloses a P/E above 40 computed LIVE from the close ÷ EPS (AXPH 2026-11-16)", () => {
+    // rising tape's last close ≈ 86 EGP: eps 1.5 → P/E ≈ 57 → warning fires
+    const row = rowFor({ netProfitEgp: 10_000_000, epsEgp: 1.5 })
     const w = row.warnings.find((x) => x.kind === "high_pe")
     expect(w).toBeDefined()
     expect(w!.ar).toContain("40")
+  })
+
+  it("does NOT fire the high-PE warning when the LIVE multiple is low (AXPH: 1490 price, eps ~135 → 11)", () => {
+    // a stale STORED p_e row would have said 40+; the live math says 11
+    const row = rowFor({ netProfitEgp: 677_000_000, epsEgp: 135.5 })
+    expect(row.warnings.some((x) => x.kind === "high_pe")).toBe(false)
   })
 
   it("does NOT invent warnings when fundamentals are absent", () => {
@@ -95,7 +102,7 @@ describe("fundamentalsWarnings — the disclosed-risk contract", () => {
 
   it("carries the warnings on BUY rows too (the user must see them at the decision point)", () => {
     const bars = rising(120)
-    const row = rowFor({ netProfitEgp: -1, peRatio: 100 }, bars)
+    const row = rowFor({ netProfitEgp: -1, epsEgp: 0.5 }, bars)
     // the synthetic tape may or may not produce a BUY row — when it does,
     // the warnings MUST ride with it; when not, the row still discloses them
     expect(row.warnings.length).toBeGreaterThanOrEqual(2)

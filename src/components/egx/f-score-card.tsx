@@ -163,7 +163,20 @@ export function FScoreCard({ companyId }: { companyId: string }) {
     )
   }
 
-  const scoreTone = data.score >= 7 ? "text-success" : data.score >= 5 ? "text-warning" : "text-destructive"
+  // NO SCORE FROM MISSING DATA (owner mandate 2026-11-16): the headline reads
+  // score/evaluated — unevaluable criteria are never silently counted as
+  // failures inside an X/9 badge. With zero evaluable criteria: no score at all.
+  const partial = data.evaluated < 9
+  const scoreTone =
+    data.evaluated === 0
+      ? "text-muted-foreground"
+      : partial
+        ? "text-warning"
+        : data.score >= 7
+          ? "text-success"
+          : data.score >= 5
+            ? "text-warning"
+            : "text-destructive"
   const warnings = ar ? data.warningsAr : data.warnings
   const basisLabel = data.basis === "CONSOLIDATED" ? (ar ? "قوائم مجمعة" : "consolidated") : ar ? "قوائم منفصلة" : "standalone"
 
@@ -174,12 +187,20 @@ export function FScoreCard({ companyId }: { companyId: string }) {
           <Activity className="h-3.5 w-3.5 text-primary" aria-hidden />
           {ar ? "جودة الأساسيات — Piotroski F-Score" : "Fundamental quality — Piotroski F-Score"}
           <span className={`text-xl font-bold tabular ${scoreTone}`} dir="ltr">
-            {data.score}/9
+            {data.evaluated === 0 ? "—" : `${data.score}/${data.evaluated}`}
           </span>
           <span className="text-[10px] font-normal text-muted-foreground">
             {ar
-              ? `${data.currentPeriod?.fiscalYear ?? ""} مقابل ${data.priorPeriod?.fiscalYear ?? ""} · ${basisLabel}${data.evaluated < 9 ? ` · ${data.evaluated} من 9 معيار مُقيّم` : ""}`
-              : `${data.currentPeriod?.fiscalYear ?? ""} vs ${data.priorPeriod?.fiscalYear ?? ""} · ${basisLabel}${data.evaluated < 9 ? ` · ${data.evaluated} of 9 criteria evaluated` : ""}`}
+              ? `${data.currentPeriod?.fiscalYear ?? ""} مقابل ${data.priorPeriod?.fiscalYear ?? ""} · ${basisLabel}${
+                  partial
+                    ? ` · ${data.evaluated === 0 ? "لا يمكن تقييم أي معيار من القوائم المتاحة" : `${data.evaluated} من 9 معيار مُقيّم — الدرجة على المُقيّم فقط والبنود المفقودة لا تُحسب فشلًا`}`
+                    : ""
+                }`
+              : `${data.currentPeriod?.fiscalYear ?? ""} vs ${data.priorPeriod?.fiscalYear ?? ""} · ${basisLabel}${
+                  partial
+                    ? ` · ${data.evaluated === 0 ? "no criterion is evaluable from the available statements" : `${data.evaluated} of 9 criteria evaluated — the score covers evaluated criteria only`}`
+                    : ""
+                }`}
           </span>
         </CardTitle>
       </CardHeader>

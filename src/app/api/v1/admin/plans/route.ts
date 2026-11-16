@@ -38,6 +38,12 @@ export async function POST(req: NextRequest) {
 // PATCH /api/v1/admin/plans — edit a plan row (price / first-month offer /
 // duration / features / active flag). Used by /admin/plans.
 //
+// Discount flow (owner mandate 2026-11-16): the editor enters the discount as
+// a PERCENT (`offerPercent`); the offer price is COMPUTED here server-side as
+// round2(price × (1 − pct/100)) — the owner never types two absolute prices.
+// `offerPrice` remains the stored field (no schema change); percent is the
+// input language, price is the stored truth.
+//
 // Validation: numeric fields must be finite and non-negative; features must
 // serialize to a JSON array of strings (the client sends the textarea lines).
 export async function PATCH(req: NextRequest) {
@@ -47,6 +53,7 @@ export async function PATCH(req: NextRequest) {
     id?: unknown
     price?: unknown
     offerPrice?: unknown
+    offerPercent?: unknown
     offerActive?: unknown
     offerLabel?: unknown
     durationDays?: unknown
@@ -62,7 +69,7 @@ export async function PATCH(req: NextRequest) {
   const id = typeof body.id === "string" ? body.id : ""
   if (!id) return Response.json({ error: "INVALID_PAYLOAD", message: "id is required." }, { status: 400 })
 
-  const existing = await db.plan.findUnique({ where: { id }, select: { id: true, name: true } })
+  const existing = await db.plan.findUnique({ where: { id }, select: { id: true, name: true, price: true } })
   if (!existing) return Response.json({ error: "NOT_FOUND", message: "Plan not found." }, { status: 404 })
 
   // --- build the validated update set ---
@@ -76,12 +83,14 @@ export async function PATCH(req: NextRequest) {
     isActive?: boolean
   } = {}
 
+  let newPrice: number | null = null
   if (body.price !== undefined) {
     const price = Number(body.price)
     if (!Number.isFinite(price) || price < 0) {
       return Response.json({ error: "VALIDATION", message: "price must be a non-negative number." }, { status: 400 })
     }
     data.price = price
+    newPrice = price
   }
 
   if (body.offerPrice !== undefined) {
@@ -93,6 +102,31 @@ export async function PATCH(req: NextRequest) {
         return Response.json({ error: "VALIDATION", message: "offerPrice must be a non-negative number or null." }, { status: 400 })
       }
       data.offerPrice = offerPrice
+    }
+  }
+
+  if (body.offerPercent !== undefined) {
+    // percent input — the authoritative discount language. null clears the offer.
+    if (body.offerPercent === null) {
+      data.offerPrice = null
+    } else {
+      const pct = Number(body.offerPercent)
+      if (!Number.isFinite(pct) || pct < 0 || pct > 95) {
+        return Response.json(
+          { error: "VALIDATION", message: "offerPercent must be a number between 0 and 95, or null." },
+          { status: 400 },
+        )
+      }
+      const basis = newPrice ?? existing.price
+      if (!Number.isFinite(basis) || basis <= 0) {
+        return Response.json(
+          { error: "VALIDATION", message: "offerPercent needs a positive plan price to compute the offer price." },
+          { status: 400 },
+        )
+      }
+      const computed = Math.round(basis * (1 - pct / 100) * 100) / 100
+      // explicit null was handled above; a percent SETS the computed offer price
+      data.offerPrice = computed > 0 ? computed : null
     }
   }
 

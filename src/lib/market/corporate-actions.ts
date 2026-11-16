@@ -295,6 +295,30 @@ export interface AdjustedSeriesResult {
   bars: SeriesBar[]
   /** Events that actually rescaled the series (for honest disclosure). */
   eventsApplied: { exDateISO: string; actionType: string; factor: number }[]
+  /** Recorded events whose implied factor failed the plausibility guard and
+   *  were SKIPPED — the series stays raw rather than catastrophically
+   *  rescaled, and the skip is disclosed (COMI 2026-11-16: a share event
+   *  recorded with ~5.69× terms nuked the whole history to ~22 EGP while the
+   *  market traded ~128 — the row contradicts the market, so it is skipped). */
+  eventsSkipped: { exDateISO: string; actionType: string; factor: number }[]
+}
+
+/** Plausibility bounds for the implied mechanical repricing of ONE recorded
+ *  event. EGX share events in practice stay within ×3/÷3 (a 1:1 bonus is
+ *  ÷2, a 2:1 split is ÷2, a 2:1 reverse is ×2); cash dividends rarely exceed
+ *  half the price. A factor outside the bounds means the recorded terms
+ *  contradict what the market actually traded — skip and disclose, never
+ *  rescale the entire history on a suspected data-entry error. */
+const SHARE_FACTOR_MIN = 1 / 3
+const SHARE_FACTOR_MAX = 3
+const CASH_FACTOR_MIN = 0.5
+const CASH_FACTOR_MAX = 2
+
+function factorIsPlausible(actionType: string, factor: number): boolean {
+  const isShare = actionType === "split" || actionType === "stock_dividend" || actionType === "rights"
+  const min = isShare ? SHARE_FACTOR_MIN : CASH_FACTOR_MIN
+  const max = isShare ? SHARE_FACTOR_MAX : CASH_FACTOR_MAX
+  return factor >= min && factor <= max
 }
 
 /** Multiplicative factor a share-type action applies going BACKWARD in time
@@ -310,25 +334,32 @@ function shareEventInverseFactor(a: CorporateActionTerms): number | null {
 
 export function applyCorporateActionAdjustments(bars: SeriesBar[], actions: SeriesAction[]): AdjustedSeriesResult {
   const eventsApplied: AdjustedSeriesResult["eventsApplied"] = []
-  if (bars.length === 0 || actions.length === 0) return { bars: bars.map((b) => ({ ...b })), eventsApplied }
+  const eventsSkipped: AdjustedSeriesResult["eventsSkipped"] = []
+  if (bars.length === 0 || actions.length === 0) return { bars: bars.map((b) => ({ ...b })), eventsApplied, eventsSkipped }
 
   // Deep copy — never mutate the caller's series.
   const out: SeriesBar[] = bars.map((b) => ({ ...b }))
   out.sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0))
 
   const usable = actions.filter((a) => a.exDateISO.length === 10)
-  if (usable.length === 0) return { bars: out, eventsApplied }
+  if (usable.length === 0) return { bars: out, eventsApplied, eventsSkipped }
 
   // Only events whose ex-date has actually ARRIVED (on/before the last bar)
   // take effect: a future ex-date must not rescale today's cum-event prices.
   const lastTs = out[out.length - 1].ts
   const effective = usable.filter((a) => a.exDateISO <= lastTs)
-  if (effective.length === 0) return { bars: out, eventsApplied }
+  if (effective.length === 0) return { bars: out, eventsApplied, eventsSkipped }
 
   // ---------- Phase 1: de-adjust Yahoo bars to the raw price universe ----------
   for (const a of effective) {
     const inv = shareEventInverseFactor(a.terms)
     if (inv === null) continue
+    // the same plausibility guard applies to the inverse: a bogus recorded
+    // ratio must not reach ANY bar (1/inv must sit in the plausible band)
+    if (!factorIsPlausible(a.terms.actionType, 1 / inv)) {
+      eventsSkipped.push({ exDateISO: a.exDateISO, actionType: a.terms.actionType, factor: 1 / inv })
+      continue
+    }
     for (const bar of out) {
       if (bar.source === "yahoo" && bar.ts < a.exDateISO) {
         bar.open *= inv
@@ -357,6 +388,14 @@ export function applyCorporateActionAdjustments(bars: SeriesBar[], actions: Seri
     const adj = adjustPrevClose(base, [a.terms])
     if (!(adj > 0) || Math.abs(adj - base) < 1e-9) continue
     const f = adj / base
+    if (!factorIsPlausible(a.terms.actionType, f)) {
+      // suspected data-entry error — the series stays RAW and the skip is
+      // disclosed (never rescale the whole history on impossible terms)
+      if (!eventsSkipped.some((s) => s.exDateISO === a.exDateISO && s.actionType === a.terms.actionType)) {
+        eventsSkipped.push({ exDateISO: a.exDateISO, actionType: a.terms.actionType, factor: f })
+      }
+      continue
+    }
     for (let i = 0; i <= idx; i++) {
       out[i].open *= f
       out[i].high *= f
@@ -374,7 +413,7 @@ export function applyCorporateActionAdjustments(bars: SeriesBar[], actions: Seri
     bar.low = Number(bar.low.toFixed(4))
     bar.close = Number(bar.close.toFixed(4))
   }
-  return { bars: out, eventsApplied }
+  return { bars: out, eventsApplied, eventsSkipped }
 }
 
 /**

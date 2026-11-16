@@ -130,7 +130,7 @@ export default function PremiumPage() {
   const { data: plansData } = useQuery({
     queryKey: ["plans-catalog"],
     queryFn: () => fetch("/api/v1/plans").then((r) => (r.ok ? r.json() : Promise.resolve(null))),
-    staleTime: 300_000,
+    staleTime: 60_000, // admin price edits must reach the page within a minute
   })
   const plans: CatalogPlan[] =
     (Array.isArray(plansData?.plans) && plansData.plans.length === 3 ? (plansData.plans as CatalogPlan[]) : null) ??

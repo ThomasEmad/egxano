@@ -4,6 +4,10 @@
 // Edits PATCH /api/v1/admin/plans (admin-cookie auth, audited server-side);
 // each row keeps a local draft until "حفظ" is pressed. Features are edited as
 // one line per bullet and serialized to the JSON array the Plan row stores.
+//
+// Discount flow (owner mandate 2026-11-16): the discount is entered as a
+// PERCENT — the first-month offer price is computed server-side from the
+// base price; the owner never types two absolute prices.
 
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -33,12 +37,25 @@ interface PlanRow {
 
 interface Draft {
   price: string
-  offerPrice: string
+  offerPercent: string
   offerActive: boolean
   offerLabel: string
   durationDays: string
   features: string
   isActive: boolean
+}
+
+/** Round to 1 decimal for the displayed percent (derived from a stored price). */
+function round1(x: number): string {
+  return String(Math.round(x * 10) / 10)
+}
+
+/** The offer price the server will store for a given base price + percent. */
+function computedOfferPrice(priceStr: string, pctStr: string): number | null {
+  const price = Number(priceStr)
+  const pct = Number(pctStr)
+  if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(pct) || pct < 0 || pct > 95 || pctStr.trim() === "") return null
+  return Math.round(price * (1 - pct / 100) * 100) / 100
 }
 
 function toDraft(plan: PlanRow): Draft {
@@ -49,9 +66,10 @@ function toDraft(plan: PlanRow): Draft {
   } catch {
     lines = []
   }
+  const pct = plan.offerPrice !== null && plan.price > 0 ? ((1 - plan.offerPrice / plan.price) * 100).toFixed(1).replace(/\.0$/, "") : ""
   return {
     price: String(plan.price),
-    offerPrice: plan.offerPrice === null ? "" : String(plan.offerPrice),
+    offerPercent: pct,
     offerActive: plan.offerActive,
     offerLabel: plan.offerLabel ?? "",
     durationDays: String(plan.durationDays),
@@ -85,8 +103,8 @@ export default function AdminPlansPage() {
         isActive: draft.isActive,
         features,
       }
-      if (draft.offerPrice.trim() === "") body.offerPrice = null
-      else body.offerPrice = Number(draft.offerPrice)
+      // percent is the input language; the server computes the stored price
+      body.offerPercent = draft.offerPercent.trim() === "" ? null : Number(draft.offerPercent)
       const res = await fetch("/api/v1/admin/plans", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -120,7 +138,7 @@ export default function AdminPlansPage() {
       <div>
         <h1 className="text-xl font-bold">الباقات</h1>
         <p className="mt-1 text-xs text-muted-foreground">
-          السعر وعرض أول شهر ومدة الاشتراك وقائمة الميزات — التعديل بيظهر فورًا في صفحة الباقات وAPI الباقات.
+          السعر الأساسي + نسبة خصم أول شهر (السعر النهائي للعرض بيتحسب تلقائيًا) + المدة وقائمة الميزات — التعديل بيظهر على الموقع خلال دقيقة (كاش الباقات 60 ثانية).
         </p>
       </div>
 
@@ -187,16 +205,24 @@ function PlanEditor({
           />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs" htmlFor={`${plan.id}-offer`}>سعر أول شهر (العرض)</Label>
+          <Label className="text-xs" htmlFor={`${plan.id}-offer`}>خصم أول شهر (%)</Label>
           <Input
             id={`${plan.id}-offer`}
             type="number"
             min={0}
-            step="1"
+            max={95}
+            step="0.5"
             placeholder="فارغ = بلا عرض"
-            value={draft.offerPrice}
-            onChange={(e) => setDraft({ ...draft, offerPrice: e.target.value })}
+            value={draft.offerPercent}
+            onChange={(e) => setDraft({ ...draft, offerPercent: e.target.value })}
           />
+          <p className="text-[11px] text-muted-foreground">
+            {(() => {
+              const computed = computedOfferPrice(draft.price, draft.offerPercent)
+              if (computed === null) return draft.offerPercent.trim() === "" ? "بلا عرض — أول شهر بالسعر الأساسي" : "نسبة غير صالحة (0–95)"
+              return `سيُحفظ كعرض: أول شهر بـ ${computed} ${plan.currency} بدل ${draft.price} ${plan.currency}`
+            })()}
+          </p>
         </div>
         <div className="space-y-1">
           <Label className="text-xs" htmlFor={`${plan.id}-offer-label`}>نص العرض</Label>

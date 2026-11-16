@@ -107,7 +107,7 @@ async function loadFundamentals(ids: string[]): Promise<Map<string, Fundamentals
   if (!ids.length) return new Map()
   try {
     const rows = await db.calculatedMetric.findMany({
-      where: { companyId: { in: ids }, code: { in: ["net_profit", "p_e"] }, valueStatus: "OK", value: { not: null } },
+      where: { companyId: { in: ids }, code: { in: ["net_profit", "eps"] }, valueStatus: "OK", value: { not: null } },
       select: { companyId: true, code: true, periodType: true, fiscalYear: true, statementType: true, value: true },
     })
     return fundamentalsOf(rows)
@@ -149,9 +149,9 @@ function fundamentalsOf(rows: FundRow[]): Map<string, Fundamentals> {
       return chosen ? chosen.value : null
     }
     const netProfitEgp = pick("net_profit")
-    const peRatio = pick("p_e")
-    if (netProfitEgp === null && peRatio === null) continue
-    out.set(companyId, { netProfitEgp, peRatio })
+    const epsEgp = pick("eps")
+    if (netProfitEgp === null && epsEgp === null) continue
+    out.set(companyId, { netProfitEgp, epsEgp })
   }
   return out
 }
@@ -349,6 +349,97 @@ export function getSignalsBoard(): Promise<BoardOutputV2> {
     await persistBoardSnapshotV2(payload)
     return payload
   })
+}
+
+// ---------------------------------------------------------------------------
+// SINGLE-COMPANY path — the company technical tab needs ONE row, not the
+// whole-universe compute. (2026-11-16: the per-company route waited on the
+// full board build and cold-started into FUNCTION_INVOCATION_TIMEOUT 504s.)
+// The merge semantics below MIRROR the batched board build exactly:
+//   PriceBar OHLC per UTC day, scanner close overlays the day's close,
+//   Fri/Sat quotes anchor onto the EGX session they restate, then the
+//   corporate-action pass rescales pre-ex-date sessions. Unit-tested.
+// ---------------------------------------------------------------------------
+
+/** One company's v2 row (uncached) — null when the company is gone/inactive. */
+async function buildCompanySignalUncached(companyId: string): Promise<SignalRowV2 | null> {
+  const c = await db.company.findUnique({
+    where: { id: companyId },
+    select: { id: true, ticker: true, nameEn: true, nameAr: true, sector: true, marketTier: true, isActive: true },
+  })
+  if (!c || !c.isActive) return null
+
+  const cutoff = new Date(Date.now() - WINDOW_DAYS * 86_400_000)
+  const [barRows, priceRows] = await Promise.all([
+    db.priceBar.findMany({
+      where: { companyId, ts: { gte: cutoff } },
+      orderBy: { ts: "asc" },
+      select: { ts: true, open: true, high: true, low: true, close: true, volume: true },
+    }),
+    db.marketPrice.findMany({
+      where: { companyId, sourceName: "TRADINGVIEW_SCANNER", isDemoData: false, asOf: { gte: cutoff }, price: { gt: 0 } },
+      orderBy: { asOf: "asc" },
+      select: { asOf: true, price: true, volume: true },
+    }),
+  ])
+
+  // PriceBar OHLC per UTC day (freshest row wins per day via asc ordering),
+  // then scanner day-rows overlay their session — identical to the board build.
+  const byDay = new Map<string, { ts: string; open: number; high: number; low: number; close: number; volume: number | null }>()
+  for (const b of barRows) {
+    if (!validBar(b)) continue
+    byDay.set(b.ts.toISOString().slice(0, 10), {
+      ts: b.ts.toISOString().slice(0, 10),
+      open: b.open,
+      high: b.high,
+      low: b.low,
+      close: b.close,
+      volume: b.volume !== null && Number.isFinite(b.volume) && b.volume > 0 ? b.volume : null,
+    })
+  }
+  for (const r of priceRows) {
+    const rawDay = r.asOf.toISOString().slice(0, 10)
+    const day = effectiveEgxSessionDate(r.asOf)
+    if (day !== rawDay && byDay.has(day)) continue
+    const volume = r.volume !== null && Number.isFinite(r.volume) && r.volume > 0 ? r.volume : null
+    const existing = byDay.get(day)
+    if (existing) {
+      existing.close = r.price
+      if (existing.volume === null && volume !== null) existing.volume = volume
+    } else {
+      byDay.set(day, { ts: day, open: r.price, high: r.price, low: r.price, close: r.price, volume })
+    }
+  }
+
+  let series = [...byDay.values()].sort((a, b) => a.ts.localeCompare(b.ts))
+  if (series.length >= 2) {
+    try {
+      const actions = await loadSeriesActionsByCompany([companyId], series[0].ts, series[series.length - 1].ts)
+      const companyActions = actions.get(companyId) ?? []
+      if (companyActions.length > 0) {
+        const adjusted = applyCorporateActionAdjustments(
+          series.map((b) => ({ ...b, source: "scanner" as const })),
+          companyActions,
+        )
+        series = adjusted.bars.map((b) => ({ ts: b.ts, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume }))
+      }
+    } catch {
+      // best-effort — the raw series remains the honest fallback
+    }
+  }
+
+  const fundamentals = await loadFundamentals([companyId])
+  return computeCompanySignalV2({
+    bars: series,
+    identity: { companyId: c.id, ticker: c.ticker, nameEn: c.nameEn, nameAr: c.nameAr, sector: c.sector, marketTier: c.marketTier },
+    fundamentals: fundamentals.get(companyId) ?? null,
+    todaySession: effectiveEgxSessionDate(new Date()),
+  })
+}
+
+/** Cached per-company v2 row (10 min) — the company technical tab's source. */
+export function getCompanySignalV2Cached(companyId: string): Promise<SignalRowV2 | null> {
+  return cached(`technical-signals:company-v2:${companyId}`, CACHE_MS, () => buildCompanySignalUncached(companyId))
 }
 
 // ---------------------------------------------------------------------------

@@ -169,7 +169,15 @@ export default function DataQualityPage() {
       </Card>
 
       {isLoading || !data ? (
-        <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">{ar ? "جارٍ التحميل…" : "Loading…"}</CardContent></Card>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-hidden>
+          {[0, 1, 2, 3].map((i) => (
+            <Card key={i} className="p-0"><CardContent className="p-4 space-y-2">
+              <div className="h-2.5 w-20 animate-pulse rounded bg-muted" />
+              <div className="h-7 w-14 animate-pulse rounded bg-muted" />
+              <div className="h-2 w-24 animate-pulse rounded bg-muted" />
+            </CardContent></Card>
+          ))}
+        </div>
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

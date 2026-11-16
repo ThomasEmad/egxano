@@ -122,7 +122,21 @@ export function MarketTicker() {
     }
   }
 
-  if (!data || (data.indices.length === 0 && data.gainers.length === 0)) return null
+  // First load: a same-height skeleton strip (no layout jump when the data
+  // lands). An EMPTY market snapshot still renders null (nothing to show).
+  if (!data) {
+    return (
+      <div className="flex h-9 items-center gap-3 overflow-hidden border-b border-border/40 bg-background/95 px-4" aria-hidden>
+        {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+          <div key={i} className="flex shrink-0 items-center gap-1.5">
+            <div className="h-2.5 w-20 animate-pulse rounded bg-muted" />
+            <div className="h-2.5 w-10 animate-pulse rounded bg-muted" style={{ animationDelay: `${i * 120}ms` }} />
+          </div>
+        ))}
+      </div>
+    )
+  }
+  if (data.indices.length === 0 && data.gainers.length === 0) return null
 
   const items: TickerItemRender[] = [
     ...data.indices.map((i) => ({

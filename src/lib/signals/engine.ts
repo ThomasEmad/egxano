@@ -112,7 +112,11 @@ function preEntryInvalidation(bars: Bar[], map: ZoneMap, m: MetricsBundle, activ
 /** Disclosed risks computed from DATA ONLY — the wording states what the
  *  recorded numbers show and the execution mechanics they imply; it never
  *  speculates about any party or intent (owner mandate on phrasing). */
-function fundamentalsWarnings(f: Fundamentals | null | undefined, avgTradedValueEgp: number | null): SignalWarning[] {
+function fundamentalsWarnings(
+  f: Fundamentals | null | undefined,
+  lastClose: number,
+  avgTradedValueEgp: number | null,
+): SignalWarning[] {
   const out: SignalWarning[] = []
   if (f && typeof f.netProfitEgp === "number" && f.netProfitEgp < 0) {
     out.push({
@@ -125,7 +129,12 @@ function fundamentalsWarnings(f: Fundamentals | null | undefined, avgTradedValue
         "A technical signal does not reflect earnings quality — the company booked a loss in its latest reported period. Review the financial statements before acting; technical improvement on loss-making fundamentals is more fragile.",
     })
   }
-  if (f && typeof f.peRatio === "number" && f.peRatio > HIGH_PE_WARNING) {
+  // P/E computed LIVE: current close ÷ the latest EPS. A stored p_e row goes
+  // stale when the price moves without a financials recompute (AXPH 2026-11-16
+  // showed a >40× warning while the real multiple was 11) — never again.
+  const eps = f && typeof f.epsEgp === "number" ? f.epsEgp : null
+  const peRatio = eps !== null && eps > 0 && lastClose > 0 ? lastClose / eps : null
+  if (peRatio !== null && peRatio > HIGH_PE_WARNING) {
     out.push({
       kind: "high_pe",
       ar: `تنبيه تقييم: مضاعف الربحية (P/E) أعلى من ${HIGH_PE_WARNING}×`,
@@ -221,7 +230,7 @@ export function computeCompanySignalV2(input: EngineInput): SignalRowV2 {
   }
   // disclosed risks travel with the row in EVERY state (a wait row with a
   // negative profit is still a fact the user should see in the details)
-  base.warnings = fundamentalsWarnings(input.fundamentals ?? null, m.avgTradedValueEgp)
+  base.warnings = fundamentalsWarnings(input.fundamentals ?? null, m.lastClose, m.avgTradedValueEgp)
 
   const { buyCandidates, nearCandidates, exit, map } = detectOpportunities(bars, m)
 
