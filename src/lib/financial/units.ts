@@ -31,16 +31,19 @@ export function bestDisplayUnit(absValue: number): Unit {
   return "UNIT"
 }
 
-/** Format an EGP amount with the best unit, e.g. "EGP 12.4B" */
-export function formatEgp(value: number | null | undefined, opts?: { withCurrency?: boolean; decimals?: number }): string {
+/** Format an EGP amount with the best unit, e.g. "EGP 12.4B" — pass
+ *  `{ lang: "ar" }` for Arabic copy ("12.4 مليار ج.م"): never mix English
+ *  money formats into Arabic sentences (owner story-suite finding). */
+export function formatEgp(value: number | null | undefined, opts?: { withCurrency?: boolean; decimals?: number; lang?: "ar" | "en" }): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—"
   const withCurrency = opts?.withCurrency ?? true
+  const ar = opts?.lang === "ar"
   const unit = bestDisplayUnit(value)
   const scaled = value / UNIT_FACTORS[unit]
   const decimals = opts?.decimals ?? (Math.abs(scaled) >= 100 ? 0 : Math.abs(scaled) >= 10 ? 1 : 2)
-  const suffix = unit === "UNIT" ? "" : unit === "THOUSAND" ? "K" : unit === "MILLION" ? "M" : "B"
+  const suffix = unit === "UNIT" ? "" : unit === "THOUSAND" ? (ar ? " ألف" : "K") : unit === "MILLION" ? (ar ? " مليون" : "M") : (ar ? " مليار" : "B")
   const text = `${scaled.toFixed(decimals)}${suffix}`
-  return withCurrency ? `EGP ${text}` : text
+  return withCurrency ? (ar ? `${text} ج.م` : `EGP ${text}`) : text
 }
 
 /** Format a percent value, e.g. "+21.4%" */

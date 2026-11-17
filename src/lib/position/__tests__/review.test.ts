@@ -254,3 +254,97 @@ describe("the fake-break doctrine — no auto-stop advice", () => {
     expect(all).toContain("الشاشة")
   })
 })
+
+// =============================================================================
+// OWNER MANDATE (2026-11-17) — the profitable-break rule: at a gain ≥ +6٪
+// (PROFIT_TAKE_MIN_PCT) the RED-exit branches (far-cushion break / engine
+// trend break) collapse into a GREEN partial take-profit — the snapshot's
+// own posture picks the sizing (bearish → 50–75٪ off now, 25–50٪ runner;
+// bullish → 20–40٪ off, the rest rides) and the runner trails a CLOSE-BASED
+// line (effective support, else EMA50 under the price). Below +6٪ (or at a
+// loss) the red exit stands unchanged.
+// =============================================================================
+
+import { PROFIT_TAKE_MIN_PCT } from "../review"
+
+describe("reviewPosition — the profitable-break rule (pnl ≥ +6٪)", () => {
+  const bearish = (bars: ReturnType<typeof cushionSeries>) => ({ ...toSignalMetrics(computeMetrics(bars)!), ema20: 104, ema50: 107 }) // close 103 < 107, EMA20 < EMA50
+  const bullish = (bars: ReturnType<typeof cushionSeries>) => ({ ...toSignalMetrics(computeMetrics(bars)!), ema20: 100, ema50: 97 }) // close 103 > 97, EMA20 > EMA50
+
+  it("broken far-cushion support at +8٪ (bearish posture) → TAKE_PROFIT with the 50–75٪ sizing, never a red exit", () => {
+    const bars = cushionSeries(97) // close 103, far cushion 5.44%
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({ row: rowOver(bars, { state: "exit", metrics: bearish(bars) }), bars, map, avgBuyPrice: 95.4 }) // pnl +8.0٪
+    expect(r.decision).toBe("take_profit")
+    expect(r.decisionAr).toBe("جني أرباح جزئي")
+    expect(r.pnlPct).toBeCloseTo(8.0, 1)
+    expect(r.planAr).toContain("50–75٪")
+    expect(r.planAr).toContain("25–50٪")
+    expect(r.planAr).not.toContain("20–40٪")
+    expect(r.planAr).toContain("أنا بفكر معاك")
+    expect(r.planAr!.startsWith("الخطة:")).toBe(false) // the UI renders the «الخطة:» prefix itself
+    expect(r.headlineAr).toContain("أنا بفكر معاك")
+    // the trailing line: the certified effective support (97.00–97.40), close-based
+    expect(r.invalidationAr).toContain("97.40")
+    expect(r.invalidationAr).toContain("الإغلاق")
+    // the insight the user may not see from inside a green P/L
+    expect(r.reasonsAr.some((x) => x.includes("سيولة بتخرج من السهم حتى لو إنت رابح"))).toBe(true)
+  })
+
+  it("broken far-cushion support at +8٪ (bullish posture) → the lighter 20–40٪ sizing", () => {
+    const bars = cushionSeries(97)
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({ row: rowOver(bars, { state: "exit", metrics: bullish(bars) }), bars, map, avgBuyPrice: 95.4 })
+    expect(r.decision).toBe("take_profit")
+    expect(r.planAr).toContain("20–40٪")
+    expect(r.planAr).not.toContain("50–75٪")
+    expect(r.planAr).toContain("مش شك في السهم") // the bullish rationale line
+    expect(r.invalidationAr).toContain("97.40") // the same trailing line, formatted
+  })
+
+  it("engine exit state: +6.5٪ → TAKE_PROFIT (+6.0٪ boundary included); +2.4٪ → red EXIT unchanged", () => {
+    const bars = cushionSeries(100, 106.5) // close above the 104 zone → no break, engine path only
+    const map = buildZoneMap(bars)
+    const inProfit = reviewPosition({ row: rowOver(bars, { state: "exit", metrics: bullish(bars) }), bars, map, avgBuyPrice: 100 }) // +6.5٪
+    expect(inProfit.decision).toBe("take_profit")
+    expect(inProfit.pnlPct).toBeCloseTo(6.5, 1)
+    expect(inProfit.planAr).toContain("20–40٪")
+    expect(inProfit.invalidationAr).toContain("104.40") // the trailing line at the effective support
+    const boundary = reviewPosition({ row: rowOver(bars, { state: "exit", metrics: bullish(bars) }), bars, map, avgBuyPrice: 100.47 }) // +6.003٪
+    expect(boundary.decision).toBe("take_profit")
+    const smallGain = reviewPosition({ row: rowOver(bars, { state: "exit", metrics: bullish(bars) }), bars, map, avgBuyPrice: 104 }) // +2.4٪
+    expect(smallGain.decision).toBe("exit")
+    expect(smallGain.decisionAr).toBe("اخرج الآن")
+    expect(smallGain.planAr).toBeNull()
+  })
+
+  it("far-cushion break at a loss stays the red EXIT (the green rule is profit-only)", () => {
+    const bars = cushionSeries(97)
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({ row: rowOver(bars, { state: "exit", metrics: bearish(bars) }), bars, map, avgBuyPrice: 105 }) // pnl −1.9٪
+    expect(r.decision).toBe("exit")
+    expect(r.decisionAr).toBe("اخرج الآن")
+    expect(r.invalidationAr).toContain("104.00") // the broken zone's low — the exit path is untouched
+  })
+
+  it(`the threshold constant is exactly ${PROFIT_TAKE_MIN_PCT}`, () => {
+    expect(PROFIT_TAKE_MIN_PCT).toBe(6)
+  })
+
+  it("no report anywhere in the ladder contains the «المشبِط» jargon", () => {
+    const cases: Array<{ bars: ReturnType<typeof cushionSeries>; buy: number; state: SignalState }> = [
+      { bars: cushionSeries(97), buy: 105, state: "exit" }, // branch 1 red exit
+      { bars: cushionSeries(97), buy: 95.4, state: "exit" }, // branch 1 take-profit
+      { bars: cushionSeries(97), buy: 130, state: "exit" }, // deep loss
+      { bars: cushionSeries(100, 106.5), buy: 100, state: "wait" }, // hold
+      { bars: cushionSeries(100, 106.5), buy: 110, state: "wait" }, // small-loss wait
+      { bars: cushionSeries(100, 106.5), buy: 104, state: "exit" }, // branch 3 red exit
+      { bars: cushionSeries(100, 106.5), buy: 100, state: "exit" }, // branch 3 take-profit
+    ]
+    for (const c of cases) {
+      const map = buildZoneMap(c.bars)
+      const r = reviewPosition({ row: rowOver(c.bars, { state: c.state }), bars: c.bars, map, avgBuyPrice: c.buy })
+      expect(JSON.stringify(r)).not.toContain("المشبِط")
+    }
+  })
+})

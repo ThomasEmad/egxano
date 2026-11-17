@@ -20,6 +20,15 @@
 //   3. In profit → hold, with the trailing line drawn at the nearest support.
 //   4. Small loss (above −20%) → broken trend with no close cushion → exit;
 //      anything else → wait with the line in the sand.
+//
+//   OWNER UPDATE (2026-11-17): a gain ≥ +6% (PROFIT_TAKE_MIN_PCT) turns BOTH
+//   red-exit branches — the far-cushion break (1) and the engine trend break
+//   (3) — into a GREEN partial take-profit ("take_profit"): the snapshot's
+//   own posture picks the sizing (bearish → secure 50–75% now, keep 25–50%;
+//   bullish → secure 20–40%, the rest rides) and the runner trails a
+//   CLOSE-BASED line (the effective support, else EMA50 under the price).
+//   A PROFITABLE position never gets a full red exit; below +6% or at a
+//   loss the red exit stands unchanged.
 // Nothing here is investment advice — closingAr says it on every report.
 // =============================================================================
 
@@ -36,6 +45,13 @@ import { POSITION_DECISION_AR, type LevelLine, type PositionDecision, type Posit
  *  recovery math turns brutal — the default verdict becomes انتظار للارتداد
  *  and the exit is replanned into the 20–25% loss band. */
 export const DEEP_LOSS_PCT = 20
+
+/** OWNER UPDATE (2026-11-17): at a gain of +6% or more, the red-exit branches
+ *  (broken far-cushion support / engine trend break) collapse into a GREEN
+ *  partial take-profit — securing part of the gain beats a full exit while
+ *  the position is still in profit. Below +6% (or at any loss) the red exit
+ *  stands unchanged. */
+export const PROFIT_TAKE_MIN_PCT = 6
 
 export interface ReviewInput {
   row: SignalRowV2
@@ -132,6 +148,12 @@ export function recoveryNeededPct(avgBuyPrice: number, currentPrice: number): nu
 }
 
 function recoveryReasonAr(pnlPct: number, recoveryPct: number): string {
+  // Extreme losses make the compounding math meaningless to print — a −99.9٪
+  // position would demand +999,899٪ recovery (owner story-suite finding
+  // 2026-11-18: the old line printed that absurd number verbatim).
+  if (recoveryPct > 500) {
+    return `الخسارة دي عمقها بيخلي التعويض في سهم واحد شبه مستحيل رياضيًا — الرقم المطلوب للتعويض بيكبر لحد ما يفقد معاهده العملية، فالأولوية هنا لحماية اللي فاضل مش التعويض.`
+  }
   return `لو بعت دلوقتي بخسارة ${pct1(pnlPct)}، محتاج إن أي سهم تاني تعمل فيه ${pct1(recoveryPct)} عشان تعوّض وترجع لنقطة البداية — ودي رياضيات مش رأي.`
 }
 
@@ -205,6 +227,50 @@ function deepLossQuestionAr(): ReviewQuestion {
       "اختيارك (مفيش هبوط إضافي متوقع): يبقى الانتظار للارتداد قرار منطقي — بس تابع الفرد جيدًا على الشاشة كل يوم، وخرج في نطاق الخسارة 20–25٪ بلا تردد لما يوصلك، والحكم بالإغلاق الفعلي مش باللمسة.",
     answeredAr: null,
   }
+}
+
+/** The snapshot's own posture read (2026-11-17 owner rule): bearish = the
+ *  close is below EMA50, or the EMA20<EMA50 negative order is on; bullish =
+ *  riding above the moving averages. With no EMA50 history there is no
+ *  confirmed bullish structure, so the protective (bigger partial) read
+ *  applies. */
+function isBearishPosture(close: number, ema20: number | null, ema50: number | null): boolean {
+  if (ema50 === null) return true
+  if (close < ema50) return true
+  return ema20 !== null && ema20 < ema50
+}
+
+/** The close-based trailing line for a take-profit runner: the certified
+ *  effective support when one exists, else the EMA50 sitting UNDER the price
+ *  (an EMA50 above the close can't be a "close below ends it" line), else
+ *  EMA20 under the price. null → the 60-session-low fallback wording. */
+function trailingLine(
+  effSupport: EffectiveSupport | null,
+  ema20: number | null,
+  ema50: number | null,
+  close: number,
+): { level: number; basisAr: string } | null {
+  if (effSupport) return { level: effSupport.level, basisAr: effSupport.basisAr }
+  if (ema50 !== null && ema50 < close) return { level: ema50, basisAr: `EMA50 عند ${fmt(ema50)} — المتوسط اللي الاتجاه بيتقاس عليه` }
+  if (ema20 !== null && ema20 < close) return { level: ema20, basisAr: `EMA20 عند ${fmt(ema20)} — الخط الديناميكي اللي السوق بيحترمه` }
+  return null
+}
+
+/** The partial take-profit plan: the sizing numbers first, then the trailing
+ *  line, then the rationale — thinking WITH the user, never an order. The %
+ *  ranges are the owner's own doctrine (2026-11-17): bearish 50–75٪ off now
+ *  with a 25–50٪ runner; bullish 20–40٪ off with the rest riding. */
+function takeProfitPlanAr(bearish: boolean, close: number, trail: { level: number } | null): string {
+  const sizingAr = bearish
+    ? `جني أرباح على 50–75٪ من المركز دلوقتي عند سعر ${fmt(close)}، وسيب 25–50٪ شغالة`
+    : `جني أرباح على 20–40٪ من قيمة المركز دلوقتي عند سعر ${fmt(close)}، وسيب الباقي شغال بنفس التعرض`
+  const lineAr = trail
+    ? `الجزء المتبقي بيتتبع بخط بالإغلاق تحت ${fmt(trail.level)}`
+    : "الجزء المتبقي بيتتبع بخط بالإغلاق تحت قاع آخر 60 جلسة"
+  const rationaleAr = bearish
+    ? "تأمين الجزء الأكبر مع ترتيب سلبي أريح من خروج كامل من سهم لسه رابح فيه"
+    : "جني جزء من الربح مش شك في السهم — ده الحفاظ على السيولة والانضباط، والباقي شايل نفس التعرض"
+  return `أنا بفكر معاك كده: ${sizingAr} — ${lineAr}، وأي إغلاق يومي تحت الخط ده بينهي الجزء المتبقي (الحكم بالإغلاق مش باللمسة). ${rationaleAr}.`
 }
 
 export function reviewPosition(input: ReviewInput): PositionReview {
@@ -303,20 +369,44 @@ export function reviewPosition(input: ReviewInput): PositionReview {
 
   // ---------- 1) support broke on the last session → the cushion rule decides
   if (cushion.brokeLastSession && cushion.farCushion) {
-    decision = "exit"
-    headlineAr = `الكسر حصل ومفيش بطانة قريبة تحت السعر — الخروج هنا إدارة مخاطر مش هيزنة`
-    invalidationAr = `السيناريو يرجع فيه فقط بإغلاق يومي فوق مستوى الكسر (${fmt(cushion.brokenZone!.low)})`
     reasonsAr.push(
       `بص بصراحة: إغلاق النهاردة (${fmt(close)}) كسر دعم ${cushion.brokenZone!.touches}× مختبَر (${fmt(cushion.brokenZone!.low)}–${fmt(cushion.brokenZone!.high)}) — ده مش تذبذب، ده هيكل اتكسر.`,
       openFieldAr + " — يعني مفيش حاجة قريبة تمسك السعر لو السوق نزل أكتر.",
       `مركزك اتفتح بمتوسط ${fmt(avgBuyPrice)} والسعر دلوقتي ${fmt(close)} يعني ${pnlPct >= 0 ? "رابح" : "خاسر"} ${pct1(pnlPct)} (${pnlPerShare >= 0 ? "+" : ""}${fmt(pnlPerShare)} جنيه/سهم)${pnlPct < 0 ? ` — و${recoveryReasonAr(pnlPct, recoveryPct ?? 0).toLowerCase()}` : ""}.`,
-      "قاعدة البيع على الكسر بتشتغل بس لما الدعم اللي تحت يكون بعيد — وهنا هو بعيد فعلًا، فالقرار خروج.",
-      "الخروج مش فشل ولا اعتراف بغلطة — ده الفرق بين المتداول والمشبِط: بنقفل الخسارة الصغيرة قبل ما تبقى كبيرة.",
     )
+    if (pnlPct >= PROFIT_TAKE_MIN_PCT) {
+      // the 2026-11-17 owner rule: a PROFITABLE position never gets the red
+      // exit — the break becomes a partial take-profit with a trailing runner
+      decision = "take_profit"
+      const bearish = isBearishPosture(close, mt?.ema20 ?? null, mt?.ema50 ?? null)
+      const trail = trailingLine(effSupport, mt?.ema20 ?? null, mt?.ema50 ?? null, close)
+      headlineAr = bearish
+        ? `إنت رابح ${pct1(pnlPct)} بس الكسر حصل والترتيب التقني سلبي — أنا بفكر معاك في تأمين الجزء الأكبر من الربح وسيب جزء صغير بيتابع الإغلاق`
+        : `إنت رابح ${pct1(pnlPct)} بس الكسر حصل والهيكل لسه فوق متوسطاته — أنا بفكر معاك في جني جزء صغير من الربح، والباقي بيفضل في الصعود`
+      planAr = takeProfitPlanAr(bearish, close, trail)
+      invalidationAr = trail
+        ? `خط إلغاء الجزء المتبقي: الإغلاق اليومي تحت ${fmt(trail.level)} بينهي الجزء المتبقي — الحكم بالإغلاق مش باللمسة، لأن الصنّاع بيعملوا كسور كاذبة تحت المستويات`
+        : "خط إلغاء الجزء المتبقي: الإغلاق اليومي تحت قاع آخر 60 جلسة بينهي الجزء المتبقي — الحكم بالإغلاق مش باللمسة"
+      reasonsAr.push(
+        `النقطة اللي ممكن متشوفهاش من جو الربح: الربح فوق ${PROFIT_TAKE_MIN_PCT}٪ مع كسر دعم = سيولة بتخرج من السهم حتى لو إنت رابح — الخزنة بتتحمى بجزء مش بالكل.`,
+        `القراءة الفنية: ${trendAr} — ${bearish ? "الترتيب سلبي، فتأمين الجزء الأكبر منطقي وأريح من خروج كامل من سهم لسه رابح فيه" : "الهيكل لسه فوق المتوسطات، فالجني يكون جزئي والجزء الأكبر بيفضل شغال"}.`,
+        trail
+          ? `خط تتبع الجزء المتبقي: ${trail.basisAr} — الإلغاء بالإغلاق اليومي تحته، مش باللمسة: الكسور الكاذبة تحت المستويات حاجة معروفة في السوق المصري.`
+          : "خط تتبع الجزء المتبقي: قاع آخر 60 جلسة — الإلغاء بالإغلاق اليومي تحته، مش باللمسة.",
+      )
+    } else {
+      decision = "exit"
+      headlineAr = `الكسر حصل ومفيش بطانة قريبة تحت السعر — الخروج هنا إدارة مخاطر مش هيزنة`
+      invalidationAr = `السيناريو يرجع فيه فقط بإغلاق يومي فوق مستوى الكسر (${fmt(cushion.brokenZone!.low)})`
+      reasonsAr.push(
+        "قاعدة البيع على الكسر بتشتغل بس لما الدعم اللي تحت يكون بعيد — وهنا هو بعيد فعلًا، فالقرار خروج.",
+        "الخروج مش فشل ولا اعتراف بغلطة — ده الفرق بين المتداول اللي عنده خطة والمتداول اللي بيمسك بيديه من غير خطة: بنقفل الخسارة الصغيرة قبل ما تبقى كبيرة.",
+      )
+    }
     return {
       decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
       avgBuyPrice, lastClose: close, pnlPct: Math.round(pnlPct * 10) / 10, pnlPerShare: Math.round(pnlPerShare * 100) / 100,
-      recoveryPct, reasonsAr, planAr: null, question: null, closingAr,
+      recoveryPct, reasonsAr, planAr, question: null, closingAr,
       supports, resistances, levelsBasisAr, invalidationAr, warningsAr, snapshot, engine: row.engine,
     }
   }
@@ -348,22 +438,46 @@ export function reviewPosition(input: ReviewInput): PositionReview {
     }
   }
 
-  // ---------- 3) engine-v2 says exit (trend break path) → exit
+  // ---------- 3) engine-v2 says exit (trend break path) — red exit below
+  // +6% of gain, green partial take-profit above it (2026-11-17 owner rule)
   if (row.state === "exit") {
-    decision = "exit"
-    headlineAr = "الاتجاه نفسه اتكسر — ده مش وقت المبادرة، ده وقت حماية اللي فاضل"
-    invalidationAr = `السيناريو يرجع فيه بإغلاق يومي فوق EMA50 (${mt?.ema50 ? fmt(mt.ema50) : "المتوسط"}) مع ترتيب صعودي تاني`
     reasonsAr.push(
       `حسبت لك الوضع: متوسط شراء ${fmt(avgBuyPrice)} وسعر النهاردة ${fmt(close)} — ${pnlPct >= 0 ? "رابح" : "خاسر"} ${pct1(pnlPct)} (${pnlPerShare >= 0 ? "+" : ""}${fmt(pnlPerShare)} جنيه/سهم).`,
       `الاتجاه العام: ${trendAr} — والمحرك الفني سلّم الإشارة "خروج".`,
-      "كسر الاتجاه مختلف عن كسر دعم عابر: هنا البنية الزمنية نفسها بتتغير، والأسهم اللي بتكسر EMA50 بترتيب سلبي بتكمل ضعف غالبًا.",
-      `الخروج هنا بيحمي الرصيد: أفضل وقت للرجوع هو لما يرجع السهم فوق متوسطاته ويثبت — والموقع هيقولك لحظتها.`,
     )
-    if (pnlPct < 0) reasonsAr.push(recoveryReasonAr(pnlPct, recoveryPct ?? 0))
+    if (pnlPct >= PROFIT_TAKE_MIN_PCT) {
+      decision = "take_profit"
+      const bearish = isBearishPosture(close, mt?.ema20 ?? null, mt?.ema50 ?? null)
+      const trail = trailingLine(effSupport, mt?.ema20 ?? null, mt?.ema50 ?? null, close)
+      headlineAr = bearish
+        ? `إنت رابح ${pct1(pnlPct)} بس المحرك سلّم إشارة خروج — أنا بفكر معاك في تأمين الجزء الأكبر من الربح وسيب جزء صغير بيتابع الإغلاق`
+        : `إنت رابح ${pct1(pnlPct)} والمحرك بيحذر رغم إن الهيكل لسه فوق متوسطاته — أنا بفكر معاك في جني جزء صغير من الربح، والباقي بيفضل في الصعود`
+      planAr = takeProfitPlanAr(bearish, close, trail)
+      invalidationAr = trail
+        ? `خط إلغاء الجزء المتبقي: الإغلاق اليومي تحت ${fmt(trail.level)} بينهي الجزء المتبقي — الحكم بالإغلاق مش باللمسة، لأن الصنّاع بيعملوا كسور كاذبة تحت المستويات`
+        : "خط إلغاء الجزء المتبقي: الإغلاق اليومي تحت قاع آخر 60 جلسة بينهي الجزء المتبقي — الحكم بالإغلاق مش باللمسة"
+      reasonsAr.push(
+        `النقطة اللي ممكن متشوفهاش من جو الربح: الربح فوق ${PROFIT_TAKE_MIN_PCT}٪ مع إشارة خروج من المحرك = سيولة بتخرج من السهم حتى لو إنت رابح — الخزنة بتتحمى بجزء مش بالكل.`,
+        `القراءة الفنية: ${trendAr} — ${bearish ? "الترتيب سلبي، فتأمين الجزء الأكبر منطقي وأريح من خروج كامل من سهم لسه رابح فيه" : "الهيكل لسه فوق المتوسطات، فالجني يكون جزئي والجزء الأكبر بيفضل شغال"}.`,
+        trail
+          ? `خط تتبع الجزء المتبقي: ${trail.basisAr} — الإلغاء بالإغلاق اليومي تحته، مش باللمسة: الكسور الكاذبة تحت المستويات حاجة معروفة في السوق المصري.`
+          : "خط تتبع الجزء المتبقي: قاع آخر 60 جلسة — الإلغاء بالإغلاق اليومي تحته، مش باللمسة.",
+        "كسر الاتجاه مختلف عن كسر دعم عابر: هنا البنية الزمنية نفسها بتتغير — عشان كده الجني جزئي مش احتفاظ كامل، والجزء المتبقي بيتقفل بالإغلاق تحت خط التتبع.",
+      )
+    } else {
+      decision = "exit"
+      headlineAr = "الاتجاه نفسه اتكسر — ده مش وقت المبادرة، ده وقت حماية اللي فاضل"
+      invalidationAr = `السيناريو يرجع فيه بإغلاق يومي فوق EMA50 (${mt?.ema50 ? fmt(mt.ema50) : "المتوسط"}) مع ترتيب صعودي تاني`
+      reasonsAr.push(
+        "كسر الاتجاه مختلف عن كسر دعم عابر: هنا البنية الزمنية نفسها بتتغير، والأسهم اللي بتكسر EMA50 بترتيب سلبي بتكمل ضعف غالبًا.",
+        `الخروج هنا بيحمي الرصيد: أفضل وقت للرجوع هو لما يرجع السهم فوق متوسطاته ويثبت — والموقع هيقولك لحظتها.`,
+      )
+      if (pnlPct < 0) reasonsAr.push(recoveryReasonAr(pnlPct, recoveryPct ?? 0))
+    }
     return {
       decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
       avgBuyPrice, lastClose: close, pnlPct: Math.round(pnlPct * 10) / 10, pnlPerShare: Math.round(pnlPerShare * 100) / 100,
-      recoveryPct, reasonsAr, planAr: null, question: null, closingAr,
+      recoveryPct, reasonsAr, planAr, question: null, closingAr,
       supports, resistances, levelsBasisAr, invalidationAr, warningsAr, snapshot, engine: row.engine,
     }
   }

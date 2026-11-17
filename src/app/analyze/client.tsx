@@ -52,6 +52,14 @@ const DECISION_STYLE: Record<PositionDecision, { ring: string; bg: string; text:
     text: "text-red-600 dark:text-red-400", chip: "bg-red-500/10 border-red-500/30",
     icon: <TrendingDown className="h-7 w-7" aria-hidden />,
   },
+  take_profit: {
+    // the green partial-exit verdict (2026-11-17 owner rule): a profitable
+    // position breaking down secures part of the gain — positive tint like
+    // "hold", with the Wallet marking the cash being taken off the table
+    ring: "ring-emerald-500/40", bg: "bg-gradient-to-br from-emerald-500/15 to-emerald-500/[0.04]",
+    text: "text-emerald-600 dark:text-emerald-400", chip: "bg-emerald-500/10 border-emerald-500/30",
+    icon: <Wallet className="h-7 w-7" aria-hidden />,
+  },
 }
 
 export default function AnalyzeClient() {

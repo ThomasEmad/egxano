@@ -1,0 +1,1907 @@
+{
+  "generatedAt": "2026-11-17T00:25:47.464Z",
+  "target": "pure-lib",
+  "decisionTrail": [
+    {
+      "step": "probe-vercel",
+      "url": "https://egxano.vercel.app/api/v1/health",
+      "status": 429,
+      "ms": 93,
+      "contentType": "text/html; charset=utf-8",
+      "bodyHead": "<!DOCTYPE html><html lang=\"en\" data-astro-cid-4wdtffzm><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta nam",
+      "htmlChallenge": true
+    },
+    {
+      "step": "vercel-unreachable",
+      "reason": "Vercel Security Checkpoint (bot-shield HTML) — datacenter IP blocked"
+    },
+    {
+      "step": "probe-localhost-3210",
+      "url": "http://localhost:3210/api/v1/health",
+      "status": 0,
+      "ms": 3,
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "step": "localhost-unreachable",
+      "reason": "no server on 3210"
+    },
+    {
+      "step": "database-url-check",
+      "url": "file:C:/Users/tomas/Downloads/EGX-Scanner-backup/EGX-Scanner/prisma/prisma/dev.db",
+      "file": true,
+      "note": "قاعدة ملفية بمسار Windows (C:/...) — غير قابلة للتشغيل على هذا المضيف، والـprovider في schema.prisma هو postgresql"
+    },
+    {
+      "step": "chosen-target",
+      "target": "pure-lib (bunx tsx, no DB)"
+    }
+  ],
+  "counts": {
+    "total": 44,
+    "passed": 44,
+    "failed": 0
+  },
+  "byPersona": {
+    "زائر جديد": {
+      "total": 6,
+      "pass": 6
+    },
+    "حماية المستخدم": {
+      "total": 1,
+      "pass": 1
+    },
+    "مستخدم الداشبورد": {
+      "total": 1,
+      "pass": 1
+    },
+    "مستخدم الشركات": {
+      "total": 3,
+      "pass": 3
+    },
+    "مستخدم المقارنة": {
+      "total": 1,
+      "pass": 1
+    },
+    "متابع التنبيهات والأخبار": {
+      "total": 1,
+      "pass": 1
+    },
+    "مستخدم عادي": {
+      "total": 7,
+      "pass": 7
+    },
+    "مستثمر بالخسارة": {
+      "total": 8,
+      "pass": 8
+    },
+    "مستثمر بالربح": {
+      "total": 4,
+      "pass": 4
+    },
+    "متابع توزيعات وأحداث": {
+      "total": 1,
+      "pass": 1
+    },
+    "متابع توزيعات": {
+      "total": 2,
+      "pass": 2
+    },
+    "مستخدم الترتيب": {
+      "total": 4,
+      "pass": 4
+    },
+    "باحث التقييم": {
+      "total": 3,
+      "pass": 3
+    },
+    "مستخدم صفحة الشركة": {
+      "total": 2,
+      "pass": 2
+    }
+  },
+  "stories": [
+    {
+      "id": "Z01",
+      "persona": "زائر جديد",
+      "story": "كل روابط القايمة الجانبية تفتح صفحات موجودة فعلًا (لا رابط ميت 404)",
+      "target": "static-fs@src",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "detail": "القايمة فيها روابط (15)",
+          "ok": true
+        },
+        {
+          "detail": "كل رابط له page.tsx",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "Z02",
+      "persona": "زائر جديد",
+      "story": "الصفحات العامة والقانونية موجودة (about/privacy/terms/disclaimer/status/offline/data-quality/login/register)",
+      "target": "static-fs@src",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "detail": "كل الصفحات العامة موجودة",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "Z03",
+      "persona": "زائر جديد",
+      "story": "صفحة «حلل سهمي» مربوطة فعليًا بنقطة النهاية /api/v1/position-review (الصفحة والعميل والنقطة كلها موجودة)",
+      "target": "static-fs@src",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "detail": "صفحة /analyze موجودة",
+          "ok": true
+        },
+        {
+          "detail": "عميل الصفحة يستدعي position-review",
+          "ok": true
+        },
+        {
+          "detail": "نقطة النهاية /api/v1/position-review موجودة",
+          "ok": true
+        },
+        {
+          "detail": "النقطة تتحقق من الدخول (auth) قبل الحساب",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "Z04",
+      "persona": "زائر جديد",
+      "story": "صفحة القطاعات وداخلها صفحة لكل قطاع + API القطاعات وheat-map السيولة موجودة",
+      "target": "static-fs@src",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "detail": "صفحة /sectors موجودة",
+          "ok": true
+        },
+        {
+          "detail": "صفحة القطاع الديناميكي /sectors/[sector] موجودة",
+          "ok": true
+        },
+        {
+          "detail": "API /api/v1/sectors موجود وGET",
+          "ok": true
+        },
+        {
+          "detail": "API /api/v1/market/liquidity-heatmap موجود وGET",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "Z05",
+      "persona": "زائر جديد",
+      "story": "نقاط نهاية GET العامة كلها معرفة كملفات وتصدّر GET (لا نقطة مقصوصة)",
+      "target": "static-fs@src",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "detail": "19 نقطة GET عامة سليمة",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "Z06",
+      "persona": "حماية المستخدم",
+      "story": "نقاط النهايات المتحولة/الحساسة موجودة في الكود لكن محظورة نهائيًا على الاختبار — لا يُستدعى منها شيء",
+      "target": "static-fs@src",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "detail": "12/12 نقطة حساسة موجودة في الشجرة (لستُها فقط)",
+          "ok": true
+        },
+        {
+          "detail": "هارنس الاختبار نفسه لا يحتوي أي استدعاء لنقطة محظورة",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "Z07",
+      "persona": "زائر جديد",
+      "story": "القايمة الجانبية معرّبة بالكامل — لكل عنصر labelAr غير فارغ",
+      "target": "static-fs@src",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "detail": "عناصر القايمة (15)",
+          "ok": true
+        },
+        {
+          "detail": "كل عنصر له تسمية عربية",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "DB01",
+      "persona": "مستخدم الداشبورد",
+      "story": "صفحة الداشبورد مربوطة بنقاط النهاية التحليلية (intelligence/breadth/heatmap/ticker) وكلها موجودة",
+      "target": "static-fs@src",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "detail": "صفحة /dashboard موجودة",
+          "ok": true
+        },
+        {
+          "detail": "API market/intelligence موجود وGET",
+          "ok": true
+        },
+        {
+          "detail": "API market/breadth موجود وGET",
+          "ok": true
+        },
+        {
+          "detail": "API market/ticker موجود وGET",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "C01",
+      "persona": "مستخدم الشركات",
+      "story": "بنية الشركات كاملة: صفحة قائمة + صفحة شركة + تقرير + APIs (قائمة/تفاصيل/أسعار/مقاييس/فني/توزيعات/أحداث/أقران)",
+      "target": "static-fs@src",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "detail": "صفحة /companies موجودة",
+          "ok": true
+        },
+        {
+          "detail": "صفحة /company/[id] موجودة",
+          "ok": true
+        },
+        {
+          "detail": "صفحة التقرير /company/[id]/report موجودة",
+          "ok": true
+        },
+        {
+          "detail": "9 نقطة شركات سليمة وGET",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "CMP01",
+      "persona": "مستخدم المقارنة",
+      "story": "صفحة المقارنة ونقطة النهاية /api/v1/compare موجودة ومربوطة",
+      "target": "static-fs@src",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "detail": "صفحة /compare موجودة",
+          "ok": true
+        },
+        {
+          "detail": "API /api/v1/compare موجود وGET",
+          "ok": true
+        },
+        {
+          "detail": "عميل الصفحة يستدعي compare",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "EV01",
+      "persona": "متابع التنبيهات والأخبار",
+      "story": "صفحات التنبيهات والإشارات ونقاطها الموجودة (alerts/signals/events/dividends) كلها GET عامة",
+      "target": "static-fs@src",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "detail": "صفحة /alerts موجودة",
+          "ok": true
+        },
+        {
+          "detail": "صفحة /signals موجودة",
+          "ok": true
+        },
+        {
+          "detail": "صفحة /dividends موجودة",
+          "ok": true
+        },
+        {
+          "detail": "نقاط التنبيهات والأحداث موجودة",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "PF03",
+      "persona": "مستخدم عادي",
+      "story": "نقطة مراجعة المركز ترفض معرّف شركة مشوه (مثل ZZZZ999/../x) ومتوسط شراء غير منطقي برموز 400 — لا انهيار 500",
+      "target": "static-fs@src",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "detail": "معرف الشركة مفحوص بـ regex صارم",
+          "ok": true
+        },
+        {
+          "detail": "متوسط الشراء مفحوص (حدود رقمية)",
+          "ok": true
+        },
+        {
+          "detail": "JSON تالف يعيد 400 مش 500",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "K01",
+      "persona": "مستثمر بالخسارة",
+      "story": "سهم تحت متوسط شرائي بحوالي −40٪: الموقع يقرر الانتظار للارتداد ويشرح رياضيات التعويض ويطرح سؤال المتابعة، بدل أمر بيع في قاع الذعر",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 4,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "الخسارة المحسوبة ≈ −40٪",
+          "ok": true,
+          "got": "pnlPct=-40"
+        },
+        {
+          "kind": "assert",
+          "detail": "القرار wait",
+          "ok": true,
+          "got": "القرار فعليًا: wait"
+        },
+        {
+          "kind": "assert",
+          "detail": "decisionAr عربي غير فارغ",
+          "ok": true,
+          "got": "انتظر وراقب"
+        },
+        {
+          "kind": "assert",
+          "detail": "headlineAr غير فارغ",
+          "ok": true,
+          "got": "خسارتك -40.0٪ — البيع دلوقتي بيحولها لخسارة محققة وبيحتاج +66.7٪ تعويض في أي سهم"
+        },
+        {
+          "kind": "assert",
+          "detail": "أسباب القرار ≥ 4",
+          "ok": true,
+          "got": "عدد الأسباب: 6"
+        },
+        {
+          "kind": "assert",
+          "detail": "invalidationAr غير فارغ",
+          "ok": true,
+          "got": "حد الانتظار اللي هتفرج عليه معايا: إغلاق يومي تحت قاع آخر 60 جلسة — ساعتها بنعيد الحساب ونفكر في التخفيف"
+        },
+        {
+          "kind": "assert",
+          "detail": "levelsBasisAr غير فارغ",
+          "ok": true,
+          "got": "المستويات من قيعان وقمم حقيقية متكررة (pivot zones) من بيانا"
+        },
+        {
+          "kind": "assert",
+          "detail": "closingAr غير فارغ",
+          "ok": true,
+          "got": "أنا بفكر معاك بصوت عالي وأعرضلك الأرقام — ده تحليل مش قرار م"
+        },
+        {
+          "kind": "assert",
+          "detail": "snapshot.lastClose رقم سالب غير منطقي؟",
+          "ok": true,
+          "got": "100"
+        },
+        {
+          "kind": "assert",
+          "detail": "لا undefined/NaN/null في نصوص القرار",
+          "ok": true
+        },
+        {
+          "kind": "assert",
+          "detail": "رياضيات التعويض موجودة (+66.7٪ تقريبًا)",
+          "ok": true,
+          "got": "recoveryPct=66.7"
+        },
+        {
+          "kind": "assert",
+          "detail": "نطاق الارتداد = متوسط الشراء × 0.75–0.80",
+          "ok": true,
+          "got": "نطاق الارتداد يُحسب من متوسط الشراء"
+        },
+        {
+          "kind": "assert",
+          "detail": "خطة الارتداد تذكر نطاق الخروج 20–25٪",
+          "ok": true,
+          "got": "خطة الارتداد (owner mandate): لما السعر يرتد للنطاق 125.00–133.34 تكون خسارتك في حدود 20–25٪ وساعتها الخروج بيكون قرار منظم مش هروب."
+        },
+        {
+          "kind": "assert",
+          "detail": "سؤال المتابعة موجود",
+          "ok": true,
+          "got": "سؤال بحاول أفكر معاك فيه: هل شايف إن السهم ممكن يهبط 10٪ كمان من السعر الحالي؟"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "K02",
+      "persona": "مستثمر بالخسارة",
+      "story": "نفس الخسارة العميقة بعد إجابة المستخدم «أه، ممكن يهبط»: الخطة تبقى بيع مع أول ارتداد بلا حرق كمية إضافية",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "القرار wait",
+          "ok": true,
+          "got": "القرار فعليًا: wait"
+        },
+        {
+          "kind": "assert",
+          "detail": "decisionAr عربي غير فارغ",
+          "ok": true,
+          "got": "انتظر وراقب"
+        },
+        {
+          "kind": "assert",
+          "detail": "headlineAr غير فارغ",
+          "ok": true,
+          "got": "بإجابتك (شايف هبوط إضافي): الخطة بيع مع أول ارتداد — مش في قاع الذعر"
+        },
+        {
+          "kind": "assert",
+          "detail": "أسباب القرار ≥ 4",
+          "ok": true,
+          "got": "عدد الأسباب: 6"
+        },
+        {
+          "kind": "assert",
+          "detail": "invalidationAr غير فارغ",
+          "ok": true,
+          "got": "حد الانتظار اللي هتفرج عليه معايا: إغلاق يومي تحت قاع آخر 60 جلسة — ساعتها بنعيد الحساب ونفكر في التخفيف"
+        },
+        {
+          "kind": "assert",
+          "detail": "levelsBasisAr غير فارغ",
+          "ok": true,
+          "got": "المستويات من قيعان وقمم حقيقية متكررة (pivot zones) من بيانا"
+        },
+        {
+          "kind": "assert",
+          "detail": "closingAr غير فارغ",
+          "ok": true,
+          "got": "أنا بفكر معاك بصوت عالي وأعرضلك الأرقام — ده تحليل مش قرار م"
+        },
+        {
+          "kind": "assert",
+          "detail": "snapshot.lastClose رقم سالب غير منطقي؟",
+          "ok": true,
+          "got": "100"
+        },
+        {
+          "kind": "assert",
+          "detail": "لا undefined/NaN/null في نصوص القرار",
+          "ok": true
+        },
+        {
+          "kind": "assert",
+          "detail": "خطة البيع مع أول ارتداد مذكورة",
+          "ok": true,
+          "got": "اختيارك (متوقع هبوط إضافي): الخطة تبقى بيع مع أول ارتداد — مش في قاع الذعر. أول جلسة قوية بتفتح وتصعد، ابدأ التخفيف وخرج بالباقي بدل ما تستنى قاع أعمق."
+        },
+        {
+          "kind": "assert",
+          "detail": "الترويسة تعكس إجابة المستخدم",
+          "ok": true,
+          "got": "بإجابتك (شايف هبوط إضافي): الخطة بيع مع أول ارتداد — مش في قاع الذعر"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "K03",
+      "persona": "مستثمر بالخسارة",
+      "story": "خسارة صغيرة (−13٪) مع اتجاه مكسور بالكامل ولا يوجد أي دعم تحته: الخروج لحماية رأس المال مع سبب التعويض",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "القرار exit",
+          "ok": true,
+          "got": "القرار فعليًا: exit"
+        },
+        {
+          "kind": "assert",
+          "detail": "decisionAr عربي غير فارغ",
+          "ok": true,
+          "got": "اخرج الآن"
+        },
+        {
+          "kind": "assert",
+          "detail": "headlineAr غير فارغ",
+          "ok": true,
+          "got": "إنت تحت الماء والاتجاه اتكسر — الخسارة الصغيرة دلوقتي أفضل من الكبيرة بعدين"
+        },
+        {
+          "kind": "assert",
+          "detail": "أسباب القرار ≥ 4",
+          "ok": true,
+          "got": "عدد الأسباب: 6"
+        },
+        {
+          "kind": "assert",
+          "detail": "invalidationAr غير فارغ",
+          "ok": true,
+          "got": "السيناريو يرجع فيه بإغلاق يومي فوق EMA50 (107.00)"
+        },
+        {
+          "kind": "assert",
+          "detail": "levelsBasisAr غير فارغ",
+          "ok": true,
+          "got": "المستويات من قيعان وقمم حقيقية متكررة (pivot zones) من بيانا"
+        },
+        {
+          "kind": "assert",
+          "detail": "closingAr غير فارغ",
+          "ok": true,
+          "got": "أنا بفكر معاك بصوت عالي وأعرضلك الأرقام — ده تحليل مش قرار م"
+        },
+        {
+          "kind": "assert",
+          "detail": "snapshot.lastClose رقم سالب غير منطقي؟",
+          "ok": true,
+          "got": "100"
+        },
+        {
+          "kind": "assert",
+          "detail": "لا undefined/NaN/null في نصوص القرار",
+          "ok": true
+        },
+        {
+          "kind": "assert",
+          "detail": "سبب التعويض داخل الأسباب",
+          "ok": true,
+          "got": "الصريح الموجع: متوسطك 115.00 والسعر دلوقتي 100.00 — خسارة -13.0٪ (-15.00 جنيه/سهم)."
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "K04",
+      "persona": "مستثمر بالخسارة",
+      "story": "خسارة صغيرة والسهم واقف فوق دعم مختبر قريب: الانتظار بإغلاق حاسم بدل البيع عند أدنى نقطة",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 5,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "الخسارة تحت −20٪ (ليست عميقة)",
+          "ok": true,
+          "got": "pnlPct=-3.2"
+        },
+        {
+          "kind": "assert",
+          "detail": "القرار wait",
+          "ok": true,
+          "got": "القرار فعليًا: wait"
+        },
+        {
+          "kind": "assert",
+          "detail": "decisionAr عربي غير فارغ",
+          "ok": true,
+          "got": "انتظر وراقب"
+        },
+        {
+          "kind": "assert",
+          "detail": "headlineAr غير فارغ",
+          "ok": true,
+          "got": "إنت خاسر بس السعر لاسك على دعم قريب — انتظر بإغلاق واحد يحسم"
+        },
+        {
+          "kind": "assert",
+          "detail": "أسباب القرار ≥ 4",
+          "ok": true,
+          "got": "عدد الأسباب: 6"
+        },
+        {
+          "kind": "assert",
+          "detail": "invalidationAr غير فارغ",
+          "ok": true,
+          "got": "الإشارة اللي بنتظرها مع بعض: إغلاق يومي تحت 104.40 — لحظتها بنعيد التفكير في الخروج جدًا، لأن الحكم بالإغلاق مش باللمسة واللمسة ممكن تكون كسر كاذب"
+        },
+        {
+          "kind": "assert",
+          "detail": "levelsBasisAr غير فارغ",
+          "ok": true,
+          "got": "المستويات من قيعان وقمم حقيقية متكررة (pivot zones) من بيانا"
+        },
+        {
+          "kind": "assert",
+          "detail": "closingAr غير فارغ",
+          "ok": true,
+          "got": "أنا بفكر معاك بصوت عالي وأعرضلك الأرقام — ده تحليل مش قرار م"
+        },
+        {
+          "kind": "assert",
+          "detail": "snapshot.lastClose رقم سالب غير منطقي؟",
+          "ok": true,
+          "got": "106.5"
+        },
+        {
+          "kind": "assert",
+          "detail": "لا undefined/NaN/null في نصوص القرار",
+          "ok": true
+        },
+        {
+          "kind": "assert",
+          "detail": "حد الإلغاء مربوط بمستوى سعرية بعمودين عشريين",
+          "ok": true,
+          "got": "الإشارة اللي بنتظرها مع بعض: إغلاق يومي تحت 104.40 — لحظتها بنعيد التفكير في الخروج جدًا، لأن الحكم بالإغلاق مش باللمسة واللمسة ممكن تكون كسر كاذب"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "K05",
+      "persona": "مستثمر بالخسارة",
+      "story": "إغلاق كسر دعم مختبر 2× والبطانة التالية بعيدة أكثر من 4٪: خروج صريح بالأرقام (مستوى الكسر والمسافة)",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "القرار exit",
+          "ok": true,
+          "got": "القرار فعليًا: exit"
+        },
+        {
+          "kind": "assert",
+          "detail": "decisionAr عربي غير فارغ",
+          "ok": true,
+          "got": "اخرج الآن"
+        },
+        {
+          "kind": "assert",
+          "detail": "headlineAr غير فارغ",
+          "ok": true,
+          "got": "الكسر حصل ومفيش بطانة قريبة تحت السعر — الخروج هنا إدارة مخاطر مش هيزنة"
+        },
+        {
+          "kind": "assert",
+          "detail": "أسباب القرار ≥ 4",
+          "ok": true,
+          "got": "عدد الأسباب: 5"
+        },
+        {
+          "kind": "assert",
+          "detail": "invalidationAr غير فارغ",
+          "ok": true,
+          "got": "السيناريو يرجع فيه فقط بإغلاق يومي فوق مستوى الكسر (104.00)"
+        },
+        {
+          "kind": "assert",
+          "detail": "levelsBasisAr غير فارغ",
+          "ok": true,
+          "got": "المستويات من قيعان وقمم حقيقية متكررة (pivot zones) من بيانا"
+        },
+        {
+          "kind": "assert",
+          "detail": "closingAr غير فارغ",
+          "ok": true,
+          "got": "أنا بفكر معاك بصوت عالي وأعرضلك الأرقام — ده تحليل مش قرار م"
+        },
+        {
+          "kind": "assert",
+          "detail": "snapshot.lastClose رقم سالب غير منطقي؟",
+          "ok": true,
+          "got": "103"
+        },
+        {
+          "kind": "assert",
+          "detail": "لا undefined/NaN/null في نصوص القرار",
+          "ok": true
+        },
+        {
+          "kind": "assert",
+          "detail": "سبب الكسر يذكر المستوى المكسور بالأرقام (منطقة 104)",
+          "ok": true,
+          "got": "بص بصراحة: إغلاق النهاردة (103.00) كسر دعم 2× مختبَر (104.00–104.40) — ده مش تذبذب، ده هيكل اتكسر."
+        },
+        {
+          "kind": "assert",
+          "detail": "حد الرجوع = مستوى الكسر 104.00",
+          "ok": true,
+          "got": "السيناريو يرجع فيه فقط بإغلاق يومي فوق مستوى الكسر (104.00)"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "K06",
+      "persona": "مستثمر بالخسارة",
+      "story": "كسر بفارق حدّي (البطانة بين 3٪ و4٪ تحت السعر): انتظار بوقف أضيق مع تسمية المنطقة الحدّية",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 1,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "القرار wait",
+          "ok": true,
+          "got": "القرار فعليًا: wait"
+        },
+        {
+          "kind": "assert",
+          "detail": "decisionAr عربي غير فارغ",
+          "ok": true,
+          "got": "انتظر وراقب"
+        },
+        {
+          "kind": "assert",
+          "detail": "headlineAr غير فارغ",
+          "ok": true,
+          "got": "الكسر حصل بس الفرق حدّي — انتظر بوقف أضيق، وبياع مؤجل"
+        },
+        {
+          "kind": "assert",
+          "detail": "أسباب القرار ≥ 4",
+          "ok": true,
+          "got": "عدد الأسباب: 5"
+        },
+        {
+          "kind": "assert",
+          "detail": "invalidationAr غير فارغ",
+          "ok": true,
+          "got": "الخروج الفعلي يُفعَّل بإغلاق يومي تحت البطانة (99.40) — تحتها مفيش دعم قريب"
+        },
+        {
+          "kind": "assert",
+          "detail": "levelsBasisAr غير فارغ",
+          "ok": true,
+          "got": "المستويات من قيعان وقمم حقيقية متكررة (pivot zones) من بيانا"
+        },
+        {
+          "kind": "assert",
+          "detail": "closingAr غير فارغ",
+          "ok": true,
+          "got": "أنا بفكر معاك بصوت عالي وأعرضلك الأرقام — ده تحليل مش قرار م"
+        },
+        {
+          "kind": "assert",
+          "detail": "snapshot.lastClose رقم سالب غير منطقي؟",
+          "ok": true,
+          "got": "103"
+        },
+        {
+          "kind": "assert",
+          "detail": "لا undefined/NaN/null في نصوص القرار",
+          "ok": true
+        },
+        {
+          "kind": "assert",
+          "detail": "المنطقة الحدّية مذكورة",
+          "ok": true,
+          "got": "وضعك محسوب: متوسط شراء 105.00 وسعر النهاردة 103.00 — خاسر -1.9٪ (-2.00 جنيه/سهم)."
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "K07",
+      "persona": "مستثمر بالخسارة",
+      "story": "كل مستويات السعر المكتوبة في خطط وحدود القرارات بصيغة رقمين عشريين (لا 104.4 ولا 104)",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 1,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "كل الكسور العشرية في المستويات = رقمين",
+          "ok": true,
+          "got": "(فارغ)"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "K08",
+      "persona": "مستثمر بالخسارة",
+      "story": "نصوص قرار الخسارة العميقة عربية بالكامل وبلا undefined/NaN/null/TODO",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 1,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "القرار wait",
+          "ok": true,
+          "got": "القرار فعليًا: wait"
+        },
+        {
+          "kind": "assert",
+          "detail": "decisionAr عربي غير فارغ",
+          "ok": true,
+          "got": "انتظر وراقب"
+        },
+        {
+          "kind": "assert",
+          "detail": "headlineAr غير فارغ",
+          "ok": true,
+          "got": "خسارتك -40.0٪ — البيع دلوقتي بيحولها لخسارة محققة وبيحتاج +66.7٪ تعويض في أي سهم"
+        },
+        {
+          "kind": "assert",
+          "detail": "أسباب القرار ≥ 4",
+          "ok": true,
+          "got": "عدد الأسباب: 6"
+        },
+        {
+          "kind": "assert",
+          "detail": "invalidationAr غير فارغ",
+          "ok": true,
+          "got": "حد الانتظار اللي هتفرج عليه معايا: إغلاق يومي تحت قاع آخر 60 جلسة — ساعتها بنعيد الحساب ونفكر في التخفيف"
+        },
+        {
+          "kind": "assert",
+          "detail": "levelsBasisAr غير فارغ",
+          "ok": true,
+          "got": "المستويات من قيعان وقمم حقيقية متكررة (pivot zones) من بيانا"
+        },
+        {
+          "kind": "assert",
+          "detail": "closingAr غير فارغ",
+          "ok": true,
+          "got": "أنا بفكر معاك بصوت عالي وأعرضلك الأرقام — ده تحليل مش قرار م"
+        },
+        {
+          "kind": "assert",
+          "detail": "snapshot.lastClose رقم سالب غير منطقي؟",
+          "ok": true,
+          "got": "100"
+        },
+        {
+          "kind": "assert",
+          "detail": "لا undefined/NaN/null في نصوص القرار",
+          "ok": true
+        },
+        {
+          "kind": "assert",
+          "detail": "السؤال يطرح هبوط 10٪ بالعربي",
+          "ok": true,
+          "got": "سؤال بحاول أفكر معاك فيه: هل شايف إن السهم ممكن يهبط 10٪ كمان من السعر الحالي؟"
+        },
+        {
+          "kind": "assert",
+          "detail": "عناوين الخيارات عربية",
+          "ok": true,
+          "got": "أه، ممكن يهبط / لا، مش متوقع هبوط إضافي"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "R01",
+      "persona": "مستثمر بالربح",
+      "story": "رابح +6.5٪ فوق دعم مختبر: القرار احتفظ (ليس خروج أحمر) بخط دفاع واضح تحت السعر",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "الربح المحسوب موجب",
+          "ok": true,
+          "got": "pnlPct=6.5"
+        },
+        {
+          "kind": "assert",
+          "detail": "القرار hold",
+          "ok": true,
+          "got": "القرار فعليًا: hold"
+        },
+        {
+          "kind": "assert",
+          "detail": "decisionAr عربي غير فارغ",
+          "ok": true,
+          "got": "احتفظ"
+        },
+        {
+          "kind": "assert",
+          "detail": "headlineAr غير فارغ",
+          "ok": true,
+          "got": "إنت رابح +6.5٪ والسهم واقف فوق خط دفاعه — احتفظ، ورسمت لك الخط تحت"
+        },
+        {
+          "kind": "assert",
+          "detail": "أسباب القرار ≥ 4",
+          "ok": true,
+          "got": "عدد الأسباب: 5"
+        },
+        {
+          "kind": "assert",
+          "detail": "invalidationAr غير فارغ",
+          "ok": true,
+          "got": "الخط اللي هتفرج عليه معايا: الإغلاق تحت 104.40 — ساعتها بس نفتح الملف من الأول. مش أي لمسة تحته: الصنّاع بيعملوا كسور كاذبة كتير في السوق المصري، والإغلاق الفعلي هو اللي بيقول الكلمة الأخيرة"
+        },
+        {
+          "kind": "assert",
+          "detail": "levelsBasisAr غير فارغ",
+          "ok": true,
+          "got": "المستويات من قيعان وقمم حقيقية متكررة (pivot zones) من بيانا"
+        },
+        {
+          "kind": "assert",
+          "detail": "closingAr غير فارغ",
+          "ok": true,
+          "got": "أنا بفكر معاك بصوت عالي وأعرضلك الأرقام — ده تحليل مش قرار م"
+        },
+        {
+          "kind": "assert",
+          "detail": "snapshot.lastClose رقم سالب غير منطقي؟",
+          "ok": true,
+          "got": "106.5"
+        },
+        {
+          "kind": "assert",
+          "detail": "لا undefined/NaN/null في نصوص القرار",
+          "ok": true
+        },
+        {
+          "kind": "assert",
+          "detail": "خط الدفاع بمستوى محدد في حد الإلغاء",
+          "ok": true,
+          "got": "الخط اللي هتفرج عليه معايا: الإغلاق تحت 104.40 — ساعتها بس نفتح الملف من الأول. مش أي لمسة تحته: الصنّاع بيعملوا كسور كاذبة كتير في السوق المصري، والإغلاق الفعلي هو اللي بيقول الكلمة الأخيرة"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "R02",
+      "persona": "مستثمر بالربح",
+      "story": "رابح وRSI في التشبع الشرائي: الخطة تنصح بأرباح جزئية بدل صمت أو خروج كامل",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "القرار hold",
+          "ok": true,
+          "got": "القرار فعليًا: hold"
+        },
+        {
+          "kind": "assert",
+          "detail": "decisionAr عربي غير فارغ",
+          "ok": true,
+          "got": "احتفظ"
+        },
+        {
+          "kind": "assert",
+          "detail": "headlineAr غير فارغ",
+          "ok": true,
+          "got": "إنت رابح +6.5٪ والسهم واقف فوق خط دفاعه — احتفظ، ورسمت لك الخط تحت"
+        },
+        {
+          "kind": "assert",
+          "detail": "أسباب القرار ≥ 4",
+          "ok": true,
+          "got": "عدد الأسباب: 5"
+        },
+        {
+          "kind": "assert",
+          "detail": "invalidationAr غير فارغ",
+          "ok": true,
+          "got": "الخط اللي هتفرج عليه معايا: الإغلاق تحت 104.40 — ساعتها بس نفتح الملف من الأول. مش أي لمسة تحته: الصنّاع بيعملوا كسور كاذبة كتير في السوق المصري، والإغلاق الفعلي هو اللي بيقول الكلمة الأخيرة"
+        },
+        {
+          "kind": "assert",
+          "detail": "levelsBasisAr غير فارغ",
+          "ok": true,
+          "got": "المستويات من قيعان وقمم حقيقية متكررة (pivot zones) من بيانا"
+        },
+        {
+          "kind": "assert",
+          "detail": "closingAr غير فارغ",
+          "ok": true,
+          "got": "أنا بفكر معاك بصوت عالي وأعرضلك الأرقام — ده تحليل مش قرار م"
+        },
+        {
+          "kind": "assert",
+          "detail": "snapshot.lastClose رقم سالب غير منطقي؟",
+          "ok": true,
+          "got": "106.5"
+        },
+        {
+          "kind": "assert",
+          "detail": "لا undefined/NaN/null في نصوص القرار",
+          "ok": true
+        },
+        {
+          "kind": "assert",
+          "detail": "تشبيه التشبع الشرائي مذكور",
+          "ok": true,
+          "got": "القراءة الفنية: هابط — السعر تحت EMA50 وEMA20 تحت EMA50 (ترتيب سلبي) وRSI 74.00 (منطقة تشبع شرائي — متصدقش إن الصعود مستحيل يتوقف، خد أرباح جزئية لو عاجلك)."
+        },
+        {
+          "kind": "assert",
+          "detail": "أرباح جزئية مقترحة",
+          "ok": true,
+          "got": "الأساسي أولًا: متوسطك 100.00 والسعر 106.50 — يعني إنت +6.5٪ (+6.50 جنيه/سهم). المركز مش في منطقة خطر."
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "R03",
+      "persona": "مستثمر بالربح",
+      "story": "رابح +25٪ ولا يوجد أي دعم معتمد تحت السعر: تحذير صريح (ملاحظة أمانة) بدل ثقة زائفة",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "الربح ≈ +25٪",
+          "ok": true,
+          "got": "pnlPct=25"
+        },
+        {
+          "kind": "assert",
+          "detail": "القرار hold",
+          "ok": true,
+          "got": "القرار فعليًا: hold"
+        },
+        {
+          "kind": "assert",
+          "detail": "decisionAr عربي غير فارغ",
+          "ok": true,
+          "got": "احتفظ"
+        },
+        {
+          "kind": "assert",
+          "detail": "headlineAr غير فارغ",
+          "ok": true,
+          "got": "إنت رابح +25.0٪ — احتفظ بس مفيش بطانة معتمدة تحت، فخلي عينك على الشاشة"
+        },
+        {
+          "kind": "assert",
+          "detail": "أسباب القرار ≥ 4",
+          "ok": true,
+          "got": "عدد الأسباب: 5"
+        },
+        {
+          "kind": "assert",
+          "detail": "invalidationAr غير فارغ",
+          "ok": true,
+          "got": "مفيش بطانة معتمدة تحت السعر — فأي إغلاق تحت قاع آخر 60 جلسة يستحق معايا إعادة نظر كاملة"
+        },
+        {
+          "kind": "assert",
+          "detail": "levelsBasisAr غير فارغ",
+          "ok": true,
+          "got": "المستويات من قيعان وقمم حقيقية متكررة (pivot zones) من بيانا"
+        },
+        {
+          "kind": "assert",
+          "detail": "closingAr غير فارغ",
+          "ok": true,
+          "got": "أنا بفكر معاك بصوت عالي وأعرضلك الأرقام — ده تحليل مش قرار م"
+        },
+        {
+          "kind": "assert",
+          "detail": "snapshot.lastClose رقم سالب غير منطقي؟",
+          "ok": true,
+          "got": "100"
+        },
+        {
+          "kind": "assert",
+          "detail": "لا undefined/NaN/null في نصوص القرار",
+          "ok": true
+        },
+        {
+          "kind": "assert",
+          "detail": "التحذير الصريح بلا بطانة موجود",
+          "ok": true,
+          "got": "الأساسي أولًا: متوسطك 80.00 والسعر 100.00 — يعني إنت +25.0٪ (+20.00 جنيه/سهم). المركز مش في منطقة خطر."
+        },
+        {
+          "kind": "assert",
+          "detail": "الترويسة تقول «مفيش بطانة معتمدة»",
+          "ok": true,
+          "got": "إنت رابح +25.0٪ — احتفظ بس مفيش بطانة معتمدة تحت، فخلي عينك على الشاشة"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "R04",
+      "persona": "مستثمر بالربح",
+      "story": "رابح وإشارة المحرك «buy»: الاحتفظ متسق مع حالة الإشارة (لا تعارض بين المحرك والقرار)",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 1,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "القرار hold",
+          "ok": true,
+          "got": "القرار فعليًا: hold"
+        },
+        {
+          "kind": "assert",
+          "detail": "decisionAr عربي غير فارغ",
+          "ok": true,
+          "got": "احتفظ"
+        },
+        {
+          "kind": "assert",
+          "detail": "headlineAr غير فارغ",
+          "ok": true,
+          "got": "إنت رابح +6.5٪ والسهم واقف فوق خط دفاعه — احتفظ، ورسمت لك الخط تحت"
+        },
+        {
+          "kind": "assert",
+          "detail": "أسباب القرار ≥ 4",
+          "ok": true,
+          "got": "عدد الأسباب: 5"
+        },
+        {
+          "kind": "assert",
+          "detail": "invalidationAr غير فارغ",
+          "ok": true,
+          "got": "الخط اللي هتفرج عليه معايا: الإغلاق تحت 104.40 — ساعتها بس نفتح الملف من الأول. مش أي لمسة تحته: الصنّاع بيعملوا كسور كاذبة كتير في السوق المصري، والإغلاق الفعلي هو اللي بيقول الكلمة الأخيرة"
+        },
+        {
+          "kind": "assert",
+          "detail": "levelsBasisAr غير فارغ",
+          "ok": true,
+          "got": "المستويات من قيعان وقمم حقيقية متكررة (pivot zones) من بيانا"
+        },
+        {
+          "kind": "assert",
+          "detail": "closingAr غير فارغ",
+          "ok": true,
+          "got": "أنا بفكر معاك بصوت عالي وأعرضلك الأرقام — ده تحليل مش قرار م"
+        },
+        {
+          "kind": "assert",
+          "detail": "snapshot.lastClose رقم سالب غير منطقي؟",
+          "ok": true,
+          "got": "106.5"
+        },
+        {
+          "kind": "assert",
+          "detail": "لا undefined/NaN/null في نصوص القرار",
+          "ok": true
+        },
+        {
+          "kind": "assert",
+          "detail": "state الإشارة انعكست في snapshot",
+          "ok": true,
+          "got": "buy"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "D01",
+      "persona": "متابع توزيعات وأحداث",
+      "story": "محرك الأحداث يكتشف تحوّل الشركة من خسارة إلى ربح ويشرحه بالعربية مع تفاصيل قابلة للعرض",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 7,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "حدث LOSS_TO_PROFIT مكتشف",
+          "ok": true,
+          "got": "الأنواع: LOSS_TO_PROFIT"
+        },
+        {
+          "kind": "assert",
+          "detail": "الشرح عربي غير فارغ",
+          "ok": true,
+          "got": "تحول مالي: تحول صافي الربح من خسارة قدرها EGP 50.0 في 2025 إلى ربح قدره EGP 80.0 في 2026."
+        },
+        {
+          "kind": "assert",
+          "detail": "له periodLabel وفترة سابقة",
+          "ok": true,
+          "got": "ANNUAL:2026:←ANNUAL:2025:"
+        },
+        {
+          "kind": "assert",
+          "detail": "لا قيم مكسورة في نصوص الحدث",
+          "ok": true,
+          "got": "(فارغ)"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "D02",
+      "persona": "متابع توزيعات",
+      "story": "تسجيلات التوزيعات معرفة في السجل: DIVIDEND_PER_SHARE خام + dividend_yield محسوب بتسمية عربية",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "مقياس التوزيع النقدي للسهم مسجل",
+          "ok": true,
+          "got": "DIVIDEND_PER_SHARE: التوزيع النقدي للسهم"
+        },
+        {
+          "kind": "assert",
+          "detail": "عائد التوزيعات محسوب بالسجل",
+          "ok": true,
+          "got": "عائد التوزيعات"
+        },
+        {
+          "kind": "assert",
+          "detail": "تسمية عربية لعائد التوزيعات",
+          "ok": true,
+          "got": "عائد التوزيعات"
+        },
+        {
+          "kind": "assert",
+          "detail": "المقياس موجود في خريطة الترتيب أيضًا",
+          "ok": true,
+          "got": "19"
+        },
+        {
+          "kind": "assert",
+          "detail": "حارس الفحوص: عوائد فوق 30٪ تُعلَّم للمراجعة (لما عوائد مغلوطة تكون في وحدات غلط)",
+          "ok": true,
+          "got": "Trailing-12-month dividends per share / price; requires a market price point. Implied yields above 30% are flagged NEEDS"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "D03",
+      "persona": "متابع توزيعات",
+      "story": "تنسيق المبالغ والنسب آمن على القيم الفارغة ولا يطبع NaN/undefined على الشاشة",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "لا NaN/undefined في أي تنسيق",
+          "ok": true
+        },
+        {
+          "kind": "assert",
+          "detail": "القيم الفارغة تُعرض بشرطة — مش نص مكسور",
+          "ok": true,
+          "got": "—/—/—"
+        },
+        {
+          "kind": "assert",
+          "detail": "الوحدات تتدرج صحيحًا (B/M/K)",
+          "ok": true,
+          "got": "EGP 12.4B EGP 1.50M EGP 12.3K"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "RK01",
+      "persona": "مستخدم الترتيب",
+      "story": "كل شارات المقاييس في صفحة الترتيب لها تعريف رسمي وتسمية عربية واتجاه ترتيب محدد",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "عدد المقاييس ≥ 15",
+          "ok": true,
+          "got": "العدد: 19"
+        },
+        {
+          "kind": "assert",
+          "detail": "لكل مقياس تسمية عربية",
+          "ok": true,
+          "got": "(فارغ)"
+        },
+        {
+          "kind": "assert",
+          "detail": "لكل مقياس اتجاه ترتيب صالح",
+          "ok": true,
+          "got": "(فارغ)"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "RK02",
+      "persona": "مستخدم الترتيب",
+      "story": "مقاييس «الأقل أفضل» (p_e/p_b/liabilities_to_equity) ترتيبها تصاعدي — الأرخص/الأقل ديونًا في القمة",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "p_e → ASC",
+          "ok": true,
+          "got": "ASC"
+        },
+        {
+          "kind": "assert",
+          "detail": "p_e معرف رسميًا",
+          "ok": true,
+          "got": "السعر إلى الأرباح"
+        },
+        {
+          "kind": "assert",
+          "detail": "p_b → ASC",
+          "ok": true,
+          "got": "ASC"
+        },
+        {
+          "kind": "assert",
+          "detail": "p_b معرف رسميًا",
+          "ok": true,
+          "got": "السعر إلى القيمة الدفترية"
+        },
+        {
+          "kind": "assert",
+          "detail": "liabilities_to_equity → ASC",
+          "ok": true,
+          "got": "ASC"
+        },
+        {
+          "kind": "assert",
+          "detail": "liabilities_to_equity معرف رسميًا",
+          "ok": true,
+          "got": "المطلوبات إلى حقوق الملكية"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "RK03",
+      "persona": "مستخدم الترتيب",
+      "story": "مقاييس الأداء والعائد ترتيبها تنازلي — الأفضل في القمة",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "المقاييس الأدائية موجودة في السجل",
+          "ok": true,
+          "got": "الموجود: roe,roa,net_margin,dividend_yield,operating_margin,gross_margin"
+        },
+        {
+          "kind": "assert",
+          "detail": "كلها DESC",
+          "ok": true,
+          "got": "(فارغ)"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "RK04",
+      "persona": "مستخدم الترتيب",
+      "story": "اختيار أحدث فترة للترتيب سليم: سنوات أحدث أعلى، الأنواع مرتبة، والفترات القديمة تُعلَّم stale",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "2026 أعلى من 2025",
+          "ok": true,
+          "got": "8107 vs 8103"
+        },
+        {
+          "kind": "assert",
+          "detail": "Q4 2025 أعلى من Q1 2025",
+          "ok": true,
+          "got": "8103 vs 8100"
+        },
+        {
+          "kind": "assert",
+          "detail": "ANNUAL أقوى من QUARTERLY في كسر التعادل",
+          "ok": true,
+          "got": "4 vs 2"
+        },
+        {
+          "kind": "assert",
+          "detail": "الفترة الأحدث غير stale",
+          "ok": true,
+          "got": "false"
+        },
+        {
+          "kind": "assert",
+          "detail": "فترة أقدم من 4 أرباع تُعلَّم stale",
+          "ok": true,
+          "got": "true"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "UV01",
+      "persona": "باحث التقييم",
+      "story": "شركة رخيصة مقابل قطاعها: المعايير المكتشفة غير فارغة، وupside موجب متسق مع القيمة العادلة فوق السعر",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 1,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "معايير مكتشفة ≥ 3",
+          "ok": true,
+          "got": "criteriaMet: PE_BELOW_SECTOR_0_85,PB_BELOW_1_AND_SECTOR_0_9,YIELD_ABOVE_SECTOR_75TH,ROE_ABOVE_PE_BELOW,EV_EBITDA_BELOW_25TH"
+        },
+        {
+          "kind": "assert",
+          "detail": "الشركة مُعلَّمة رخيصة (flagged)",
+          "ok": true,
+          "got": "true"
+        },
+        {
+          "kind": "assert",
+          "detail": "القيمة العادلة موجبة ومتسقة مع upside",
+          "ok": true,
+          "got": "fair=23.25 upside=55"
+        },
+        {
+          "kind": "assert",
+          "detail": "upside رقميه سليمان",
+          "ok": true,
+          "got": "55"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "UV02",
+      "persona": "باحث التقييم",
+      "story": "شركة غالية مقابل قطاعها: صفر معايير مكتشفة ولا flag، وupside السالب متسق مع قيمة عادلة تحت السعر",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "لا معايير مكتشفة",
+          "ok": true,
+          "got": "criteriaMet: فارغ"
+        },
+        {
+          "kind": "assert",
+          "detail": "لا flag",
+          "ok": true,
+          "got": "false"
+        },
+        {
+          "kind": "assert",
+          "detail": "upside سالب متسق مع fair < price",
+          "ok": true,
+          "got": "fair=19.75 upside=-78.1"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "UV03",
+      "persona": "باحث التقييم",
+      "story": "فجوة وحدات متطرفة (EPS بوحدة غلط): المحرك يرفض نشر رقم قيمة عادلة مختلق ويعلّم للمراجعة",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "لا قيمة عادلة مختلقة",
+          "ok": true,
+          "got": "null"
+        },
+        {
+          "kind": "assert",
+          "detail": "reviewRequired = true",
+          "ok": true,
+          "got": "true/EXTREME_VALUATION_GAP"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "FS01",
+      "persona": "مستخدم صفحة الشركة",
+      "story": "الصحة المالية لشركة سليمة تخرج بمجموع 0–100 وتصنيف معروف، وشركة منهارة أقل منها بوضوح",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "النتيجة السليمة بين 0 و100",
+          "ok": true,
+          "got": "total=83"
+        },
+        {
+          "kind": "assert",
+          "detail": "تصنيف معروف (strong/good/fair/weak)",
+          "ok": true,
+          "got": "strong"
+        },
+        {
+          "kind": "assert",
+          "detail": "غير مُعلَّمة بلا بيانات",
+          "ok": true,
+          "got": "false"
+        },
+        {
+          "kind": "assert",
+          "detail": "الضعيفة أقل من السليمة",
+          "ok": true,
+          "got": "healthy=83 weak=3"
+        },
+        {
+          "kind": "assert",
+          "detail": "الفئات الأربع موجودة",
+          "ok": true,
+          "got": "profitability,liquidity,leverage,efficiency"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "FS02",
+      "persona": "مستخدم صفحة الشركة",
+      "story": "الترتيب القطاعي (percentileRank) يرجع رتبة 0–100 واتجاهها صحيح حسب «الأعلى أفضل / الأقل أفضل»",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "رتبة بين 0 و100",
+          "ok": true,
+          "got": "hi=90 lo=10"
+        },
+        {
+          "kind": "assert",
+          "detail": "الأعلى قيمة أعلى رتبة (higher_better)",
+          "ok": true,
+          "got": "hi=90 lo=10"
+        },
+        {
+          "kind": "assert",
+          "detail": "الأقل قيمة أعلى رتبة (lower_better)",
+          "ok": true,
+          "got": "lo=90 hi=10"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "C02",
+      "persona": "مستخدم الشركات",
+      "story": "نفس سلسلة الأسعار تُنتج نفس آخر إغلاق عبر sanitizeBars وassembleBundle ومراجعة المركز (تسامح 0.01) — اتساق السعر بين القوائم والتحليل",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 10,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "sanitize لم يفقد جلسات",
+          "ok": true,
+          "got": "72/72"
+        },
+        {
+          "kind": "assert",
+          "detail": "آخر إغلاق في الحزمة الفنية = آخر سعر في السلسلة",
+          "ok": true,
+          "got": "bundle lastClose=106.5"
+        },
+        {
+          "kind": "assert",
+          "detail": "مراجعة المركز تشوف نفس السعر",
+          "ok": true,
+          "got": "review lastClose=106.5"
+        },
+        {
+          "kind": "assert",
+          "detail": "أداء الأسبوع رقم منتهي",
+          "ok": true,
+          "got": "0"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "C03",
+      "persona": "مستخدم الشركات",
+      "story": "خطوط الدعم والمقاومة المعروضة سليمة: مرتبة، مسافاتها منتهية رقميًا، وكل خط له ملاحظة عربية",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 1,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "فيه دعوم ومقاومات معروضة",
+          "ok": true,
+          "got": "sup=2 res=2"
+        },
+        {
+          "kind": "assert",
+          "detail": "الدعوم مرتبة تنازليًا (الأقرب أولًا)",
+          "ok": true,
+          "got": "104.4,100.4"
+        },
+        {
+          "kind": "assert",
+          "detail": "المقاومات مرتبة تصاعديًا",
+          "ok": true,
+          "got": "112.85,118.35"
+        },
+        {
+          "kind": "assert",
+          "detail": "كل المسافات أرقام منتهية",
+          "ok": true
+        },
+        {
+          "kind": "assert",
+          "detail": "كل خط له ملاحظة عربية",
+          "ok": true
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "PF01",
+      "persona": "مستخدم عادي",
+      "story": "شموع مشوهة من مصدر بيانات (قيم NaN/سالب/هاي<لو) تُرفض بصمت ولا تدخل المؤشرات ولا تكسر الحزمة",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "الشموع المشوهة هندسيًا مرفوضة (4 ساقطة)",
+          "ok": true,
+          "got": "kept=73 expected=73"
+        },
+        {
+          "kind": "assert",
+          "detail": "كل المخرجات قيم منتهية",
+          "ok": true,
+          "got": "قيمة غير منتهية ظهرت"
+        },
+        {
+          "kind": "assert",
+          "detail": "الحجم السالب/NaN يتحول null",
+          "ok": true,
+          "got": "null"
+        },
+        {
+          "kind": "assert",
+          "detail": "تواريخ مقصوصة بصيغة YYYY-MM-DD",
+          "ok": true,
+          "got": "2026-01-01"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "PF02",
+      "persona": "مستخدم عادي",
+      "story": "مدخلات ناقصة (سلسلة فارغة أو جلسة/جلسة واحدة) لا تكسر محرك التحليل أو الحزمة الفنية",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "sanitizeBars([]) يعيد []",
+          "ok": true,
+          "got": "0"
+        },
+        {
+          "kind": "assert",
+          "detail": "contiguousSuffix([]) لا ينهار",
+          "ok": true,
+          "got": "0/0"
+        },
+        {
+          "kind": "assert",
+          "detail": "حزمة فارغة تُعاد بعلم available=false",
+          "ok": true,
+          "got": "available=false"
+        },
+        {
+          "kind": "assert",
+          "detail": "جلسة واحدة لا تكسر مراجعة المركز",
+          "ok": true,
+          "got": "hold"
+        },
+        {
+          "kind": "assert",
+          "detail": "نص القرار لجلسة واحدة عربي سليم",
+          "ok": true,
+          "got": "إنت رابح +0.6٪ — احتفظ بس مفيش بطانة معتمدة تحت، فخلي عينك على الشاشة"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "PF04",
+      "persona": "مستخدم عادي",
+      "story": "فجوة طويلة في التاريخ (توقف تداول مثلاً) تُقص من بداية السلسلة بدل حساب مؤشرات مضللة عبر الفجوة",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "الفجوة قُصت",
+          "ok": true,
+          "got": "cut=10"
+        },
+        {
+          "kind": "assert",
+          "detail": "السلسلة المتبقية تبدأ بعد الفجوة",
+          "ok": true,
+          "got": "2026-02-05"
+        },
+        {
+          "kind": "assert",
+          "detail": "عدد الجلسات المتبقية = 5",
+          "ok": true,
+          "got": "5"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "PF05",
+      "persona": "مستخدم عادي",
+      "story": "الحزمة الفنية الكاملة بلا أي رقم غير منتهٍ (NaN/Infinity) في أي حقل تُعرض للمستخدم",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 21,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "لا أرقام غير منتهية في الحزمة",
+          "ok": true,
+          "got": "(فارغ)"
+        },
+        {
+          "kind": "assert",
+          "detail": "الحزمة متاحة وبها كل الجلسات",
+          "ok": true,
+          "got": "sessions=72"
+        }
+      ],
+      "artifacts": {}
+    },
+    {
+      "id": "PF06",
+      "persona": "مستخدم عادي",
+      "story": "زمن تنفيذ أي قصة منفردة أقل من 8 ثوانٍ (عتبة الاستجابة نفسها)",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "لا قصة تجاوزت 8 ثوانٍ",
+          "ok": true
+        }
+      ],
+      "artifacts": {
+        "totalMs": "53"
+      }
+    },
+    {
+      "id": "HY01",
+      "persona": "مستخدم عادي",
+      "story": "فحص نظافة شامل لكل النصوص المستخدمة الخارجة من كل القصص: بلا undefined/NaN/[object/TODO/XXX",
+      "target": "pure-lib@src (bunx tsx)",
+      "ms": 0,
+      "result": "pass",
+      "failures": [],
+      "steps": [
+        {
+          "kind": "assert",
+          "detail": "عدد النصوص المفحوصة ≥ 80 (فعليًا 182)",
+          "ok": true,
+          "got": "182"
+        },
+        {
+          "kind": "assert",
+          "detail": "لا نص مكسور بينها",
+          "ok": true
+        }
+      ],
+      "artifacts": {}
+    }
+  ]
+}

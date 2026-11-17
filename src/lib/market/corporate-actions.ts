@@ -122,14 +122,106 @@ export function actionOnSession(a: { exDate: Date }, sessionISO: string): boolea
   return t >= start && t < start + 86_400_000
 }
 
-interface ActionRowLite {
-  companyId: string
+/** Row shape of the CorporateAction ledger as the loaders read it (subset). */
+export interface CorporateActionRowLike {
   actionType: string
-  exDate: Date
+  /** MANUAL_ADMIN rows win same-day cash dedupe — the admin's entry is the
+   *  deliberate correction when two ledgers disagree. */
+  sourceName?: string | null
+  exDate: Date | null
   ratioNumerator: bigint | null
   ratioDenominator: bigint | null
   cashPerShare: number | null
   subscriptionPrice: number | null
+}
+
+/** Row shape of the Dividend ledger as the loaders read it (subset). */
+export interface DividendRowLike {
+  dividendPerShare: number | null
+  exDividendDate: Date | null
+}
+
+/** Usable per-share cash amount of a CorporateAction row (null when the row
+ *  is not a cash dividend or carries no positive amount). */
+function usableCashAmount(a: CorporateActionRowLike): number | null {
+  if (a.actionType !== "cash_dividend") return null
+  const d = a.cashPerShare
+  return d !== null && Number.isFinite(d) && d > 0 ? d : null
+}
+
+/**
+ * Merge the TWO cash ledgers into SeriesActions under the DOUBLE-COUNT
+ * contract: at most ONE cash_dividend event per company per ex-date day.
+ *
+ * Why: cash dividends can be recorded in BOTH tables — the FoudaLens import
+ * mirrors its cash rows into Dividend, while the admin console (the owner's
+ * write path for "the exchange announced a dividend, the platform missed it")
+ * records them ONLY as CorporateAction rows. Before 2026-11-17 the loaders
+ * excluded cash_dividend from CorporateAction entirely, so an admin-entered
+ * dividend was invisible to every consumer (technical series, board, position
+ * review, refresh ex-date path — the "فنيًا لم يتأثر" owner bug). The rows are
+ * now INCLUDED, and double-subtraction is prevented here:
+ *
+ *   1. CorporateAction cash rows claim their ex-date day; when several rows
+ *      share a day (FoudaLens + admin duplicates), ONE survives — MANUAL_ADMIN
+ *      wins (the deliberate correction), then the larger amount (deterministic).
+ *   2. Dividend rows apply only to days NOT claimed by a CorporateAction cash
+ *      row. Multiple Dividend rows on an unclaimed day keep the pre-existing
+ *      all-rows behavior (never regressed).
+ *
+ * Double-adjustment against YAHOO is a separate axis and needs no dedupe:
+ * the engine feeds on Yahoo's chart `close` series (split/bonus-adjusted,
+ * cash NEVER adjusted — see candles.ts) — our cash overlay is the only cash
+ * adjustment that series ever receives, so applying it once here is exact.
+ * Non-cash rows always pass through untouched. Pure — no DB.
+ */
+export function mergeSeriesActionRows(actions: CorporateActionRowLike[], dividends: DividendRowLike[]): SeriesAction[] {
+  const out: SeriesAction[] = []
+  const cashByDay = new Map<string, CorporateActionRowLike>()
+  for (const a of actions) {
+    if (!a.exDate) continue
+    if (usableCashAmount(a) === null) continue
+    const day = a.exDate.toISOString().slice(0, 10)
+    const cur = cashByDay.get(day)
+    if (!cur) {
+      cashByDay.set(day, a)
+      continue
+    }
+    const curAdmin = cur.sourceName === "MANUAL_ADMIN"
+    const newAdmin = a.sourceName === "MANUAL_ADMIN"
+    const better =
+      (newAdmin && !curAdmin) ||
+      (newAdmin === curAdmin && (usableCashAmount(a) as number) > (usableCashAmount(cur) as number))
+    if (better) cashByDay.set(day, a)
+  }
+  for (const a of actions) {
+    if (!a.exDate) continue
+    const cash = usableCashAmount(a)
+    // unusable cash rows (amount ≤ 0/null) are dead weight — the loaders'
+    // queries already exclude them; dropped here so the contract stays crisp
+    if (a.actionType === "cash_dividend" && cash === null) continue
+    const day = a.exDate.toISOString().slice(0, 10)
+    if (cash !== null && cashByDay.get(day) !== a) continue // deduped same-day twin
+    out.push({
+      exDateISO: day,
+      terms: {
+        actionType: a.actionType,
+        ratioNumerator: a.ratioNumerator,
+        ratioDenominator: a.ratioDenominator,
+        cashPerShare: a.cashPerShare,
+        subscriptionPrice: a.subscriptionPrice,
+      },
+    })
+  }
+  for (const d of dividends) {
+    if (!d.exDividendDate) continue
+    const amt = d.dividendPerShare
+    if (amt === null || !Number.isFinite(amt) || amt <= 0) continue
+    const day = d.exDividendDate.toISOString().slice(0, 10)
+    if (cashByDay.has(day)) continue // CorporateAction ledger covers this day — never subtract twice
+    out.push({ exDateISO: day, terms: { actionType: "cash_dividend", ratioNumerator: null, ratioDenominator: null, cashPerShare: amt, subscriptionPrice: null } })
+  }
+  return out
 }
 
 /**
@@ -181,9 +273,25 @@ let sessionActionsCache: { at: number; sessions: { latest: string; previous: str
 const SESSION_CACHE_MS = 5 * 60_000
 
 /**
+ * Admin write-path hook (POST/PATCH/DELETE on the corporate-actions ledger):
+ * drop the 5-minute session-actions cache so the NEXT snapshot refresh re-fits
+ * MarketPrice.changePct with the new terms immediately instead of serving a
+ * ledger snapshot that predates the admin's save. Purely in-memory; safe to
+ * call from any request context.
+ */
+export function invalidateCorporateActionCaches(): void {
+  sessionActionsCache = null
+}
+
+/**
  * Actions (from CorporateAction + the cash Dividend ledger) whose ex-date
  * equals the session the scanner currently prices, keyed by ticker. Cached
  * 5 min per lambda — the import cadence is daily at most.
+ *
+ * Cash events come from BOTH ledgers (CorporateAction rows — the admin
+ * console's write path — and the Dividend ledger), merged by
+ * mergeSeriesActionRows() with the one-cash-event-per-company-day contract,
+ * so an event recorded in both is never subtracted twice.
  */
 export async function loadSessionActionsByTicker(now: Date = new Date()): Promise<{ sessions: { latest: string; previous: string }; byTicker: Map<string, CorporateActionTerms[]> }> {
   if (sessionActionsCache && Date.now() - sessionActionsCache.at < SESSION_CACHE_MS) {
@@ -196,39 +304,51 @@ export async function loadSessionActionsByTicker(now: Date = new Date()): Promis
   try {
     const [actions, dividends] = await Promise.all([
       db.corporateAction.findMany({
-        where: { exDate: { gte: start, lt: end }, actionType: { not: "cash_dividend" } },
-        select: { company: { select: { ticker: true } }, actionType: true, exDate: true, ratioNumerator: true, ratioDenominator: true, cashPerShare: true, subscriptionPrice: true },
+        where: {
+          exDate: { gte: start, lt: end },
+          // share/rights events of any shape + cash rows with a usable amount
+          // (the admin console records cash dividends HERE, not in Dividend)
+          OR: [{ actionType: { not: "cash_dividend" } }, { cashPerShare: { gt: 0 } }],
+        },
+        select: { company: { select: { ticker: true } }, actionType: true, exDate: true, sourceName: true, ratioNumerator: true, ratioDenominator: true, cashPerShare: true, subscriptionPrice: true },
       }),
       db.dividend.findMany({
         where: { exDividendDate: { gte: start, lt: end }, dividendPerShare: { gt: 0 }, dividendType: { in: ["CASH", "SPECIAL"] } },
         select: { company: { select: { ticker: true } }, dividendPerShare: true, exDividendDate: true },
       }),
     ])
-    const push = (ticker: string, terms: CorporateActionTerms): void => {
-      const t = ticker.toUpperCase()
-      const arr = byTicker.get(t) ?? []
-      arr.push(terms)
-      byTicker.set(t, arr)
-    }
-    for (const a of actions as (ActionRowLite & { company: { ticker: string } })[]) {
+    const actionsByTicker = new Map<string, (CorporateActionRowLike & { company: { ticker: string } })[]>()
+    const dividendsByTicker = new Map<string, { dividendPerShare: number | null; exDividendDate: Date | null }[]>()
+    for (const a of actions) {
       if (!actionOnSession(a, sessions.latest)) continue
-      push(a.company.ticker, {
-        actionType: a.actionType,
-        ratioNumerator: a.ratioNumerator,
-        ratioDenominator: a.ratioDenominator,
-        cashPerShare: a.cashPerShare,
-        subscriptionPrice: a.subscriptionPrice,
-      })
+      const t = a.company.ticker.toUpperCase()
+      const arr = actionsByTicker.get(t) ?? []
+      arr.push(a)
+      actionsByTicker.set(t, arr)
     }
     for (const d of dividends) {
       if (!d.exDividendDate || !actionOnSession({ exDate: d.exDividendDate }, sessions.latest)) continue
-      push(d.company.ticker, {
-        actionType: "cash_dividend",
-        ratioNumerator: null,
-        ratioDenominator: null,
-        cashPerShare: d.dividendPerShare,
-        subscriptionPrice: null,
-      })
+      const t = d.company.ticker.toUpperCase()
+      const arr = dividendsByTicker.get(t) ?? []
+      arr.push({ dividendPerShare: d.dividendPerShare, exDividendDate: d.exDividendDate })
+      dividendsByTicker.set(t, arr)
+    }
+    for (const [ticker, rows] of actionsByTicker) {
+      const merged = mergeSeriesActionRows(rows, dividendsByTicker.get(ticker) ?? [])
+      for (const sa of merged) {
+        const arr = byTicker.get(ticker) ?? []
+        arr.push(sa.terms)
+        byTicker.set(ticker, arr)
+      }
+    }
+    for (const [ticker, rows] of dividendsByTicker) {
+      if (actionsByTicker.has(ticker)) continue // already merged above
+      for (const d of rows) {
+        if (d.dividendPerShare === null || !Number.isFinite(d.dividendPerShare) || d.dividendPerShare <= 0) continue
+        const arr = byTicker.get(ticker) ?? []
+        arr.push({ actionType: "cash_dividend", ratioNumerator: null, ratioDenominator: null, cashPerShare: d.dividendPerShare, subscriptionPrice: null })
+        byTicker.set(ticker, arr)
+      }
     }
   } catch {
     // DB hiccup → empty map: the change stays raw (never fabricated), the
@@ -273,6 +393,19 @@ export function adjustedChangePct(price: number, rawChangePct: number, actions: 
 //   adjustPrevClose() and scale every bar on/before it by the resulting
 //   factor. Because events are processed newest→oldest, older events see the
 //   close already adjusted for newer ones — correct compounding.
+//
+// DOUBLE-ADJUSTMENT IS PREVENTED ON TWO SEPARATE AXES:
+//   • share events vs Yahoo: phase 1 removes exactly the factor Yahoo baked
+//     in (our ledger's ratio = Yahoo's adjustment) and phase 2 reapplies it
+//     once — de-adjust + re-adjust cancel identically on Yahoo-sourced bars.
+//   • cash dividends vs Yahoo: Yahoo's chart `close` is NEVER cash-adjusted
+//     (only its adjclose is, which this codebase does not ingest — see
+//     candles.ts), so our phase-2 cash subtraction is the ONLY cash
+//     adjustment the series ever receives. Applying it once is exact.
+//   • cash dividends vs OUR OWN ledgers: the cash event may sit in BOTH
+//     CorporateAction (admin console write path) and Dividend (FoudaLens
+//     ledger) — mergeSeriesActionRows() collapses them to ONE event per
+//     company-day before any bar math runs.
 //
 // The result is ONE consistently adjusted series regardless of which source
 // served which session, and it is idempotent for Yahoo-sourced bars (de-adjust
@@ -422,42 +555,39 @@ export function applyCorporateActionAdjustments(bars: SeriesBar[], actions: Seri
 
 /**
  * Every adjustment-relevant action for ONE company inside [fromISO, toISO]:
- * share/rights events from the CorporateAction ledger plus cash dividends
- * from the Dividend ledger (which reaches back years, while FoudaLens
- * corporate actions cover ~6 months). Cash_dividend rows are deliberately
- * excluded from the CorporateAction query — the Dividend table is the single
- * cash source, so an event recorded in both is never subtracted twice.
- * Server-only (DB access); empty on any DB hiccup (series stays raw).
+ * share/rights AND cash-dividend events from the CorporateAction ledger (the
+ * admin console's write path — cash rows must never be invisible again,
+ * owner bug 2026-11-17) plus cash dividends from the Dividend ledger (which
+ * reaches back years, while FoudaLens corporate actions cover ~6 months).
+ * The two cash ledgers are merged by mergeSeriesActionRows() under the
+ * one-cash-event-per-company-day contract, so an event recorded in both is
+ * never subtracted twice. Server-only (DB access); empty on any DB hiccup
+ * (series stays raw).
  */
 export async function loadCompanySeriesActions(companyId: string, fromISO: string, toISO: string): Promise<SeriesAction[]> {
   const from = new Date(`${fromISO}T00:00:00.000Z`)
   const to = new Date(`${toISO}T00:00:00.000Z`)
   if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to < from) return []
   const toExclusive = new Date(to.getTime() + 86_400_000)
-  const out: SeriesAction[] = []
   try {
     const [actions, dividends] = await Promise.all([
       db.corporateAction.findMany({
-        where: { companyId, exDate: { gte: from, lt: toExclusive }, actionType: { not: "cash_dividend" } },
-        select: { actionType: true, exDate: true, ratioNumerator: true, ratioDenominator: true, cashPerShare: true, subscriptionPrice: true },
+        where: {
+          companyId,
+          exDate: { gte: from, lt: toExclusive },
+          OR: [{ actionType: { not: "cash_dividend" } }, { cashPerShare: { gt: 0 } }],
+        },
+        select: { actionType: true, exDate: true, sourceName: true, ratioNumerator: true, ratioDenominator: true, cashPerShare: true, subscriptionPrice: true },
       }),
       db.dividend.findMany({
         where: { companyId, exDividendDate: { gte: from, lt: toExclusive }, dividendPerShare: { gt: 0 }, dividendType: { in: ["CASH", "SPECIAL"] } },
         select: { dividendPerShare: true, exDividendDate: true },
       }),
     ])
-    for (const a of actions) {
-      if (!a.exDate) continue
-      out.push({ exDateISO: a.exDate.toISOString().slice(0, 10), terms: { actionType: a.actionType, ratioNumerator: a.ratioNumerator, ratioDenominator: a.ratioDenominator, cashPerShare: a.cashPerShare, subscriptionPrice: a.subscriptionPrice } })
-    }
-    for (const d of dividends) {
-      if (!d.exDividendDate) continue
-      out.push({ exDateISO: d.exDividendDate.toISOString().slice(0, 10), terms: { actionType: "cash_dividend", ratioNumerator: null, ratioDenominator: null, cashPerShare: d.dividendPerShare, subscriptionPrice: null } })
-    }
+    return mergeSeriesActionRows(actions, dividends)
   } catch {
     return []
   }
-  return out
 }
 
 /**
@@ -465,29 +595,54 @@ export async function loadCompanySeriesActions(companyId: string, fromISO: strin
  * treemap fallback that compares the two latest durable price rows: the
  * previous row predates the ex-date, the latest row is on/after it.
  * Keyed by ticker. Dividend-table cash dividends are merged in (their ledger
- * goes back years, FoudaLens corporate actions only ~6 months).
+ * goes back years, FoudaLens corporate actions only ~6 months), and
+ * CorporateAction cash rows are included (the admin console records them
+ * HERE) — mergeSeriesActionRows() keeps one cash event per company-day.
  */
 export async function loadActionsBetween(fromISO: Date, toISO: Date): Promise<Map<string, CorporateActionTerms[]>> {
   const byTicker = new Map<string, CorporateActionTerms[]>()
   try {
     const [actions, dividends] = await Promise.all([
       db.corporateAction.findMany({
-        where: { exDate: { gt: fromISO, lte: toISO }, actionType: { not: "cash_dividend" } },
-        select: { company: { select: { ticker: true } }, actionType: true, ratioNumerator: true, ratioDenominator: true, cashPerShare: true, subscriptionPrice: true },
+        where: {
+          exDate: { gt: fromISO, lte: toISO },
+          OR: [{ actionType: { not: "cash_dividend" } }, { cashPerShare: { gt: 0 } }],
+        },
+        select: { company: { select: { ticker: true } }, actionType: true, exDate: true, sourceName: true, ratioNumerator: true, ratioDenominator: true, cashPerShare: true, subscriptionPrice: true },
       }),
       db.dividend.findMany({
         where: { exDividendDate: { gt: fromISO, lte: toISO }, dividendPerShare: { gt: 0 }, dividendType: { in: ["CASH", "SPECIAL"] } },
-        select: { company: { select: { ticker: true } }, dividendPerShare: true },
+        select: { company: { select: { ticker: true } }, dividendPerShare: true, exDividendDate: true },
       }),
     ])
-    const push = (ticker: string, terms: CorporateActionTerms): void => {
-      const t = ticker.toUpperCase()
-      const arr = byTicker.get(t) ?? []
-      arr.push(terms)
-      byTicker.set(t, arr)
+    const actionsByTicker = new Map<string, CorporateActionRowLike[]>()
+    const dividendsByTicker = new Map<string, DividendRowLike[]>()
+    for (const a of actions) {
+      const t = a.company.ticker.toUpperCase()
+      const arr = actionsByTicker.get(t) ?? []
+      arr.push(a)
+      actionsByTicker.set(t, arr)
     }
-    for (const a of actions) push(a.company.ticker, { actionType: a.actionType, ratioNumerator: a.ratioNumerator, ratioDenominator: a.ratioDenominator, cashPerShare: a.cashPerShare, subscriptionPrice: a.subscriptionPrice })
-    for (const d of dividends) push(d.company.ticker, { actionType: "cash_dividend", ratioNumerator: null, ratioDenominator: null, cashPerShare: d.dividendPerShare, subscriptionPrice: null })
+    for (const d of dividends) {
+      const t = d.company.ticker.toUpperCase()
+      const arr = dividendsByTicker.get(t) ?? []
+      arr.push({ dividendPerShare: d.dividendPerShare, exDividendDate: d.exDividendDate })
+      dividendsByTicker.set(t, arr)
+    }
+    for (const [ticker, rows] of actionsByTicker) {
+      const merged = mergeSeriesActionRows(rows, dividendsByTicker.get(ticker) ?? [])
+      if (merged.length === 0) continue
+      byTicker.set(ticker, merged.map((sa) => sa.terms))
+    }
+    for (const [ticker, rows] of dividendsByTicker) {
+      if (actionsByTicker.has(ticker)) continue // already merged above
+      for (const d of rows) {
+        if (d.dividendPerShare === null || !Number.isFinite(d.dividendPerShare) || d.dividendPerShare <= 0) continue
+        const arr = byTicker.get(ticker) ?? []
+        arr.push({ actionType: "cash_dividend", ratioNumerator: null, ratioDenominator: null, cashPerShare: d.dividendPerShare, subscriptionPrice: null })
+        byTicker.set(ticker, arr)
+      }
+    }
   } catch {
     byTicker.clear()
   }
@@ -496,11 +651,12 @@ export async function loadActionsBetween(fromISO: Date, toISO: Date): Promise<Ma
 
 /**
  * BATCHED variant of loadCompanySeriesActions for whole-market passes: same
- * SeriesAction semantics (CorporateAction minus cash_dividend + Dividend
- * CASH/SPECIAL), but fetched for ALL companies in exactly two indexed
- * queries and grouped by companyId — the market signals board must not pay
- * ~2 round trips per company (~500 queries for the full universe) on its
- * cold compute path.
+ * SeriesAction semantics (CorporateAction incl. its cash_dividend rows — the
+ * admin console's write path — merged with the Dividend ledger under the
+ * one-cash-event-per-company-day contract), but fetched for ALL companies in
+ * exactly two indexed queries and grouped by companyId — the market signals
+ * board must not pay ~2 round trips per company (~500 queries for the full
+ * universe) on its cold compute path.
  */
 export async function loadSeriesActionsByCompany(
   companyIds: string[],
@@ -516,25 +672,43 @@ export async function loadSeriesActionsByCompany(
   try {
     const [actions, dividends] = await Promise.all([
       db.corporateAction.findMany({
-        where: { companyId: { in: companyIds }, exDate: { gte: from, lt: toExclusive }, actionType: { not: "cash_dividend" } },
-        select: { companyId: true, actionType: true, exDate: true, ratioNumerator: true, ratioDenominator: true, cashPerShare: true, subscriptionPrice: true },
+        where: {
+          companyId: { in: companyIds },
+          exDate: { gte: from, lt: toExclusive },
+          OR: [{ actionType: { not: "cash_dividend" } }, { cashPerShare: { gt: 0 } }],
+        },
+        select: { companyId: true, actionType: true, exDate: true, sourceName: true, ratioNumerator: true, ratioDenominator: true, cashPerShare: true, subscriptionPrice: true },
       }),
       db.dividend.findMany({
         where: { companyId: { in: companyIds }, exDividendDate: { gte: from, lt: toExclusive }, dividendPerShare: { gt: 0 }, dividendType: { in: ["CASH", "SPECIAL"] } },
         select: { companyId: true, dividendPerShare: true, exDividendDate: true },
       }),
     ])
+    const actionsByCompany = new Map<string, CorporateActionRowLike[]>()
     for (const a of actions) {
-      if (!a.exDate) continue
-      const arr = byCompany.get(a.companyId) ?? []
-      arr.push({ exDateISO: a.exDate.toISOString().slice(0, 10), terms: { actionType: a.actionType, ratioNumerator: a.ratioNumerator, ratioDenominator: a.ratioDenominator, cashPerShare: a.cashPerShare, subscriptionPrice: a.subscriptionPrice } })
-      byCompany.set(a.companyId, arr)
+      const arr = actionsByCompany.get(a.companyId) ?? []
+      arr.push(a)
+      actionsByCompany.set(a.companyId, arr)
     }
+    const dividendsByCompany = new Map<string, DividendRowLike[]>()
     for (const d of dividends) {
-      if (!d.exDividendDate) continue
-      const arr = byCompany.get(d.companyId) ?? []
-      arr.push({ exDateISO: d.exDividendDate.toISOString().slice(0, 10), terms: { actionType: "cash_dividend", ratioNumerator: null, ratioDenominator: null, cashPerShare: d.dividendPerShare, subscriptionPrice: null } })
-      byCompany.set(d.companyId, arr)
+      const arr = dividendsByCompany.get(d.companyId) ?? []
+      arr.push({ dividendPerShare: d.dividendPerShare, exDividendDate: d.exDividendDate })
+      dividendsByCompany.set(d.companyId, arr)
+    }
+    for (const [companyId, rows] of actionsByCompany) {
+      const merged = mergeSeriesActionRows(rows, dividendsByCompany.get(companyId) ?? [])
+      if (merged.length === 0) continue
+      byCompany.set(companyId, merged)
+    }
+    for (const [companyId, rows] of dividendsByCompany) {
+      if (actionsByCompany.has(companyId)) continue // already merged above
+      for (const d of rows) {
+        if (d.dividendPerShare === null || !Number.isFinite(d.dividendPerShare) || d.dividendPerShare <= 0 || !d.exDividendDate) continue
+        const arr = byCompany.get(companyId) ?? []
+        arr.push({ exDateISO: d.exDividendDate.toISOString().slice(0, 10), terms: { actionType: "cash_dividend", ratioNumerator: null, ratioDenominator: null, cashPerShare: d.dividendPerShare, subscriptionPrice: null } })
+        byCompany.set(companyId, arr)
+      }
     }
   } catch {
     byCompany.clear()

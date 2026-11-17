@@ -3,7 +3,7 @@ import { db } from "@/lib/db"
 import { isAdmin, unauthorizedResponse } from "@/lib/admin-auth"
 import { audit } from "@/lib/audit"
 import { invalidateServerCache } from "@/lib/server-cache"
-import { detectSuspiciousGaps } from "@/lib/market/corporate-actions"
+import { detectSuspiciousGaps, invalidateCorporateActionCaches } from "@/lib/market/corporate-actions"
 
 // Admin corporate-action ledger — the write path that feeds the automatic
 // ex-date adjustment engine (src/lib/market/corporate-actions.ts).
@@ -19,10 +19,44 @@ import { detectSuspiciousGaps } from "@/lib/market/corporate-actions"
 // Recording an action here is enough: the adjustment engine applies it
 // automatically on the ex-date (prev-close rebuild, technical-series
 // de-adjust/re-adjust, rights TERP). No chart editing, ever.
+//
+// POST-SAVE CACHE CONTRACT (owner bug 2026-11-17 — «القاهرة للدواجن» 1.9 EGP
+// cash dividend, ex-date today): a just-saved action must reach EVERY cached
+// technical surface immediately, so every mutating verb calls
+// bustTechnicalCachesForCompany():
+//   1. invalidateServerCache()      — the in-memory response caches
+//                                     (technical-tab, board, series, snapshot).
+//   2. invalidateCorporateActionCaches() — the 5-minute session-actions ledger
+//                                     cache inside the adjustment engine, so
+//                                     the next snapshot refresh re-fits
+//                                     MarketPrice.changePct with the new terms.
+//   3. StanceSnapshot row deleted   — the canonical stance is PERSISTED (up to
+//                                     20h fresh); without this the company tab
+//                                     keeps the pre-adjustment reading, plan
+//                                     and invalidation long after the series
+//                                     was fixed. Best-effort: the bootstrap DDL
+//                                     may not have run yet.
 
 const SOURCE_MANUAL_ADMIN = "MANUAL_ADMIN"
 const ALLOWED_ACTION_TYPES = ["rights", "stock_dividend", "split", "cash_dividend", "merger"] as const
 type AllowedActionType = (typeof ALLOWED_ACTION_TYPES)[number]
+
+/**
+ * Drop EVERY cached technical surface for one company after a ledger write.
+ * See the POST-SAVE CACHE CONTRACT in the header comment. Never throws —
+ * a failed stance-row delete must not fail the admin's save (the persisted
+ * row simply ages out via STALE_AFTER_MS).
+ */
+async function bustTechnicalCachesForCompany(companyId: string): Promise<void> {
+  invalidateServerCache()
+  invalidateCorporateActionCaches()
+  try {
+    await db.stanceSnapshot.deleteMany({ where: { companyId } })
+  } catch {
+    // StanceSnapshot table may not exist yet (bootstrap DDL pending) — the
+    // persisted row is absent anyway and the in-memory layers above are clean.
+  }
+}
 
 /** sharesPerShare → number|null straight from the BigInt pair (UI display). */
 function sharesPerShareOf(r: { ratioNumerator: bigint | null; ratioDenominator: bigint | null }): number | null {
@@ -272,7 +306,7 @@ export async function POST(req: NextRequest) {
     entityId: created.id,
     details: `${co.ticker} ${type} ex=${exISO} ratio=${ratio ? `${ratio.numerator}/${ratio.denominator}` : "—"} cash=${cashPerShare ?? "—"} sub=${subscriptionPrice ?? "—"}`,
   })
-  invalidateServerCache()
+  await bustTechnicalCachesForCompany(companyId)
 
   return Response.json({
     ok: true,
@@ -369,7 +403,7 @@ export async function PATCH(req: NextRequest) {
       exDate: data.exDate?.toISOString().slice(0, 10),
     })}`,
   })
-  invalidateServerCache()
+  await bustTechnicalCachesForCompany(existing.companyId)
 
   return Response.json({ ok: true, action: { ...updated, sharesPerShare: sharesPerShareOf(updated) } })
 }
@@ -389,7 +423,7 @@ export async function DELETE(req: NextRequest) {
     entityId: id,
     details: `${existing.company.ticker ?? existing.companyId} ${existing.actionType} ex=${existing.exDate.toISOString().slice(0, 10)} source=${existing.sourceName}`,
   })
-  invalidateServerCache()
+  await bustTechnicalCachesForCompany(existing.companyId)
 
   return Response.json({ ok: true })
 }

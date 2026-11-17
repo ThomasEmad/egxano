@@ -84,18 +84,18 @@ export function detectEvents(periods: PeriodData[]): DetectedEvent[] {
         events.push({
           eventType: "LOSS_TO_PROFIT",
           ...base(pair),
-          conditions: [cond("NET_PROFIT", curNp, prevNp, `Net profit moved from ${formatEgp(prevNp)} to ${formatEgp(curNp)}`, `تحول صافي الربح من ${formatEgp(prevNp)} إلى ${formatEgp(curNp)}`, true)],
+          conditions: [cond("NET_PROFIT", curNp, prevNp, `Net profit moved from ${formatEgp(prevNp)} to ${formatEgp(curNp)}`, `تحول صافي الربح من ${formatEgp(prevNp, { lang: "ar" })} إلى ${formatEgp(curNp, { lang: "ar" })}`, true)],
           explanationEn: `Turnaround: net profit moved from a loss of ${formatEgp(Math.abs(prevNp))} in ${prev.periodLabel} to a profit of ${formatEgp(curNp)} in ${cur.periodLabel}.`,
-          explanationAr: `تحول مالي: تحول صافي الربح من خسارة قدرها ${formatEgp(Math.abs(prevNp))} في ${prev.periodLabel} إلى ربح قدره ${formatEgp(curNp)} في ${cur.periodLabel}.`,
+          explanationAr: `تحول مالي: تحول صافي الربح من خسارة قدرها ${formatEgp(Math.abs(prevNp), { lang: "ar" })} في ${prev.periodLabel} إلى ربح قدره ${formatEgp(curNp, { lang: "ar" })} في ${cur.periodLabel}.`,
         })
       }
       if (prevNp > 0 && curNp < 0) {
         events.push({
           eventType: "PROFIT_TO_LOSS",
           ...base(pair),
-          conditions: [cond("NET_PROFIT", curNp, prevNp, `Net profit moved from ${formatEgp(prevNp)} to ${formatEgp(curNp)}`, `تحول صافي الربح من ${formatEgp(prevNp)} إلى ${formatEgp(curNp)}`, true)],
+          conditions: [cond("NET_PROFIT", curNp, prevNp, `Net profit moved from ${formatEgp(prevNp)} to ${formatEgp(curNp)}`, `تحول صافي الربح من ${formatEgp(prevNp, { lang: "ar" })} إلى ${formatEgp(curNp, { lang: "ar" })}`, true)],
           explanationEn: `Deterioration: net profit moved from a profit of ${formatEgp(prevNp)} in ${prev.periodLabel} to a loss of ${formatEgp(Math.abs(curNp))} in ${cur.periodLabel}.`,
-          explanationAr: `تدهور مالي: تحول صافي الربح من ربح قدره ${formatEgp(prevNp)} في ${prev.periodLabel} إلى خسارة قدرها ${formatEgp(Math.abs(curNp))} في ${cur.periodLabel}.`,
+          explanationAr: `تدهور مالي: تحول صافي الربح من ربح قدره ${formatEgp(prevNp, { lang: "ar" })} في ${prev.periodLabel} إلى خسارة قدرها ${formatEgp(Math.abs(curNp), { lang: "ar" })} في ${cur.periodLabel}.`,
         })
       }
     }
@@ -108,9 +108,9 @@ export function detectEvents(periods: PeriodData[]): DetectedEvent[] {
       events.push({
         eventType: "DEBT_REDUCTION",
         ...base(pair),
-        conditions: [cond("TOTAL_DEBT", curD, prevD, `Total debt moved from ${formatEgp(prevD!)} to ${formatEgp(curD!)} — ${formatPercent(debtPct, { sign: true })} (threshold ≤ -5%)`, `انتقل إجمالي الدين من ${formatEgp(prevD!)} إلى ${formatEgp(curD!)} — ${formatPercent(debtPct, { sign: true })} (الحد الأقصى -5%)`, true)],
+        conditions: [cond("TOTAL_DEBT", curD, prevD, `Total debt moved from ${formatEgp(prevD!)} to ${formatEgp(curD!)} — ${formatPercent(debtPct, { sign: true })} (threshold ≤ -5%)`, `انتقل إجمالي الدين من ${formatEgp(prevD!, { lang: "ar" })} إلى ${formatEgp(curD!, { lang: "ar" })} — ${formatPercent(debtPct, { sign: true })} (الحد الأقصى -5%)`, true)],
         explanationEn: `Total debt decreased by ${formatPercent(Math.abs(debtPct))} (${formatEgp(prevD!)} in ${prev.periodLabel} → ${formatEgp(curD!)} in ${cur.periodLabel}).`,
-        explanationAr: `انخفض إجمالي الدين بنسبة ${formatPercent(Math.abs(debtPct))} (${formatEgp(prevD!)} في ${prev.periodLabel} → ${formatEgp(curD!)} في ${cur.periodLabel}).`,
+        explanationAr: `انخفض إجمالي الدين بنسبة ${formatPercent(Math.abs(debtPct))} (${formatEgp(prevD!, { lang: "ar" })} في ${prev.periodLabel} → ${formatEgp(curD!, { lang: "ar" })} في ${cur.periodLabel}).`,
       })
     }
 
@@ -125,8 +125,8 @@ export function detectEvents(periods: PeriodData[]): DetectedEvent[] {
           ? `Operating cash flow turned positive: ${formatEgp(prevOcf)} → ${formatEgp(curOcf)}`
           : `Operating cash flow improved: ${formatEgp(prevOcf)} → ${formatEgp(curOcf)} (${formatPercent(((curOcf - prevOcf) / prevOcf) * 100, { sign: true })})`
         const detailAr = turnedPositive
-          ? `تحول التدفق النقدي التشغيلي إلى الإيجابية: ${formatEgp(prevOcf)} → ${formatEgp(curOcf)}`
-          : `تحسن التدفق النقدي التشغيلي: ${formatEgp(prevOcf)} → ${formatEgp(curOcf)}`
+          ? `تحول التدفق النقدي التشغيلي إلى الإيجابية: ${formatEgp(prevOcf, { lang: "ar" })} → ${formatEgp(curOcf, { lang: "ar" })}`
+          : `تحسن التدفق النقدي التشغيلي: ${formatEgp(prevOcf, { lang: "ar" })} → ${formatEgp(curOcf, { lang: "ar" })}`
         events.push({
           eventType: "CASH_FLOW_IMPROVEMENT",
           ...base(pair),
@@ -155,9 +155,9 @@ export function detectEvents(periods: PeriodData[]): DetectedEvent[] {
       events.push({
         eventType: "HIGH_ASSETS",
         ...base(pair),
-        conditions: [cond("TOTAL_ASSETS", ta, undefined, `Total assets = ${formatEgp(ta)} (threshold ≥ EGP 10B)`, `إجمالي الأصول = ${formatEgp(ta)} (الحد الأدنى 10 مليار جنيه)`, true)],
+        conditions: [cond("TOTAL_ASSETS", ta, undefined, `Total assets = ${formatEgp(ta)} (threshold ≥ EGP 10B)`, `إجمالي الأصول = ${formatEgp(ta, { lang: "ar" })} (الحد الأدنى 10 مليار جنيه)`, true)],
         explanationEn: `Total assets are ${formatEgp(ta)} in ${cur.periodLabel} (threshold ≥ EGP 10B).`,
-        explanationAr: `إجمالي الأصول ${formatEgp(ta)} في ${cur.periodLabel} (الحد الأدنى 10 مليار جنيه).`,
+        explanationAr: `إجمالي الأصول ${formatEgp(ta, { lang: "ar" })} في ${cur.periodLabel} (الحد الأدنى 10 مليار جنيه).`,
       })
     }
 
@@ -171,7 +171,7 @@ export function detectEvents(periods: PeriodData[]): DetectedEvent[] {
         ? cond("REVENUE", valueOf(cur, "REVENUE"), valueOf(prev, "REVENUE"), `Revenue grew ${formatPercent(revPct, { sign: true })} (≥ 10%)`, `نمت الإيرادات ${formatPercent(revPct, { sign: true })} (الحد الأدنى 10%)`, true)
         : null
       const c3 = curOcf !== undefined && curOcf > 0
-        ? cond("OPERATING_CASH_FLOW", curOcf, undefined, `Operating cash flow = ${formatEgp(curOcf)} (positive)`, `التدفق النقدي التشغيلي = ${formatEgp(curOcf)} (إيجابي)`, true)
+        ? cond("OPERATING_CASH_FLOW", curOcf, undefined, `Operating cash flow = ${formatEgp(curOcf)} (positive)`, `التدفق النقدي التشغيلي = ${formatEgp(curOcf, { lang: "ar" })} (إيجابي)`, true)
         : null
       const c4 = debtPct !== null && debtPct <= 0
         ? cond("TOTAL_DEBT", curD, prevD, `Debt not increasing (${formatPercent(debtPct, { sign: true })})`, `الدين لا يزيد (${formatPercent(debtPct, { sign: true })})`, true)
@@ -183,7 +183,7 @@ export function detectEvents(periods: PeriodData[]): DetectedEvent[] {
           ...base(pair),
           conditions: recConds,
           explanationEn: `Financial recovery pattern detected in ${cur.periodLabel}: loss→profit transition, revenue growth ${formatPercent(revPct, { sign: true })}, positive operating cash flow (${formatEgp(curOcf)}), and debt change ${formatPercent(debtPct, { sign: true })}.`,
-          explanationAr: `نمط تعافي مالي في ${cur.periodLabel}: تحول من خسارة إلى ربح، نمو الإيرادات ${formatPercent(revPct, { sign: true })}، تدفق نقدي تشغيلي إيجابي (${formatEgp(curOcf)})، وتغير الدين ${formatPercent(debtPct, { sign: true })}.`,
+          explanationAr: `نمط تعافي مالي في ${cur.periodLabel}: تحول من خسارة إلى ربح، نمو الإيرادات ${formatPercent(revPct, { sign: true })}، تدفق نقدي تشغيلي إيجابي (${formatEgp(curOcf, { lang: "ar" })})، وتغير الدين ${formatPercent(debtPct, { sign: true })}.`,
         })
       }
     }
@@ -199,13 +199,13 @@ export function detectEvents(periods: PeriodData[]): DetectedEvent[] {
           cond("NET_PROFIT", curNp, prevNp, "Profit → Loss transition", "تحول من ربح إلى خسارة", true),
         ]
         if (revDecline) detConds.push(cond("REVENUE", valueOf(cur, "REVENUE"), valueOf(prev, "REVENUE"), `Revenue declined ${formatPercent(revPct!, { sign: true })}`, `انخفضت الإيرادات ${formatPercent(revPct!, { sign: true })}`, true))
-        if (ocfNegative) detConds.push(cond("OPERATING_CASH_FLOW", curOcf, undefined, `Operating cash flow is negative (${formatEgp(curOcf)})`, `التدفق النقدي التشغيلي سالب (${formatEgp(curOcf)})`, true))
+        if (ocfNegative) detConds.push(cond("OPERATING_CASH_FLOW", curOcf, undefined, `Operating cash flow is negative (${formatEgp(curOcf)})`, `التدفق النقدي التشغيلي سالب (${formatEgp(curOcf, { lang: "ar" })})`, true))
         events.push({
           eventType: "FINANCIAL_DETERIORATION",
           ...base(pair),
           conditions: detConds,
           explanationEn: `Financial deterioration pattern detected in ${cur.periodLabel}: profit turned into a loss${revDecline ? `, revenue declined ${formatPercent(revPct!)}` : ""}${revDecline && ocfNegative ? " and" : ocfNegative ? " with" : ""}${ocfNegative ? ` operating cash flow is negative (${formatEgp(curOcf)})` : ""}.`,
-          explanationAr: `نمط تدهور مالي في ${cur.periodLabel}: تحول الربح إلى خسارة${revDecline ? ` مع انخفاض الإيرادات ${formatPercent(revPct!)}` : ""}${ocfNegative ? ` وتدفق نقدي تشغيلي سالب (${formatEgp(curOcf)})` : ""}.`,
+          explanationAr: `نمط تدهور مالي في ${cur.periodLabel}: تحول الربح إلى خسارة${revDecline ? ` مع انخفاض الإيرادات ${formatPercent(revPct!)}` : ""}${ocfNegative ? ` وتدفق نقدي تشغيلي سالب (${formatEgp(curOcf, { lang: "ar" })})` : ""}.`,
         })
       }
     }

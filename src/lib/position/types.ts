@@ -1,18 +1,23 @@
 // =============================================================================
 // حلل سهمي (Position Review) — types. Owner feature (2026-11-17): the user
 // enters their AVERAGE BUY PRICE and the engine talks to them like a market-
-// savvy friend: hold / wait / exit, EVERY reason spelled out, every support
-// and resistance on the table, and the full technical reading of the stock.
-// Pure data shapes — the decision logic lives in review.ts, DB in service.ts.
+// savvy friend: hold / wait / exit / take_profit, EVERY reason spelled out,
+// every support and resistance on the table, and the full technical reading
+// of the stock. Pure data shapes — the decision logic lives in review.ts,
+// DB in service.ts.
 // =============================================================================
 
-/** The three outcomes for an OPEN position (never a short invitation). */
-export type PositionDecision = "hold" | "wait" | "exit"
+/** The outcomes for an OPEN position (never a short invitation). "take_profit"
+ *  (2026-11-17 owner rule) is the GREEN partial exit: a profitable position
+ *  (≥ +6%) that hits a red-exit trigger instead secures part of the gain and
+ *  keeps a close-based trailing runner — never a full exit while in profit. */
+export type PositionDecision = "hold" | "wait" | "exit" | "take_profit"
 
 export const POSITION_DECISION_AR: Record<PositionDecision, string> = {
   hold: "احتفظ",
   wait: "انتظر وراقب",
   exit: "اخرج الآن",
+  take_profit: "جني أرباح جزئي",
 }
 
 /** One S/R zone as the user reads it: the level, its touch history, and its
@@ -87,7 +92,8 @@ export interface PositionReview {
   /** EVERY reason, in order, the friend's voice — no hidden weighting */
   reasonsAr: string[]
   /** the concrete follow-up plan when the decision is "wait" (e.g. sell on
-   *  the first rebound); null when the decision itself is the plan */
+   *  the first rebound) or "take_profit" (the partial-exit sizing + trailing
+   *  line); null when the decision itself is the plan */
   planAr: string | null
   /** the deep-loss follow-up question (null outside the deep-loss regime) */
   question: ReviewQuestion | null
