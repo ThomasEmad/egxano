@@ -134,7 +134,16 @@ function levelLines(map: ZoneMap, close: number, avgBuy: number): { supports: Le
     }
   }
   const supports = map.zones.filter((z) => z.kind === "support").map(toLine).sort((a, b) => b.high - a.high)
-  const resistances = map.zones.filter((z) => z.kind === "resistance").map(toLine).sort((a, b) => a.low - b.low)
+  // BUG FIX (2026-11-18, OCPH «اكتوبر فارما»): the map's `kind` is the zone's
+  // historical pivot ORIGIN (a swing-high cluster stays "resistance" forever),
+  // so a base ceiling the price rallied 2× above was still surfaced as
+  // «أقرب مقاومة» at −52٪ UNDER the live close. A zone may only be shown as
+  // resistance while it is fully ABOVE the close (z.low > close) — anything
+  // the close has left below it is history / structural support. Zones the
+  // close sits inside (low ≤ close ≤ high) keep their historical kind but are
+  // never surfaced here: the market is testing them right now. The map's own
+  // current-position label (positionKind) carries the same rule for queries.
+  const resistances = map.zones.filter((z) => z.kind === "resistance" && z.low > close).map(toLine).sort((a, b) => a.low - b.low)
   return { supports, resistances }
 }
 
@@ -163,6 +172,13 @@ function recoveryReasonAr(pnlPct: number, recoveryPct: number): string {
  *  the dynamic line the market actually respects. Falls back to the raw zone
  *  (flagged as weak) when no EMA20 sits below the close. */
 export const NEAR_SUPPORT_MAX_GAP_PCT = 15
+
+/** OWNER RULE (2026-11-18, OCPH «اكتوبر فارما» bug): a profit-taking target is
+ *  measured against the OWNER'S AVERAGE BUY PRICE, never against the live
+ *  close — it must sit at least this far ABOVE the average to be worth a
+ *  partial-exit decision at all. A "resistance" under (or barely over) the
+ *  cost basis is not a profit target; it is noise or history. */
+export const PROFIT_TARGET_MIN_GAP_PCT = 6
 
 export interface EffectiveSupport {
   kind: "zone" | "ema20"
@@ -486,6 +502,16 @@ export function reviewPosition(input: ReviewInput): PositionReview {
   if (pnlPct >= 0) {
     decision = "hold"
     const supLine = effSupport
+    // OWNER FIX (2026-11-18, OCPH «اكتوبر فارما»): the old line printed the
+    // nearest map zone as «أقرب مقاومة» even when it sat ~52٪ UNDER the close
+    // (an old base ceiling the rally had already turned into history). The
+    // profit-taking zone must be (i) fully above the last close — the
+    // resistances list is already close-guarded in levelLines — (ii) above
+    // the owner's average, and (iii) at least PROFIT_TARGET_MIN_GAP_PCT above
+    // the average, measured to the zone's ENTRY edge (its low): the first
+    // price a partial exit actually executes at, never a price-vs-zone gap.
+    const minTargetLevel = avgBuyPrice * (1 + PROFIT_TARGET_MIN_GAP_PCT / 100)
+    const profitTarget = resistances.find((r) => r.low > avgBuyPrice && r.low >= minTargetLevel) ?? null
     headlineAr = supLine
       ? `إنت رابح ${pct1(pnlPct)} والسهم واقف فوق خط دفاعه — احتفظ، ورسمت لك الخط تحت`
       : `إنت رابح ${pct1(pnlPct)} — احتفظ بس مفيش بطانة معتمدة تحت، فخلي عينك على الشاشة`
@@ -499,9 +525,9 @@ export function reviewPosition(input: ReviewInput): PositionReview {
       supLine
         ? `خط الدفاع: ${supLine.basisAr} — طالما السعر فوقه بالإغلاق، القصة سليمة.`
         : "ملاحظة أمانة: مفيش دعم معتمد تحت السعر الحالي — الرحلة صاعدة بلا بطانة، فلو عاجلك الربح خد جزء منه.",
-      resistances.length
-        ? `الحلم فوق: أقرب مقاومة عند ${fmt(resistances[0].low)}–${fmt(resistances[0].high)} على بعد ${pct1(resistances[0].distFromPricePct)} — دي أول منطقة تستحق قرار أرباح جزئي.`
-        : "مفيش مقاومة مسجلة فوق — السهم في فضاء مفتوح، بس خد بالك إن الفضاء المفتوح بيقطع بسرعة.",
+      profitTarget
+        ? `الحلم فوق: أول منطقة تستحق قرار أرباح جزئي عند ${fmt(profitTarget.low)}–${fmt(profitTarget.high)} على بعد ${pct1(Math.round(((profitTarget.low - avgBuyPrice) / avgBuyPrice) * 1000) / 10)} من متوسطك.`
+        : `الحلم فوق: مفيش مقاومة مسجلة فوق متوسطك بـ ${PROFIT_TARGET_MIN_GAP_PCT}٪ أو أكثر في نافذة البيانات — السهم في أرض جديدة، والأرباح الجزئية هنا بيتقررها خط المتوسطات (EMA20/EMA50) مش سقف قديم`,
       "الخلاصة بصوت واضح: احتفظ. البيع يبقى قرار لما يفلخط الدفاع، مش لما القلق يعلو.",
     )
     return {

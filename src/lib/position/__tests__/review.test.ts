@@ -348,3 +348,129 @@ describe("reviewPosition — the profitable-break rule (pnl ≥ +6٪)", () => {
     }
   })
 })
+
+// =============================================================================
+// OWNER BUG (2026-11-18, OCPH «اكتوبر فارما»): avg cost 208.00, last close
+// 208.18 (+0.1٪), decision "احتفظ" — yet reason #4 said: «الحلم فوق: أقرب
+// مقاومة عند 97.44–101.00 على بعد -52.3٪ — دي أول منطقة تستحق قرار أرباح
+// جزئي». TWO absurdities: the "resistance" sat ~52٪ UNDER the price (the base
+// ceiling the rally had already turned into history), and a profit-taking
+// target must sit ABOVE the owner's average, at least +6٪ over it. The hold
+// branch now picks the nearest zone fully above the close that clears the
+// average by PROFIT_TARGET_MIN_GAP_PCT, reports the distance vs the AVERAGE
+// (to the zone's entry edge), and says honestly when nothing qualifies.
+// =============================================================================
+
+import { PROFIT_TARGET_MIN_GAP_PCT } from "../review"
+import type { PriceZone, ZoneMap } from "@/lib/signals/levels"
+import type { Bar } from "@/lib/signals/types"
+
+/** 80 sessions of a monotone rally 100 → 208.18 — the OCPH «اكتوبر فارما»
+ *  closing tape (owner avg cost 208.00, last close 208.18, +0.1٪). No pivots:
+ *  the tests hand-build the zone map (the old base ceiling + the live top),
+ *  the bars only feed the metrics bundle and the cushion read. */
+function ocphCloseSeries(): Bar[] {
+  const bars: Bar[] = []
+  const n = 80
+  for (let i = 0; i < n; i++) {
+    const close = 100 + ((208.18 - 100) * (i + 1)) / n
+    const ts = `2026-${String(Math.floor(i / 28) + 1).padStart(2, "0")}-${String((i % 28) + 1).padStart(2, "0")}-${String(i).padStart(3, "0")}`
+    bars.push({ ts, open: close - 0.2, high: close + 0.35, low: close - 0.35, close, volume: 1000 })
+  }
+  return bars
+}
+
+/** Hand-built zone map for the OCPH scenarios: the old base ceiling (a swing-
+ *  HIGH cluster the rally broke — kind "resistance" forever, positionKind
+ *  "support" now) and optional live zones. */
+function ocphZones(...extra: PriceZone[]): ZoneMap {
+  const oldCeiling: PriceZone = {
+    kind: "resistance", // historical origin: swing-high cluster — kept as evidence
+    positionKind: "support", // high 101.00 < close 208.18: structural support/history now
+    low: 97.44,
+    high: 101.0,
+    touches: 2,
+    lastTouchTs: "2026-06-10-000",
+    lastTouchIdx: 5,
+    broken: true, // the rally closed above it — retest structure
+    brokenTs: "2026-07-02-020",
+  }
+  return { atr: null, zones: [oldCeiling, ...extra] }
+}
+
+describe("reviewPosition — the OCPH profit-target rule (hold branch, 2026-11-18)", () => {
+  it("avg 208 / close 208.18: the old 97.44–101.00 ceiling is NEVER the profit target — the 236–240 zone is, at +13.5٪ vs the AVERAGE", () => {
+    const bars = ocphCloseSeries()
+    const map = ocphZones({
+      kind: "resistance",
+      positionKind: "resistance",
+      low: 236,
+      high: 240,
+      touches: 3,
+      lastTouchTs: "2026-11-01-070",
+      lastTouchIdx: 70,
+      broken: false,
+    })
+    const r = reviewPosition({ row: rowOver(bars, { state: "wait" }), bars, map, avgBuyPrice: 208.0 })
+    expect(r.decision).toBe("hold")
+    expect(r.pnlPct).toBeCloseTo(0.1, 1) // the owner's scenario: +0.1٪
+    const all = r.reasonsAr.join(" ")
+    expect(all).not.toContain("97.44") // the sub-close ceiling is gone from the reasons
+    expect(all).not.toContain("-52.3") // the absurd negative distance is gone
+    expect(all).toContain("236")
+    expect(all).toContain("الحلم فوق: أول منطقة تستحق قرار أرباح جزئي عند 236.00–240.00 على بعد +13.5٪ من متوسطك")
+    // the reported distance is vs the OWNER'S AVERAGE (positive), to the zone's
+    // entry edge: (236 − 208) / 208 = +13.46٪ → printed at 1 decimal (+13.5٪)
+    const m = all.match(/على بعد \+([\d.]+)٪ من متوسطك/)
+    expect(m).not.toBeNull()
+    const dist = parseFloat(m![1]!)
+    expect(dist).toBeGreaterThan(0)
+    expect(dist).toBeGreaterThanOrEqual(13.26) // 13.46 − 0.2
+    expect(dist).toBeLessThanOrEqual(13.66) // 13.46 + 0.2
+    // the RESULT's resistances carry only zones fully above the close
+    expect(r.resistances.length).toBe(1)
+    expect(r.resistances[0]!.low).toBe(236)
+    expect(r.resistances[0]!.high).toBe(240)
+    expect(r.resistances.every((z) => z.low > r.lastClose)).toBe(true)
+  })
+
+  it("a zone above the close but under avg+6٪ does NOT qualify — the honest «أرض جديدة» line instead", () => {
+    const bars = ocphCloseSeries()
+    const map = ocphZones({
+      kind: "resistance",
+      positionKind: "resistance",
+      low: 209.5, // above the close 208.18, but only +0.7٪ over the 208 average
+      high: 212,
+      touches: 1,
+      lastTouchTs: "2026-11-05-075",
+      lastTouchIdx: 75,
+      broken: false,
+    })
+    const r = reviewPosition({ row: rowOver(bars, { state: "wait" }), bars, map, avgBuyPrice: 208.0 })
+    expect(r.decision).toBe("hold")
+    // the close-based list guard keeps the zone listed (it IS above the close)…
+    expect(r.resistances.length).toBe(1)
+    expect(r.resistances[0]!.low).toBe(209.5)
+    // …but the profit-target line tells the truth instead of pointing at noise
+    const all = r.reasonsAr.join(" ")
+    expect(all).not.toContain("97.44")
+    expect(all).toContain(
+      `الحلم فوق: مفيش مقاومة مسجلة فوق متوسطك بـ ${PROFIT_TARGET_MIN_GAP_PCT}٪ أو أكثر في نافذة البيانات — السهم في أرض جديدة، والأرباح الجزئية هنا بيتقررها خط المتوسطات (EMA20/EMA50) مش سقف قديم`,
+    )
+  })
+
+  it("only sub-close zones on the map → no resistance at all is surfaced, and the honest line stands", () => {
+    const bars = ocphCloseSeries()
+    const r = reviewPosition({ row: rowOver(bars, { state: "wait" }), bars, map: ocphZones(), avgBuyPrice: 208.0 })
+    expect(r.decision).toBe("hold")
+    expect(r.resistances.length).toBe(0) // the 97.44–101.00 ceiling is fully UNDER the close
+    const all = r.reasonsAr.join(" ")
+    expect(all).not.toContain("97.44")
+    expect(all).toContain("أرض جديدة")
+    expect(all).toContain("EMA20/EMA50")
+  })
+
+  it(`the threshold constant is exactly ${PROFIT_TARGET_MIN_GAP_PCT}`, () => {
+    expect(PROFIT_TARGET_MIN_GAP_PCT).toBe(6)
+  })
+})

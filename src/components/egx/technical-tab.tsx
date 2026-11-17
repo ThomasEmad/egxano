@@ -1,12 +1,18 @@
 "use client"
 
 // Technical analysis tab — deterministic readings over real daily price bars.
-// Everything shown is computed server-side (src/lib/technical/analyze.ts) from
-// stored sessions; nothing is estimated. The stance hero is rule-based
-// (documented weights) and — when the engine can form one — carries a
-// rule-derived trade plan over OBSERVED levels. Order of the page: honest
-// disclaimer → stance + plan → the story in brief → adjusted chart → price and
-// performance → indicators → market context → zones → structure → signals →
+// Everything shown is computed server-side (src/lib/technical/analyze.ts for
+// the data sections, src/lib/signals/* for the unified reading) from stored
+// sessions; nothing is estimated. ONE analysis, one engine: the stance hero
+// reads the unified tech-signals@7 row (the same row the /signals board
+// publishes) and the vision below it is the EMA-first narrative built by
+// src/lib/technical/stance-narrative.ts — the EMA20/EMA50 pair is the
+// backbone of the reading, static S/R are reference signs only. The legacy
+// v1 stance card, the old opportunity-layer card and the pre-flagged old
+// engine signals dump were REMOVED (2026-11-17 owner mandate: «تخليلين —
+// واحد بالأسلوب الجديد وواحد بالمحرك القديم — ده احذفه»). Order of the page:
+// honest disclaimer → stance + EMA-first vision → adjusted chart → price and
+// performance → indicators → market context → zones → structure →
 // limitations → the raw-price TradingView embed (collapsed, for comparison).
 
 import Link from "next/link"
@@ -18,7 +24,6 @@ import {
   BarChart3,
   Boxes,
   ChevronDown,
-  Eye,
   Gauge,
   Globe,
   Info,
@@ -26,12 +31,7 @@ import {
   Minus,
   Network,
   ScrollText,
-  ShieldAlert,
   SquareStack,
-  Target,
-  TrendingDown,
-  TrendingUp,
-  Waves,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -49,11 +49,9 @@ import type { StructureSnapshot } from "@/lib/technical/structure"
 import type { VsaSnapshot } from "@/lib/technical/vsa"
 import type { ZonesSnapshot } from "@/lib/technical/zones"
 import type { QualityScore } from "@/lib/technical/quality"
-import { SIGNAL_META, STYLE_TAG_META, type TechStance, type WatchingSetup } from "@/lib/technical/signals"
 import { OPPORTUNITY_TYPE_AR, OPPORTUNITY_TYPE_EN, SCORE_GROUP_AR, SCORE_GROUP_MAX, type ScoreGroup, type SignalRowV2 } from "@/lib/signals/types"
 import { EvidenceList, LevelStrip, V2_STATE_META, WarningsStrip } from "./signal-v2-bits"
-import { OpportunityCardView, type OpportunityCardModel } from "./opportunities-strip"
-import type { RowOpportunity } from "@/lib/technical/signals-service"
+import { buildStanceVision, type StanceVision } from "@/lib/technical/stance-narrative"
 
 export interface TechSnapshot {
   version: string
@@ -120,102 +118,12 @@ export interface TechSnapshot {
 }
 
 // ---------------------------------------------------------------------------
-// Structural extension types — the server payload carries a rule-derived trade
-// plan on the stance. Declared LOCALLY so this file compiles independently of
-// the server integration; integration aligns the shapes.
+// The stance hero reads ONLY the unified engine row (tech-signals@7) — the
+// same row the /signals board publishes. The legacy v1 stance payload
+// (`stance`), the old opportunity-layer card and the old engine's flagged
+// signals were removed from this tab (2026-11-17 owner mandate) so the page
+// can never show two readings of the same stock from two engines.
 // ---------------------------------------------------------------------------
-
-/** Rule-derived trade plan attached to the stance by the server (structural). */
-interface TradePlanFields {
-  bias: "buy" | "sell"
-  entryLow: number
-  entryHigh: number
-  entryPct: number
-  stop: number
-  stopPct: number
-  targetLow: number
-  targetHigh: number
-  targetPct: number
-  riskReward: number | string
-  textAr: string
-  textEn: string
-  basisAr: string
-}
-
-type StanceWithPlan = TechStance & { tradePlan?: TradePlanFields | null }
-
-/** The market board's close-only read for the same ticker (from the technical
- * route) — powers the sync strip that keeps the company tab and /signals
- * visibly telling the same story. */
-interface BoardSignal {
-  signal: "buy" | "hold" | "sell"
-  score: number
-  asOf: string | null
-}
-
-/**
- * Opportunity block (opportunity@1) — the SAME layer the board's "فرص اليوم"
- * strip serves for this ticker, fed by the per-company data route
- * (/api/v1/companies/[id]/technical). Renders via the shared
- * OpportunityCardView; a non-candidate read (wait / no structural trigger)
- * gets an honest "none" card — nothing is manufactured.
- */
-function CompanyOpportunityBlock({
-  opportunity,
-  ticker,
-  stance,
-  lastClose,
-  asOf,
-  ar,
-}: {
-  opportunity: RowOpportunity | null | undefined
-  ticker: string
-  stance?: StanceWithPlan
-  lastClose: number | null
-  asOf: string | null
-  ar: boolean
-}) {
-  if (!opportunity) {
-    return (
-      <Card className="p-4">
-        <p className="text-xs font-bold text-foreground">
-          {ar ? "الفرصة: لا توجد فرصة مصنفة على هذه القراءة الآن" : "Opportunity: none classified on this read"}
-        </p>
-        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-          {ar
-            ? "القراءات غير المرشحة (انتظار أو بلا تفعيل هيكلي) تُقرأ ضمنيًا بلا فرصة — ولا تُصنَّع فرصة. تُعاد القراءة حسابيًا مع كل إغلاق يومي."
-            : "Non-candidate reads (wait / no structural trigger) read as no opportunity implicitly — nothing is manufactured. The read recomputes with every daily close."}
-        </p>
-      </Card>
-    )
-  }
-  const view = opportunity.view
-  const plan = view.state === "actionable" ? (stance?.tradePlan ?? null) : null
-  const setup = view.state !== "actionable" ? (stance?.setup ?? null) : null
-  const riskFactorsAr =
-    view.rejectionReasonsAr.length > 0
-      ? view.rejectionReasonsAr
-      : (stance?.reasons ?? []).filter((r) => r.tone === "negative").map((r) => r.ar)
-  const model: OpportunityCardModel = {
-    ticker,
-    lastClose,
-    asOf,
-    view,
-    targets: opportunity.ladder ? opportunity.ladder.targets : null,
-    oqs: opportunity.oqs,
-    oqsComponents: opportunity.oqsComponents,
-    oqsNoteAr: opportunity.oqsNoteAr,
-    riskFactorsAr,
-    entryLow: plan ? plan.entryLow : null,
-    entryHigh: plan ? plan.entryHigh : null,
-    stop: plan ? plan.stop : null,
-    riskReward: plan ? Number(plan.riskReward) : null,
-    activationKind: setup?.activation.kind ?? null,
-    activationLevel: setup ? setup.activation.level : null,
-    activationConditionAr: setup ? setup.activation.basisAr : null,
-  }
-  return <OpportunityCardView model={model} ar={ar} />
-}
 
 const PERF_LABELS: Array<{ key: keyof TechSnapshot["perf"]; ar: string; en: string }> = [
   { key: "d1", ar: "يوم", en: "1D" },
@@ -323,13 +231,6 @@ const STANCE_CLS: Record<string, { badge: string; bar: string; stroke: string; t
   },
 }
 
-const DIM_LABELS: Record<TechStance["dimensions"][number]["key"], { ar: string; en: string }> = {
-  trend: { ar: "الاتجاه", en: "Trend" },
-  momentum: { ar: "الزخم", en: "Momentum" },
-  volume: { ar: "الحجم", en: "Volume" },
-  risk: { ar: "المخاطرة", en: "Risk" },
-}
-
 /** Circular 0-100 score gauge. Null score → honest "weak data" disc. */
 function ScoreGauge({ score, strokeCls, textCls }: { score: number | null; strokeCls: string; textCls: string }) {
   const { lang } = useI18n()
@@ -369,430 +270,11 @@ function ScoreGauge({ score, strokeCls, textCls }: { score: number | null; strok
   )
 }
 
-/**
- * Rule-derived trade plan — three colored zones over OBSERVED levels.
- * Rendered only when the server attached a plan; every figure comes straight
- * from the payload and missing numbers render as "—", never as estimates.
- */
-function TradePlanBlock({ plan, ar }: { plan: TradePlanFields; ar: boolean }) {
-  const fmt = (v: number): string => (Number.isFinite(v) ? v.toFixed(2) : "—")
-  const pctTxt = (v: number): string => (Number.isFinite(v) ? `(${v > 0 ? "+" : ""}${v.toFixed(2)}%)` : "(—)")
-  const rr = plan.riskReward === null || plan.riskReward === undefined ? "—" : String(plan.riskReward)
-  return (
-    <div className="space-y-2.5 rounded-xl border border-border/60 bg-muted/10 p-3.5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5 text-xs font-bold">
-          <Target className="h-3.5 w-3.5 text-primary" aria-hidden />
-          {ar ? "خطة الصفقة القواعدية" : "Rule-based trade plan"}
-        </span>
-        <Badge variant="outline" className={plan.bias === "buy" ? STANCE_CLS.buy.badge : STANCE_CLS.sell.badge}>
-          {ar ? SIGNAL_META[plan.bias].ar : SIGNAL_META[plan.bias].en}
-        </Badge>
-      </div>
-
-      <div className="grid gap-2 sm:grid-cols-3">
-        {/* entry — blue */}
-        <div className="rounded-lg border border-blue-500/40 bg-blue-500/5 px-3 py-2.5">
-          <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
-            {plan.bias === "buy" ? <TrendingUp className="h-3 w-3" aria-hidden /> : <TrendingDown className="h-3 w-3" aria-hidden />}
-            {ar ? "منطقة الدخول" : "Entry zone"}
-          </p>
-          <p className="mt-1 text-sm font-bold tabular" dir="ltr">
-            {fmt(plan.entryLow)} – {fmt(plan.entryHigh)}
-          </p>
-        </div>
-        {/* target — green */}
-        <div className="rounded-lg border border-positive/40 bg-positive/5 px-3 py-2.5">
-          <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-positive">
-            <Target className="h-3 w-3" aria-hidden />
-            {ar ? "الهدف — منطقة الخروج" : "Target — exit zone"}
-          </p>
-          <p className="mt-1 text-sm font-bold tabular" dir="ltr">
-            {fmt(plan.targetLow)} – {fmt(plan.targetHigh)}
-          </p>
-          <p className="tnum text-[10px] text-muted-foreground" dir="ltr">{pctTxt(plan.targetPct)}</p>
-        </div>
-        {/* stop — red */}
-        <div className="rounded-lg border border-negative/40 bg-negative/5 px-3 py-2.5">
-          <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-negative">
-            <ShieldAlert className="h-3 w-3" aria-hidden />
-            {ar ? "وقف الخسارة" : "Stop loss"}
-          </p>
-          <p className="mt-1 text-sm font-bold tabular" dir="ltr">{fmt(plan.stop)}</p>
-          <p className="tnum text-[10px] text-muted-foreground" dir="ltr">{pctTxt(plan.stopPct)}</p>
-        </div>
-      </div>
-
-      <p className="text-xs">
-        <span className="font-medium">{ar ? "المخاطرة/العائد: " : "Risk/reward: "}</span>
-        <span className="tnum font-bold" dir="ltr">{rr}</span>
-      </p>
-
-      {plan.textAr || plan.textEn ? (
-        <p className="text-xs leading-relaxed text-muted-foreground">{ar ? plan.textAr : plan.textEn}</p>
-      ) : null}
-
-      {ar && plan.basisAr ? (
-        <p className="text-[10px] leading-relaxed text-muted-foreground">{ar ? `الأساس: ${plan.basisAr}` : plan.basisAr}</p>
-      ) : null}
-
-      <p className="text-[10px] leading-relaxed text-muted-foreground">
-        {ar
-          ? "المناطق مبنية على مستويات مرصودة في السلسلة المعدّلة — وليست توصية."
-          : "Zones derive from observed levels on the adjusted series — not advice."}
-      </p>
-    </div>
-  )
-}
-
-/**
- * Three-state publication badge (engine contract: confirmed / watching / wait
- * — a directional read is never naked). Falls back to the legacy signal badge
- * for payloads computed before the layer shipped.
- */
-function stanceStateBadge(stance: StanceWithPlan, ar: boolean): { label: string; cls: string } | null {
-  const st = stance.signalState
-  if (!st) return null
-  if (st === "confirmed" && (stance.signal === "buy" || stance.signal === "sell")) {
-    return {
-      label: ar ? (stance.signal === "buy" ? "شراء مؤكد" : "بيع مؤكد") : stance.signal === "buy" ? "Confirmed buy" : "Confirmed sell",
-      cls: STANCE_CLS[stance.signal].badge,
-    }
-  }
-  if (st === "watching" && stance.setup) {
-    const buy = stance.setup.direction === "buy"
-    return {
-      label: ar ? (buy ? "فرصة شراء تحت المراقبة" : "فرصة بيع تحت المراقبة") : buy ? "Buy setup — watching" : "Sell setup — watching",
-      cls: STANCE_CLS.hold.badge,
-    }
-  }
-  if (st === "wait" && stance.signal !== "buy" && stance.signal !== "sell") {
-    return { label: ar ? "انتظار" : "Wait", cls: STANCE_CLS.hold.badge }
-  }
-  return null
-}
-
-/**
- * Watched-setup card — the full pre-entry contract of a blocked candidate:
- * the close-based ACTIVATION (never an intraday touch), the PROVISIONAL
- * levels (each labeled تقديري with its structural basis, recomputed at
- * activation with RR re-validated ≥ 1.5), the PRE-ENTRY invalidation
- * (separate from the post-entry stop) and the veto reasons that raised the
- * block. Rendered only when the engine attached a setup.
- */
-function WatchingSetupBlock({ setup, ar }: { setup: WatchingSetup; ar: boolean }) {
-  const fmt = (v: number): string => (Number.isFinite(v) ? v.toFixed(2) : "—")
-  const zone = (lo: number | null | undefined, hi: number | null | undefined): string =>
-    lo === null || lo === undefined || hi === null || hi === undefined ? "—" : lo === hi ? lo.toFixed(2) : `${lo.toFixed(2)} – ${hi.toFixed(2)}`
-  const above = setup.activation.kind === "close_above"
-  const buy = setup.direction === "buy"
-  return (
-    <div className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3.5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5 text-xs font-bold">
-          <Eye className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" aria-hidden />
-          {ar ? `فرصة تحت المراقبة — ${buy ? "شراء" : "بيع"} بعد تفعيل هيكلي` : `Watched ${setup.direction} setup — structural activation`}
-        </span>
-        <Badge variant="outline" className={STANCE_CLS.hold.badge}>
-          {ar ? (buy ? "فرصة شراء تحت المراقبة" : "فرصة بيع تحت المراقبة") : buy ? "Buy setup — watching" : "Sell setup — watching"}
-        </Badge>
-      </div>
-
-      {/* شروط التفعيل — close-based level + volume condition + basis */}
-      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-          {ar ? "شروط التفعيل (بالإغلاق اليومي فقط — لا لمسة داخلية)" : "Activation (daily close only — never an intraday touch)"}
-        </p>
-        <p className="mt-1 text-sm font-bold" dir="ltr">
-          {above ? "≥ " : "≤ "}{fmt(setup.activation.level)}
-        </p>
-        <p className="mt-0.5 text-[11px] leading-relaxed text-foreground">
-          {ar
-            ? `إغلاق يومي ${above ? "فوق" : "تحت"} ${fmt(setup.activation.level)} + ${setup.activation.volumeConditionAr}`
-            : `Daily close ${above ? "above" : "below"} ${fmt(setup.activation.level)} + volume ≥ 1.5× the 20-session average`}
-        </p>
-        <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{ar ? `أساس المستوى: ${setup.activation.basisAr}` : setup.activation.basisAr}</p>
-      </div>
-
-      {/* المستويات التقديرية + ملاحظة إعادة الحساب */}
-      <div className="space-y-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {ar ? "المستويات التقديرية (تقديري — تُعاد الحسابات عند التفعيل)" : "Provisional levels (estimates — recomputed at activation)"}
-        </p>
-        <div className="grid gap-2 sm:grid-cols-3">
-          <div className="rounded-lg border border-blue-500/40 bg-blue-500/5 px-3 py-2.5">
-            <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
-              {buy ? <TrendingUp className="h-3 w-3" aria-hidden /> : <TrendingDown className="h-3 w-3" aria-hidden />}
-              {ar ? "دخول تقديري" : "Est. entry"}
-            </p>
-            <p className="mt-1 text-sm font-bold tabular" dir="ltr">
-              {zone(setup.provisionalEntry?.low, setup.provisionalEntry?.high)}
-            </p>
-          </div>
-          <div className="rounded-lg border border-positive/40 bg-positive/5 px-3 py-2.5">
-            <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-positive">
-              <Target className="h-3 w-3" aria-hidden />
-              {ar ? "هدف تقديري" : "Est. target"}
-            </p>
-            <p className="mt-1 text-sm font-bold tabular" dir="ltr">
-              {zone(setup.provisionalTarget?.low, setup.provisionalTarget?.high)}
-            </p>
-          </div>
-          <div className="rounded-lg border border-negative/40 bg-negative/5 px-3 py-2.5">
-            <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-negative">
-              <ShieldAlert className="h-3 w-3" aria-hidden />
-              {ar ? "وقف تقديري" : "Est. stop"}
-            </p>
-            <p className="mt-1 text-sm font-bold tabular" dir="ltr">
-              {setup.provisionalStop ? fmt(setup.provisionalStop.level) : "—"}
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-xs">
-            <span className="font-medium">{ar ? "المخاطرة/العائد التقديرية: " : "Est. risk/reward: "}</span>
-            <span className="tnum font-bold" dir="ltr">{setup.provisionalRiskReward !== null ? String(setup.provisionalRiskReward) : "—"}</span>
-          </p>
-          <span className="text-[10px] text-muted-foreground">{ar ? setup.provisionalBasisAr : setup.provisionalBasisAr}</span>
-        </div>
-        {setup.provisionalEntry?.basisAr || setup.provisionalStop?.basisAr || setup.provisionalTarget?.basisAr ? (
-          <div className="space-y-0.5 rounded-lg border border-border/60 bg-muted/10 px-3 py-2">
-            <p className="text-[10px] font-semibold text-muted-foreground">{ar ? "أساس كل مستوى:" : "Level basis:"}</p>
-            {setup.provisionalEntry?.basisAr ? <p className="text-[10px] leading-relaxed text-muted-foreground">{ar ? "الدخول: " : "Entry: "}{setup.provisionalEntry.basisAr}</p> : null}
-            {setup.provisionalStop?.basisAr ? <p className="text-[10px] leading-relaxed text-muted-foreground">{ar ? "الوقف: " : "Stop: "}{setup.provisionalStop.basisAr}</p> : null}
-            {setup.provisionalTarget?.basisAr ? <p className="text-[10px] leading-relaxed text-muted-foreground">{ar ? "الهدف: " : "Target: "}{setup.provisionalTarget.basisAr}</p> : null}
-          </div>
-        ) : null}
-        <p className="text-[10px] font-medium leading-relaxed text-amber-700 dark:text-amber-400/90">
-          {ar ? setup.recomputeNoteAr : "Provisional (estimates) — all levels are recomputed at activation and R/R re-validated; below 1.5 the setup does NOT confirm."}
-        </p>
-      </div>
-
-      {/* شرط الإلغاء قبل الدخول — منفصل عن وقف الخسارة بعد الدخول */}
-      <div className="rounded-lg border border-negative/30 bg-negative/5 px-3 py-2.5">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-negative">
-          {ar ? "شرط الإلغاء قبل الدخول (ليس وقف الخسارة)" : "Pre-entry invalidation (not the post-entry stop)"}
-        </p>
-        <p className="mt-1 text-[11px] font-medium leading-relaxed text-foreground">{ar ? setup.preEntryInvalidation.conditionAr : `A daily close ${above ? "below" : "above"} ${fmt(setup.preEntryInvalidation.level)} cancels the setup before entry.`}</p>
-        <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{ar ? setup.preEntryInvalidation.reasonAr : setup.preEntryInvalidation.reasonAr}</p>
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{ar ? setup.postEntryNoteAr : "After activation and entry, the trade's exit is the recomputed plan stop — never this pre-entry level."}</p>
-      </div>
-
-      {/* أسباب التوقف — the veto objects that raised the block */}
-      {setup.vetoReasons.length > 0 ? (
-        <div className="space-y-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{ar ? "ليه الفرصة مش مؤكدة دلوقتي؟" : "Why is this not confirmed yet?"}</p>
-          {setup.vetoReasons.map((r) => (
-            <div key={r.code} className="flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground">
-              <span
-                className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${r.tone === "negative" ? "bg-negative" : r.tone === "positive" ? "bg-positive" : "bg-muted-foreground/60"}`}
-                aria-hidden
-              />
-              <span>{ar ? r.ar : r.en}</span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-/** Plan-lifecycle event log — fetched lazily from the lifecycle API (same
- *  gated contract as the board: the server strips the view for free callers,
- *  so this renders nothing unless the caller is entitled to the detail). */
-const LIFECYCLE_EVENT_LABEL: Record<string, { ar: string; en: string }> = {
-  activated: { ar: "تفعيل", en: "Activated" },
-  stopped: { ar: "وقف", en: "Stopped" },
-  targeted: { ar: "هدف", en: "Target" },
-  time_stopped: { ar: "وقف زمني", en: "Time stop" },
-  invalidated: { ar: "إلغاء", en: "Invalidated" },
-  expired: { ar: "انتهاء", en: "Expired" },
-}
-
-function LifecycleEventsBlock({ companyId, ar }: { companyId: string; ar: boolean }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ["signal-lifecycle", companyId],
-    queryFn: () => api.signalLifecycle(companyId),
-    staleTime: 120_000,
-    retry: false,
-  })
-  const events = data?.lifecycle?.events ?? []
-  if (isLoading || events.length === 0) return null
-  return (
-    <div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {ar ? "سجل دورة الحياة (مشتق من البيانات لحظة الطلب)" : "Lifecycle events (derived on demand)"}
-      </p>
-      <div className="mt-1.5 space-y-1">
-        {events.slice(-6).map((e, i) => (
-          <div key={`${e.type}-${e.date}-${i}`} className="flex items-start gap-2 text-[11px] leading-relaxed">
-            <span className="shrink-0 rounded border border-border/50 bg-muted px-1 py-0.5 text-[9px] font-semibold text-muted-foreground">
-              {ar ? LIFECYCLE_EVENT_LABEL[e.type]?.ar ?? e.type : LIFECYCLE_EVENT_LABEL[e.type]?.en ?? e.type}
-            </span>
-            <span className="text-muted-foreground">
-              <span className="tabular" dir="ltr">{e.date}</span>
-              {e.price !== null ? (
-                <> · <span className="tabular" dir="ltr">{e.price.toFixed(2)}</span></>
-              ) : null}
-              {" — "}
-              {e.noteAr}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function StanceCard({ companyId, stance, verdict, pos, neg, boardSignal, ar }: { companyId: string; stance: StanceWithPlan; verdict: string; pos: number; neg: number; boardSignal?: BoardSignal | null; ar: boolean }) {
-  const cls = stance.signal ? STANCE_CLS[stance.signal] : null
-  const plan = stance.tradePlan ?? null
-  return (
-    <Card className="p-0">
-      <CardHeader className="px-5 pb-2">
-        <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span className="flex items-center gap-2">
-            <Gauge className="h-3.5 w-3.5 text-primary" aria-hidden />
-            {ar ? "الخلاصة الفنية" : "Technical stance"}
-          </span>
-          {(() => {
-            const sb = stanceStateBadge(stance, ar)
-            if (sb) {
-              return <Badge variant="outline" className={sb.cls}>{sb.label}</Badge>
-            }
-            return stance.signal && cls ? (
-              <Badge variant="outline" className={cls.badge}>
-                {ar ? SIGNAL_META[stance.signal].ar : SIGNAL_META[stance.signal].en}
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="border-border/40 text-muted-foreground/70">{ar ? "بيانات غير كافية" : "Weak data"}</Badge>
-            )
-          })()}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4 px-5 pb-5">
-        {/* score gauge + dimension bars */}
-        <div className="flex flex-wrap items-center gap-5">
-          <ScoreGauge score={stance.score} strokeCls={cls?.stroke ?? "stroke-primary"} textCls={cls?.text ?? ""} />
-          {stance.score !== null ? (
-            <div className="grid min-w-[220px] flex-1 gap-1.5">
-              {stance.dimensions.map((d) => {
-                const pct = d.max > 0 ? Math.round((d.earned / d.max) * 100) : 0
-                return (
-                  <div key={d.key} className="flex items-center gap-2">
-                    <span className="w-20 shrink-0 text-[11px] text-muted-foreground">{ar ? DIM_LABELS[d.key].ar : DIM_LABELS[d.key].en}</span>
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                      <div className={`h-full rounded-full ${stance.signal && STANCE_CLS[stance.signal] ? STANCE_CLS[stance.signal].bar : "bg-primary"}`} style={{ width: `${pct}%` }} />
-                    </div>
-                    <span className="w-14 shrink-0 text-end text-[10px] tabular text-muted-foreground" dir="ltr">{d.earned}/{d.max}</span>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            stance.limitations[0] ? (
-              <p className="min-w-[220px] flex-1 text-xs leading-relaxed text-muted-foreground">{stance.limitations[0]}</p>
-            ) : null
-          )}
-        </div>
-
-        {/* client-composed verdict sentence (counts of pre-flagged signals) */}
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
-          <p className="text-xs font-medium">{verdict}</p>
-          <span className="text-[11px] text-muted-foreground">
-            · {ar ? `${pos} إشارة إيجابية / ${neg} سلبية` : `${pos} positive / ${neg} negative signals`}
-          </span>
-        </div>
-
-        {/* why this read — the top evidence lines the engine actually used,
-            tone-colored; the detailed section stays honest about its inputs */}
-        {stance.reasons.length > 0 ? (
-          <div className="space-y-1.5 rounded-lg border border-border/60 bg-muted/10 px-3 py-2.5">
-            <p className="text-xs font-semibold">{ar ? "ليه القرار ده؟" : "Why this read?"}</p>
-            {stance.reasons.map((r) => (
-              <div key={r.code} className="flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground">
-                <span
-                  className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${r.tone === "positive" ? "bg-positive" : r.tone === "negative" ? "bg-negative" : "bg-muted-foreground/60"}`}
-                  aria-hidden
-                />
-                <span>{ar ? r.ar : r.en}</span>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {/* sync strip — the market board and this tab must tell the same story;
-            when their read differs, the reason is stated instead of hiding it. */}
-        {boardSignal?.signal ? (
-          boardSignal.signal === stance.signal ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-positive/25 bg-positive/5 px-3 py-1.5">
-              <span className="text-[11px] font-medium text-positive">
-                {ar
-                  ? `متزامنة مع لوحة الإشارات الفنية: ${SIGNAL_META[boardSignal.signal].ar} (${boardSignal.score}/100) — نفس القراءة من زاويتين.`
-                  : `In sync with the signals board: ${SIGNAL_META[boardSignal.signal].en} (${boardSignal.score}/100).`}
-              </span>
-            </div>
-          ) : (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-1.5">
-              <p className="text-[11px] leading-relaxed text-amber-700 dark:text-amber-400">
-                {ar
-                  ? `لوحة الإشارات الفنية (اللي بتحسب على الإغلاقات اليومية بس) بتقرا هنا: ${SIGNAL_META[boardSignal.signal].ar} (${boardSignal.score}/100). القراءة التفصيلية دي أشمل لأنها بتشوف الستوكاستيك و ATR والهيكل كمان — اختلاف الزاوية طبيعي والكلمة الأساسية هي أقرب قراءة للبيانات الكاملة.`
-                  : `The signals board (close-only math) reads: ${SIGNAL_META[boardSignal.signal].en} (${boardSignal.score}/100). This detailed read is broader — Stochastic, ATR and structure — so a different angle is expected.`}
-              </p>
-            </div>
-          )
-        ) : null}
-
-        {/* trade plan (confirmed) or the watched-setup contract (watching) —
-            a directional read is never published without one of them */}
-        {stance.signalState === "watching" && stance.setup ? (
-          <WatchingSetupBlock setup={stance.setup} ar={ar} />
-        ) : plan ? (
-          <TradePlanBlock plan={plan} ar={ar} />
-        ) : stance.setup ? (
-          <WatchingSetupBlock setup={stance.setup} ar={ar} />
-        ) : (
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            {ar ? "مفيش منطقة دخول واضحة دلوقتي — القراءة استنتاجية والانتظار أفضل." : "No clear entry zone right now — the read is inconclusive and waiting is better."}
-          </p>
-        )}
-
-        {(stance.signalState === "watching" || stance.signalState === "confirmed") ? (
-          <LifecycleEventsBlock companyId={companyId} ar={ar} />
-        ) : null}
-
-        {stance.styleFits.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] text-muted-foreground">{ar ? "مناسب لأنماط:" : "Fits styles:"}</span>
-            {stance.styleFits.map((f) => (
-              <Badge key={f.tag} variant="secondary" className="text-[10px]">
-                {ar ? STYLE_TAG_META[f.tag].ar : STYLE_TAG_META[f.tag].en}
-                <span className="ms-1 tabular opacity-70">{f.earned}/{f.total}</span>
-              </Badge>
-            ))}
-          </div>
-        ) : null}
-
-        {stance.limitations.length > 0 && stance.score !== null ? (
-          <p className="text-[10px] leading-relaxed text-muted-foreground">{ar ? "حدود: " : "Limits: "}{stance.limitations.join(" · ")}</p>
-        ) : null}
-
-        <p className="text-[10px] text-muted-foreground">
-          {ar
-            ? "قراءة قواعدية حتمية بأوزان معلنة (اتجاه 35 / زخم 30 / حجم 20 / مخاطرة 15) من الأسعار المسجلة — ليست توصية استثمارية ولا سعرًا مستهدفًا."
-            : "A deterministic rule-based read with disclosed weights (trend 35 / momentum 30 / volume 20 / risk 15) over recorded prices — not investment advice and not a price target."}
-        </p>
-      </CardContent>
-    </Card>
-  )
-}
-
 // ---------------------------------------------------------------------------
-// V2StanceCard — the stance hero reads from the REBUILT engine (tech-signals@6),
-// the SAME row the /signals board publishes. One engine, one score, one plan —
-// the company tab and the market board can never disagree again. The legacy v1
-// stance card above remains only as a fallback for older cached payloads.
+// V2StanceCard — THE stance hero (tech-signals@7), the SAME row the /signals
+// board publishes. One engine, one score, one plan — the company tab and the
+// market board can never disagree again. There is no legacy fallback card:
+// when the unified row is unavailable the tab shows an honest note below.
 // ---------------------------------------------------------------------------
 
 function V2StanceCard({ row, ar }: { row: SignalRowV2; ar: boolean }) {
@@ -900,111 +382,48 @@ function V2StanceCard({ row, ar }: { row: SignalRowV2; ar: boolean }) {
 }
 
 // ---------------------------------------------------------------------------
-// "القصة في سطور" — client-composed story bullets (null-safe; a bullet simply
-// does not render when its input is missing). No number is invented here.
+// "الرؤية ببساطة" — the EMA-FIRST vision narrative (2026-11-17 owner mandate).
+// Built by the pure builder src/lib/technical/stance-narrative.ts from REAL
+// inputs only (the unified engine's state + the snapshot's own EMA20/EMA50 —
+// the same adjusted bars every number on this tab is computed from). ONE
+// paragraph a beginner reads once, then three crisp bullets: الوضع / خط الحكم
+// / ما بعد. Static S/R are demoted to a reference-sign footnote — the EMA pair
+// is the backbone, and the daily close is the judge. Replaces the old
+// mixed-source client summary (old-stance reason + zones + RSI bullets) that
+// could contradict the stance hero above it.
 // ---------------------------------------------------------------------------
 
-type StoryTone = "positive" | "negative" | "amber" | "neutral" | "primary"
-
-const STORY_DOT: Record<StoryTone, string> = {
-  positive: "bg-positive",
-  negative: "bg-negative",
-  amber: "bg-amber-500",
-  neutral: "bg-muted-foreground",
-  primary: "bg-primary",
-}
-
-function StoryList({ snap, stance, ar }: { snap: TechSnapshot; stance: StanceWithPlan | undefined; ar: boolean }) {
-  const bullets: { tone: StoryTone; text: string }[] = []
-
-  // 1) the first stance reason — the line that moved the score
-  const reason0 = stance?.reasons?.[0]
-  if (reason0) {
-    bullets.push({
-      tone: reason0.tone === "positive" ? "positive" : reason0.tone === "negative" ? "negative" : "neutral",
-      text: ar ? reason0.ar : reason0.en,
-    })
-  }
-
-  // 2) short/medium structure sentence
-  const st = snap.structure
-  if (st?.available) {
-    const label = (s: "uptrend" | "downtrend" | "range" | null): string =>
-      s === "uptrend" ? (ar ? "صاعد" : "uptrend")
-        : s === "downtrend" ? (ar ? "هابط" : "downtrend")
-          : s === "range" ? (ar ? "عرضي" : "ranging")
-            : (ar ? "غير محدد" : "unclear")
-    if (st.trend.short !== null || st.trend.medium !== null) {
-      const short = label(st.trend.short)
-      const medium = label(st.trend.medium)
-      bullets.push({
-        tone: st.trend.short === "uptrend" ? "positive" : st.trend.short === "downtrend" ? "negative" : "neutral",
-        text: ar ? `الهيكل قصير المدى ${short} والمتوسط ${medium}.` : `Short-term structure is ${short} and the medium term is ${medium}.`,
-      })
-    }
-  }
-
-  // 3) + 4) nearest demand / supply zones (nearest by distance from last close)
-  const zones = snap.zones?.available ? (snap.zones.zones ?? []) : []
-  const nearest = (kind: "demand" | "supply") =>
-    zones
-      .filter((z) => z.kind === kind)
-      .sort((a, b) => Math.abs(a.distPct) - Math.abs(b.distPct))[0] ?? null
-  const demand = nearest("demand")
-  const supply = nearest("supply")
-  if (demand) {
-    bullets.push({
-      tone: "positive",
-      text: ar
-        ? `أقرب منطقة طلب عند ${demand.low.toFixed(2)}–${demand.high.toFixed(2)} (${pctStr(demand.distPct)}).`
-        : `Nearest demand zone at ${demand.low.toFixed(2)}–${demand.high.toFixed(2)} (${pctStr(demand.distPct)}).`,
-    })
-  }
-  if (supply) {
-    bullets.push({
-      tone: "negative",
-      text: ar
-        ? `أقرب منطقة عرض عند ${supply.low.toFixed(2)}–${supply.high.toFixed(2)} (${pctStr(supply.distPct)}).`
-        : `Nearest supply zone at ${supply.low.toFixed(2)}–${supply.high.toFixed(2)} (${pctStr(supply.distPct)}).`,
-    })
-  }
-
-  // 5) RSI sentence
-  const rsi = snap.momentum.rsi14
-  if (rsi !== null && Number.isFinite(rsi)) {
-    const zone = rsi >= 70 ? (ar ? "تشبع شرائي" : "overbought") : rsi <= 30 ? (ar ? "تشبع بيعي" : "oversold") : (ar ? "منطقة محايدة" : "neutral")
-    bullets.push({
-      tone: rsi >= 70 ? "amber" : rsi <= 30 ? "amber" : "neutral",
-      text: ar
-        ? `مؤشر القوة النسبية ${rsi.toFixed(1)} — ${zone}.`
-        : `RSI(14) at ${rsi.toFixed(1)} — ${zone}.`,
-    })
-  }
-
-  // 6) 60-session range position — skipped: the full-snapshot stance carries no
-  //    rangePos60 metric, and the tab never invents one.
-
-  if (bullets.length === 0) return null
+function StanceVisionBlock({ vision, ar }: { vision: StanceVision; ar: boolean }) {
+  // Arabic-only by doctrine (the copy register matches src/lib/position/review.ts);
+  // English readers still get the stance hero's bilingual evidence above.
+  if (!ar) return null
   return (
     <Card className="p-0">
       <CardHeader className="px-5 pb-2">
         <CardTitle className="flex items-center gap-2 text-sm">
           <ScrollText className="h-3.5 w-3.5 text-primary" aria-hidden />
-          {ar ? "القصة في سطور" : "The story in brief"}
+          الرؤية ببساطة
         </CardTitle>
       </CardHeader>
-      <CardContent className="px-5 pb-5">
+      <CardContent className="space-y-3 px-5 pb-5">
+        <p className="text-xs leading-relaxed text-foreground">{vision.paraAr}</p>
         <ol className="space-y-1.5">
-          {bullets.map((b, i) => (
-            <li key={i} className="flex items-start gap-2 text-xs leading-relaxed">
-              <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${STORY_DOT[b.tone]}`} aria-hidden />
-              <span className="flex-1">{b.text}</span>
+          {vision.bulletsAr.map((b) => (
+            <li key={b.label} className="flex items-start gap-2 text-xs leading-relaxed">
+              <span
+                className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
+                  b.label === "خط الحكم" ? "bg-amber-500" : b.label === "ما بعد" ? "bg-primary" : "bg-muted-foreground"
+                }`}
+                aria-hidden
+              />
+              <span className="flex-1">
+                <span className="font-bold">{b.label}: </span>
+                {b.text}
+              </span>
             </li>
           ))}
         </ol>
-        <p className="mt-2 text-[10px] text-muted-foreground">
-          {ar ? "قراءة تجميعية من الأقسام التفصيلية في هذه الصفحة." : "A composed summary of the detailed sections on this page."}
-        </p>
+        <p className="text-[10px] leading-relaxed text-muted-foreground">{vision.footnoteAr}</p>
       </CardContent>
     </Card>
   )
@@ -1494,17 +913,8 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
     )
   }
 
-  const pos = snap.signals.filter((s) => s.tone === "positive").length
-  const neg = snap.signals.filter((s) => s.tone === "negative").length
-  const verdict =
-    pos - neg >= 2 ? (ar ? "الصورة الفنية تميل للإيجابي" : "Technical picture leans positive")
-    : neg - pos >= 2 ? (ar ? "الصورة الفنية تميل للسلبي" : "Technical picture leans negative")
-    : pos + neg > 0 ? (ar ? "إشارات متضاربة — السوق في انتظار حاسم" : "Mixed signals — the market is undecided")
-    : ar ? "لا إشارات فنية بارزة الآن" : "No notable technical signals right now"
-
   // Day change from the last two DISTINCT sessions of the ADJUSTED series.
   const dayPct = sessionChangePct(candles)
-  const stance = (data.stance ?? undefined) as StanceWithPlan | undefined
   const tr = snap.trend
   const emaRows = [
     { label: "EMA 20", v: tr.ema20 ?? null },
@@ -1512,37 +922,40 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
     { label: "EMA 200", v: tr.ema200 ?? null },
   ]
 
+  // EMA-first vision — ONE source of truth: the unified engine's state decides
+  // the action sentence, the EMA20/EMA50 geometry decides the story sentences.
+  // Inputs are the tab's own displayed numbers (same adjusted bars as the
+  // chart and the EMA card below), so the narrative can never quote a figure
+  // the page does not show.
+  const vision = buildStanceVision({
+    state: data.signalsV2?.state ?? null,
+    lastClose: snap.lastClose,
+    ema20: tr.ema20,
+    ema50: tr.ema50,
+  })
+
   return (
     <div className="space-y-4">
       {/* a. honest disclaimer — always first */}
       <DisclaimerBanner ar={ar} />
 
-      {/* b. rule-based stance hero with the trade plan — reads from the
-          REBUILT engine (tech-signals@6) when its row is available so this
-          card and the /signals board publish the SAME score, state and plan;
-          the legacy v1 stance card is the fallback for older payloads. */}
-      {(() => {
-        const signalsV2Row = data.signalsV2 ?? null
-        if (signalsV2Row) return <V2StanceCard row={signalsV2Row} ar={ar} />
-        return stance ? (
-          <StanceCard companyId={companyId} stance={stance} verdict={verdict} pos={pos} neg={neg} boardSignal={(data as { boardSignal?: BoardSignal | null }).boardSignal ?? null} ar={ar} />
-        ) : null
-      })()}
+      {/* b. THE stance hero — reads the unified engine row (tech-signals@7),
+          the SAME row the /signals board publishes, so this card and the board
+          publish the SAME score, state and plan. No legacy fallback card: the
+          v1 stance engine output was removed from this tab (owner mandate
+          2026-11-17 — one stock, one analysis, one engine). */}
+      {data.signalsV2 ? (
+        <V2StanceCard row={data.signalsV2} ar={ar} />
+      ) : (
+        <Card className="p-6 text-center text-sm text-muted-foreground">
+          {ar
+            ? "قراءة المحرك الموحد غير متاحة على هذه اللقطة — والرؤية تحت مبنية على المتوسطات المحسوبة من نفس الشموع المعدلة."
+            : "The unified engine read is unavailable on this snapshot — the vision below is built from the moving averages computed on the same adjusted bars."}
+        </Card>
+      )}
 
-      {/* b2. opportunity layer (opportunity@1) — the SAME layer the board's
-          "فرص اليوم" strip serves for this ticker; honest "none" when the
-          read is not a candidate. */}
-      <CompanyOpportunityBlock
-        opportunity={data.opportunity}
-        ticker={ticker ?? ""}
-        stance={stance}
-        lastClose={snap.lastClose}
-        asOf={snap.asOf}
-        ar={ar}
-      />
-
-      {/* c. the story in brief */}
-      <StoryList snap={snap} stance={stance} ar={ar} />
+      {/* c. the EMA-first vision — one paragraph + الوضع / خط الحكم / ما بعد */}
+      <StanceVisionBlock vision={vision} ar={ar} />
 
       {/* d. EGXANO's own chart over the corporate-action-ADJUSTED series with
           EMA20/EMA50 overlays — the same bars every number below is computed
@@ -1732,40 +1145,11 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
       {/* i. market structure — swings, multi-timeframe chips, BOS/CHoCH, key levels */}
       <StructureSection structure={snap.structure} ar={ar} />
 
-      {/* j. pre-flagged signals */}
-      {snap.signals.length > 0 ? (
-        <Card className="p-0">
-          <CardHeader className="px-5 pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Waves className="h-3.5 w-3.5 text-primary" aria-hidden />
-              {ar ? "إشارات فنية مرصودة" : "Flagged technical signals"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1.5 px-5 pb-5">
-            {snap.signals.map((s) => (
-              <div
-                key={s.code}
-                className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs leading-relaxed ${
-                  s.tone === "positive"
-                    ? "border-positive/30 bg-positive/5 text-positive"
-                    : s.tone === "negative"
-                      ? "border-negative/30 bg-negative/5 text-negative"
-                      : "border-border/60 bg-muted/20 text-muted-foreground"
-                }`}
-              >
-                {s.tone === "positive" ? (
-                  <ArrowUpRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                ) : s.tone === "negative" ? (
-                  <ArrowDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                ) : (
-                  <Minus className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                )}
-                <span>{ar ? s.textAr : s.text}</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      ) : null}
+      {/* j. (removed 2026-11-17) the old engine's pre-flagged signals dump
+          (the indicator-flag card that used to live here) — a second
+          old-engine output whose wording could contradict the unified stance
+          card above. The unified engine's cited evidence (ليه القرار ده؟) is
+          the one reading. */}
 
       {/* k. data limitations + the one-line disclaimer */}
       {snap.limitations.length > 0 ? (

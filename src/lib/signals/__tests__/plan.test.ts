@@ -84,7 +84,7 @@ describe("buildBuyPlan — the +20% target cap (owner mandate 2026-11-16)", () =
   function zoneAt(anchor: number, gapPct: number): ZoneMap {
     const level = anchor * (1 + gapPct / 100)
     return {
-      zones: [{ kind: "resistance", low: level, high: level, touches: 3, lastTouchTs: "2026-01-01", lastTouchIdx: 0, broken: false }],
+      zones: [{ kind: "resistance", positionKind: "resistance", low: level, high: level, touches: 3, lastTouchTs: "2026-01-01", lastTouchIdx: 0, broken: false }],
       atr: null,
     }
   }
@@ -122,6 +122,7 @@ describe("buildBuyPlan — the +20% target cap (owner mandate 2026-11-16)", () =
     const anchor = m.lastClose
     const zone = (gapPct: number): PriceZone => ({
       kind: "resistance",
+      positionKind: "resistance", // synthetic zone sits above the anchor's close
       low: anchor * (1 + gapPct / 100),
       high: anchor * (1 + gapPct / 100),
       touches: 3,
