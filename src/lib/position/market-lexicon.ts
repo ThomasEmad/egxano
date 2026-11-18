@@ -23,7 +23,7 @@
 // HONESTY: a line fires ONLY on its own trigger carrying non-null context
 // data; an honestly-null context yields [] — the phrasebook never invents
 // a number. At most one line per trigger; the merged pass in review.ts
-// (narrativeLinesAr) owns the global cap of 3.
+// (narrativeLinesAr) owns the global cap of 4 (merged with maker games + market map).
 // =============================================================================
 
 import type { MarketContext } from "./market-context"

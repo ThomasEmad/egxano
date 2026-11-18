@@ -562,3 +562,116 @@ describe("veteranLinesAr — the veteran's reading of the last session", () => {
     expect(lines).toEqual(["جلسة بتبيع على فوليوم عالي بعد صعود طويل (توزيع محتمل)."])
   })
 })
+
+// =============================================================================
+// OWNER MANDATE (2026-11-18, round three) — «خبرة 100 سنة»: the maker games
+// (maker-games.ts) + the whole-market map ride the merged narrative pass.
+//   • input.marketCtx present → the «خريطة السوق النهاردة» line reaches the
+//     report (regime + breadth + sector + the branch implication)
+//   • input.marketCtx null + no maker evidence → BYTE-IDENTICAL output to the
+//     pre-maker baseline (pinned against the captured hold fixture)
+//   • the merged cap is NARRATIVE_MAX_LINES = 4, enforced end-to-end
+// =============================================================================
+
+import { narrativeLinesAr, NARRATIVE_MAX_LINES } from "../review"
+import type { MarketContextSection } from "@/lib/technical/analyze"
+
+const mctxFull = (over: Partial<MarketContextSection> = {}): MarketContextSection => ({
+  available: true,
+  asOf: "2026-03-12",
+  marketRegime: "correction",
+  marketRegimeAr: "سوق تصحيح",
+  marketPulse: -1.2,
+  breadth: { advancing: 10, declining: 40, unchanged: 5, ratio: 0.25 },
+  aboveEma20: 12,
+  aboveEma50: 18,
+  aboveEma200: 30,
+  sector: { name: "بنوك", dayChangePct: -1.0, advancing: 3, declining: 12, turnoverSharePct: 22.5, turnoverShareDelta5d: 1.1 },
+  relVolRankPct: 55,
+  limitations: [],
+  ...over,
+})
+
+describe("reviewPosition — the maker games + the market map integration (2026-11-18)", () => {
+  it("input.marketCtx present → the خريطة السوق line reaches the hold report LAST in the narrative", () => {
+    const bars = cushionSeries(100, 106.5)
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({ row: rowOver(bars, { state: "wait" }), bars, map, avgBuyPrice: 100, marketCtx: mctxFull() })
+    expect(r.decision).toBe("hold")
+    const mapLine = r.reasonsAr.find((x) => x.includes("خريطة السوق النهاردة"))
+    expect(mapLine).toBeDefined()
+    expect(mapLine!).toContain("سوق تصحيح") // the regime is named
+    expect(mapLine!).toContain("40 هابط") // the breadth is cited
+    expect(mapLine!).toContain("بنوك") // the company's sector day change
+    expect(mapLine!).toContain("بيئة قيعان") // aboveEma20 = 12 ≤ 15 → bottoms regime
+    expect(mapLine!).toContain("الاحتفاظ") // the hold-branch implication
+    // the map speaks LAST in the narrative (no VSA note on this fixture)
+    expect(r.reasonsAr[r.reasonsAr.length - 1]).toBe(mapLine)
+    // the merged cap holds end-to-end: base reasons + ≤ NARRATIVE_MAX_LINES
+    expect(r.reasonsAr.length).toBeLessThanOrEqual(5 + NARRATIVE_MAX_LINES)
+  })
+
+  it("the market map degrades honestly: available=false or a null section → no map line at all", () => {
+    const bars = cushionSeries(100, 106.5)
+    const map = buildZoneMap(bars)
+    const row = rowOver(bars, { state: "wait" })
+    for (const mctx of [null, mctxFull({ available: false })]) {
+      const r = reviewPosition({ row, bars, map, avgBuyPrice: 100, marketCtx: mctx })
+      expect(r.reasonsAr.some((x) => x.includes("خريطة السوق"))).toBe(false)
+    }
+  })
+
+  it("PIN — marketCtx null + no maker evidence → the hold report is BYTE-IDENTICAL to the pre-maker baseline", () => {
+    const bars = cushionSeries(100, 106.5)
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({ row: rowOver(bars, { state: "wait" }), bars, map, avgBuyPrice: 100 })
+    expect(r.reasonsAr).toEqual([
+      "الأساسي أولًا: متوسطك 100.00 والسعر 106.50 — يعني إنت +6.5٪ (+6.50 جنيه/سهم). المركز مش في منطقة خطر.",
+      "القراءة الفنية: هابط — السعر تحت EMA50 وEMA20 تحت EMA50 (ترتيب سلبي) وRSI 44.32 (منطقة متوازنة).",
+      "خط الدفاع: دعم 2× مختبَر (104.00–104.40) على بعد +2.2٪ — طالما السعر فوقه بالإغلاق، القصة سليمة.",
+      "الحلم فوق: أول منطقة تستحق قرار أرباح جزئي عند 112.85–112.85 على بعد +12.8٪ من متوسطك.",
+      "الخلاصة بصوت واضح: احتفظ. البيع يبقى قرار لما يفلخط الدفاع، مش لما القلق يعلو.",
+      "دوجي عند 106.50 — الافتتاح والإغلاق تلاحقوا: تردد في منطقة أرباح معناه إن القرار معلق بين الطرفين، ومن تجارب السوق بيجي قبل انعطاف أو استراحة، والاتجاه المحيط هابط فالترجيح يميل للهبوط.",
+      "«الأرقام المستديرة أرضيات وسقوف» — من كلام المحللين اللي بيتكتب كل يوم وبيتأكد على الشاشة: الرقم المستدير 105.00 قاعد تحت الإغلاق 106.50 بفارق 1.4٪، وده أرضية نفسية الطلبات بتتجمع عندها، وفي اتجاه هابط الأرضية دي بتتاختبر كل يوم — واللمسة مش كسر: اختبار الرقم وثباته بالإغلاق هو اللي بيحوله من رقم مكتوب لأرضية فعلية. المتفرج عليه: أي إغلاق يومي تحت 105.00 — عشان الأرقام المستديرة لما بتتكسر بتقلب أدوار وبتدير سقف على الرحلة الجاية.",
+    ])
+    expect(r.reasonsAr.length).toBeLessThanOrEqual(8)
+  })
+
+  it("the merged cap: every trigger family firing at once → at most NARRATIVE_MAX_LINES lines, no duplicates", () => {
+    // veteran 2 (divergence + spike), lexicon 3 (round + ceiling consolidation
+    // + drying climb), maker games (frozen bars + market section), market map,
+    // VSA — everything at once; the cap decides, dedup holds.
+    const richCtx = ctxOver({
+      divergence: "bearish",
+      volCharacter: "spike",
+      closeLocationPct: 88.1,
+      roundLevelNear: { level: 210, distPct: 0.87 },
+      consolidation: { sessions: 7, tightnessPct: 2.1 },
+      nearRangeTop: true,
+      volTrend5: "falling",
+      vsaNoteAr: "ملاحظة VSA فاقدة الأولوية.",
+    })
+    const frozenBar = (close: number): Bar => ({ ts: "2026-03-12-000", open: close, high: close + 0.04, low: close - 0.04, close, volume: 1000 })
+    const lines = narrativeLinesAr(
+      richCtx,
+      { branch: "hold", avgBuyPrice: 100, close: 208.18, trendAr: upTrendAr },
+      {
+        bars: [frozenBar(208.18), frozenBar(208.18), frozenBar(208.18)],
+        map: null,
+        cushion: null,
+        nearestSupportLow: 200,
+        prevClose: 208.0,
+        mctx: mctxFull(),
+      },
+    )
+    expect(lines.length).toBe(NARRATIVE_MAX_LINES)
+    expect(lines.length).toBeLessThanOrEqual(4)
+    expect(new Set(lines).size).toBe(lines.length)
+    // traps first: the veteran entries open the pass
+    expect(lines[0]).toContain("انحراف سلبي")
+    expect(lines[1]).toContain("فوليوم Spike")
+    // the market map + VSA never displace the traps
+    expect(lines[0]).not.toContain("خريطة السوق")
+    expect(lines[0]).not.toContain("ملاحظة VSA")
+  })
+})

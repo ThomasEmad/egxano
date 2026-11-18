@@ -3,7 +3,7 @@
 // 2026-11-18: «متعلم من كل محللين الفيس بوك الخبراء»). The phrasebook fires
 // ONLY on its own trigger, cites real context numbers, ends with the
 // watch-next clause, stays silent ([]) on an honestly-null context, and —
-// through narrativeLinesAr — never exceeds 3 lines with the veteran entries
+// through narrativeLinesAr — never exceeds 4 lines with the veteran entries
 // first, the lexicon after, and the VSA passthrough last.
 // =============================================================================
 
@@ -140,8 +140,8 @@ describe("lexiconLinesAr — the trigger set", () => {
   })
 })
 
-describe("narrativeLinesAr — the merged pass (veteran → lexicon → VSA, cap 3)", () => {
-  it("(e) rich context → exactly 3 lines: veteran traps first, lexicon after, no duplicates", () => {
+describe("narrativeLinesAr — the merged pass (veteran → lexicon → VSA, cap 4)", () => {
+  it("(e) rich context → exactly 4 lines: veteran traps first, lexicon after, no duplicates", () => {
     const ctx = ctxOver({
       divergence: "bearish",
       volCharacter: "spike",
@@ -152,13 +152,13 @@ describe("narrativeLinesAr — the merged pass (veteran → lexicon → VSA, cap
       volTrend5: "falling",
     })
     const lines = narrativeLinesAr(ctx, opts())
-    expect(lines.length).toBe(3)
+    expect(lines.length).toBe(4)
     expect(lines[0]).toContain("انحراف سلبي") // trap before confirmation
     expect(lines[1]).toContain("فوليوم Spike") // the veteran spike confirmation
     expect(lines[2]).toContain("الأرقام المستديرة") // the first lexicon entry
+    expect(lines[3]).toContain("تجميعة") // the next lexicon entry filled the 4th slot
     expect(new Set(lines).size).toBe(lines.length) // no duplicates
-    // the two lexicon entries that did not fit are dropped, not reordered in
-    expect(lines.filter((l) => l.includes("تجميعة")).length).toBe(0)
+    // the lexicon entry that did not fit is dropped, not reordered in
     expect(lines.filter((l) => l.includes("سيولة مدّارة")).length).toBe(0)
   })
 
@@ -176,17 +176,18 @@ describe("narrativeLinesAr — the merged pass (veteran → lexicon → VSA, cap
     expect(lines[2]).toBe(vsa)
   })
 
-  it("when veteran + lexicon speak for all three slots, the VSA note is dropped (filler only)", () => {
+  it("when a slot remains under the 4-line cap, the VSA note fills it", () => {
+    const vsa = "ملاحظة VSA لن تُطبع."
     const ctx = ctxOver({
       divergence: "bearish",
       volCharacter: "spike",
       closeLocationPct: 88.1,
       roundLevelNear: { level: 210, distPct: 0.87 },
-      vsaNoteAr: "ملاحظة VSA لن تُطبع.",
+      vsaNoteAr: vsa,
     })
     const lines = narrativeLinesAr(ctx, opts())
-    expect(lines.length).toBe(3)
-    expect(lines.some((l) => l.includes("ملاحظة VSA"))).toBe(false)
+    expect(lines.length).toBe(4) // veteran 2 + lexicon 1 + VSA filler
+    expect(lines[3]).toBe(vsa)
   })
 
   it("the standalone veteranLinesAr keeps its ≤ 2-line contract untouched", () => {
@@ -201,8 +202,8 @@ describe("narrativeLinesAr — the merged pass (veteran → lexicon → VSA, cap
     expect(new Set(lines).size).toBe(lines.length)
   })
 
-  it("NARRATIVE_MAX_LINES is exactly 3", () => {
-    expect(NARRATIVE_MAX_LINES).toBe(3)
+  it("NARRATIVE_MAX_LINES is exactly 4 (2026-11-18 maker-games mandate)", () => {
+    expect(NARRATIVE_MAX_LINES).toBe(4)
   })
 })
 
@@ -274,6 +275,6 @@ describe("the lexicon pass — live integration over real bars", () => {
     expect(all).toContain("أرضية") // level BELOW the close → floor
     expect(all).toContain("المتفرج عليه") // every lexicon line carries the watch-next
     // and the merged cap still holds end-to-end
-    expect(r.reasonsAr.length).toBeLessThanOrEqual(5 + 3)
+    expect(r.reasonsAr.length).toBeLessThanOrEqual(5 + NARRATIVE_MAX_LINES)
   })
 })

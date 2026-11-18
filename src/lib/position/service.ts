@@ -4,9 +4,11 @@
 // review reads the EXACT anatomy the signals board reads. No writes anywhere.
 // =============================================================================
 
+import { buildMarketContext } from "@/lib/market/intelligence/context"
 import { buildZoneMap } from "@/lib/signals/levels"
 import { getCompanySeriesCached, getCompanySignalV2Cached } from "@/lib/signals/board-service"
 import { MIN_BARS } from "@/lib/signals/types"
+import type { MarketContextSection } from "@/lib/technical/analyze"
 import { reviewPosition } from "./review"
 import type { PositionReviewResult } from "./types"
 
@@ -41,9 +43,22 @@ export async function buildPositionReview(companyId: string, avgBuyPrice: number
   }
 
   const map = buildZoneMap(series.bars)
+  // OWNER MANDATE (2026-11-18, «خبرة 100 سنة… عارف سياق السوق»): the veteran
+  // review reads the whole-market intelligence section (regime, breadth,
+  // sector rotation, liquidity rank). buildMarketContext returns null when
+  // intelligence hasn't run — and any unexpected rejection (DB read inside)
+  // is swallowed to null so the review still builds WITHOUT market context,
+  // just with fewer lines. Fetched only on this successful path, AFTER the
+  // row/map checks, so failing series never pay the intelligence cost.
+  let marketCtx: MarketContextSection | null = null
+  try {
+    marketCtx = await buildMarketContext(companyId)
+  } catch {
+    marketCtx = null
+  }
   return {
     ...head,
-    review: reviewPosition({ row, bars: series.bars, map, avgBuyPrice, downsideAnswer: downsideAnswer ?? null }),
+    review: reviewPosition({ row, bars: series.bars, map, avgBuyPrice, downsideAnswer: downsideAnswer ?? null, marketCtx }),
     quota: null, // the route fills the caller's quota after consuming
     notReviewableAr: null,
   }
