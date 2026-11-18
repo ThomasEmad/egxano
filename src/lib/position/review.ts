@@ -40,6 +40,7 @@ import {
   type SignalRowV2,
 } from "@/lib/signals/types"
 import { POSITION_DECISION_AR, type LevelLine, type PositionDecision, type PositionReview, type ReviewQuestion, type TechnicalSnapshot } from "./types"
+import { buildMarketContext, type MarketContext } from "./market-context"
 
 /** OWNER MANDATE (2026-11-17): at −20% or deeper, selling locks a loss whose
  *  recovery math turns brutal — the default verdict becomes انتظار للارتداد
@@ -149,6 +150,246 @@ function levelLines(map: ZoneMap, close: number, avgBuy: number): { supports: Le
 
 const fmt = (x: number) => x.toFixed(2)
 const pct1 = (x: number) => `${x >= 0 ? "+" : ""}${x.toFixed(1)}٪`
+/** 1-decimal percent WITHOUT a sign — for unsigned quantities like the close's
+ *  location inside its own range or a wick's share of the day's range. */
+const pctPlain = (x: number) => `${x.toFixed(1)}٪`
+/** 1-decimal ×multiple — for volume class bounds, ATR stretch and candle body. */
+const mult1 = (x: number) => `${x.toFixed(1)}×`
+
+// =============================================================================
+// OWNER MANDATE (2026-11-18) — the veteran's voice. «اسلوب تحليل السهم في قسم
+// حلل سهمي محتاج يتطور ويبقى متعلم تحليل فني أكتر، ويبقى كأنه إنسان مليان من
+// الخبرات والتجارب من البورصة — مش مجرد محرك متعلم شوية مؤشرات ودعوم ومقاومات
+// وبس». veteranLinesAr reads the MarketContext — the candle's anatomy, the
+// volume character, the stretch off the averages, the traps — and speaks AT
+// MOST 2 lines in the voice of someone who has lived EGX cycles: honest,
+// never commanding, never boilerplate. Every line fires ONLY on its own data
+// trigger and cites real numbers from the context (2-decimal levels,
+// 1-decimal ٪ percents, ×multiples). An honestly-null context (thin data)
+// keeps the veteran silent: [] → zero change to today's output.
+//
+// PRIORITY LADDER — when several triggers fire, traps speak before
+// confirmations and the tape speaks before structure:
+//   1. spike volume ON the break (exit branches) — real liquidity pull?
+//   2. bearish momentum divergence (hold/take-profit) — the trap at the top
+//   3. bullish momentum divergence (deep loss / cushion wait) — early-turn hint
+//   4. spike volume closing at the top (hold/take-profit) — real buying
+//   5. dry-volume rally at the range top (hold) — the hollow climb
+//   6. dry volume at the range bottom (loss waits) — no capitulation yet
+//   7. long upper wick after the rally (hold/take-profit) — sold above
+//   8. long lower wick (loss waits) — someone actually bought down there
+//   9. down gap ≥ 2٪ (any branch) — the open is not the verdict
+//  10. up gap ≥ 2٪ closing near the low (any branch) — distribution over the gap
+//  11. stretch off EMA20 ≥ 2.5× ATR (hold/take-profit) — the tired place
+//  12. 15+ sessions above EMA20 (hold) — a mid-life trend
+//  13. weak ADX (cushion wait) — a directionless market re-tests
+//  14. strong ADX (exit branches) — the downtrend has muscles
+//  15. the named candle pattern, read against THIS branch's meaning
+//  16. the VSA note pass-through (already a complete sentence) — filler
+// =============================================================================
+
+export type VeteranBranch = "deepLoss" | "farCushionExit" | "cushionWait" | "engineExit" | "takeProfit" | "hold"
+
+export interface VeteranOpts {
+  branch: VeteranBranch
+  avgBuyPrice: number
+  close: number
+  trendAr: string
+}
+
+/** Which meaning group the branch belongs to, for the pattern lines:
+ *  profit rides (hold / take-profit), loss waits (deep loss / cushion wait),
+ *  and red exits (far-cushion / engine trend break). */
+function veteranGroup(b: VeteranBranch): "profit" | "loss" | "exit" {
+  if (b === "hold" || b === "takeProfit") return "profit"
+  if (b === "deepLoss" || b === "cushionWait") return "loss"
+  return "exit"
+}
+
+/** The pattern's meaning vs the surrounding trend — candlestick.ts itself
+ *  gates every pattern by trend, and the veteran says it out loud: a pattern
+ *  that agrees with the trend is confirmed by it; one that fights it needs
+ *  a stronger close to matter. */
+function patternEchoAr(tone: "bull" | "bear" | "neutral", trendAr: string): string {
+  const up = trendAr.startsWith("صاعد")
+  const down = trendAr.startsWith("هابط")
+  if (tone === "neutral") return down ? "والاتجاه المحيط هابط فالترجيح يميل للهبوط" : up ? "والاتجاه المحيط صاعد فالترجيح يميل للصعود" : ""
+  if (tone === "bull") return down ? "والاتجاه المحيط هابط فبيحتاج تأكيد أقوى بالإغلاق" : up ? "والاتجاه المحيط صاعد فبيأكد المعنى" : ""
+  return up ? "والاتجاه المحيط صاعد فبيحتاج تأكيد أقوى بالإغلاق" : down ? "والاتجاه المحيط هابط فبيأكد المعنى" : ""
+}
+
+/** The named candle pattern, read against THIS branch's meaning — the same
+ *  shape means different things at a top, at a bottom and on a break. */
+function patternLineAr(pattern: string, branch: VeteranBranch, close: number, trendAr: string): string {
+  const at = `عند ${fmt(close)}`
+  const isDoji = pattern.includes("دوجي")
+  const isInvertedHammer = !isDoji && pattern.includes("مطرقة") && pattern.includes("مقلوبة")
+  const isHammer = !isDoji && !isInvertedHammer && pattern.includes("مطرقة")
+  const isHangingMan = !isDoji && pattern.includes("مشنوق")
+  const isShootingStar = !isDoji && pattern.includes("نجمة مطلقة")
+  const isMorningStar = !isDoji && pattern.includes("نجمة الصباح")
+  const isEveningStar = !isDoji && pattern.includes("نجمة المساء")
+  const isEngulfingBear = !isDoji && (pattern.includes("ابتلاع") || pattern.includes("احتوائية")) && (pattern.includes("هابط") || pattern.includes("هابطة"))
+  const isEngulfingBull = !isDoji && (pattern.includes("ابتلاع") || pattern.includes("احتوائية")) && (pattern.includes("صاعد") || pattern.includes("صاعدة"))
+  const isCrows = !isDoji && pattern.includes("غربان")
+  const isSoldiers = !isDoji && pattern.includes("جنود")
+  const g = veteranGroup(branch)
+  let tone: "bull" | "bear" | "neutral" = "bull"
+  let base: string
+  if (isDoji) {
+    tone = "neutral"
+    base = g === "profit"
+      ? `دوجي ${at} — الافتتاح والإغلاق تلاحقوا: تردد في منطقة أرباح معناه إن القرار معلق بين الطرفين، ومن تجارب السوق بيجي قبل انعطاف أو استراحة`
+      : g === "loss"
+        ? `دوجي ${at} بعد النزول — أول تجمد في البيع ممكن يكون بادئ، بس الدوجي لوحده مش إشارة: بتأكده بالإغلاق الجاي`
+        : `دوجي ${at} على الكسر — تردد مش قرار: السوق بيقيس الحسم، والإغلاقات الجاية هي اللي بتقول`
+  } else if (isEveningStar) {
+    tone = "bear"
+    base = g === "profit"
+      ? `نجمة المساء اكتملت ${at} — ثلاث شموع بتقول إن القوة وصلت آخر أنفاسها: من أنماط الانعطاف الكلاسيكية اللي الخبرة بتقول خُد عليها حذر بدري`
+      : `نجمة المساء ${at} — نمط انعطاف هابط حتى هنا، والتأكيد بإغلاق تحت قاع النمط`
+  } else if (isMorningStar) {
+    tone = "bull"
+    base = g === "loss"
+      ? `نجمة الصباح اكتملت ${at} — ثلاث شموع بترسم أول محاولة قاع حقيقية: بتتأكد بإغلاق فوق منتصف الشمعة الأولى، مش بالحماس`
+      : `نجمة الصباح ${at} — نمط انعطاف صاعد بيتأكد بالإغلاقات الجاية`
+  } else if (isShootingStar) {
+    tone = "bear"
+    base = g === "profit"
+      ? `نجمة مطلقة ${at} — الارتفاع اتقفل بعيد عن القمة: حد باع فوق بجد، ودي من أشكال التوقف اللي بتيجي قبل التوزيع`
+      : `نجمة مطلقة ${at} — الرفض فوق لسه بيقول إن البيع مسيطر، والارتداد لسه محتاج إثبات بالإغلاق`
+  } else if (isInvertedHammer) {
+    tone = "bull"
+    base = g === "loss"
+      ? `مطرقة مقلوبة ${at} — محاولة ارتداد أولى قُتلت فوق: تحتاج إغلاق صاعد بعدها عشان تتحول لعلامة قاع، من غيره بتفضل محاولة`
+      : `مطرقة مقلوبة ${at} — الصعود لقى مبيعات فوق؛ مش إشارة خروج لوحدها بس بتقيس حرارة القمة`
+  } else if (isHammer) {
+    tone = "bull"
+    base = g === "profit"
+      ? `مطرقة ${at} وسط الصعود — الطلب لسه بيقدح من تحت، بس مطرقة قرب القمة بتتقرأ بحذر: التأكيد بالإغلاق الجاي`
+      : g === "loss"
+        ? `مطرقة ${at} — الذيل الطويل تحت معناه إن البيع لقى شراء حقيقي؛ من تجارب السوق دي أول علامة ارتداد، لكنها بتتأكد بإغلاق فوق قمة المطرقة مش بالشكل`
+        : `مطرقة ${at} على الكسر — من تجارب السوق المطرقة جوه هبوط بتخلق ارتداد يوم وترجع تكسر: الحكم يفضل للإغلاقات مش للشكل`
+  } else if (isHangingMan) {
+    tone = "bear"
+    base = g === "profit"
+      ? `الرجل المشنوقة ${at} — شكل بيع عند القمة بيقول إن الزخم بيتوقف: من الأشكال اللي بتسبق التوزيع، والتأكيد بإغلاق تحت قاعها`
+      : `الرجل المشنوقة ${at} — شكل تحذيري حتى في الهبوط: أي ارتداد بيع لسه محتاج إثبات بالإغلاق`
+  } else if (isEngulfingBear) {
+    tone = "bear"
+    base = g === "profit"
+      ? `ابتلاع هابط ${at} — الشمعة الحمرا بلعت شمعة الصعود اللي قبلها بالكامل: سلوك بيحصل قبل التوزيع، والتأكيد بإغلاق تحت قاع الابتلاع`
+      : g === "loss"
+        ? `ابتلاع هابط ${at} — البيع استعاد السيطرة بالكامل في جلسة واحدة: من التجربة ده بيبقى استمرار مش تردد`
+        : `ابتلاع هابط ${at} مع الكسر — البيع واخد الجلسة كلها: تأكيد إضافي للخروج مش عكسه`
+  } else if (isEngulfingBull) {
+    tone = "bull"
+    base = g === "loss"
+      ? `ابتلاع صاعد ${at} — شمعة خضرا بلعت شمعة النزول بالكامل: الطلبات من تحت وصلت لحجم بيغطي البيع؛ بتتأكد بالإغلاق الجاي مش بالشكل`
+      : g === "profit"
+        ? `ابتلاع صاعد ${at} — الشراء استعاد السيطرة في جلسة واحدة: قوة بتأيد الاحتفاظ، والحكم يفضل بالإغلاق`
+        : `ابتلاع صاعد ${at} على الكسر — جلسة مقاومة واحدة مش إنقاذ: من تجارب السوق بتاخد تأكيد إغلاقين قبل ما تغير القصة`
+  } else if (isCrows) {
+    tone = "bear"
+    base = g === "profit"
+      ? `ثلاثة غربان سود ${at} — ثلاث إغلاقات هابطة متتالية بأجسام قوية: زخم بيعي متواصل، ودي الصورة اللي ما بتحتاجش تفسير كتير`
+      : g === "loss"
+        ? `ثلاثة غربان سود ${at} — البيع لسه ماشي بأجسام قوية: مفيش علامة تعب في الشموع نفسها لسه`
+        : `ثلاثة غربان سود ${at} — الزخم البيعي متواصل: بتأكد منطق الخروج`
+  } else if (isSoldiers) {
+    tone = "bull"
+    base = g === "loss"
+      ? `ثلاثة جنود بيض ${at} — ثلاث إغلاقات صاعدة بأجسام قوية: أول شراء حقيقي متواصل من تحت، والاعتماد بالإغلاق مش بالأمل`
+      : g === "profit"
+        ? `ثلاثة جنود بيض ${at} — زخم شرائي متواصل بأجسام قوية: القوة دي بالتجربة بتكمل لحد ما تتعطل بشمعة رفض`
+        : `ثلاثة جنود بيض ${at} بعد الكسر — جلسات مقاومة متواصلة: ده اللي بيخلي الكسر يتعاد تقييمه بالإغلاقات الجاية`
+  } else {
+    tone = "neutral"
+    base = `الشمعة الأخيرة رسمت نمط «${pattern}» ${at} — النمط بيتقرأ مع المكان اللي حصل فيه، والإغلاق الجاي هو اللي يأكده`
+  }
+  const echo = patternEchoAr(tone, trendAr)
+  return `${base}${echo ? `، ${echo}` : ""}.`
+}
+
+/** The veteran's reading of the LAST session, in his own words. Pure; AT MOST
+ *  2 lines; [] on an honestly-null context (the narrative never invents data,
+ *  and the volume-class bounds 2.5× / 0.7× are the MarketContext's own
+ *  documented thresholds, not invented values). */
+export function veteranLinesAr(ctx: MarketContext, opts: VeteranOpts): string[] {
+  const b = opts.branch
+  const lines: string[] = []
+  const add = (s: string | null | undefined) => {
+    if (s && lines.length < 2) lines.push(s)
+  }
+
+  // 1) spike volume ON the break — the exit branches' doctrine moment: is
+  // this the makers' fake break, or a real liquidity pull?
+  if ((b === "farCushionExit" || b === "engineExit") && ctx.volCharacter === "spike") {
+    add(`أنا شايف في الشمعة فوليوم Spike فوق 2.5× من المتوسط${ctx.bodyVsAtr !== null ? ` وبجسم ${mult1(ctx.bodyVsAtr)} ATR` : ""} نازل مع الكسر نفسه — من تجارب السوق ده سحب سيولة حقيقي مش كسر كاذب، والكسور اللي بتيجي بالفوليوم ده نادرًا ما بترجع بسرعة.`)
+  }
+  // 2) bearish momentum divergence while riding a profit — the trap at the top
+  if ((b === "hold" || b === "takeProfit") && ctx.divergence === "bearish") {
+    add(`انحراف سلبي على الزخم: السعر عمل أعلى عند ${fmt(opts.close)} والقوة ما لحقته — من الأماكن اللي الخبراء بيقولوا فيها: خُد شيئًا وشوف، والانحراف بيثبت بالإغلاق مش بالأمل.`)
+  }
+  // 3) bullish momentum divergence inside a loss — the early-turn hint
+  if ((b === "deepLoss" || b === "cushionWait") && ctx.divergence === "bullish") {
+    add(`انحراف إيجابي على الزخم عند إغلاق ${fmt(opts.close)} — ده أول حاجة بتظهر قبل التحول في تجارب السوق، بس بيأكد نفسه بالإغلاقات مش بالأمل، فنستنيه جلسة ورا جلسة.`)
+  }
+  // 4) spike volume closing at the top — real buying pressure, not a flick
+  if ((b === "hold" || b === "takeProfit") && ctx.volCharacter === "spike" && ctx.closeLocationPct !== null && ctx.closeLocationPct >= 70) {
+    add(`فوليوم Spike فوق 2.5× من المتوسط${ctx.bodyVsAtr !== null ? ` وبجسم ${mult1(ctx.bodyVsAtr)} ATR` : ""}، والإغلاق قرب قمة المدى (${pctPlain(ctx.closeLocationPct)} من المدى) — ده شراء حقيقي فوق مش رفلة صنّاع، والقوة دي بالتجربة بتكمل جلسات مش يوم واحد.`)
+  }
+  // 5) the hollow climb: dry volume into the range top / a multi-day streak
+  if (b === "hold" && ctx.volCharacter === "dry" && (ctx.nearRangeTop === true || (ctx.streakUp ?? 0) >= 3)) {
+    const streak = ctx.streakUp !== null && ctx.streakUp >= 3 ? ` وبعد ${ctx.streakUp} جلسات صاعدة متواصلة` : ""
+    const top = ctx.nearRangeTop === true ? " والسعر ولّس على قمة مدى 60 جلسة" : ""
+    add(`صعود بفوليوم جاف (أقل من 0.7× من المتوسط)${streak}${top} — من تجارب السوق الصعود بلا فوليوم هش، وأول بايع حقيقي بيلقي السقف مفتوح.`)
+  }
+  // 6) dry volume at the range bottom — the sellers haven't panicked yet
+  if ((b === "deepLoss" || b === "cushionWait") && ctx.volCharacter === "dry" && ctx.nearRangeBottom === true) {
+    const streak = ctx.streakDown !== null && ctx.streakDown >= 3 ? ` بعد ${ctx.streakDown} جلسات نزول متواصلة` : ""
+    add(`فوليوم جاف عند قاع المدى (أقل من 0.7×)${streak} — البايعين لسه ما وصلوش لمرحلة الذعر، وده تأكيد لمنطق الانتظار بلا وعود: القاع بيثبت بالفوليوم مش بالأمل.`)
+  }
+  // 7) a long upper wick after the rally / at the range top — sold above
+  if ((b === "hold" || b === "takeProfit") && ctx.upperShadowPct !== null && ctx.upperShadowPct >= 45 && (ctx.nearRangeTop === true || (ctx.streakUp ?? 0) >= 3)) {
+    add(`ظل علوي طويل (${pctPlain(ctx.upperShadowPct)} من مدى اليوم) بعد الصعود — حد باع فوق بجد: الصنّاع بيتذكروا السقف، ومن تجارب السوق الظل ده بيتكرر قبل أي توقف أو ارتداد.`)
+  }
+  // 8) a long lower wick — someone actually bought down there
+  if ((b === "deepLoss" || b === "cushionWait") && ctx.lowerShadowPct !== null && ctx.lowerShadowPct >= 45) {
+    add(`ظل سفلي طويل (${pctPlain(ctx.lowerShadowPct)} من مدى اليوم) — حد اشترى من تحت فعلًا والدعم اتختب وارتد، ودي الصورة اللي بتدعم الانتظار مش البيع في القاع.`)
+  }
+  // 9) the session opened with a real down gap — the close is the judge
+  if (ctx.gapPct !== null && ctx.gapPct <= -2) {
+    add(`فجوة نزول ${Math.abs(ctx.gapPct).toFixed(1)}٪ فاتحة الشمعة — الجلسة بدأت بخسارة من إغلاق أمس، ومن تجارب السوق الفجوة دي بتحكي عن عرض غايب أو خبر، فالإغلاق هو الحكم مش الافتتاح.`)
+  }
+  // 10) opened high, closed near the low — distribution over the gap
+  if (ctx.gapPct !== null && ctx.gapPct >= 2 && ctx.closeLocationPct !== null && ctx.closeLocationPct <= 30) {
+    add(`فتح أعلى بـ ${pct1(ctx.gapPct)} وسدّ قرب القاع (${pctPlain(ctx.closeLocationPct)} من المدى) — ده توزيع فوق الفجوة مش قوة: حد استخدم الافتتاح العالي عشان يبيع.`)
+  }
+  // 11) stretched too far off EMA20 — the tired place
+  if ((b === "hold" || b === "takeProfit") && ctx.emaStretch20Atr !== null && ctx.emaStretch20Atr >= 2.5) {
+    add(`التمدد عن EMA20 وصل ${mult1(ctx.emaStretch20Atr)} ATR — من تجارب السوق ده مكان ارتداد للخط أو توقف أنفاس، مش مكان للاندفاع.`)
+  }
+  // 12) a mid-life trend: 15+ sessions above EMA20 without a close under it
+  if (b === "hold" && ctx.daysAboveEma20 !== null && ctx.daysAboveEma20 >= 15) {
+    add(`${ctx.daysAboveEma20} جلسة فوق EMA20 بدون إغلاق تحتها — الاتجاه في منتصف العمر، وكسره يومًا ما هيكون حدثًا مش ضجيجًا؛ لحد ما ييجي، الاحتفاظ ليه أرضية.`)
+  }
+  // 13) a directionless market: breaks here re-test before they decide
+  if (b === "cushionWait" && ctx.adxStrength === "weak" && ctx.adx !== null) {
+    add(`ADX عند ${ctx.adx.toFixed(1)} — سوق بلا اتجاه حقيقي، والكسور اللي بتحصل هنا بتعيد اختبار المستوى غالبًا قبل ما تحسم.`)
+  }
+  // 14) the downtrend has muscles — countering it needs proof, not hope
+  if ((b === "farCushionExit" || b === "engineExit") && ctx.adxStrength === "strong" && ctx.adx !== null) {
+    add(`الاتجاه الهابط عنده عضلات (ADX عند ${ctx.adx.toFixed(1)}) — العكس هنا بيحتاج دليل أقوى من أمل، والأمل مش خطة.`)
+  }
+  // 15) the named candle pattern, tied to THIS branch's meaning
+  if (ctx.candlePatternAr) {
+    add(patternLineAr(ctx.candlePatternAr, b, opts.close, opts.trendAr))
+  }
+  // 16) the VSA note — already a complete sentence; the filler slot
+  add(ctx.vsaNoteAr)
+  return lines
+}
 
 /** The compounding-recovery math, owner-mandated: selling at a loss means the
  *  NEXT stock must climb (avgBuy/close − 1) to break even. */
@@ -296,6 +537,10 @@ export function reviewPosition(input: ReviewInput): PositionReview {
   const pnlPerShare = close - avgBuyPrice
   const pnlPct = avgBuyPrice > 0 ? (pnlPerShare / avgBuyPrice) * 100 : 0
   const cushion = readCushion(bars, map)
+  // OWNER MANDATE (2026-11-18): the veteran's input layer — every field is
+  // honestly null when the data cannot support it, so the narrative degrades
+  // to ZERO change ([]) until the context pass produces real values.
+  const ctx = buildMarketContext(bars, mt)
   const { supports, resistances } = levelLines(map, close, avgBuyPrice)
   const nearestSupportBelowClose = supports.find((s) => s.high < close) ?? null
   // owner rule: far (>15%) or single-touch supports are replaced by EMA20 as
@@ -375,6 +620,9 @@ export function reviewPosition(input: ReviewInput): PositionReview {
       }.`,
     )
     question = { ...q, answeredAr: input.downsideAnswer === "yes" ? q.yesOutcomeAr : input.downsideAnswer === "no" ? q.noOutcomeAr : null }
+    // the veteran's reading, appended after the recovery math — silent ([])
+    // when the context is honestly null
+    reasonsAr.push(...veteranLinesAr(ctx, { branch: "deepLoss", avgBuyPrice, close, trendAr }))
     return {
       decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
       avgBuyPrice, lastClose: close, pnlPct: Math.round(pnlPct * 10) / 10, pnlPerShare: Math.round(pnlPerShare * 100) / 100,
@@ -410,6 +658,7 @@ export function reviewPosition(input: ReviewInput): PositionReview {
           ? `خط تتبع الجزء المتبقي: ${trail.basisAr} — الإلغاء بالإغلاق اليومي تحته، مش باللمسة: الكسور الكاذبة تحت المستويات حاجة معروفة في السوق المصري.`
           : "خط تتبع الجزء المتبقي: قاع آخر 60 جلسة — الإلغاء بالإغلاق اليومي تحته، مش باللمسة.",
       )
+      reasonsAr.push(...veteranLinesAr(ctx, { branch: "takeProfit", avgBuyPrice, close, trendAr }))
     } else {
       decision = "exit"
       headlineAr = `الكسر حصل ومفيش بطانة قريبة تحت السعر — الخروج هنا إدارة مخاطر مش هيزنة`
@@ -418,6 +667,7 @@ export function reviewPosition(input: ReviewInput): PositionReview {
         "قاعدة البيع على الكسر بتشتغل بس لما الدعم اللي تحت يكون بعيد — وهنا هو بعيد فعلًا، فالقرار خروج.",
         "الخروج مش فشل ولا اعتراف بغلطة — ده الفرق بين المتداول اللي عنده خطة والمتداول اللي بيمسك بيديه من غير خطة: بنقفل الخسارة الصغيرة قبل ما تبقى كبيرة.",
       )
+      reasonsAr.push(...veteranLinesAr(ctx, { branch: "farCushionExit", avgBuyPrice, close, trendAr }))
     }
     return {
       decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
@@ -446,6 +696,7 @@ export function reviewPosition(input: ReviewInput): PositionReview {
         : "البيع دلوقتي معناه إنك بتسلم السهم عند أول باب قبل ما يبان لو فيه مرتد — استنى الإغلاقات: دعم قريب بيمتص الضغط غالبًا.",
     )
     if (pnlPct < 0) reasonsAr.push(recoveryReasonAr(pnlPct, recoveryPct ?? 0))
+    reasonsAr.push(...veteranLinesAr(ctx, { branch: "cushionWait", avgBuyPrice, close, trendAr }))
     return {
       decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
       avgBuyPrice, lastClose: close, pnlPct: Math.round(pnlPct * 10) / 10, pnlPerShare: Math.round(pnlPerShare * 100) / 100,
@@ -480,6 +731,7 @@ export function reviewPosition(input: ReviewInput): PositionReview {
           : "خط تتبع الجزء المتبقي: قاع آخر 60 جلسة — الإلغاء بالإغلاق اليومي تحته، مش باللمسة.",
         "كسر الاتجاه مختلف عن كسر دعم عابر: هنا البنية الزمنية نفسها بتتغير — عشان كده الجني جزئي مش احتفاظ كامل، والجزء المتبقي بيتقفل بالإغلاق تحت خط التتبع.",
       )
+      reasonsAr.push(...veteranLinesAr(ctx, { branch: "takeProfit", avgBuyPrice, close, trendAr }))
     } else {
       decision = "exit"
       headlineAr = "الاتجاه نفسه اتكسر — ده مش وقت المبادرة، ده وقت حماية اللي فاضل"
@@ -489,6 +741,7 @@ export function reviewPosition(input: ReviewInput): PositionReview {
         `الخروج هنا بيحمي الرصيد: أفضل وقت للرجوع هو لما يرجع السهم فوق متوسطاته ويثبت — والموقع هيقولك لحظتها.`,
       )
       if (pnlPct < 0) reasonsAr.push(recoveryReasonAr(pnlPct, recoveryPct ?? 0))
+      reasonsAr.push(...veteranLinesAr(ctx, { branch: "engineExit", avgBuyPrice, close, trendAr }))
     }
     return {
       decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
@@ -530,6 +783,7 @@ export function reviewPosition(input: ReviewInput): PositionReview {
         : `الحلم فوق: مفيش مقاومة مسجلة فوق متوسطك بـ ${PROFIT_TARGET_MIN_GAP_PCT}٪ أو أكثر في نافذة البيانات — السهم في أرض جديدة، والأرباح الجزئية هنا بيتقررها خط المتوسطات (EMA20/EMA50) مش سقف قديم`,
       "الخلاصة بصوت واضح: احتفظ. البيع يبقى قرار لما يفلخط الدفاع، مش لما القلق يعلو.",
     )
+    reasonsAr.push(...veteranLinesAr(ctx, { branch: "hold", avgBuyPrice, close, trendAr }))
     return {
       decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
       avgBuyPrice, lastClose: close, pnlPct: Math.round(pnlPct * 10) / 10, pnlPerShare: Math.round(pnlPerShare * 100) / 100,
@@ -556,6 +810,7 @@ export function reviewPosition(input: ReviewInput): PositionReview {
       "قاعدتنا الثابتة: مفيش استثمار اسمه «هيرجع» من غير دليل فني. الدليل دلوقتي بيقول عكس كده، فبنقلل التعرض.",
       "لما يرجع ويثبت فوق متوسطاته، الموقع هيرصد ده وترجع تراجع الدخول تاني بعين صافية.",
     )
+    reasonsAr.push(...veteranLinesAr(ctx, { branch: "engineExit", avgBuyPrice, close, trendAr }))
   } else {
     decision = "wait"
     headlineAr = closeCushion
@@ -579,6 +834,7 @@ export function reviewPosition(input: ReviewInput): PositionReview {
         : "الهيكل لسه ماسك: السعر تحت متوسطك بس مش تحت بنية الدعم — بنستنى إما الارتداد أو الكسر، والاتنين واضحين.",
       "قاعدة السوق المصري: الستوب الآلي بيوقّعك في الكسور الكاذبة — الصنّاع بيكسروا المستويات لمرة واحدة عشان يجمعوا السيولة ويرجّعوا السعر، فمتابعة الفرد جيدًا على الشاشة هي الحماية الحقيقية، والحكم على أي كسر يكون بالإغلاق الفعلي والحجم قبل أي حركة.",
     )
+    reasonsAr.push(...veteranLinesAr(ctx, { branch: "cushionWait", avgBuyPrice, close, trendAr }))
   }
 
   return {

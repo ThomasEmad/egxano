@@ -474,3 +474,90 @@ describe("reviewPosition — the OCPH profit-target rule (hold branch, 2026-11-1
     expect(PROFIT_TARGET_MIN_GAP_PCT).toBe(6)
   })
 })
+
+// =============================================================================
+// OWNER MANDATE (2026-11-18) — the veteran's voice: the review now reads the
+// candle, the volume character, the stretch and the traps like someone who
+// has lived EGX cycles. veteranLinesAr fires ONLY on its data triggers,
+// cites real numbers, caps at 2 lines, and stays SILENT ([]) on an honestly
+// null MarketContext — every line is append-only after the existing reasons.
+// =============================================================================
+
+import { veteranLinesAr } from "../review"
+import { buildMarketContext, type MarketContext } from "../market-context"
+
+const nullCtx = (): MarketContext => buildMarketContext([], null)
+const ctxOver = (over: Partial<MarketContext>): MarketContext => ({ ...nullCtx(), ...over })
+const upTrendAr = "صاعد — السعر فوق EMA50 وEMA20 فوق EMA50 (ترتيب صحي)"
+
+describe("veteranLinesAr — the veteran's reading of the last session", () => {
+  it("spike volume closing at the top on hold → the buying-pressure line with the ×multiple and the real close location", () => {
+    const ctx = ctxOver({ volCharacter: "spike", closeLocationPct: 82.4, bodyVsAtr: 1.8 })
+    const lines = veteranLinesAr(ctx, { branch: "hold", avgBuyPrice: 100, close: 106.5, trendAr: upTrendAr })
+    expect(lines.length).toBeGreaterThanOrEqual(1)
+    expect(lines.length).toBeLessThanOrEqual(2)
+    const spike = lines.find((x) => x.includes("فوليوم"))
+    expect(spike).toBeDefined()
+    expect(spike!).toContain("2.5×") // the volume class multiple (spike bound)
+    expect(spike!).toContain("1.8×") // the body-vs-ATR multiple, real from ctx
+    expect(spike!).toContain("82.4٪") // the real close location
+  })
+
+  it("a dry-volume rally into the range top on hold → the hollow-climb («هش») line with the dry bound and the streak", () => {
+    const ctx = ctxOver({ volCharacter: "dry", streakUp: 4, nearRangeTop: true })
+    const lines = veteranLinesAr(ctx, { branch: "hold", avgBuyPrice: 100, close: 106.5, trendAr: upTrendAr })
+    expect(lines.length).toBeGreaterThanOrEqual(1)
+    const hollow = lines.find((x) => x.includes("هش"))
+    expect(hollow).toBeDefined()
+    expect(hollow!).toContain("0.7×") // the dry bound
+    expect(hollow!).toContain("4 جلسات صاعدة") // the real streak count
+  })
+
+  it("an honestly-null context keeps the veteran silent: [] on every branch (nothing invented)", () => {
+    for (const branch of ["deepLoss", "farCushionExit", "cushionWait", "engineExit", "takeProfit", "hold"] as const) {
+      expect(veteranLinesAr(nullCtx(), { branch, avgBuyPrice: 100, close: 100, trendAr: "متذبذب" })).toEqual([])
+    }
+  })
+
+  it("integration: the wiring APPENDS — the pre-wiring hold snapshot stands intact as the prefix, at most 2 veteran lines follow", () => {
+    const bars = cushionSeries(100, 106.5)
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({ row: rowOver(bars, { state: "wait" }), bars, map, avgBuyPrice: 100 })
+    expect(r.decision).toBe("hold")
+    // the snapshot captured BEFORE the wiring landed — byte-identical, never
+    // rewritten: the veteran only ever appends after the existing reasons
+    expect(r.reasonsAr.slice(0, 5)).toEqual([
+      "الأساسي أولًا: متوسطك 100.00 والسعر 106.50 — يعني إنت +6.5٪ (+6.50 جنيه/سهم). المركز مش في منطقة خطر.",
+      "القراءة الفنية: هابط — السعر تحت EMA50 وEMA20 تحت EMA50 (ترتيب سلبي) وRSI 44.32 (منطقة متوازنة).",
+      "خط الدفاع: دعم 2× مختبَر (104.00–104.40) على بعد +2.2٪ — طالما السعر فوقه بالإغلاق، القصة سليمة.",
+      "الحلم فوق: أول منطقة تستحق قرار أرباح جزئي عند 112.85–112.85 على بعد +12.8٪ من متوسطك.",
+      "الخلاصة بصوت واضح: احتفظ. البيع يبقى قرار لما يفلخط الدفاع، مش لما القلق يعلو.",
+    ])
+    // and whatever the (now live) MarketContext produces, the cap holds: ≤ 2
+    expect(r.reasonsAr.length).toBeLessThanOrEqual(7)
+  })
+
+  it("bearish momentum divergence on take-profit → the «خُد شيئًا وشوف» line anchored at the real close", () => {
+    const ctx = ctxOver({ divergence: "bearish" })
+    const lines = veteranLinesAr(ctx, { branch: "takeProfit", avgBuyPrice: 95.4, close: 103.0, trendAr: upTrendAr })
+    expect(lines.length).toBeGreaterThanOrEqual(1)
+    const div = lines.find((x) => x.includes("انحراف سلبي"))
+    expect(div).toBeDefined()
+    expect(div!).toContain("103.00") // a real number: the close the divergence printed at
+    expect(div!).toContain("خُد شيئًا وشوف")
+  })
+
+  it("several triggers at once → exactly 2 lines, and traps speak first (divergence before the spike confirmation)", () => {
+    const ctx = ctxOver({ divergence: "bearish", volCharacter: "spike", closeLocationPct: 88.1 })
+    const lines = veteranLinesAr(ctx, { branch: "hold", avgBuyPrice: 100, close: 106.5, trendAr: upTrendAr })
+    expect(lines.length).toBe(2)
+    expect(lines[0]).toContain("انحراف سلبي")
+    expect(lines[1]).toContain("فوليوم")
+  })
+
+  it("the VSA note passes through verbatim when no higher-priority trigger took a slot", () => {
+    const ctx = ctxOver({ vsaNoteAr: "جلسة بتبيع على فوليوم عالي بعد صعود طويل (توزيع محتمل)." })
+    const lines = veteranLinesAr(ctx, { branch: "hold", avgBuyPrice: 100, close: 106.5, trendAr: upTrendAr })
+    expect(lines).toEqual(["جلسة بتبيع على فوليوم عالي بعد صعود طويل (توزيع محتمل)."])
+  })
+})
