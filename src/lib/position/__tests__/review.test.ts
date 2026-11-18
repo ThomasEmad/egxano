@@ -124,6 +124,69 @@ describe("reviewPosition — the decision ladder", () => {
 })
 
 // =============================================================================
+// BUG FIXES (2026-11-18, CRST review — the owner caught these in production):
+// the far-support distance printed a + sign for a level UNDER the price; the
+// technical line printed trendAr twice; and with the price already inside the
+// 20–25% rebound band the headline kept promising a future rebound.
+// =============================================================================
+
+describe("CRST review fixes — deep loss already inside the rebound band", () => {
+  it("in-band deep loss → the headline says the organized-exit plan is ACTIVE, not a future rebound", () => {
+    const bars = cushionSeries(100)
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({
+      row: rowOver(bars, {
+        state: "wait",
+        metrics: { ...toSignalMetrics(computeMetrics(bars)!), ema20: 97, ema50: 101 }, // close 100 < ema50, ema20 < ema50
+      }),
+      bars,
+      map,
+      avgBuyPrice: 130, // close ~103 → −20.8٪ deep loss; band 97.5–104 → in-band
+    })
+    expect(r.pnlPct).toBeLessThanOrEqual(-DEEP_LOSS_PCT)
+    expect(r.headlineAr).toContain("نطاق الخروج المنظم")
+    expect(r.headlineAr).toContain("قرار التخفيف")
+    expect(r.headlineAr).not.toContain("الانتظار للارتداد هو الأنسب")
+    expect(r.reasonsAr.some((x) => x.includes("الخطة شغالة فعلًا"))).toBe(true)
+  })
+
+  it("the technical line states the trend ONCE (no duplicated EMA-order clause)", () => {
+    const bars = decliningSeries() // no supports at all → no live break → trend-only technical line
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({
+      row: rowOver(bars, {
+        state: "wait",
+        metrics: { ...toSignalMetrics(computeMetrics(bars)!), ema20: 96, ema50: 101 }, // close 100 < ema50, ema20 < ema50
+      }),
+      bars,
+      map,
+      avgBuyPrice: 130, // close ~100 → −23.1٪ deep loss
+    })
+    const tech = r.reasonsAr.filter((x) => x.startsWith("التقنية بصراحة"))
+    expect(tech.length).toBe(1)
+    // trendFactAr only joins when a live break happened — no break here
+    expect(tech[0]).not.toContain("الاتجاه:")
+    expect((tech[0].match(/ترتيب سلبي/g) ?? []).length).toBeLessThanOrEqual(1)
+  })
+
+  it("the far-support distance carries NO plus sign — the level is UNDER the price", () => {
+    const bars = cushionSeries(100)
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({
+      row: rowOver(bars, { state: "wait" }),
+      bars,
+      map,
+      avgBuyPrice: 126,
+    })
+    const ofr = r.reasonsAr.find((x) => x.includes("الدعم التالي تحته"))
+    if (ofr) {
+      expect(ofr).toContain("تحت السعر")
+      expect(ofr).not.toMatch(/على بعد \+/)
+    }
+  })
+})
+
+// =============================================================================
 // OWNER MANDATE (2026-11-17) — the deep-loss regime: at −20% or deeper the
 // exit verdict collapses into انتظار للارتداد, the recovery math is spelled
 // out, and the follow-up question refines the plan.

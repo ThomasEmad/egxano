@@ -560,7 +560,7 @@ export function pickEffectiveSupport(supports: LevelLine[], close: number, ema20
       ? "مفيش دعم مسجل تحت السعر"
       : nearest.touches < 2
         ? `أقرب دعم مسجل اتلمس مرة واحدة بس (${fmt(nearest.low)}–${fmt(nearest.high)}) — لمسة واحدة مش دعم`
-        : `أقرب دعم مسجل بعيد ${pct1(Math.abs(nearest.distFromPricePct))} — مسافة طويلة جدًا`
+        : `أقرب دعم مسجل بعيد ${pctPlain(Math.abs(nearest.distFromPricePct))} تحت السعر — مسافة طويلة جدًا`
     return {
       kind: "ema20",
       level: ema20,
@@ -577,7 +577,7 @@ export function pickEffectiveSupport(supports: LevelLine[], close: number, ema20
       high: nearest.high,
       touches: nearest.touches,
       gapPct: Math.abs(nearest.distFromPricePct),
-      basisAr: `أقرب دعم (${fmt(nearest.low)}–${fmt(nearest.high)}) — ضعيف (${nearest.touches < 2 ? "لمسة واحدة بس" : `بعيد ${pct1(Math.abs(nearest.distFromPricePct))}`}) فاختفاه مش دليل أمان`,
+      basisAr: `أقرب دعم (${fmt(nearest.low)}–${fmt(nearest.high)}) — ضعيف (${nearest.touches < 2 ? "لمسة واحدة بس" : `بعيد ${pctPlain(Math.abs(nearest.distFromPricePct))} عن السعر`}) فاختفاه مش دليل أمان`,
     }
   }
   return null
@@ -705,13 +705,14 @@ export function reviewPosition(input: ReviewInput): PositionReview {
 
   const openFieldAr = cushion.cushionLevel === null
     ? "ومفيش أي دعم مسجل تحته — يعني الهبوط لسه فاضي"
-    : `والدعم التالي تحته (${fmt(cushion.cushionLevel)}) بعيد ${pct1(cushion.cushionGapPct ?? 0)}`
+    : `والدعم التالي تحته (${fmt(cushion.cushionLevel)}) على بعد ${pctPlain(Math.abs(cushion.cushionGapPct ?? 0))} تحت السعر`
   const breakFactAr = cushion.brokeLastSession && cushion.brokenZone
     ? `التقنية بصراحة: إغلاق النهاردة (${fmt(close)}) كسر دعم ${cushion.brokenZone.touches}× مختبَر (${fmt(cushion.brokenZone.low)}–${fmt(cushion.brokenZone.high)}) — هيكل اتكسر فعلًا`
     : `التقنية بصراحة: ${trendAr}`
-  const trendFactAr = mt?.ema20 !== null && mt?.ema50 !== null && mt!.ema20! < mt!.ema50! && close < mt!.ema50!
-    ? `الاتجاه: ${trendAr} — السعر تحت متوسطاته بالترتيب السلبي`
-    : `الاتجاه: ${trendAr}`
+  // BUG FIX (2026-11-18, CRST review): trendTextAr already carries the full
+  // EMA-order clause («هابط — السعر تحت EMA50 وEMA20 تحت EMA50 (ترتيب سلبي)»)
+  // — the old conditional tail repeated it a second time inside the same line.
+  const trendFactAr = `الاتجاه: ${trendAr}`
 
   // ---------- 0) DEEP LOSS — the owner's compounding-math regime. Any exit
   // verdict collapses into انتظار للارتداد + recovery math + the question.
@@ -725,7 +726,13 @@ export function reviewPosition(input: ReviewInput): PositionReview {
       headlineAr = `بإجابتك (مفيش هبوط إضافي متوقع): الانتظار للارتداد منطقي — بخط إلغاء واضح`
       planAr = q.noOutcomeAr
     } else {
-      headlineAr = `خسارتك ${pct1(pnlPct)} — البيع دلوقتي بيحولها لخسارة محققة وبيحتاج ${pct1(recoveryPct ?? 0)} تعويض في أي سهم تاني — الانتظار للارتداد هو الأنسب`
+      // BUG FIX (2026-11-18, CRST review): when the price is ALREADY inside the
+      // 20–25% rebound band, the headline must say the organized-exit plan is
+      // ACTIVE (taper into strength) — the old text kept promising a future
+      // rebound while reason 6 admitted the band was already reached.
+      headlineAr = close >= reboundZoneLow && close <= reboundZoneHigh
+        ? `خسارتك ${pct1(pnlPct)} — وإنت جوه نطاق الخروج المنظم (${fmt(reboundZoneLow)}–${fmt(reboundZoneHigh)}) دلوقتي: أي قوة إضافية خد فيها قرار التخفيف — والتعويض في أي سهم تاني بيكلف ${pct1(recoveryPct ?? 0)}`
+        : `خسارتك ${pct1(pnlPct)} — البيع دلوقتي بيحولها لخسارة محققة وبيحتاج ${pct1(recoveryPct ?? 0)} تعويض في أي سهم تاني — الانتظار للارتداد هو الأنسب`
       planAr = null
     }
     invalidationAr = cushion.cushionLevel !== null
@@ -737,11 +744,13 @@ export function reviewPosition(input: ReviewInput): PositionReview {
       `الصريح الموجع أولًا: متوسط شراءك ${fmt(avgBuyPrice)} والسعر دلوقتي ${fmt(close)} — يعني إنت تحت الماء ${pct1(pnlPct)} (${fmt(pnlPerShare)} جنيه/سهم).`,
       recoveryReasonAr(pnlPct, recoveryPct ?? 0),
       `وعشان حجم الصورة يبان: خسارة 20٪ تحتاج +25٪ للتعويض، وخسارة 25٪ تحتاج +33٪، وخسارة 50٪ تحتاج +100٪ — كل ما الخسارة بتتعمق، التعويض بيتضاعف. عشان كده البيع بخسارة كبيرة دلوقتي صعب جدًا، والانتظار للارتداد هو الحل الأنسب.`,
-      breakFactAr + "، " + trendFactAr + ".",
-      openFieldAr + " — فمفيش بيع عشوائي، ومفيش انتظار من غير متابعة يومية للفرد على الشاشة.",
-      `خطة الارتداد (owner mandate): لما السعر يرتد للنطاق ${fmt(reboundZoneLow)}–${fmt(reboundZoneHigh)} تكون خسارتك في حدود 20–25٪ وساعتها الخروج بيكون قرار منظم مش هروب${
-        close >= reboundZoneLow && close <= reboundZoneHigh ? " — وإنت أصلًا جوه النطاق ده دلوقتي، فأي قوة إضافية خد فيها قرار التخفيف" : ""
-      }.`,
+      // BUG FIX (2026-11-18, CRST review): without a live break, breakFactAr
+      // IS the trend line — appending trendFactAr printed trendAr twice.
+      (cushion.brokeLastSession && cushion.brokenZone ? breakFactAr + "، " + trendFactAr : breakFactAr) + ".",
+      openFieldAr + " — فالبيع العشوائي هنا ضياع بلا سبب، والانتظار من غير متابعة يومية للسهم على الشاشة مش انتظار: ده تجاهل.",
+      close >= reboundZoneLow && close <= reboundZoneHigh
+        ? `خطة الخروج المنظم (owner mandate): النطاق ${fmt(reboundZoneLow)}–${fmt(reboundZoneHigh)} بيقابل خسارة 20–25٪ — وإنت جواه دلوقتي فالخطة شغالة فعلًا: أي قوة إضافية خد فيها قرار التخفيف، ومفيش انتظار جديد من غير خطة.`
+        : `خطة الارتداد (owner mandate): لما السعر يرتد للنطاق ${fmt(reboundZoneLow)}–${fmt(reboundZoneHigh)} تكون خسارتك في حدود 20–25٪ وساعتها الخروج بيكون قرار منظم مش هروب.`,
     )
     question = { ...q, answeredAr: input.downsideAnswer === "yes" ? q.yesOutcomeAr : input.downsideAnswer === "no" ? q.noOutcomeAr : null }
     // the veteran's reading, appended after the recovery math — silent ([])

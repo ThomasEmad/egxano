@@ -325,6 +325,52 @@ function marketImplicationAr(branch: VeteranBranch, regimeAr: string | null): st
  * first limitation is quoted honestly («حدود الخريطة: …») — a partial map
  * must say what it cannot see.
  */
+/** OWNER DOCTRINE (2026-11-18, CRST review): the intelligence snapshot carries
+ *  sector names in the feed's English (e.g. "Construction") — an Arabic review
+ *  must not mix scripts inside one sentence. Substring matching so feed-label
+ *  variants still land; a name the lexicon doesn't know stays honestly
+ *  in English rather than being translated badly. */
+const SECTOR_AR: ReadonlyArray<readonly [string, string]> = [
+  ["Construction", "مقاولات وتشييد"],
+  ["Real Estate", "عقاري"],
+  ["Bank", "بنوك"],
+  ["Financial", "خدمات مالية"],
+  ["Investment", "استثمار"],
+  ["Insurance", "تأمين"],
+  ["Technology", "تكنولوجيا"],
+  ["Communication", "اتصالات"],
+  ["Telecom", "اتصالات"],
+  ["Consumer", "سلع استهلاكية"],
+  ["Materials", "مواد أساسية"],
+  ["Resources", "مواد أساسية"],
+  ["Industrial", "صناعة"],
+  ["Energy", "طاقة"],
+  ["Petrol", "بترول"],
+  ["Utility", "مرافق"],
+  ["Health", "رعاية صحية"],
+  ["Pharma", "أدوية"],
+  ["Chemical", "كيماويات"],
+  ["Cement", "أسمنت"],
+  ["Food", "أغذية"],
+  ["Beverage", "مشروبات"],
+  ["Holding", "قابضات"],
+  ["Textile", "غزل وملابس"],
+  ["Apparel", "ملابس"],
+  ["Tourism", "سياحة"],
+  ["Hotel", "فندقة"],
+  ["Transport", "نقل"],
+  ["Media", "إعلام"],
+  ["Publishing", "إعلام ونشر"],
+  ["Mining", "تعدين"],
+  ["Education", "تعليم"],
+  ["Navigation", "ملاحة"],
+  ["Freight", "نقل"],
+]
+const sectorAr = (name: string): string => {
+  for (const [needle, ar] of SECTOR_AR) if (name.includes(needle)) return ar
+  return name
+}
+
 export function marketMapAr(
   mctx: MarketContextSection | null | undefined,
   opts: { close: number; branch: VeteranBranch },
@@ -340,7 +386,7 @@ export function marketMapAr(
   }
   const s = mctx.sector
   if (s && s.dayChangePct !== null && fin(s.dayChangePct)) {
-    clauses.push(`القطاع${s.name ? ` (${s.name})` : ""} عند ${pct1(s.dayChangePct)}`)
+    clauses.push(`القطاع${s.name ? ` (${sectorAr(s.name)})` : ""} عند ${pct1(s.dayChangePct)}`)
   }
   const above = mctx.aboveEma20
   if (above !== null && fin(above)) {

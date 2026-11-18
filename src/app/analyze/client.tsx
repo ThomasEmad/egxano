@@ -333,11 +333,11 @@ export default function AnalyzeClient() {
                   <div className={`text-3xl font-black ${DECISION_STYLE[r.decision].text}`}>{r.decisionAr}</div>
                   <div className="mt-1 text-sm font-medium leading-relaxed text-foreground/80">{r.headlineAr}</div>
                 </div>
-                <div className="text-left" dir="ltr">
+                <div className="text-left" dir="rtl">
                   <div className={`text-3xl font-black tabular-nums ${r.pnlPct >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                    {r.pnlPct >= 0 ? "+" : ""}{r.pnlPct.toFixed(1)}%
+                    {r.pnlPct >= 0 ? "+" : ""}{r.pnlPct.toFixed(1)}٪
                   </div>
-                  <div className="text-xs text-muted-foreground">{r.pnlPerShare >= 0 ? "+" : ""}{r.pnlPerShare.toFixed(2)} EGP / share</div>
+                  <div className="text-xs text-muted-foreground">{r.pnlPerShare >= 0 ? "+" : ""}{r.pnlPerShare.toFixed(2)} جنيه/سهم</div>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 text-xs">
