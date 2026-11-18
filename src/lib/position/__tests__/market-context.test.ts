@@ -275,3 +275,120 @@ describe("buildMarketContext — zone boundaries", () => {
     expect(middle.nearRangeBottom).toBe(false)
   })
 })
+
+// =============================================================================
+// (l) roundLevelNear — «الأرقام المستديرة»: grid ladder + 20%-step cap + 2% band
+// =============================================================================
+
+describe("buildMarketContext — roundLevelNear", () => {
+  it("(l1) close 208.18: the 25/20 grids have nothing inside 2% → the walk lands on the 10-grid's 210 at ≈0.87%", () => {
+    const ctx = buildMarketContext(flatSeries(25, 208.18), metrics())
+    expect(ctx.roundLevelNear).not.toBeNull()
+    expect(ctx.roundLevelNear!.level).toBe(210) // 21 × 10 — exact integer grid arithmetic
+    expect(ctx.roundLevelNear!.distPct).toBeCloseTo((210 - 208.18) / 208.18 * 100, 10)
+    expect(ctx.roundLevelNear!.distPct).toBeCloseTo(0.87, 2) // ≈ 0.874% — inside the 2% band
+  })
+
+  it("(l2) the largest-step-≤20% rule verified by hand at several magnitudes; 3.4 → null", () => {
+    // 12.6: 20% = 2.52 → start step 2.5 → 12.5 at 0.79% ✓
+    const mid = buildMarketContext(flatSeries(25, 12.6), metrics())
+    expect(mid.roundLevelNear!.level).toBeCloseTo(12.5, 10)
+    expect(mid.roundLevelNear!.distPct).toBeCloseTo(0.1 / 12.6 * 100, 10)
+    // 96: 20% = 19.2 → start step 10 → 100 at 4.17% ✗ → step 5 → 95 at 1.04% ✓
+    const high = buildMarketContext(flatSeries(25, 96), metrics())
+    expect(high.roundLevelNear!.level).toBe(95)
+    expect(high.roundLevelNear!.distPct).toBeCloseTo(1 / 96 * 100, 10)
+    // 47.3: start step 5 → 45 at 4.86% ✗ → step 2.5 → 47.5 at 0.42% ✓
+    const odd = buildMarketContext(flatSeries(25, 47.3), metrics())
+    expect(odd.roundLevelNear!.level).toBeCloseTo(47.5, 10)
+    expect(odd.roundLevelNear!.distPct).toBeCloseTo(0.2 / 47.3 * 100, 10)
+    // 3.4: 20% = 0.68 → step 0.5 → 3.5 at 2.94% ✗ → step 0.25 → 3.5 again ✗ → null
+    const tiny = buildMarketContext(flatSeries(25, 3.4), metrics())
+    expect(tiny.roundLevelNear).toBeNull()
+  })
+
+  it("(l3) standing exactly on a level → distPct 0, at every magnitude (50 on the 10-grid · 8 on the 1-grid · 3.5 on the 0.5-grid)", () => {
+    const closes = [50, 8, 3.5] // 50 pins the inclusive cap: step 10 = exactly 20% of the price
+    for (const close of closes) {
+      const ctx = buildMarketContext(flatSeries(25, close), metrics())
+      expect(ctx.roundLevelNear, `close ${close}`).toEqual({ level: close, distPct: 0 })
+    }
+  })
+})
+
+// =============================================================================
+// (m) consolidation — «التجميعة»: 5-session gate, backward walk, 20-session cap
+// =============================================================================
+
+describe("buildMarketContext — consolidation", () => {
+  function closesSeries(closes: number[]): Bar[] {
+    return closes.map((c, i) => mkBar(i === 0 ? c : closes[i - 1], c + 0.2, c - 0.2, c))
+  }
+
+  it("(m1) six flat closes after a stretch far below → {sessions: 6, tightnessPct: 0}; a trending tape → null", () => {
+    const flat6 = buildMarketContext(closesSeries([...Array.from({ length: 19 }, () => 9.5), ...Array.from({ length: 6 }, () => 11)]), metrics())
+    expect(flat6.consolidation).toEqual({ sessions: 6, tightnessPct: 0 }) // the 7th-back (9.5) breaks the walk
+    const trending = buildMarketContext(trendSeries(25, 10, 0.2, 0.15), metrics())
+    expect(trending.consolidation).toBeNull() // last-5 spread 0.8 / 14.8 ≈ 5.4% > 3%
+  })
+
+  it("(m2) the walk caps at 20 sessions on a 30-session flat tape; a broken 6th-back pins sessions 5 with the real spread", () => {
+    const capped = buildMarketContext(flatSeries(30, 10), metrics())
+    expect(capped.consolidation).toEqual({ sessions: 20, tightnessPct: 0 })
+    // last 5 closes spread 0.2 (10.1 − 9.9) over close 10.05 ≈ 1.99% ✓; the 6th-back (12.0) blows it
+    const pinned = buildMarketContext(closesSeries([...Array.from({ length: 19 }, () => 12), 12, 9.9, 10.1, 10, 10.1, 10.05]), metrics())
+    expect(pinned.consolidation).not.toBeNull()
+    expect(pinned.consolidation!.sessions).toBe(5)
+    expect(pinned.consolidation!.tightnessPct).toBeCloseTo((10.1 - 9.9) / 10.05 * 100, 10)
+    expect(pinned.consolidation!.tightnessPct).toBeCloseTo(1.99, 2)
+  })
+})
+
+// =============================================================================
+// (n) volTrend5 — «الفوليوم بيكلم قبل السعر»: 5× recent vs 30× baseline
+// =============================================================================
+
+describe("buildMarketContext — volTrend5", () => {
+  /** Flat tape with an exact per-session volume script — closes irrelevant. */
+  function volSeries(volumes: Array<number | null>, close = 10): Bar[] {
+    return volumes.map((v) => mkBar(close, close + 0.15, close - 0.15, close, v))
+  }
+  const base30 = (): Array<number | null> => Array.from({ length: 30 }, () => 1000)
+
+  it("(n1) ratio ladder: 1.5× rising · 0.5× falling · 1.0× flat; boundaries inclusive (1.3 rising, 0.7 falling), 1.29/0.71 flat", () => {
+    const cases: Array<[number, NonNullable<MarketContext["volTrend5"]>]> = [
+      [1500, "rising"],
+      [1300, "rising"], // exactly 1.3 → the boundary belongs to "rising"
+      [1290, "flat"], // 1.29 — between the bands
+      [1000, "flat"], // 1.0
+      [710, "flat"], // 0.71
+      [700, "falling"], // exactly 0.7 → the boundary belongs to "falling"
+      [500, "falling"],
+    ]
+    for (const [vol, trend] of cases) {
+      expect(buildMarketContext(volSeries([...base30(), ...Array.from({ length: 5 }, () => vol)]), metrics()).volTrend5, `recent vol ${vol}`).toBe(trend)
+    }
+  })
+
+  it("(n2) honesty: 34 bars → null · a null-volume hole in the window → null · all-zero baseline → null · zero recent over a live baseline → falling", () => {
+    expect(buildMarketContext(volSeries(Array.from({ length: 34 }, () => 1000)), metrics()).volTrend5).toBeNull()
+    const holed = [...base30(), ...Array.from({ length: 5 }, () => 1500)] // 35 complete...
+    holed[10] = null // ...but one baseline session missing its volume voids the read
+    expect(buildMarketContext(volSeries(holed), metrics()).volTrend5).toBeNull()
+    expect(buildMarketContext(volSeries([...Array.from({ length: 30 }, () => 0), ...Array.from({ length: 5 }, () => 5000)]), metrics()).volTrend5).toBeNull()
+    expect(buildMarketContext(volSeries([...base30(), ...Array.from({ length: 5 }, () => 0)]), metrics()).volTrend5).toBe("falling") // ratio 0 ≤ 0.7
+  })
+})
+
+// =============================================================================
+// (o) the global honesty gate covers the lexicon trio too
+// =============================================================================
+
+describe("buildMarketContext — lexicon trio vs the 21-session gate", () => {
+  it("(o) 10 bars → roundLevelNear, consolidation, volTrend5 all null (never invented)", () => {
+    const ctx = buildMarketContext(trendSeries(10, 10, 0.05, 0.15), metrics())
+    expect(ctx.roundLevelNear).toBeNull()
+    expect(ctx.consolidation).toBeNull()
+    expect(ctx.volTrend5).toBeNull()
+  })
+})

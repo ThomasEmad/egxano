@@ -86,6 +86,22 @@ export interface MarketContext {
   candlePatternAr: string | null
   /** One Arabic sentence for the newest active VSA event (vsa.ts), or null. */
   vsaNoteAr: string | null
+  /** Nearest «رقم مستدير» — the round-number floors/ceilings of EGX chatter —
+   *  within ROUND_NEAR_PCT of the close: { level, distPct } (distPct ≥ 0,
+   *  signed direction lives in the caller's arithmetic). Grid steps
+   *  [0.25 · 0.5 · 1 · 2 · 2.5 · 5 · 10 · 20 · 25 · 50 · 100 · 200], the
+   *  largest step ≤ 20% of the price wins; null when nothing is close enough
+   *  (standing EXACTLY on the level reports distPct 0 — that is a fact too). */
+  roundLevelNear: { level: number; distPct: number } | null
+  /** Trailing flat stretch («التجميعة»): non-null when the CONSOL_WINDOW
+   *  trailing closes spread ≤ CONSOL_TIGHT_PCT of the close; sessions counts
+   *  how many consecutive trailing sessions the tightness has held (≥ window,
+   *  capped), tightnessPct is the current spread. Null when the tape is
+   *  moving — a «تجميعة» that isn't flat would be a lie. */
+  consolidation: { sessions: number; tightnessPct: number } | null
+  /** Mean volume of the last 5 sessions vs the 30-session baseline:
+   *  ≥1.3 rising · ≤0.7 falling · else flat — «الفوليوم بيكلم قبل السعر». */
+  volTrend5: "rising" | "falling" | "flat" | null
 }
 
 // ---------------------------------------------------------------------------
@@ -148,6 +164,37 @@ const GAP_MIN_PCT = 1
 const ADX_DEVELOPING_MIN = 20
 const ADX_STRONG_MIN = 25
 
+/** OWNER DOCTRINE (round levels, «الأرقام المستديرة», per the contract): EGX
+ *  chatter quotes floors/ceilings on a step ladder that scales with the price
+ *  — piaster tickers talk 0.25/0.5, mid-caps talk 1/2.5/5, heavyweights talk
+ *  10/25/50. That ladder is below; a step may only be used while it stays
+ *  ≤ 20% of the price (a 25-grid on a 3.4-pound stock would be nonsense), and
+ *  the level must sit within 2% of the close to be worth a sentence. */
+const ROUND_GRID_STEPS = [0.25, 0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200]
+const ROUND_STEP_MAX_SHARE = 0.2
+const ROUND_NEAR_PCT = 2
+
+/** OWNER DOCTRINE (consolidation, «التجميعة», per the contract): a flat
+ *  stretch is 5 sessions whose closes spread ≤ 3% of the close — tighter is a
+ *  coiled spring, wider is just drift. The count walks backward while the
+ *  trailing window keeps fitting inside the band, capped at 20: a 20-session
+ *  base is the longest «تجميعة» the narrative may name as one stretch. */
+const CONSOL_WINDOW = 5
+const CONSOL_TIGHT_PCT = 3
+const CONSOL_MAX_SESSIONS = 20
+
+/** OWNER DOCTRINE (volume trend, «الفوليوم بيكلم قبل السعر», per the
+ *  contract): mean volume of the last 5 sessions against the 30-session
+ *  baseline right before them — ≥ 1.3× rising (participation arriving),
+ *  ≤ 0.7× falling (the tape draining), else flat. Both windows must be
+ *  complete: under 35 volume-carrying sessions, or over an all-zero baseline,
+ *  the read is refused — a ratio without a denominator is an invented number. */
+const VOL_TREND_RECENT_SESSIONS = 5
+const VOL_TREND_BASELINE_SESSIONS = 30
+const VOL_TREND_MIN_BARS = VOL_TREND_RECENT_SESSIONS + VOL_TREND_BASELINE_SESSIONS
+const VOL_TREND_RISING_MIN = 1.3
+const VOL_TREND_FALLING_MAX = 0.7
+
 /** Arabic names of the classical candle patterns (candlestick.ts ids) — the
  *  review speaks about "النهاردة", so only the LAST session's pattern counts
  *  (readLastCandle implements exactly that). */
@@ -179,6 +226,34 @@ function rollingEma(closes: number[], period: number): number[] {
   return out
 }
 
+/** Nearest «رقم مستدير» for one close — the contract's grid rule, resolved
+ *  deterministically: the walk starts at the LARGEST ladder step ≤ 20% of the
+ *  price and descends to finer grids, and the first step whose nearest
+ *  multiple sits within ROUND_NEAR_PCT of the price wins — the coarsest
+ *  honest level is the one reported (208.18 reports the 10-grid's 210, not
+ *  the 0.25-grid's 208.25; descending is what keeps "the largest step wins"
+ *  true among the grids that actually produce a nearby level). Halfway ties
+ *  round UP to the level above (Math.round) — deterministic. Nothing within
+ *  the band even at the finest step → null: no level, no sentence. Standing
+ *  exactly on a level reports distPct 0 — that is a fact too. */
+function nearestRoundLevel(price: number): { level: number; distPct: number } | null {
+  let start = -1
+  for (let i = ROUND_GRID_STEPS.length - 1; i >= 0; i--) {
+    if (ROUND_GRID_STEPS[i] <= price * ROUND_STEP_MAX_SHARE) {
+      start = i
+      break
+    }
+  }
+  if (start < 0) return null // even 0.25 exceeds 20% of the price — no honest grid
+  for (let i = start; i >= 0; i--) {
+    const step = ROUND_GRID_STEPS[i]
+    const level = Math.round(price / step) * step
+    const distPct = (Math.abs(price - level) / price) * 100
+    if (distPct <= ROUND_NEAR_PCT) return { level, distPct }
+  }
+  return null
+}
+
 function emptyContext(): MarketContext {
   return {
     closeLocationPct: null,
@@ -201,6 +276,9 @@ function emptyContext(): MarketContext {
     divergence: null,
     candlePatternAr: null,
     vsaNoteAr: null,
+    roundLevelNear: null,
+    consolidation: null,
+    volTrend5: null,
   }
 }
 
@@ -437,6 +515,55 @@ export function buildMarketContext(_bars: readonly Bar[], _metrics: MetricsLike 
     if (newest !== null) vsaNoteAr = vsaNoteFor(newest)
   }
 
+  // ---- 10) the lexicon trio — round level / consolidation / volume trend.
+  // Pure bar arithmetic, no module adapters; each field carries its own
+  // honesty rule on top of the global MIN_CONTEXT_BARS gate.
+  let roundLevelNear: MarketContext["roundLevelNear"] = null
+  if (fin(last.close) && last.close > 0) roundLevelNear = nearestRoundLevel(last.close)
+
+  let consolidation: MarketContext["consolidation"] = null
+  const allCloses = bars.map((b) => b.close)
+  if (bars.length >= CONSOL_WINDOW && allCloses.slice(bars.length - CONSOL_WINDOW).every(fin)) {
+    const ref = allCloses[bars.length - 1]
+    // trailing-window spread as % of the CURRENT close — the reference the
+    // narrative speaks from, for every window in the walk
+    const spreadPct = (win: readonly number[]): number => {
+      const lo = Math.min(...win)
+      const hi = Math.max(...win)
+      return ((hi - lo) / ref) * 100
+    }
+    if (fin(ref) && ref > 0 && spreadPct(allCloses.slice(bars.length - CONSOL_WINDOW)) <= CONSOL_TIGHT_PCT) {
+      let sessions = CONSOL_WINDOW
+      // walk backward: the stretch grows while every LONGER trailing window
+      // still fits inside the band; the first session that pushes the spread
+      // past the threshold (or a non-finite close that makes it unverifiable)
+      // ends the count. Cap: CONSOL_MAX_SESSIONS is the honest maximum.
+      while (sessions < CONSOL_MAX_SESSIONS && sessions < bars.length) {
+        const longer = allCloses.slice(bars.length - sessions - 1)
+        if (!longer.every(fin) || spreadPct(longer) > CONSOL_TIGHT_PCT) break
+        sessions++
+      }
+      consolidation = { sessions, tightnessPct: spreadPct(allCloses.slice(bars.length - sessions)) }
+    }
+  }
+
+  let volTrend5: MarketContext["volTrend5"] = null
+  if (bars.length >= VOL_TREND_MIN_BARS) {
+    const recent = bars.slice(-VOL_TREND_RECENT_SESSIONS)
+    const baseline = bars.slice(-VOL_TREND_MIN_BARS, -VOL_TREND_RECENT_SESSIONS)
+    const volOk = (b: Bar): b is Bar & { volume: number } => b.volume !== null && fin(b.volume)
+    // a hole anywhere in the 35-session window voids the read (the baseline
+    // would silently mix sessions) — honest null over partial evidence
+    if (recent.every(volOk) && baseline.every(volOk)) {
+      const meanRecent = recent.reduce((s, b) => s + b.volume, 0) / VOL_TREND_RECENT_SESSIONS
+      const meanBaseline = baseline.reduce((s, b) => s + b.volume, 0) / VOL_TREND_BASELINE_SESSIONS
+      if (meanBaseline > 0) {
+        const ratio = meanRecent / meanBaseline
+        volTrend5 = ratio >= VOL_TREND_RISING_MIN ? "rising" : ratio <= VOL_TREND_FALLING_MAX ? "falling" : "flat"
+      }
+    }
+  }
+
   return {
     closeLocationPct,
     bodyVsAtr,
@@ -458,5 +585,8 @@ export function buildMarketContext(_bars: readonly Bar[], _metrics: MetricsLike 
     divergence,
     candlePatternAr,
     vsaNoteAr,
+    roundLevelNear,
+    consolidation,
+    volTrend5,
   }
 }

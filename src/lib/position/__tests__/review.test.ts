@@ -519,7 +519,7 @@ describe("veteranLinesAr — the veteran's reading of the last session", () => {
     }
   })
 
-  it("integration: the wiring APPENDS — the pre-wiring hold snapshot stands intact as the prefix, at most 2 veteran lines follow", () => {
+  it("integration: the wiring APPENDS — the pre-wiring hold snapshot stands intact as the prefix, at most 3 narrative lines follow", () => {
     const bars = cushionSeries(100, 106.5)
     const map = buildZoneMap(bars)
     const r = reviewPosition({ row: rowOver(bars, { state: "wait" }), bars, map, avgBuyPrice: 100 })
@@ -533,8 +533,9 @@ describe("veteranLinesAr — the veteran's reading of the last session", () => {
       "الحلم فوق: أول منطقة تستحق قرار أرباح جزئي عند 112.85–112.85 على بعد +12.8٪ من متوسطك.",
       "الخلاصة بصوت واضح: احتفظ. البيع يبقى قرار لما يفلخط الدفاع، مش لما القلق يعلو.",
     ])
-    // and whatever the (now live) MarketContext produces, the cap holds: ≤ 2
-    expect(r.reasonsAr.length).toBeLessThanOrEqual(7)
+    // and whatever the (now live) MarketContext produces, the merged
+    // narrative cap holds: ≤ 3 (veteran + lexicon, NARRATIVE_MAX_LINES)
+    expect(r.reasonsAr.length).toBeLessThanOrEqual(8)
   })
 
   it("bearish momentum divergence on take-profit → the «خُد شيئًا وشوف» line anchored at the real close", () => {

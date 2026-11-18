@@ -41,6 +41,7 @@ import {
 } from "@/lib/signals/types"
 import { POSITION_DECISION_AR, type LevelLine, type PositionDecision, type PositionReview, type ReviewQuestion, type TechnicalSnapshot } from "./types"
 import { buildMarketContext, type MarketContext } from "./market-context"
+import { lexiconLinesAr } from "./market-lexicon"
 
 /** OWNER MANDATE (2026-11-17): at −20% or deeper, selling locks a loss whose
  *  recovery math turns brutal — the default verdict becomes انتظار للارتداد
@@ -160,13 +161,13 @@ const mult1 = (x: number) => `${x.toFixed(1)}×`
 // OWNER MANDATE (2026-11-18) — the veteran's voice. «اسلوب تحليل السهم في قسم
 // حلل سهمي محتاج يتطور ويبقى متعلم تحليل فني أكتر، ويبقى كأنه إنسان مليان من
 // الخبرات والتجارب من البورصة — مش مجرد محرك متعلم شوية مؤشرات ودعوم ومقاومات
-// وبس». veteranLinesAr reads the MarketContext — the candle's anatomy, the
-// volume character, the stretch off the averages, the traps — and speaks AT
-// MOST 2 lines in the voice of someone who has lived EGX cycles: honest,
-// never commanding, never boilerplate. Every line fires ONLY on its own data
-// trigger and cites real numbers from the context (2-decimal levels,
-// 1-decimal ٪ percents, ×multiples). An honestly-null context (thin data)
-// keeps the veteran silent: [] → zero change to today's output.
+// وبس». The veteran reads the MarketContext — the candle's anatomy, the
+// volume character, the stretch off the averages, the traps — and speaks in
+// the voice of someone who has lived EGX cycles: honest, never commanding,
+// never boilerplate. Every line fires ONLY on its own data trigger and cites
+// real numbers from the context (2-decimal levels, 1-decimal ٪ percents,
+// ×multiples). An honestly-null context (thin data) keeps the veteran silent:
+// [] → zero change to today's output.
 //
 // PRIORITY LADDER — when several triggers fire, traps speak before
 // confirmations and the tape speaks before structure:
@@ -185,7 +186,25 @@ const mult1 = (x: number) => `${x.toFixed(1)}×`
 //  13. weak ADX (cushion wait) — a directionless market re-tests
 //  14. strong ADX (exit branches) — the downtrend has muscles
 //  15. the named candle pattern, read against THIS branch's meaning
-//  16. the VSA note pass-through (already a complete sentence) — filler
+//
+// OWNER MANDATE (2026-11-18, round two) — «متعلم من كل محللين الفيس بوك
+// الخبراء ومتعلم ثري جدا في المعلومات واللغة المصرية»: the EGX phrasebook
+// (market-lexicon.ts — «اللمسة مش كسر», «الغطاء», «التجميعة», «السحب والضخ»,
+// «الفوليوم بيكلم قبل السعر»…) joins the narrative. The MERGED pass is
+// narrativeLinesAr (≤ 3 lines total, the live review path):
+//   A) veteranTriggerLinesAr — slots 1–15 above (traps before confirmations)
+//   B) lexiconLinesAr — the phrasebook, after the veteran entries
+//      A1. roundLevelNear (any branch) — the round-number floor/ceiling line
+//      A2. consolidation + range top (profit rides) — fuel under the ceiling
+//      A3. consolidation + range bottom (loss waits) — the capitulated sellers
+//      A4. volTrend5 falling + range top (hold) — the drying climb
+//      A5. volTrend5 rising (red exits) — the documented break
+//      A6. volTrend5 rising (loss waits) — the first-injection hint
+//   C) the VSA note passthrough stays LAST (already a complete sentence —
+//      the filler slot; dropped when the three slots are already spoken for)
+// veteranLinesAr keeps its own ≤ 2-line contract (slots 1–15 + VSA filler)
+// as the standalone veteran-only view; the review itself speaks through
+// narrativeLinesAr.
 // =============================================================================
 
 export type VeteranBranch = "deepLoss" | "farCushionExit" | "cushionWait" | "engineExit" | "takeProfit" | "hold"
@@ -311,15 +330,14 @@ function patternLineAr(pattern: string, branch: VeteranBranch, close: number, tr
   return `${base}${echo ? `، ${echo}` : ""}.`
 }
 
-/** The veteran's reading of the LAST session, in his own words. Pure; AT MOST
- *  2 lines; [] on an honestly-null context (the narrative never invents data,
- *  and the volume-class bounds 2.5× / 0.7× are the MarketContext's own
- *  documented thresholds, not invented values). */
-export function veteranLinesAr(ctx: MarketContext, opts: VeteranOpts): string[] {
+/** The veteran's trigger ladder — slots 1–15 above, AT MOST 2 lines. Private
+ *  building block of the merged pass; exposed only through veteranLinesAr
+ *  (standalone) and narrativeLinesAr (the live review path). */
+function veteranTriggerLinesAr(ctx: MarketContext, opts: VeteranOpts): string[] {
   const b = opts.branch
   const lines: string[] = []
-  const add = (s: string | null | undefined) => {
-    if (s && lines.length < 2) lines.push(s)
+  const add = (s: string) => {
+    if (lines.length < 2) lines.push(s)
   }
 
   // 1) spike volume ON the break — the exit branches' doctrine moment: is
@@ -368,7 +386,7 @@ export function veteranLinesAr(ctx: MarketContext, opts: VeteranOpts): string[] 
   }
   // 11) stretched too far off EMA20 — the tired place
   if ((b === "hold" || b === "takeProfit") && ctx.emaStretch20Atr !== null && ctx.emaStretch20Atr >= 2.5) {
-    add(`التمدد عن EMA20 وصل ${mult1(ctx.emaStretch20Atr)} ATR — من تجارب السوق ده مكان ارتداد للخط أو توقف أنفاس، مش مكان للاندفاع.`)
+    add(`التمدد عن EMA20 وصل ${mult1(ctx.emaStretch20Atr)} ATR — ومن كلام أهل السوق: الارتداد لخط المتوسط فرصة مش خطر، وده بالذات مكان ارتداد للخط أو توقف أنفاس، مش مكان للاندفاع.`)
   }
   // 12) a mid-life trend: 15+ sessions above EMA20 without a close under it
   if (b === "hold" && ctx.daysAboveEma20 !== null && ctx.daysAboveEma20 >= 15) {
@@ -386,8 +404,40 @@ export function veteranLinesAr(ctx: MarketContext, opts: VeteranOpts): string[] 
   if (ctx.candlePatternAr) {
     add(patternLineAr(ctx.candlePatternAr, b, opts.close, opts.trendAr))
   }
-  // 16) the VSA note — already a complete sentence; the filler slot
-  add(ctx.vsaNoteAr)
+  return lines
+}
+
+/** The veteran's reading of the LAST session, in his own words — the
+ *  STANDALONE veteran-only view (slots 1–15, then the VSA note as the
+ *  filler slot), AT MOST 2 lines, [] on an honestly-null context (the
+ *  narrative never invents data, and the volume-class bounds 2.5× / 0.7×
+ *  are the MarketContext's own documented thresholds, not invented values).
+ *  Kept for its existing tests and callers; the live review path speaks
+ *  through narrativeLinesAr below. */
+export function veteranLinesAr(ctx: MarketContext, opts: VeteranOpts): string[] {
+  const lines = veteranTriggerLinesAr(ctx, opts)
+  // the VSA note — already a complete sentence; the filler slot
+  if (ctx.vsaNoteAr && lines.length < 2) lines.push(ctx.vsaNoteAr)
+  return lines
+}
+
+/** OWNER INTEGRATION (2026-11-18) — the merged narrative pass (≤ 3 lines):
+ *  veteran ladder entries first (traps before confirmations), then the EGX
+ *  phrasebook (market-lexicon.ts), and the VSA passthrough LAST — it is
+ *  already a complete sentence, so it fills only a remaining slot and is
+ *  dropped when the three slots are spoken for. Dedup by string; an
+ *  honestly-null context degrades to [] with zero behavior change. */
+export const NARRATIVE_MAX_LINES = 3
+
+export function narrativeLinesAr(ctx: MarketContext, opts: VeteranOpts): string[] {
+  const lines = veteranTriggerLinesAr(ctx, opts)
+  for (const lex of lexiconLinesAr(ctx, opts)) {
+    if (lines.length >= NARRATIVE_MAX_LINES) break
+    if (!lines.includes(lex)) lines.push(lex)
+  }
+  if (ctx.vsaNoteAr && lines.length < NARRATIVE_MAX_LINES && !lines.includes(ctx.vsaNoteAr)) {
+    lines.push(ctx.vsaNoteAr)
+  }
   return lines
 }
 
@@ -622,7 +672,7 @@ export function reviewPosition(input: ReviewInput): PositionReview {
     question = { ...q, answeredAr: input.downsideAnswer === "yes" ? q.yesOutcomeAr : input.downsideAnswer === "no" ? q.noOutcomeAr : null }
     // the veteran's reading, appended after the recovery math — silent ([])
     // when the context is honestly null
-    reasonsAr.push(...veteranLinesAr(ctx, { branch: "deepLoss", avgBuyPrice, close, trendAr }))
+    reasonsAr.push(...narrativeLinesAr(ctx, { branch: "deepLoss", avgBuyPrice, close, trendAr }))
     return {
       decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
       avgBuyPrice, lastClose: close, pnlPct: Math.round(pnlPct * 10) / 10, pnlPerShare: Math.round(pnlPerShare * 100) / 100,
@@ -658,16 +708,16 @@ export function reviewPosition(input: ReviewInput): PositionReview {
           ? `خط تتبع الجزء المتبقي: ${trail.basisAr} — الإلغاء بالإغلاق اليومي تحته، مش باللمسة: الكسور الكاذبة تحت المستويات حاجة معروفة في السوق المصري.`
           : "خط تتبع الجزء المتبقي: قاع آخر 60 جلسة — الإلغاء بالإغلاق اليومي تحته، مش باللمسة.",
       )
-      reasonsAr.push(...veteranLinesAr(ctx, { branch: "takeProfit", avgBuyPrice, close, trendAr }))
+      reasonsAr.push(...narrativeLinesAr(ctx, { branch: "takeProfit", avgBuyPrice, close, trendAr }))
     } else {
       decision = "exit"
       headlineAr = `الكسر حصل ومفيش بطانة قريبة تحت السعر — الخروج هنا إدارة مخاطر مش هيزنة`
       invalidationAr = `السيناريو يرجع فيه فقط بإغلاق يومي فوق مستوى الكسر (${fmt(cushion.brokenZone!.low)})`
       reasonsAr.push(
         "قاعدة البيع على الكسر بتشتغل بس لما الدعم اللي تحت يكون بعيد — وهنا هو بعيد فعلًا، فالقرار خروج.",
-        "الخروج مش فشل ولا اعتراف بغلطة — ده الفرق بين المتداول اللي عنده خطة والمتداول اللي بيمسك بيديه من غير خطة: بنقفل الخسارة الصغيرة قبل ما تبقى كبيرة.",
+        "الخروج مش فشل ولا اعتراف بغلطة — السوق بياخد وبيدي، واللي بيحافظ على رصيده بيلقى باب تاني يدخل منه: ده الفرق بين المتداول اللي عنده خطة والمتداول اللي بيمسك بيديه من غير خطة، وبنقفل الخسارة الصغيرة قبل ما تبقى كبيرة.",
       )
-      reasonsAr.push(...veteranLinesAr(ctx, { branch: "farCushionExit", avgBuyPrice, close, trendAr }))
+      reasonsAr.push(...narrativeLinesAr(ctx, { branch: "farCushionExit", avgBuyPrice, close, trendAr }))
     }
     return {
       decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
@@ -696,7 +746,7 @@ export function reviewPosition(input: ReviewInput): PositionReview {
         : "البيع دلوقتي معناه إنك بتسلم السهم عند أول باب قبل ما يبان لو فيه مرتد — استنى الإغلاقات: دعم قريب بيمتص الضغط غالبًا.",
     )
     if (pnlPct < 0) reasonsAr.push(recoveryReasonAr(pnlPct, recoveryPct ?? 0))
-    reasonsAr.push(...veteranLinesAr(ctx, { branch: "cushionWait", avgBuyPrice, close, trendAr }))
+    reasonsAr.push(...narrativeLinesAr(ctx, { branch: "cushionWait", avgBuyPrice, close, trendAr }))
     return {
       decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
       avgBuyPrice, lastClose: close, pnlPct: Math.round(pnlPct * 10) / 10, pnlPerShare: Math.round(pnlPerShare * 100) / 100,
@@ -731,7 +781,7 @@ export function reviewPosition(input: ReviewInput): PositionReview {
           : "خط تتبع الجزء المتبقي: قاع آخر 60 جلسة — الإلغاء بالإغلاق اليومي تحته، مش باللمسة.",
         "كسر الاتجاه مختلف عن كسر دعم عابر: هنا البنية الزمنية نفسها بتتغير — عشان كده الجني جزئي مش احتفاظ كامل، والجزء المتبقي بيتقفل بالإغلاق تحت خط التتبع.",
       )
-      reasonsAr.push(...veteranLinesAr(ctx, { branch: "takeProfit", avgBuyPrice, close, trendAr }))
+      reasonsAr.push(...narrativeLinesAr(ctx, { branch: "takeProfit", avgBuyPrice, close, trendAr }))
     } else {
       decision = "exit"
       headlineAr = "الاتجاه نفسه اتكسر — ده مش وقت المبادرة، ده وقت حماية اللي فاضل"
@@ -741,7 +791,7 @@ export function reviewPosition(input: ReviewInput): PositionReview {
         `الخروج هنا بيحمي الرصيد: أفضل وقت للرجوع هو لما يرجع السهم فوق متوسطاته ويثبت — والموقع هيقولك لحظتها.`,
       )
       if (pnlPct < 0) reasonsAr.push(recoveryReasonAr(pnlPct, recoveryPct ?? 0))
-      reasonsAr.push(...veteranLinesAr(ctx, { branch: "engineExit", avgBuyPrice, close, trendAr }))
+      reasonsAr.push(...narrativeLinesAr(ctx, { branch: "engineExit", avgBuyPrice, close, trendAr }))
     }
     return {
       decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
@@ -777,13 +827,13 @@ export function reviewPosition(input: ReviewInput): PositionReview {
       `القراءة الفنية: ${trendAr}${mt?.rsi14 ? ` وRSI ${fmt(mt.rsi14)} (${mt.rsi14 > 70 ? "منطقة تشبع شرائي — متصدقش إن الصعود مستحيل يتوقف، خد أرباح جزئية لو عاجلك" : mt.rsi14 < 30 ? "منطقة تشبع بيعي — أرضية محتملة" : "منطقة متوازنة"})` : ""}.`,
       supLine
         ? `خط الدفاع: ${supLine.basisAr} — طالما السعر فوقه بالإغلاق، القصة سليمة.`
-        : "ملاحظة أمانة: مفيش دعم معتمد تحت السعر الحالي — الرحلة صاعدة بلا بطانة، فلو عاجلك الربح خد جزء منه.",
+        : "ملاحظة أمانة: مفيش دعم معتمد تحت السعر الحالي — الرحلة صاعدة بلا بطانة، ومن كلام أهل السوق: الأرباح بتتاخد بالعقل مش بالجشع، وبيع في القوة واشتري في الضعف — فالقوة اللي السعر واقف فيها دلوقتي هي مكان أخد جزء وانت مرتاح، مش مكان زيادة.",
       profitTarget
         ? `الحلم فوق: أول منطقة تستحق قرار أرباح جزئي عند ${fmt(profitTarget.low)}–${fmt(profitTarget.high)} على بعد ${pct1(Math.round(((profitTarget.low - avgBuyPrice) / avgBuyPrice) * 1000) / 10)} من متوسطك.`
         : `الحلم فوق: مفيش مقاومة مسجلة فوق متوسطك بـ ${PROFIT_TARGET_MIN_GAP_PCT}٪ أو أكثر في نافذة البيانات — السهم في أرض جديدة، والأرباح الجزئية هنا بيتقررها خط المتوسطات (EMA20/EMA50) مش سقف قديم`,
       "الخلاصة بصوت واضح: احتفظ. البيع يبقى قرار لما يفلخط الدفاع، مش لما القلق يعلو.",
     )
-    reasonsAr.push(...veteranLinesAr(ctx, { branch: "hold", avgBuyPrice, close, trendAr }))
+    reasonsAr.push(...narrativeLinesAr(ctx, { branch: "hold", avgBuyPrice, close, trendAr }))
     return {
       decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
       avgBuyPrice, lastClose: close, pnlPct: Math.round(pnlPct * 10) / 10, pnlPerShare: Math.round(pnlPerShare * 100) / 100,
@@ -810,7 +860,7 @@ export function reviewPosition(input: ReviewInput): PositionReview {
       "قاعدتنا الثابتة: مفيش استثمار اسمه «هيرجع» من غير دليل فني. الدليل دلوقتي بيقول عكس كده، فبنقلل التعرض.",
       "لما يرجع ويثبت فوق متوسطاته، الموقع هيرصد ده وترجع تراجع الدخول تاني بعين صافية.",
     )
-    reasonsAr.push(...veteranLinesAr(ctx, { branch: "engineExit", avgBuyPrice, close, trendAr }))
+    reasonsAr.push(...narrativeLinesAr(ctx, { branch: "engineExit", avgBuyPrice, close, trendAr }))
   } else {
     decision = "wait"
     headlineAr = closeCushion
@@ -834,7 +884,7 @@ export function reviewPosition(input: ReviewInput): PositionReview {
         : "الهيكل لسه ماسك: السعر تحت متوسطك بس مش تحت بنية الدعم — بنستنى إما الارتداد أو الكسر، والاتنين واضحين.",
       "قاعدة السوق المصري: الستوب الآلي بيوقّعك في الكسور الكاذبة — الصنّاع بيكسروا المستويات لمرة واحدة عشان يجمعوا السيولة ويرجّعوا السعر، فمتابعة الفرد جيدًا على الشاشة هي الحماية الحقيقية، والحكم على أي كسر يكون بالإغلاق الفعلي والحجم قبل أي حركة.",
     )
-    reasonsAr.push(...veteranLinesAr(ctx, { branch: "cushionWait", avgBuyPrice, close, trendAr }))
+    reasonsAr.push(...narrativeLinesAr(ctx, { branch: "cushionWait", avgBuyPrice, close, trendAr }))
   }
 
   return {
