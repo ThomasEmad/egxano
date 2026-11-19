@@ -11,6 +11,24 @@ const store = new Map<
   { value: unknown; at: number; refreshing?: boolean; waiters?: ((v: unknown) => void)[] }
 >()
 
+// BOUNDED STORE (2026-11-19): the cache is fed user-controlled keys (the
+// position-review key embeds the caller's avgBuyPrice) — an unbounded map let
+// one user grow it forever. Entries are capped at MAX_ENTRIES; on insert
+// beyond the cap the OLDEST entry by insertion order is evicted (Map
+// preserves insertion order). Overwriting an existing key keeps its original
+// position, so refreshes never evict, and in-flight refresh closures hold
+// their own entry object — a waiter on an evicted key still resolves.
+const MAX_ENTRIES = 500
+
+function storeSet(key: string, value: { value: unknown; at: number; refreshing?: boolean; waiters?: ((v: unknown) => void)[] }): void {
+  store.set(key, value)
+  while (store.size > MAX_ENTRIES) {
+    const oldest = store.keys().next().value
+    if (oldest === undefined) break
+    store.delete(oldest)
+  }
+}
+
 export async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
   const maxStaleMs = ttlMs * 5
   const hit = store.get(key)
@@ -25,7 +43,7 @@ export async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>
         fn()
           .then((value) => {
             const waiters = hit.waiters ?? []
-            store.set(key, { value, at: Date.now() })
+            storeSet(key, { value, at: Date.now() })
             for (const w of waiters) (w as (v: unknown) => void)(value)
           })
           .catch(() => {
@@ -43,7 +61,7 @@ export async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>
     try {
       const value = await fn()
       const waiters = hit.waiters
-      store.set(key, { value, at: Date.now() })
+      storeSet(key, { value, at: Date.now() })
       for (const w of waiters ?? []) w(value as unknown)
       return value
     } catch (e) {
@@ -56,7 +74,7 @@ export async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>
     }
   }
   const value = await fn()
-  store.set(key, { value, at: Date.now() })
+  storeSet(key, { value, at: Date.now() })
   return value
 }
 

@@ -423,7 +423,7 @@ export default function PremiumPage() {
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary">
-                {ar ? "خطة الـ 3 شهور: 450 ج — أول شهر بخصم 50% (375 ج)" : "3-month plan: 450 EGP — first month 50% off"}
+                {ar ? "خطة الـ 3 شهور: 450 ج — أول شهر بخصم 17% (375 ج)" : "3-month plan: 450 EGP — first month 17% off"}
               </Badge>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <ShieldCheck className="h-4 w-4 text-success" aria-hidden />

@@ -13,6 +13,7 @@
 
 import { db } from "@/lib/db"
 import { emaSeries } from "@/lib/technical/indicators"
+import { effectiveEgxSessionDate } from "../egx-session"
 import {
   computeIntelligence,
   marketIntelligenceSchema,
@@ -60,11 +61,6 @@ function readSnapshotMovers(snapshotValue: string): { asOf: string; delayMinutes
   }
 }
 
-function utcDayOf(iso: string): string {
-  const d = new Date(iso)
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString().slice(0, 10)
-}
-
 /** Build ticker → 20/60-session volume baselines from PriceBar (excludes the latest stored session). */
 async function loadBaselines(): Promise<Record<string, VolumeBaseline>> {
   const cutoff = new Date(Date.now() - BASELINE_LOOKBACK_DAYS * 86_400_000)
@@ -90,8 +86,11 @@ async function loadBaselines(): Promise<Record<string, VolumeBaseline>> {
 }
 
 async function loadHistory(): Promise<HistoryDay[]> {
+  // The LATEST ≤60 stored sessions, returned ascending for consumers: the
+  // old `orderBy asc, take 60` returned the OLDEST 60 once history passed
+  // 60 rows — the newest context regime/rotation deltas need went missing.
   const rows = await db.marketIntelligenceDay.findMany({
-    orderBy: { day: "asc" },
+    orderBy: { day: "desc" },
     take: HISTORY_ROWS,
     select: { day: true, snapshotJson: true, advancing: true, declining: true, unchanged: true, regime: true, pulse: true },
   })
@@ -120,6 +119,7 @@ async function loadHistory(): Promise<HistoryDay[]> {
       turnoverShares,
     })
   }
+  out.reverse() // fetched newest-first — restore ascending order for consumers
   return out
 }
 
@@ -184,7 +184,11 @@ export async function rebuildIntelligence(): Promise<MarketIntelligence | null> 
 
   const input: IntelInput = {
     now: snap.asOf,
-    day: utcDayOf(snap.asOf),
+    // Key the history day by the ANCHORED session date, not the fetch's UTC
+    // date (audit 2026-11-19): a weekend/pre-open heartbeat pull restates the
+    // prior session (effectiveEgxSessionDate) and must overwrite THAT
+    // session's row instead of minting permanent phantom Fri/Sat breadth days.
+    day: effectiveEgxSessionDate(snap.asOf),
     delayMinutes: snap.delayMinutes,
     movers,
     baselines,

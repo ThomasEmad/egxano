@@ -14,6 +14,7 @@ import { LiveMarketBadge } from "@/components/egx/live-market-badge"
 import { useMarketLive } from "@/components/egx/use-market-live"
 import { useI18n } from "@/lib/i18n"
 import { SECTOR_AR, sectorLabel } from "@/lib/sectors"
+import { formatEgp } from "@/lib/financial/units"
 
 interface SectorAgg {
   sector: string
@@ -308,13 +309,13 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
                               </span>
                             </td>
                             <td className="p-3 text-end tabular text-sm">
-                              {s.totalMarketCap ? formatEgp(s.totalMarketCap) : "—"}
+                              {s.totalMarketCap ? formatEgp(s.totalMarketCap, { lang: ar ? "ar" : "en" }) : "—"}
                             </td>
                             <td className="p-3 text-end tabular text-sm">
-                              {s.totalRevenue ? formatEgp(s.totalRevenue) : "—"}
+                              {s.totalRevenue ? formatEgp(s.totalRevenue, { lang: ar ? "ar" : "en" }) : "—"}
                             </td>
                             <td className="p-3 text-end tabular text-sm">
-                              {s.totalNetProfit ? formatEgp(s.totalNetProfit) : "—"}
+                              {s.totalNetProfit ? formatEgp(s.totalNetProfit, { lang: ar ? "ar" : "en" }) : "—"}
                             </td>
                           </tr>
                         )
@@ -369,12 +370,4 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
       </div>
     </LayoutShell>
   )
-}
-
-function formatEgp(value: number): string {
-  if (Math.abs(value) >= 1e12) return `${(value / 1e12).toFixed(2)}T`
-  if (Math.abs(value) >= 1e9) return `${(value / 1e9).toFixed(2)}B`
-  if (Math.abs(value) >= 1e6) return `${(value / 1e6).toFixed(2)}M`
-  if (Math.abs(value) >= 1e3) return `${(value / 1e6).toFixed(1)}M`
-  return value.toFixed(0)
 }

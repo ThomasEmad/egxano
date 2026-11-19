@@ -2,17 +2,20 @@ import { db } from "@/lib/db"
 import { cachedResponse } from "@/lib/public-cache"
 import { evaluateUndervaluation, type MetricMap } from "@/lib/analytics/engine"
 import { latestPriceByCompany } from "@/lib/financial/latest-price"
+import { selectOwnValues } from "@/lib/financial/own-values"
 
-// GET /api/v1/undervalued — 5-criteria undervaluation screen (spec §4.3) with
-// 3-method fair value (spec §4.4). BATCHED: 4 queries total, computed in memory.
+// GET /api/v1/undervalued — undervaluation screen (spec §4.3) with 3-method
+// fair value (spec §4.4). 4 of the 5 criteria actually run in production —
+// the EV/EBITDA criterion has no producer (no calculated metric feeds it, its
+// sector stat stays null) and is never advertised. BATCHED: 4 queries total.
 
 const TRUSTED = ["VALIDATED", "APPROVED", "EXTRACTED"]
-const NEEDED = ["CURRENT_ASSETS", "INVENTORY", "CURRENT_LIABILITIES", "OPERATING_INCOME", "EBIT", "INTEREST_EXPENSE", "REVENUE", "TOTAL_ASSETS"]
+const NEEDED = ["CURRENT_ASSETS", "INVENTORY", "CURRENT_LIABILITIES", "OPERATING_INCOME", "EBIT", "INTEREST_EXPENSE", "REVENUE", "TOTAL_ASSETS", "DIVIDEND_PER_SHARE"]
 
 function buildMaps(
   allMetrics: { companyId: string; code: string; value: number | null; fiscalYear: number }[],
-  reports: { id: string; companyId: string; fiscalYear: number }[],
-  rawVals: { reportId: string; metricCode: string; normalizedValue: number | null }[],
+  reports: { id: string; companyId: string; fiscalYear: number; periodType: string; periodLabel: string }[],
+  rawVals: { reportId: string; metricCode: string; normalizedValue: number; subPeriod: string | null }[],
   prices: { companyId: string; price: number; asOf: Date }[],
 ) {
   // latest consolidated metric per company+code
@@ -27,10 +30,24 @@ function buildMaps(
     ;(cmMap.get(key) as MetricMap)[r.code.toUpperCase()] = r.value
   }
   const reportYear = new Map(reports.map((r) => [r.companyId, r.fiscalYear]))
-  const rawByReport = new Map<string, MetricMap>()
+  // Same CURRENT-vs-comparative rule as the recompute engine (own-values.ts):
+  // a harvested report often carries a comparative column next to CURRENT, and
+  // last-write-wins merging let the comparative value poison the map.
+  const rawRowsByReport = new Map<string, { metricCode: string; normalizedValue: number; subPeriod: string | null }[]>()
   for (const v of rawVals) {
-    if (!rawByReport.has(v.reportId)) rawByReport.set(v.reportId, {})
-    ;(rawByReport.get(v.reportId) as MetricMap)[v.metricCode.toUpperCase()] = v.normalizedValue
+    let list = rawRowsByReport.get(v.reportId)
+    if (!list) rawRowsByReport.set(v.reportId, (list = []))
+    list.push(v)
+  }
+  const rawByReport = new Map<string, MetricMap>()
+  for (const rep of reports) {
+    const list = rawRowsByReport.get(rep.id)
+    if (!list) continue
+    const chosen = selectOwnValues({ periodType: rep.periodType, periodLabel: rep.periodLabel, values: list })
+    if (!chosen.length) continue
+    const merged: MetricMap = {}
+    for (const x of chosen) merged[x.metricCode.toUpperCase()] = x.normalizedValue
+    rawByReport.set(rep.id, merged)
   }
   // Rows arrive ordered by asOf DESC, but the helper compares timestamps
   // explicitly so the freshest snapshot wins regardless of query order.
@@ -73,12 +90,12 @@ async function buildUndervalued(): Promise<unknown> {
     }),
     db.financialReport.findMany({
       where: { companyId: { in: ids }, deletedAt: null, periodType: "ANNUAL", processingStatus: { in: TRUSTED }, statementType: "CONSOLIDATED" },
-      select: { id: true, companyId: true, fiscalYear: true },
+      select: { id: true, companyId: true, fiscalYear: true, periodType: true, periodLabel: true },
       orderBy: { version: "desc" },
     }),
     db.financialValue.findMany({
       where: { report: { deletedAt: null, periodType: "ANNUAL", processingStatus: { in: TRUSTED }, statementType: "CONSOLIDATED" }, metricCode: { in: NEEDED }, validationStatus: "VALID" },
-      select: { reportId: true, metricCode: true, normalizedValue: true },
+      select: { reportId: true, metricCode: true, normalizedValue: true, subPeriod: true },
     }),
     db.marketPrice.findMany({
       where: { companyId: { in: ids }, asOf: { gte: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000) } },
@@ -98,7 +115,7 @@ async function buildUndervalued(): Promise<unknown> {
   })
   const { buildLatest, priceOf, priceAsOfOf, cmYear } = buildMaps(
     allMetrics,
-    latestReports.map((r) => ({ id: r.id, companyId: r.companyId, fiscalYear: r.fiscalYear })),
+    latestReports,
     rawVals,
     prices,
   )
@@ -141,6 +158,8 @@ async function buildUndervalued(): Promise<unknown> {
         medianPB: medianFor(sector, "P_B"),
         yield75th: percentileFor(sector, "DIVIDEND_YIELD", 0.75),
         medianROE: medianFor(sector, "ROE"),
+        // No EV/EBITDA producer exists yet — the criterion stays dormant
+        // (never advertised) instead of faking a sector stat.
         evEbitda25th: null,
         medianEvEbitda: null,
       }

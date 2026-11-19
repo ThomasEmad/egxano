@@ -528,10 +528,18 @@ export function resampleWeekly(bars: Bar[]): Bar[] {
   const weeks = new Map<string, Bar>()
   for (const b of bars) {
     const d = new Date(b.ts + "T00:00:00Z")
-    // ISO week key: Monday of that week.
-    const day = (d.getUTCDay() + 6) % 7
-    const monday = new Date(d)
-    monday.setUTCDate(d.getUTCDate() - day)
+    // EGX week key — the trading week is Sun–Thu (weekend Fri/Sat), so a plain
+    // ISO-Monday key merges a Sunday close into the PREVIOUS week's candle.
+    // Shift every date back to the SATURDAY that opens its EGX window
+    // (Sun→Sat stays in the same window, Thu→Sat, and Fri/Sat-dated holiday
+    // quotes fold into the window they belong to), then take that Saturday's
+    // ISO-Monday anchor as the bucket key. One unique key per Sat–Thu window;
+    // output shape and sort order unchanged.
+    const sat = new Date(d)
+    sat.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 1) % 7))
+    const day = (sat.getUTCDay() + 6) % 7
+    const monday = new Date(sat)
+    monday.setUTCDate(sat.getUTCDate() - day)
     const key = monday.toISOString().slice(0, 10)
     const w = weeks.get(key)
     if (!w) {

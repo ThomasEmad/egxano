@@ -13,17 +13,31 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { cached } from "@/lib/server-cache"
 import { requireAuth, unauthorizedResponse } from "@/lib/access"
+import { checkEndpointRateLimit } from "@/lib/rate-limit"
 import { isPremiumUser } from "@/lib/subscription"
 import { buildPositionReview } from "@/lib/position/service"
-import { consumePositionReviewUsage, getPositionReviewQuota } from "@/lib/position/usage"
+import { consumePositionReviewUsage, getPositionReviewQuota, positionReviewQuotaAllows } from "@/lib/position/usage"
 
 export const maxDuration = 30
 
 const CACHE_MS = 10 * 60_000
 
+// the 429 body is IDENTICAL whether it fires on the cheap pre-check (before
+// the build) or on the post-build consume — one shape, one message
+const DAILY_LIMIT_429 = {
+  error: "DAILY_LIMIT_REACHED",
+  errorAr: "خلصت كمية التحليل المجانية النهاردة (سهمين) — اشترك في Premium للحل بلا حدود، أو جرّب تاني بكرة مع افتتاح السوق",
+  upgradeUrl: "/premium",
+} as const
+
 export async function POST(req: NextRequest) {
   const userId = await requireAuth(req)
   if (!userId) return unauthorizedResponse()
+
+  // per-user abuse cap on the endpoint itself (separate from the daily stock
+  // quota): the build is expensive, so a hot loop must bounce early
+  const rl = await checkEndpointRateLimit("position-review", userId)
+  if (!rl.allowed) return NextResponse.json({ error: "RATE_LIMITED" }, { status: 429 })
 
   let body: { companyId?: unknown; avgBuyPrice?: unknown; downsideAnswer?: unknown }
   try {
@@ -43,6 +57,17 @@ export async function POST(req: NextRequest) {
 
   const isPremium = await isPremiumUser(userId)
 
+  // QUOTA PRE-CHECK (2026-11-19): the expensive report used to be built BEFORE
+  // any quota enforcement — an exhausted caller paid the full build cost and
+  // only then got the 429. The cheap read-only check below returns the exact
+  // same 429 shape BEFORE the build when the caller cannot get a fresh
+  // analysis (no quota left and the stock is not in today's dedup set). The
+  // authoritative consume still runs AFTER the build, so same-stock
+  // re-analysis stays free and an invalid company never burns quota.
+  if (!(await positionReviewQuotaAllows(userId, isPremium, companyId))) {
+    return NextResponse.json(DAILY_LIMIT_429, { status: 429 })
+  }
+
   // round the cache key to 2dp — the decision math never changes inside a pip
   const key = `position-review:${companyId}:${avgBuyPrice.toFixed(2)}:${downsideAnswer ?? "-"}`
   const result = await cached(key, CACHE_MS, () => buildPositionReview(companyId, avgBuyPrice, downsideAnswer))
@@ -54,14 +79,7 @@ export async function POST(req: NextRequest) {
   // reaches this line, so a typo never costs one of the user's two daily reads)
   const quota = await consumePositionReviewUsage(userId, isPremium, companyId)
   if (!quota) {
-    return NextResponse.json(
-      {
-        error: "DAILY_LIMIT_REACHED",
-        errorAr: "خلصت كمية التحليل المجانية النهاردة (سهمين) — اشترك في Premium للحل بلا حدود، أو جرّب تاني بكرة مع افتتاح السوق",
-        upgradeUrl: "/premium",
-      },
-      { status: 429 },
-    )
+    return NextResponse.json(DAILY_LIMIT_429, { status: 429 })
   }
   return NextResponse.json(
     { ...result, quota },

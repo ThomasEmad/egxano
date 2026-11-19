@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
 import { cached } from "@/lib/server-cache"
 import { effectiveEgxSessionDate } from "@/lib/market/egx-session"
+import { isEgxMarketLive } from "@/lib/market/egx-hours"
 
 // GET /api/v1/market/liquidity-heatmap — per-sector DAILY LIQUIDITY change +
 // the signed NET per sector (owner feature request 2026-11-17: "على كل قطاع
@@ -21,8 +22,9 @@ import { effectiveEgxSessionDate } from "@/lib/market/egx-session"
 // (day, companyId) wins and earlier pulls of the same session are discarded.
 // companies counts DISTINCT issuers, not rows.
 //
-// sessionLive: a snapshot inside EGX trading hours (Sun–Thu 09:30–15:00
-// Cairo) means today's total is still ACCUMULATING while the previous
+// sessionLive: a snapshot inside THE canonical EGX live window (Sun–Thu
+// 09:45–14:45 Cairo, shared with the signals board via egx-hours) means
+// today's total is still ACCUMULATING while the previous
 // session's total is final — an all-red map mid-session is arithmetic, not a
 // data bug. The UI surfaces this honestly instead of hiding it.
 //
@@ -50,22 +52,14 @@ export interface LiquiditySector {
   companies: number
 }
 
-/** EGX trades Sun–Thu, 09:30–15:00 Cairo (DST handled by the tz database). */
+/** EGX trades Sun–Thu; "live" is THE canonical egx-hours window, 09:45–14:45
+ *  Cairo (DST handled by the tz database) — the same definition the signals
+ *  board uses (audit 2026-11-19: three conflicting "live" definitions unified). */
 export function isEgxSessionLive(iso: string | null | undefined): boolean {
   if (!iso) return false
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return false
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Africa/Cairo",
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(d)
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ""
-  if (["Fri", "Sat"].includes(get("weekday"))) return false
-  const minutes = Number(get("hour")) * 60 + Number(get("minute"))
-  return minutes >= 9 * 60 + 30 && minutes <= 15 * 60
+  return isEgxMarketLive(d)
 }
 
 export async function GET(_req: NextRequest) {

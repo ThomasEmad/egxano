@@ -11,10 +11,13 @@ import { sendPasswordResetMail, siteUrlFor } from "@/lib/mail"
 // exists — no user enumeration). Delivery is dual-path:
 //   • Mail configured (RESEND_API_KEY + MAIL_FROM): the raw token is emailed
 //     as a one-time link and NEVER written to the audit log.
-//   • Mail not configured: the raw token is written to the audit log so the
-//     administrator can hand it to the user over a trusted channel (admin →
-//     audit view). The database stores only the SHA-256 hash, 30-minute
-//     expiry, single use.
+//   • Mail not configured (no RESEND_API_KEY): the raw token is written to the
+//     audit log so the administrator can hand it to the user over a trusted
+//     channel (admin → audit view).
+//   • Mail configured but the send FAILED (provider hiccup): the token is
+//     still live and usable, so only a hint goes to the audit log — token
+//     prefix + expiry, NEVER the full token. The database stores only the
+//     SHA-256 hash, 30-minute expiry, single use.
 //
 // Rate limited (each call writes an audit row — an unthrottled loop would
 // spam the audit log and the DB): 3 attempts/hour per IP.
@@ -44,14 +47,16 @@ export async function POST(req: Request) {
     // one live token per user: supersede older ones
     await db.passwordResetToken.deleteMany({ where: { userId: user.id, usedAt: null } }).catch(() => {})
     const raw = randomUUID() + randomUUID().replace(/-/g, "")
+    const expiresAt = new Date(Date.now() + RESET_TTL_MS)
     await db.passwordResetToken.create({
       data: {
         userId: user.id,
         tokenHash: hashToken(raw),
-        expiresAt: new Date(Date.now() + RESET_TTL_MS),
+        expiresAt,
       },
     })
     const resetUrl = `${siteUrlFor(req)}/reset-password?token=${raw}`
+    const mailConfigured = Boolean(process.env.RESEND_API_KEY)
     const mailed = await sendPasswordResetMail(email, resetUrl, RESET_TTL_MS / 60000).catch(() => false)
     if (mailed) {
       // Mail path: the raw token never touches the audit log.
@@ -61,15 +66,26 @@ export async function POST(req: Request) {
         entityId: user.id,
         details: `Password reset email sent to ${email} (valid 30 min, single use)`,
       })
+    } else if (!mailConfigured) {
+      await audit("PASSWORD_RESET_REQUEST", {
+        actor: email,
+        entityType: "User",
+        entityId: user.id,
+        // Mail is genuinely unconfigured — the admin completes the delivery
+        // manually from the audit view, so the raw token goes there. The
+        // token expires in 30 minutes and is single-use; the DB stores only
+        // its hash.
+        details: `Password reset token for ${email} (valid 30 min, single use): ${raw} — deliver via a trusted channel`,
+      })
     } else {
       await audit("PASSWORD_RESET_REQUEST", {
         actor: email,
         entityType: "User",
         entityId: user.id,
-        // Mail is not configured (or failed) — the admin completes the
-        // delivery manually from the audit view. The token expires in 30
-        // minutes and is single-use; the DB stores only its hash.
-        details: `Password reset token for ${email} (valid 30 min, single use): ${raw} — deliver via a trusted channel`,
+        // Transient send failure (provider hiccup): the token is still LIVE,
+        // so the audit log gets a HINT only — prefix + expiry, never the full
+        // usable token. The user can simply retry the forgot-password flow.
+        details: `Password reset email to ${email} FAILED after issuing a token (${raw.slice(0, 8)}…, expires ${expiresAt.toISOString()}, single use) — ask the user to retry`,
       })
     }
   } else {

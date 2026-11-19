@@ -10,9 +10,12 @@ import { ensurePushTables } from "@/lib/db-schema-bootstrap"
 // user even when the site is closed. The push table self-heals on first use
 // (no migration access needed in every environment).
 //
-// Upsert keyed by endpoint: a browser re-subscribing (new keys after a push
-// service rotation, another profile on the same install) re-points the same
-// endpoint at the current user instead of failing on the unique constraint.
+// Keyed by endpoint, with an ownership guard: a browser re-subscribing (new
+// keys after a push service rotation) updates its keys ONLY when the endpoint
+// row already belongs to the same user. A foreign endpoint is left untouched
+// and answered with the same success shape — ownership NEVER transfers, or
+// anyone who learned a victim's endpoint URL could re-point it at themselves
+// and receive the victim's price alerts.
 
 export async function POST(req: NextRequest) {
   const userId = await requireAuth(req)
@@ -37,13 +40,14 @@ export async function POST(req: NextRequest) {
 
   try {
     await ensurePushTables()
-    await db.pushSubscription.upsert({
-      where: { endpoint },
-      // endpoint ownership transfers to whoever currently holds the browser
-      // subscription — the client that owns the endpoint IS the valid sender
-      update: { userId, p256dh, auth },
-      create: { userId, endpoint, p256dh, auth },
-    })
+    // Query-first, then branch (see header note): only the row's OWNER may
+    // update it; a foreign endpoint is left exactly as it is.
+    const existing = await db.pushSubscription.findUnique({ where: { endpoint } })
+    if (!existing) {
+      await db.pushSubscription.create({ data: { userId, endpoint, p256dh, auth } })
+    } else if (existing.userId === userId) {
+      await db.pushSubscription.update({ where: { endpoint }, data: { p256dh, auth } })
+    }
   } catch (e) {
     console.warn("push subscribe failed:", e instanceof Error ? e.message.slice(0, 160) : String(e))
     return Response.json({ error: "PUSH_STORE_FAILED", message: "Could not save the subscription." }, { status: 500 })

@@ -314,6 +314,35 @@ const r2 = (x: number, d = 2) => {
   return Math.round(x * f) / f
 }
 
+/** Coerce a computed aggregate to null when it is not a finite number — NaN
+ *  must never reach the zod schema (it would reject the WHOLE snapshot). */
+function finiteOrNull(x: number): number | null {
+  return Number.isFinite(x) ? x : null
+}
+
+/**
+ * ONE per-mover turnover figure, used by EVERY turnover consumer (breadth
+ * total, concentration, sector shares, sector traded value): the scanner's
+ * real `value.traded` when present, else volume × last price, else 0 — never
+ * NaN (non-finite inputs are treated as absent). Mixing the bases here is
+ * what made a valueTraded-only mover read NaN in top5 and kill the snapshot.
+ */
+export function turnoverOf(m: Pick<MoverInput, "valueTraded" | "volume" | "price">): number {
+  const vt = m.valueTraded
+  if (vt !== null && vt !== undefined && Number.isFinite(vt) && vt > 0) return vt
+  if (
+    m.volume !== null &&
+    m.volume !== undefined &&
+    Number.isFinite(m.volume) &&
+    m.volume > 0 &&
+    Number.isFinite(m.price) &&
+    m.price > 0
+  ) {
+    return m.volume * m.price
+  }
+  return 0
+}
+
 function median(xs: number[]): number | null {
   if (!xs.length) return null
   const s = [...xs].sort((a, b) => a - b)
@@ -341,22 +370,22 @@ export function computeIntelligence(input: IntelInput): MarketIntelligence {
   const advancing = movers.filter((m) => m.changePct > 0.01).length
   const declining = movers.filter((m) => m.changePct < -0.01).length
   const unchanged = priced - advancing - declining
-  const ratio = declining > 0 ? r2(advancing / declining) : null
+  const ratio = declining > 0 ? finiteOrNull(r2(advancing / declining)) : null
 
   // ---------- traded value (coverage-gated) ----------
   let tradedValue = 0
   let volumeCovered = 0
   for (const m of movers) {
-    const realTraded = m.valueTraded !== null && m.valueTraded !== undefined && m.valueTraded > 0
-    const hasVolume = m.volume !== null && m.volume > 0
-    if (realTraded || hasVolume) {
+    const t = turnoverOf(m)
+    if (t > 0) {
       volumeCovered++
-      // the scanner's real turnover wins; volume × lastClose is the fallback
-      tradedValue += realTraded ? (m.valueTraded as number) : (m.volume as number) * m.price
+      // one basis for the whole snapshot: real turnover wins, volume ×
+      // lastClose is the fallback (turnoverOf enforces both, NaN-free)
+      tradedValue += t
     }
   }
   const volumeCoveragePct = priced ? r2((volumeCovered / priced) * 100, 1) : 0
-  const tradedValueEgp = volumeCovered >= priced * 0.5 ? Math.round(tradedValue) : null
+  const tradedValueEgp = volumeCovered >= priced * 0.5 ? finiteOrNull(Math.round(tradedValue)) : null
   if (volumeCovered < priced * 0.5) {
     limitations.push(`Only ${volumeCovered}/${priced} priced companies carry session volume — aggregate traded value withheld (would be misleading).`)
   }
@@ -366,7 +395,8 @@ export function computeIntelligence(input: IntelInput): MarketIntelligence {
     const b = input.baselines[t]
     const m = movers.find((x) => x.ticker === t)
     if (!b?.avg20 || !m?.volume) return null
-    return r2(m.volume / b.avg20)
+    const rv = r2(m.volume / b.avg20)
+    return Number.isFinite(rv) ? rv : null
   }
 
   // ---------- concentration (turnover shares) ----------
@@ -374,11 +404,16 @@ export function computeIntelligence(input: IntelInput): MarketIntelligence {
   let top10: number | null = null
   let hhi: number | null = null
   if (tradedValueEgp !== null && tradedValue > 0) {
-    const sorted = [...movers].filter((m) => m.volume).map((m) => m.volume! * m.price).sort((a, b) => b - a)
+    // ONE basis — the same turnoverOf figure the breadth total uses, never
+    // the volume-only view (a valueTraded-only mover made top5 NaN → zod
+    // rejected → the whole snapshot died).
+    const sorted = movers.map(turnoverOf).filter((v) => v > 0).sort((a, b) => b - a)
     const sum = sorted.reduce((a, b) => a + b, 0)
-    top5 = r2((sorted.slice(0, 5).reduce((a, b) => a + b, 0) / sum) * 100, 1)
-    top10 = r2((sorted.slice(0, 10).reduce((a, b) => a + b, 0) / sum) * 100, 1)
-    hhi = r2(sorted.reduce((s, v) => s + (v / sum) ** 2, 0) * 10000, 1)
+    if (sum > 0) {
+      top5 = finiteOrNull(r2((sorted.slice(0, 5).reduce((a, b) => a + b, 0) / sum) * 100, 1))
+      top10 = finiteOrNull(r2((sorted.slice(0, 10).reduce((a, b) => a + b, 0) / sum) * 100, 1))
+      hhi = finiteOrNull(r2(sorted.reduce((s, v) => s + (v / sum) ** 2, 0) * 10000, 1))
+    }
   }
 
   // ---------- sector rotation ----------
@@ -391,8 +426,9 @@ export function computeIntelligence(input: IntelInput): MarketIntelligence {
   const todayShares: Record<string, number> = {}
   if (tradedValueEgp !== null && tradedValue > 0) {
     for (const [sector, list] of bySector) {
-      const v = list.filter((m) => m.volume).reduce((s, m) => s + m.volume! * m.price, 0)
-      if (v > 0) todayShares[sector] = r2((v / tradedValue) * 100, 2)
+      const v = list.reduce((s, m) => s + turnoverOf(m), 0)
+      const share = v > 0 && tradedValue > 0 ? finiteOrNull(r2((v / tradedValue) * 100, 2)) : null
+      if (share !== null) todayShares[sector] = share
     }
   }
   const fiveBack = input.history.length >= 6 ? input.history[input.history.length - 6] : null
@@ -401,14 +437,14 @@ export function computeIntelligence(input: IntelInput): MarketIntelligence {
     .map(([sector, list]) => {
       const capSum = list.filter((m) => m.cap).reduce((s, m) => s + (m.cap ?? 0), 0)
       const capWeightedChangePct =
-        capSum > 0 ? r2(list.filter((m) => m.cap).reduce((s, m) => s + m.changePct * (m.cap ?? 0), 0) / capSum) : null
+        capSum > 0 ? finiteOrNull(r2(list.filter((m) => m.cap).reduce((s, m) => s + m.changePct * (m.cap ?? 0), 0) / capSum)) : null
       const rvs = list.map((m) => relVolOf(m.ticker)).filter((v): v is number => v !== null).sort((a, b) => a - b)
       return {
         sector,
         companies: list.length,
         advancing: list.filter((m) => m.changePct > 0.01).length,
         declining: list.filter((m) => m.changePct < -0.01).length,
-        dayChangePct: list.length ? r2(list.reduce((s, m) => s + m.changePct, 0) / list.length) : null,
+        dayChangePct: list.length ? finiteOrNull(r2(list.reduce((s, m) => s + m.changePct, 0) / list.length)) : null,
         capWeightedChangePct,
         turnoverSharePct: todayShares[sector] ?? null,
         turnoverShareDelta5d:
@@ -416,7 +452,7 @@ export function computeIntelligence(input: IntelInput): MarketIntelligence {
             ? r2(todayShares[sector] - fiveBack.turnoverShares[sector])
             : null,
         medianRelVol: median(rvs),
-        tradedValueEgp: tradedValueEgp !== null ? Math.round(list.filter((m) => m.volume).reduce((s, m) => s + m.volume! * m.price, 0)) : null,
+        tradedValueEgp: tradedValueEgp !== null ? finiteOrNull(Math.round(list.reduce((s, m) => s + turnoverOf(m), 0))) : null,
       }
     })
     .sort((a, b) => (b.turnoverSharePct ?? -1) - (a.turnoverSharePct ?? -1))
@@ -494,7 +530,7 @@ export function computeIntelligence(input: IntelInput): MarketIntelligence {
   const capWeightedMarket = (() => {
     const withCap = movers.filter((m) => m.cap)
     const cap = withCap.reduce((s, m) => s + (m.cap ?? 0), 0)
-    return cap > 0 ? r2(withCap.reduce((s, m) => s + m.changePct * (m.cap ?? 0), 0) / cap) : null
+    return cap > 0 ? finiteOrNull(r2(withCap.reduce((s, m) => s + m.changePct * (m.cap ?? 0), 0) / cap)) : null
   })()
   const pctAbove20 = input.enrichment?.pctAboveSma20 ?? null
   const pctAbove50 = input.enrichment?.pctAboveSma50 ?? null

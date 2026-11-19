@@ -5,6 +5,7 @@
 
 import { db } from "@/lib/db"
 import { cached } from "@/lib/server-cache"
+import { selectOwnValues } from "@/lib/financial/own-values"
 
 export type MetricMap = Record<string, number | null>
 
@@ -42,10 +43,15 @@ function metricMapFromRows(rows: { code: string; value: number | null }[]): Metr
   return out
 }
 
-/** Pure: derived ratios from the raw FinancialValue rows of one report. */
-function derivedRatiosFromValues(vals: { metricCode: string; normalizedValue: number }[]): MetricMap {
+/** Pure: derived ratios from the raw FinancialValue rows of one report.
+ *  Column selection (CURRENT vs comparative) goes through the shared
+ *  own-values helper — a comparative column must never win last-write-wins. */
+function derivedRatiosFromValues(
+  vals: { metricCode: string; normalizedValue: number; subPeriod: string | null }[],
+  report: { periodType: string; periodLabel: string },
+): MetricMap {
   const v: MetricMap = {}
-  for (const x of vals) v[x.metricCode.toUpperCase()] = x.normalizedValue
+  for (const x of selectOwnValues({ ...report, values: vals })) v[x.metricCode.toUpperCase()] = x.normalizedValue
   const out: MetricMap = {}
   const ca = v.CURRENT_ASSETS ?? null, inv = v.INVENTORY ?? null, cl = v.CURRENT_LIABILITIES ?? null
   if (ca !== null && cl !== null && cl !== 0) {
@@ -69,14 +75,14 @@ async function derivedRatios(companyId: string, fiscalYear: number): Promise<Met
   const report = await db.financialReport.findFirst({
     where: { companyId, periodType: "ANNUAL", fiscalYear, statementType: "CONSOLIDATED", processingStatus: { in: TRUSTED } },
     orderBy: { version: "desc" },
-    select: { id: true },
+    select: { id: true, periodType: true, periodLabel: true },
   })
   if (!report) return {}
   const vals = await db.financialValue.findMany({
     where: { reportId: report.id, validationStatus: "VALID" },
-    select: { metricCode: true, normalizedValue: true },
+    select: { metricCode: true, normalizedValue: true, subPeriod: true },
   })
-  return derivedRatiosFromValues(vals)
+  return derivedRatiosFromValues(vals, report)
 }
 
 // SWR-cached per company (6h — fundamentals change once per trading day;
@@ -158,17 +164,19 @@ async function gatherCompanyAnalyticsUncached(companyId: string): Promise<Gather
         db.financialReport.findMany({
           where: { OR: yearPairs, deletedAt: null, periodType: "ANNUAL", statementType: "CONSOLIDATED", processingStatus: { in: TRUSTED } },
           orderBy: [{ companyId: "asc" }, { version: "desc" }],
-          select: { id: true, companyId: true },
+          select: { id: true, companyId: true, periodType: true, periodLabel: true },
         }),
       ])
       const latestRepByPeer = new Map<string, string>()
+      const repMetaById = new Map<string, { periodType: string; periodLabel: string }>()
       for (const r of repRows) {
+        repMetaById.set(r.id, { periodType: r.periodType, periodLabel: r.periodLabel })
         if (!latestRepByPeer.has(r.companyId)) latestRepByPeer.set(r.companyId, r.id)
       }
       const valRows = latestRepByPeer.size
         ? await db.financialValue.findMany({
             where: { reportId: { in: [...latestRepByPeer.values()] }, validationStatus: "VALID" },
-            select: { reportId: true, metricCode: true, normalizedValue: true },
+            select: { reportId: true, metricCode: true, normalizedValue: true, subPeriod: true },
           })
         : []
       const metricRowsByPeer = new Map<string, { code: string; value: number | null }[]>()
@@ -177,7 +185,7 @@ async function gatherCompanyAnalyticsUncached(companyId: string): Promise<Gather
         if (!list) metricRowsByPeer.set(r.companyId, (list = []))
         list.push(r)
       }
-      const valsByReport = new Map<string, { metricCode: string; normalizedValue: number }[]>()
+      const valsByReport = new Map<string, { metricCode: string; normalizedValue: number; subPeriod: string | null }[]>()
       for (const r of valRows) {
         let list = valsByReport.get(r.reportId)
         if (!list) valsByReport.set(r.reportId, (list = []))
@@ -188,7 +196,8 @@ async function gatherCompanyAnalyticsUncached(companyId: string): Promise<Gather
         if (fy == null) continue
         const pcm = metricMapFromRows(metricRowsByPeer.get(p.id) ?? [])
         const repId = latestRepByPeer.get(p.id)
-        const pdr = repId ? derivedRatiosFromValues(valsByReport.get(repId) ?? []) : {}
+        const meta = repId ? repMetaById.get(repId) : undefined
+        const pdr = repId && meta ? derivedRatiosFromValues(valsByReport.get(repId) ?? [], meta) : {}
         peerMaps.push({ id: p.id, ticker: p.ticker, latest: { ...pcm, ...pdr } })
       }
     }

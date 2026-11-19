@@ -151,7 +151,10 @@ function usableCashAmount(a: CorporateActionRowLike): number | null {
 
 /**
  * Merge the TWO cash ledgers into SeriesActions under the DOUBLE-COUNT
- * contract: at most ONE cash_dividend event per company per ex-date day.
+ * contract: at most ONE event per company per ex-date day per TYPE —
+ * cash_dividend AND share-type rows alike (audit 2026-11-19: a split/bonus
+ * mirrored by FOUDALENS_CORPORATE_ACTIONS + MANUAL_ADMIN used to pass through
+ * twice and apply its ratio twice).
  *
  * Why: cash dividends can be recorded in BOTH tables — the FoudaLens import
  * mirrors its cash rows into Dividend, while the admin console (the owner's
@@ -176,24 +179,30 @@ function usableCashAmount(a: CorporateActionRowLike): number | null {
  * Non-cash rows always pass through untouched. Pure — no DB.
  */
 export function mergeSeriesActionRows(actions: CorporateActionRowLike[], dividends: DividendRowLike[]): SeriesAction[] {
-  const out: SeriesAction[] = []
-  const cashByDay = new Map<string, CorporateActionRowLike>()
+  // Same-day dedupe is keyed (ex-date day, actionType): at most ONE row per
+  // company per day per TYPE survives — cash_dividend AND share-type events
+  // alike. MANUAL_ADMIN wins a day (the deliberate correction); cash ties
+  // break to the larger amount, share ties keep the first row (deterministic).
+  const byKey = new Map<string, CorporateActionRowLike>()
   for (const a of actions) {
     if (!a.exDate) continue
-    if (usableCashAmount(a) === null) continue
+    const cash = usableCashAmount(a)
+    if (a.actionType === "cash_dividend" && cash === null) continue // unusable amount — dead weight, cannot claim a day
     const day = a.exDate.toISOString().slice(0, 10)
-    const cur = cashByDay.get(day)
+    const key = `${day}|${a.actionType}`
+    const cur = byKey.get(key)
     if (!cur) {
-      cashByDay.set(day, a)
+      byKey.set(key, a)
       continue
     }
     const curAdmin = cur.sourceName === "MANUAL_ADMIN"
     const newAdmin = a.sourceName === "MANUAL_ADMIN"
     const better =
       (newAdmin && !curAdmin) ||
-      (newAdmin === curAdmin && (usableCashAmount(a) as number) > (usableCashAmount(cur) as number))
-    if (better) cashByDay.set(day, a)
+      (newAdmin === curAdmin && a.actionType === "cash_dividend" && (cash as number) > (usableCashAmount(cur) as number))
+    if (better) byKey.set(key, a)
   }
+  const out: SeriesAction[] = []
   for (const a of actions) {
     if (!a.exDate) continue
     const cash = usableCashAmount(a)
@@ -201,7 +210,7 @@ export function mergeSeriesActionRows(actions: CorporateActionRowLike[], dividen
     // queries already exclude them; dropped here so the contract stays crisp
     if (a.actionType === "cash_dividend" && cash === null) continue
     const day = a.exDate.toISOString().slice(0, 10)
-    if (cash !== null && cashByDay.get(day) !== a) continue // deduped same-day twin
+    if (byKey.get(`${day}|${a.actionType}`) !== a) continue // deduped same-day same-type twin
     out.push({
       exDateISO: day,
       terms: {
@@ -218,7 +227,7 @@ export function mergeSeriesActionRows(actions: CorporateActionRowLike[], dividen
     const amt = d.dividendPerShare
     if (amt === null || !Number.isFinite(amt) || amt <= 0) continue
     const day = d.exDividendDate.toISOString().slice(0, 10)
-    if (cashByDay.has(day)) continue // CorporateAction ledger covers this day — never subtract twice
+    if (byKey.has(`${day}|cash_dividend`)) continue // CorporateAction ledger covers this day — never subtract twice
     out.push({ exDateISO: day, terms: { actionType: "cash_dividend", ratioNumerator: null, ratioDenominator: null, cashPerShare: amt, subscriptionPrice: null } })
   }
   return out

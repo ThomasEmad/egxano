@@ -228,7 +228,12 @@ async function runRefresh(): Promise<MarketRefreshSummary> {
     actionsByTicker = loaded.byTicker
     if (actionsByTicker.size > 0) {
       const exDay = new Date(`${loaded.sessions.latest}T00:00:00.000Z`)
-      const tickers = [...actionsByTicker.keys()].slice(0, 8)
+      // EVERY action ticker gets the authoritative Yahoo prev-close — the old
+      // .slice(0, 8) cap silently downgraded the 9th+ action company to the
+      // scanner's double-adjusted change (audit 2026-11-19). Safe to uncap:
+      // each fetch carries its own AbortSignal timeout (yahooPrevCloseBefore,
+      // 9s default) and they run concurrently, so the batch stays time-bounded.
+      const tickers = [...actionsByTicker.keys()]
       const prevs = await Promise.all(tickers.map((t) => yahooPrevCloseBefore(t, exDay)))
       prevCloseByTicker = new Map()
       for (let i = 0; i < tickers.length; i++) {

@@ -179,4 +179,27 @@ describe("buildPositionReview — market-context plumbing", () => {
     expect(noRow!.notReviewableAr).not.toBeNull()
     expect(buildMarketContext).not.toHaveBeenCalled()
   })
+
+  it("two-cache skew: the service hands the review a skewed row/bars pair and the engine resolves the SERIES close", async () => {
+    // the two caches are mocked with DIFFERENT closes: the v2-row cache is
+    // stale (110) while the series cache is fresh (103). The one build is
+    // delegated to the REAL engine on the assembled input — the review must
+    // read the series close, not the stale row value.
+    const { reviewPosition: realReviewPosition } = await vi.importActual<typeof import("../review")>("../review")
+    const bars = cushionSeries(97) // series-derived close 103
+    const staleRow = rowOver(bars, { state: "exit" as SignalState, lastClose: 110 })
+    vi.mocked(getCompanySeriesCached).mockResolvedValueOnce(seriesOver(bars))
+    vi.mocked(getCompanySignalV2Cached).mockResolvedValueOnce(staleRow)
+    vi.mocked(buildMarketContext).mockResolvedValueOnce(marketCtxFixture)
+    vi.mocked(reviewPosition).mockImplementationOnce((input) => realReviewPosition(input))
+
+    const result = await buildPositionReview(CID, 100, null)
+
+    expect(result).not.toBeNull()
+    expect(result!.review).not.toBeNull()
+    expect(result!.review!.lastClose).toBe(103) // NOT the stale 110
+    expect(result!.review!.decision).toBe("exit") // the stale 110 (+10٪) would flip this to take_profit
+    expect(result!.review!.reasonsAr.some((x) => x.includes("103.00"))).toBe(true)
+    expect(JSON.stringify(result!.review)).not.toContain("110.00")
+  })
 })

@@ -7,7 +7,7 @@
 // a detector fires on its own structure; the score decides publishability.
 // =============================================================================
 
-import { buildZoneMap, nearestResistanceAbove, type PriceZone, type ZoneMap } from "./levels"
+import { buildZoneMap, nearestResistanceAbove, nearestSupportBelow, type PriceZone, type ZoneMap } from "./levels"
 import type { MetricsBundle } from "./metrics"
 import { EXIT_SUPPORT_CUSHION_EXIT_PCT, EXIT_SUPPORT_CUSHION_WAIT_PCT, type Bar, type OpportunityType } from "./types"
 
@@ -48,9 +48,17 @@ export function detectBreakout(bars: Bar[], map: ZoneMap, m: MetricsBundle): Det
   const prev = bars[bars.length - 2]
   if (m.atr14 === null || m.atr14 <= 0) return null
   // find the zone the close just crossed (its top is below the close, the
-  // PREVIOUS close was below the zone low — a genuine cross, not a re-test)
+  // PREVIOUS close was below the zone low — a genuine cross, not a re-test).
+  // buildZoneMap marks a zone broken on the SAME crossing day (its break scan
+  // includes the last bar), so a fresh same-day break IS the breakout — an
+  // OLDER break belongs to the retest archetype instead.
   const crossed = map.zones.filter(
-    (z) => z.kind === "resistance" && !z.broken && z.touches >= 2 && z.low > prev.close && last.close > z.high,
+    (z) =>
+      z.kind === "resistance" &&
+      (!z.broken || z.brokenTs === last.ts) &&
+      z.touches >= 2 &&
+      z.low > prev.close &&
+      last.close > z.high,
   )
   const zone = crossed.sort((a, b) => b.touches - a.touches)[0]
   if (!zone) return null
@@ -68,7 +76,13 @@ export function detectBreakout(bars: Bar[], map: ZoneMap, m: MetricsBundle): Det
   const volOk = m.relVol !== null && m.relVol >= 1.2
   if (volOk) {
     strength += 0.2
-    facts.push({ ar: `حجم اليوم ${m.relVol!.toFixed(2)}× متوسط 20 جلسة يؤكد الاختراق`, en: `Session volume ${m.relVol!.toFixed(2)}× the 20-day mean confirms the break` })
+    // disclose the REAL baseline size — the mean is over as many PRIOR
+    // sessions as actually carry usable volume (≤ 20), not always 20
+    const baseN = m.relVolBaseN
+    facts.push({
+      ar: `حجم اليوم ${m.relVol!.toFixed(2)}× ${baseN !== null ? `متوسط ${baseN} جلسة` : "متوسط 20 جلسة"} يؤكد الاختراق`,
+      en: `Session volume ${m.relVol!.toFixed(2)}× ${baseN !== null ? `the ${baseN}-session mean` : "the 20-day mean"} confirms the break`,
+    })
   } else if (m.relVol === null) {
     facts.push({ ar: "بيانات الحجم غير متاحة للسهم — الاختراق بلا تأكيد حجم", en: "No volume data — the break lacks volume confirmation" })
   } else {
@@ -184,10 +198,11 @@ export function detectContinuation(bars: Bar[], map: ZoneMap, m: MetricsBundle):
   if (m.ema20 === null || m.ema50 === null) return null
   const uptrend = last.close > m.ema50 && m.ema20 > m.ema50
   if (!uptrend) return null
-  // pullback = 2+ sessions of lower closes, today closes up again
+  // pullback = a lower close INTO yesterday (the pullback leg); today closes
+  // back up above yesterday's close — resumption day (resumed below)
   const n = bars.length
   if (n < 6) return null
-  const downLeg = bars[n - 3].close > bars[n - 2].close && bars[n - 2].close > last.close
+  const downLeg = bars[n - 3].close > bars[n - 2].close
   const resumed = last.close > prevOpenClose(bars) && last.close > m.ema20 * 0.985
   if (!downLeg || !resumed) return null
   const facts = [
@@ -301,14 +316,19 @@ export function detectExit(bars: Bar[], map: ZoneMap, m: MetricsBundle): Detecti
     const volFactor = m.relVol !== null && m.relVol >= 1.2
 
     // OWNER MANDATE (2026-11-17) — the cushion rule: measure the gap from the
-    // live close down to the NEXT support zone below the broken one. A close
-    // cushion (≤3%) means selling here locks the loss at the worst spot →
-    // WAIT; an open field or a far cushion (≥4%) → EXIT fires. The gap is
-    // measured to the zone's nearest edge (its high) — the first place a
-    // bounce could form.
-    const cushions = map.zones.filter((z2) => z2.kind === "support" && z2.high < z.low)
-    const next = cushions.length ? cushions.reduce((a, b) => (b.high > a.high ? b : a)) : null
-    const gapPct = next ? ((last.close - next.high) / last.close) * 100 : null
+    // LIVE CLOSE down to the NEXT support zone below it, via the SAME helper
+    // the position review uses (readCushion → nearestSupportBelow) — so the
+    // board row and the position review can never disagree again. Measuring
+    // from the close (not "any zone under the broken one") also skips shelves
+    // the close has already fallen THROUGH — a zone the price sits below can
+    // not cushion anything. A close cushion (≤3%) means selling here locks
+    // the loss at the worst spot → WAIT; an open field or a far cushion
+    // (≥4%) → EXIT fires. The gap is measured to the zone's nearest edge
+    // (its high) — the first place a bounce could form. (A support below the
+    // close can't produce a negative gap; clamp for safety anyway.)
+    const next = nearestSupportBelow(map, last.close)
+    const gapRaw = next ? ((last.close - next.high) / last.close) * 100 : null
+    const gapPct = gapRaw !== null && gapRaw < 0 ? 0 : gapRaw
     const waitInstead = gapPct !== null && gapPct < EXIT_SUPPORT_CUSHION_EXIT_PCT
     // borderline ONLY inside the (3%, 4%) band — a far cushion (≥4%) is a clean exit
     const borderline = waitInstead && gapPct !== null && gapPct > EXIT_SUPPORT_CUSHION_WAIT_PCT

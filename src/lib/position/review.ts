@@ -642,7 +642,14 @@ function takeProfitPlanAr(bearish: boolean, close: number, trail: { level: numbe
 
 export function reviewPosition(input: ReviewInput): PositionReview {
   const { row, bars, map, avgBuyPrice } = input
-  const close = row.lastClose ?? (bars.length ? bars[bars.length - 1].close : 0)
+  // TWO-CACHE SKEW FIX (2026-11-19): row and bars come from two independent
+  // caches (the v2-row cache and the series cache, each with stale-while-
+  // revalidate skew up to ~50 min) — the old `row.lastClose ?? …` let a stale
+  // row's close drive the printed price while the zones/cushion read the
+  // FRESH series, so the narrative and its own level math could disagree.
+  // The series is derived FIRST and the row value is only the fallback for an
+  // honestly-empty/non-finite series.
+  const close = bars.length && finNum(bars[bars.length - 1].close) ? bars[bars.length - 1].close : row.lastClose ?? 0
   const mt = row.metrics
   const pnlPerShare = close - avgBuyPrice
   const pnlPct = avgBuyPrice > 0 ? (pnlPerShare / avgBuyPrice) * 100 : 0
@@ -823,7 +830,7 @@ export function reviewPosition(input: ReviewInput): PositionReview {
     reasonsAr.push(
       `وضعك محسوب: متوسط شراء ${fmt(avgBuyPrice)} وسعر النهاردة ${fmt(close)} — ${pnlPct >= 0 ? "رابح" : "خاسر"} ${pct1(pnlPct)} (${pnlPerShare >= 0 ? "+" : ""}${fmt(pnlPerShare)} جنيه/سهم).`,
       `الصدمة: إغلاق النهاردة كسر دعم ${cushion.brokenZone!.touches}× مختبَر (${fmt(cushion.brokenZone!.low)}–${fmt(cushion.brokenZone!.high)}).`,
-      `بس — وقاعدة البورصة اللي اتفقنا عليها: مش أي كسر يعني بيع فورًا. الدعم اللي تحت (${fmt(cushion.cushionLevel ?? 0)}) لسه على بعد ${pct1(cushion.cushionGapPct ?? 0)} بس — يعني الهبوط المتبقي محدود والسوق هياخد قراره قريب جدًا من هنا.`,
+      `بس — وقاعدة البورصة اللي اتفقنا عليها: مش أي كسر يعني بيع فورًا. الدعم اللي تحت (${fmt(cushion.cushionLevel ?? 0)}) لسه على بعد ${pctPlain(Math.abs(cushion.cushionGapPct ?? 0))} بس — يعني الهبوط المتبقي محدود والسوق هياخد قراره قريب جدًا من هنا.`,
       cushion.borderline
         ? "الفرق في المنطقة الحدّية (بين 3٪ و4٪): انتظار مع وقف ذهني أضيق عند البطانة نفسها — ولو كسرتها بإغلاق، دي إشارة تقيلة نتعامل معاها بجدية."
         : "البيع دلوقتي معناه إنك بتسلم السهم عند أول باب قبل ما يبان لو فيه مرتد — استنى الإغلاقات: دعم قريب بيمتص الضغط غالبًا.",
@@ -907,7 +914,7 @@ export function reviewPosition(input: ReviewInput): PositionReview {
     planAr = supLine ? `الفكرة اللي بنشتغل عليها: طالما الإغلاقات واقفة فوق ${fmt(supLine.level)}، مفيش إشارة تقنية تبرر حركة — ولو جلسة قفلت تحته، متتحركش في ثانية اللقطة: استنى الإغلاق، وبين الحكم بالإغلاق والحجم بنعرف هل ده كسر حقيقي ولا كاذب.` : null
     reasonsAr.push(
       `الأساسي أولًا: متوسطك ${fmt(avgBuyPrice)} والسعر ${fmt(close)} — يعني إنت ${pct1(pnlPct)} (${pnlPerShare >= 0 ? "+" : ""}${fmt(pnlPerShare)} جنيه/سهم). المركز مش في منطقة خطر.`,
-      `القراءة الفنية: ${trendAr}${mt?.rsi14 ? ` وRSI ${fmt(mt.rsi14)} (${mt.rsi14 > 70 ? "منطقة تشبع شرائي — متصدقش إن الصعود مستحيل يتوقف، خد أرباح جزئية لو عاجلك" : mt.rsi14 < 30 ? "منطقة تشبع بيعي — أرضية محتملة" : "منطقة متوازنة"})` : ""}.`,
+      `القراءة الفنية: ${trendAr}${mt?.rsi14 != null ? ` وRSI ${fmt(mt.rsi14)} (${mt.rsi14 > 70 ? "منطقة تشبع شرائي — متصدقش إن الصعود مستحيل يتوقف، خد أرباح جزئية لو عاجلك" : mt.rsi14 < 30 ? "منطقة تشبع بيعي — أرضية محتملة" : "منطقة متوازنة"})` : ""}.`,
       supLine
         ? `خط الدفاع: ${supLine.basisAr} — طالما السعر فوقه بالإغلاق، القصة سليمة.`
         : "ملاحظة أمانة: مفيش دعم معتمد تحت السعر الحالي — الرحلة صاعدة بلا بطانة، ومن كلام أهل السوق: الأرباح بتتاخد بالعقل مش بالجشع، وبيع في القوة واشتري في الضعف — فالقوة اللي السعر واقف فيها دلوقتي هي مكان أخد جزء وانت مرتاح، مش مكان زيادة.",

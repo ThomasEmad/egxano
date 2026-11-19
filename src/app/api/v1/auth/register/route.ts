@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client"
 import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
 import { createUser, authenticateUser, createSession, invalidateSession, sessionCookieHeader } from "@/lib/auth"
@@ -57,6 +58,12 @@ export async function POST(req: NextRequest) {
       { status: 201, headers: { "Set-Cookie": sessionCookieHeader(token) } }
     )
   } catch (e) {
+    // Two parallel registrations with the same email can both pass the
+    // explicit findUnique above — the User.email unique constraint then
+    // rejects the second insert (P2002). That is a duplicate email, not a 500.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return Response.json({ error: "EMAIL_ALREADY_EXISTS" }, { status: 409 })
+    }
     console.error("register error", e)
     return Response.json({ error: "INTERNAL_ERROR" }, { status: 500 })
   }

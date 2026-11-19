@@ -23,20 +23,26 @@ export function dailyVolPct(closes: number[]): number | null {
 }
 
 /** Last session volume vs the mean of the PRIOR 20 sessions (excludes the
- *  last bar itself so a huge day cannot dilute its own baseline). */
-export function relVol(bars: Bar[]): number | null {
-  if (bars.length < 21) return null
+ *  last bar itself so a huge day cannot dilute its own baseline). The mean
+ *  only counts sessions that carry a usable volume — `baseN` discloses how
+ *  many actually backed it (≥ 10 required, ≤ 20); null baseline ⇒ null ratio. */
+export function relVolWithBase(bars: Bar[]): { value: number | null; baseN: number | null } {
+  if (bars.length < 21) return { value: null, baseN: null }
   const last = bars[bars.length - 1]
-  if (last.volume === null || !Number.isFinite(last.volume) || last.volume <= 0) return null
+  if (last.volume === null || !Number.isFinite(last.volume) || last.volume <= 0) return { value: null, baseN: null }
   const prior: number[] = []
   for (let i = bars.length - 21; i < bars.length - 1; i++) {
     const v = bars[i].volume
     if (v !== null && Number.isFinite(v) && v > 0) prior.push(v)
   }
-  if (prior.length < 10) return null
+  if (prior.length < 10) return { value: null, baseN: null }
   const mean = prior.reduce((s, v) => s + v, 0) / prior.length
-  if (mean <= 0) return null
-  return last.volume / mean
+  if (mean <= 0) return { value: null, baseN: null }
+  return { value: last.volume / mean, baseN: prior.length }
+}
+
+export function relVol(bars: Bar[]): number | null {
+  return relVolWithBase(bars).value
 }
 
 /** Mean close × volume (plain EGP) over the last ≤20 sessions that carry a
@@ -90,6 +96,8 @@ export interface MetricsBundle {
   macdHist: number | null
   macdHistPrev: number | null
   relVol: number | null
+  /** how many prior sessions actually back the relVol mean (10–20; null when relVol is null) */
+  relVolBaseN: number | null
   perfM1: number | null
   perfM3: number | null
   rangePos60: number | null
@@ -117,6 +125,7 @@ export function computeMetrics(bars: Bar[]): MetricsBundle | null {
   // Previous histogram (one bar back) — for the rising/falling read.
   const ms = macdSeries(closes, 12, 26, 9)
   const macdHistPrev = ms.histogram[ms.histogram.length - 2] ?? null
+  const rv = relVolWithBase(bars)
 
   return {
     lastClose,
@@ -128,7 +137,8 @@ export function computeMetrics(bars: Bar[]): MetricsBundle | null {
     atr14: a.value,
     macdHist: m.histogram,
     macdHistPrev,
-    relVol: relVol(bars),
+    relVol: rv.value,
+    relVolBaseN: rv.baseN,
     perfM1: m1,
     perfM3: m3,
     rangePos60: rangePos(closes, 60),
@@ -147,6 +157,7 @@ export function toSignalMetrics(bundle: MetricsBundle): SignalMetrics {
     atr14: bundle.atr14 === null ? null : round2(bundle.atr14),
     macdHist: bundle.macdHist === null ? null : round2(bundle.macdHist),
     relVol: bundle.relVol === null ? null : Math.round(bundle.relVol * 100) / 100,
+    relVolBaseN: bundle.relVolBaseN,
     perfM1: bundle.perfM1 === null ? null : Math.round(bundle.perfM1 * 10) / 10,
     perfM3: bundle.perfM3 === null ? null : Math.round(bundle.perfM3 * 10) / 10,
     rangePos60: bundle.rangePos60 === null ? null : Math.round(bundle.rangePos60 * 10) / 10,

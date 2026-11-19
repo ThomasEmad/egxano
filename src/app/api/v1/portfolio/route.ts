@@ -6,11 +6,11 @@ import { PLANS } from "@/lib/plans/entitlements"
 import { withKeyLock } from "@/lib/key-lock"
 
 // GET /api/v1/portfolio — the caller's holdings valued at latest recorded prices.
-// POST — add or update a holding (upsert by company). Free: 2 companies, PRO/PRO_PLUS: unlimited.
+// POST — add or update a holding (upsert by company). Free: 2 companies, paid plans: unlimited.
 // PATCH /api/v1/portfolio — update quantity/avgCost/notes. DELETE /api/v1/portfolio?id= — remove.
 
 // Free-tier cap comes from the plans entitlements (single source of truth);
-// PRO and PRO_PLUS are both premium → unlimited.
+// every paid plan (legacy PRO_PLUS resolves to PRO) is premium → unlimited.
 const FREE_LIMIT = typeof PLANS.FREE.limits.portfolioHoldings === "number" ? PLANS.FREE.limits.portfolioHoldings : 0
 
 export async function GET(req: NextRequest) {
@@ -133,30 +133,29 @@ export async function POST(req: NextRequest) {
   const company = await db.company.findUnique({ where: { id: companyId }, select: { id: true } })
   if (!company) return Response.json({ error: "NOT_FOUND", message: "Company not found." }, { status: 404 })
 
-  // Race safety: limit-check and upsert run under the same per-user lock, so
-  // two parallel adds cannot both observe count < FREE_LIMIT and slip a third
-  // holding in (the old check-then-act window did exactly that).
-  const limitResponse = await withKeyLock(`portfolio:${userId}`, async () => {
+  // Race safety: the limit-check AND the upsert run under the same per-user
+  // lock, so two parallel adds cannot both observe count < FREE_LIMIT and
+  // slip a third holding in (the old check-then-act window did exactly that —
+  // the upsert used to run only after the lock had already returned).
+  const outcome = await withKeyLock(`portfolio:${userId}`, async () => {
     const existing = await db.portfolioHolding.findUnique({ where: { userId_companyId: { userId, companyId } } })
     if (!existing) {
       const count = await db.portfolioHolding.count({ where: { userId } })
       if (count >= FREE_LIMIT && !(await isPremiumUser(userId))) {
         return Response.json(
-          { error: "PORTFOLIO_LIMIT", message: `حد المحفظة للمجانية ${FREE_LIMIT} شركات — متاح بلا حدود مع باقة برو أو برو بلس.`, limit: FREE_LIMIT },
+          { error: "PORTFOLIO_LIMIT", message: `حد المحفظة للمجانية ${FREE_LIMIT} شركات — متاح بلا حدود مع باقة برو.`, limit: FREE_LIMIT },
           { status: 403 }
         )
       }
     }
-    return null
+    return db.portfolioHolding.upsert({
+      where: { userId_companyId: { userId, companyId } },
+      create: { userId, companyId, quantity, avgCost, notes },
+      update: { quantity, avgCost, notes },
+    })
   })
-  if (limitResponse) return limitResponse
-
-  const holding = await db.portfolioHolding.upsert({
-    where: { userId_companyId: { userId, companyId } },
-    create: { userId, companyId, quantity, avgCost, notes },
-    update: { quantity, avgCost, notes },
-  })
-  return Response.json({ holding })
+  if (outcome instanceof Response) return outcome
+  return Response.json({ holding: outcome })
 }
 
 export async function PATCH(req: NextRequest) {

@@ -1731,7 +1731,12 @@ export function computeCloseSignal(rows: CloseRow[], opts: { engineVersion?: Eng
       const li = reads.length - 1
       const lr = reads[li]
       if (lr.score !== null && lr.facts) {
-        reads[li] = redecideLastReadWithEvidence(ctx, li, lr, Math.max(0, Math.min(100, lr.score + evidence.totalDelta)))
+        // redecideLastReadWithEvidence indexes the SESSION (ctx.closes[i],
+        // levelsAt(ctx.closes, i)) — NOT the trail. reads[li] covers session
+        // (closes.length − reads.length) + li, which for the last trail read
+        // is always the FINAL session; passing the trail index re-decided the
+        // verdict on a mid-history day.
+        reads[li] = redecideLastReadWithEvidence(ctx, ctx.closes.length - 1, lr, Math.max(0, Math.min(100, lr.score + evidence.totalDelta)))
         walk = applyHysteresis(reads)
       }
     }

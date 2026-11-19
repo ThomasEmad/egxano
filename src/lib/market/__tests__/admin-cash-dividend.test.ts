@@ -383,3 +383,50 @@ describe("buildTechnicalBundle — admin dividend reaches the technical view (e2
     expect(bundle.snapshot.perf.d1).toBeCloseTo(-1.25, 6)
   })
 })
+
+// ── share-type events dedupe like cash (audit 2026-11-19): a split/bonus
+//    mirrored by FOUDALENS_CORPORATE_ACTIONS + MANUAL_ADMIN used to pass
+//    through twice and apply its ratio TWICE ──────────────────────────────────
+describe("mergeSeriesActionRows — one share event per company-day-type", () => {
+  const splitRow = (sourceName: string | null): CorporateActionRowLike => ({
+    actionType: "split",
+    sourceName,
+    exDate: new Date("2026-11-17T00:00:00.000Z"),
+    ratioNumerator: BigInt(2),
+    ratioDenominator: BigInt(1),
+    cashPerShare: null,
+    subscriptionPrice: null,
+  })
+
+  it("the same split recorded by BOTH sources collapses to ONE ratio application", () => {
+    const out = mergeSeriesActionRows([splitRow("FOUDALENS_CORPORATE_ACTIONS"), splitRow("MANUAL_ADMIN")], [])
+    expect(out).toHaveLength(1)
+    expect(out[0].terms.actionType).toBe("split")
+    // 9.9 → ÷2 = 4.95 exactly once; a double application would read 2.475
+    expect(adjustPrevClose(9.9, [out[0].terms])).toBeCloseTo(4.95, 9)
+  })
+
+  it("MANUAL_ADMIN wins the same-day share duplicate (deliberate correction)", () => {
+    const fouda = { ...splitRow("FOUDALENS_CORPORATE_ACTIONS"), ratioNumerator: BigInt(3), ratioDenominator: BigInt(1) }
+    const out = mergeSeriesActionRows([fouda, splitRow("MANUAL_ADMIN")], [])
+    expect(out).toHaveLength(1)
+    // the admin's 2:1 split (÷2 → 4.95) wins over FoudaLens's 3:1 (÷3 → 3.3)
+    expect(adjustPrevClose(9.9, out.map((s) => s.terms))).toBeCloseTo(4.95, 9)
+  })
+
+  it("different share types on one day still compose (split + bonus are NOT duplicates)", () => {
+    const bonus: CorporateActionRowLike = { ...splitRow("MANUAL_ADMIN"), actionType: "stock_dividend", ratioNumerator: BigInt(1), ratioDenominator: BigInt(2) }
+    const out = mergeSeriesActionRows([splitRow("MANUAL_ADMIN"), bonus], [])
+    expect(out).toHaveLength(2)
+    // split ÷2 then bonus ÷1.5: 9.9 → 4.95 → 3.3
+    expect(adjustPrevClose(9.9, out.map((s) => s.terms))).toBeCloseTo(3.3, 9)
+  })
+
+  it("a doubled share adjustment would read 2.475 — the contract must never produce it", () => {
+    // pinned so a regression of the share-dedupe contract is loud and quantified
+    const doubleApplied = 9.9 / 2 / 2
+    expect(doubleApplied).toBeCloseTo(2.475, 9)
+    const merged = mergeSeriesActionRows([splitRow("FOUDALENS_CORPORATE_ACTIONS"), splitRow("MANUAL_ADMIN")], [])
+    expect(adjustPrevClose(9.9, merged.map((s) => s.terms))).toBeCloseTo(4.95, 9)
+  })
+})

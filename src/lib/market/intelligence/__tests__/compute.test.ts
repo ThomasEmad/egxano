@@ -1,6 +1,6 @@
 // Reference tests for the whole-market intelligence compute module.
 import { describe, it, expect } from "vitest"
-import { computeIntelligence, classifyRegime, type IntelInput, type MoverInput } from "../compute"
+import { computeIntelligence, classifyRegime, marketIntelligenceSchema, type IntelInput, type MoverInput } from "../compute"
 
 function mover(ticker: string, sector: string, changePct: number, volume: number | null, cap: number, price = 10): MoverInput {
   return { ticker, name: `Company ${ticker}`, nameAr: null, sector, price, changePct, volume, cap }
@@ -163,5 +163,51 @@ describe("pulse", () => {
     }
     expect(mi.pulse.score).toBeGreaterThanOrEqual(0)
     expect(mi.pulse.score).toBeLessThanOrEqual(100)
+  })
+})
+
+// ── turnover basis consistency + NaN immunity (audit 2026-11-19) ─────────────
+describe("turnover shares stay on ONE basis", () => {
+  it("mixed-basis movers (real valueTraded + volume-only) concentrate consistently", () => {
+    const movers: MoverInput[] = [
+      { ticker: "REAL", name: "Real Traded", nameAr: null, sector: "Banks", price: 10, changePct: 2, volume: null, cap: 5_000_000, valueTraded: 5_000_000 },
+      { ticker: "VOL", name: "Volume Only", nameAr: null, sector: "Telecom", price: 10, changePct: 1, volume: 100_000, cap: 5_000_000, valueTraded: null },
+    ]
+    const mi = computeIntelligence(input({ movers, baselines: {} }))
+    // ONE basis: 5M real + 100k × 10 = 1M → 6M total; the REAL mover counts.
+    expect(mi.breadth.tradedValueEgp).toBe(6_000_000)
+    // top-5 of a 2-mover universe is BOTH movers: (5M + 1M) / 6M = 100%.
+    expect(mi.concentration.top5TurnoverSharePct).toBeCloseTo(100, 1)
+    const banks = mi.rotation.sectors.find((s) => s.sector === "Banks")!
+    expect(banks.turnoverSharePct).toBeCloseTo(83.33, 1)
+    expect(banks.tradedValueEgp).toBe(5_000_000)
+    expect(Number.isFinite(mi.pulse.score)).toBe(true)
+  })
+
+  it("a valueTraded-only universe yields no NaN anywhere and the snapshot validates", () => {
+    const movers: MoverInput[] = [
+      { ticker: "A1", name: "A1", nameAr: null, sector: "Banks", price: 25, changePct: 3.1, volume: null, cap: null, valueTraded: 7_250_000 },
+      { ticker: "A2", name: "A2", nameAr: null, sector: "Banks", price: 12, changePct: -1.2, volume: null, cap: null, valueTraded: 2_000_000 },
+    ]
+    const mi = computeIntelligence(input({ movers, baselines: {} }))
+    expect(marketIntelligenceSchema.safeParse(mi).success).toBe(true)
+    expect(mi.breadth.tradedValueEgp).toBe(9_250_000)
+    // top-5 of a 2-mover universe = both movers / total = 100% (78.4 was
+    // the top-1 share — a draft arithmetic slip caught by the first run).
+    expect(mi.concentration.top5TurnoverSharePct).toBeCloseTo(100, 1)
+    expect(mi.concentration.herfindahl).not.toBeNull()
+    expect(Number.isFinite(mi.pulse.score)).toBe(true)
+    for (const s of mi.rotation.sectors) expect(s.tradedValueEgp).not.toBeNull()
+  })
+
+  it("a non-finite (NaN) turnover input is treated as absent, not snapshot-killing", () => {
+    const movers = [
+      { ticker: "BAD", name: "Bad", nameAr: null, sector: "Banks", price: 10, changePct: 1, volume: null, cap: 1_000_000, valueTraded: Number.NaN },
+      { ticker: "GOOD", name: "Good", nameAr: null, sector: "Banks", price: 10, changePct: 1, volume: 1_000, cap: 1_000_000, valueTraded: null },
+    ] as unknown as MoverInput[]
+    const mi = computeIntelligence(input({ movers, baselines: {} }))
+    expect(marketIntelligenceSchema.safeParse(mi).success).toBe(true)
+    expect(mi.breadth.tradedValueEgp).toBe(10_000)
+    expect(mi.concentration.top5TurnoverSharePct).toBe(100)
   })
 })

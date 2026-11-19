@@ -50,6 +50,27 @@ async function readOverrideMap(): Promise<OverrideMap> {
   return map
 }
 
+/**
+ * FRESH read for the WRITE paths — bypasses the 60s in-memory cache so a
+ * read-modify-write never starts from a stale map (a set/clear racing a
+ * cached read used to resurrect deleted overrides and drop fresh ones).
+ * Also re-warms the read cache with what it saw.
+ */
+async function readOverrideMapFresh(): Promise<OverrideMap> {
+  let map: OverrideMap = {}
+  try {
+    const row = await db.setting.findUnique({ where: { key: ADMIN_PRICE_OVERRIDES_KEY }, select: { value: true } })
+    if (row?.value) {
+      const parsed = JSON.parse(row.value) as OverrideMap
+      if (parsed && typeof parsed === "object") map = parsed
+    }
+  } catch {
+    map = {}
+  }
+  memCache = { value: map, at: Date.now() }
+  return map
+}
+
 function flushMemCache(): void {
   memCache = null
 }
@@ -83,14 +104,33 @@ export async function setAdminPriceOverride(
   volume: number | null = null,
 ): Promise<AdminPriceOverride> {
   if (!Number.isFinite(price) || price <= 0) throw new Error("override price must be a positive number")
-  const map = await readOverrideMap()
   const ov: AdminPriceOverride = { price, volume, updatedAt: new Date().toISOString() }
-  map[companyId] = ov
-  const value = JSON.stringify(map)
-  await db.setting.upsert({
-    where: { key: ADMIN_PRICE_OVERRIDES_KEY },
-    create: { key: ADMIN_PRICE_OVERRIDES_KEY, value, type: "json", description: "Admin manual price overrides (owner-only, audited)" },
-    update: { value },
+  // Write path (audit 2026-11-19): FRESH (uncached) read + read→merge→upsert
+  // inside ONE transaction, so two admins writing concurrently merge instead
+  // of one silently overwriting the other with a 60s-stale map.
+  // RESIDUAL RISK (honest note): under Postgres read-committed, two
+  // transactions that both read before either writes can still interleave —
+  // a full fix needs row locking (SELECT … FOR UPDATE) or an advisory lock.
+  // The transaction + fresh read shrink the lost-update window and remove
+  // the cache skew; single-admin console usage is the norm here.
+  await db.$transaction(async (tx) => {
+    let map: OverrideMap = {}
+    try {
+      const row = await tx.setting.findUnique({ where: { key: ADMIN_PRICE_OVERRIDES_KEY }, select: { value: true } })
+      if (row?.value) {
+        const parsed = JSON.parse(row.value) as OverrideMap
+        if (parsed && typeof parsed === "object") map = parsed
+      }
+    } catch {
+      map = {}
+    }
+    map[companyId] = ov
+    const value = JSON.stringify(map)
+    await tx.setting.upsert({
+      where: { key: ADMIN_PRICE_OVERRIDES_KEY },
+      create: { key: ADMIN_PRICE_OVERRIDES_KEY, value, type: "json", description: "Admin manual price overrides (owner-only, audited)" },
+      update: { value },
+    })
   })
   flushMemCache()
   const { invalidateServerCache } = await import("@/lib/server-cache")
@@ -100,14 +140,26 @@ export async function setAdminPriceOverride(
 
 /** Remove the override — every surface returns to the market feed instantly. */
 export async function clearAdminPriceOverride(companyId: string): Promise<void> {
-  const map = await readOverrideMap()
-  if (!(companyId in map)) return
-  delete map[companyId]
-  const value = JSON.stringify(map)
-  await db.setting.upsert({
-    where: { key: ADMIN_PRICE_OVERRIDES_KEY },
-    create: { key: ADMIN_PRICE_OVERRIDES_KEY, value, type: "json", description: "Admin manual price overrides (owner-only, audited)" },
-    update: { value },
+  // Write path — same fresh-read + transaction contract as setAdminPriceOverride.
+  await db.$transaction(async (tx) => {
+    let map: OverrideMap = {}
+    try {
+      const row = await tx.setting.findUnique({ where: { key: ADMIN_PRICE_OVERRIDES_KEY }, select: { value: true } })
+      if (row?.value) {
+        const parsed = JSON.parse(row.value) as OverrideMap
+        if (parsed && typeof parsed === "object") map = parsed
+      }
+    } catch {
+      map = {}
+    }
+    if (!(companyId in map)) return
+    delete map[companyId]
+    const value = JSON.stringify(map)
+    await tx.setting.upsert({
+      where: { key: ADMIN_PRICE_OVERRIDES_KEY },
+      create: { key: ADMIN_PRICE_OVERRIDES_KEY, value, type: "json", description: "Admin manual price overrides (owner-only, audited)" },
+      update: { value },
+    })
   })
   flushMemCache()
   const { invalidateServerCache } = await import("@/lib/server-cache")

@@ -17,6 +17,7 @@ import { db } from "@/lib/db"
 import { cached } from "@/lib/server-cache"
 import { applyCorporateActionAdjustments, loadSeriesActionsByCompany, type SeriesBar } from "@/lib/market/corporate-actions"
 import { effectiveEgxSessionDate } from "@/lib/market/egx-session"
+import { isEgxMarketLive } from "@/lib/market/egx-hours"
 import { applyAdminPriceOverrideToLastBar, getAdminPriceOverride, getAdminPriceOverrides } from "@/lib/market/price-override"
 import { computeCompanySignalV2, type CompanyIdentity } from "./engine"
 import { SIGNALS_V2_VERSION, type Bar, type Fundamentals, type SignalRowV2, type SignalState } from "./types"
@@ -487,15 +488,11 @@ const SNAPSHOT_FRESH_MS = 15 * 60_000
 const SNAPSHOT_MAX_MS = 24 * 60 * 60_000
 
 export function isEgxMarketOpenCairo(now: Date = new Date()): boolean {
-  const cairo = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Africa/Cairo",
-    hour: "numeric",
-    hour12: false,
-    weekday: "short",
-  }).formatToParts(now)
-  const hour = Number(cairo.find((p) => p.type === "hour")?.value ?? "0") % 24
-  const weekday = cairo.find((p) => p.type === "weekday")?.value ?? ""
-  return ["Sun", "Mon", "Tue", "Wed", "Thu"].includes(weekday) && hour >= 10 && hour < 14.5
+  // ONE live-window definition for the whole platform (audit 2026-11-19): the
+  // egx-hours session window, Sun–Thu 09:45–14:45 Cairo. The former local
+  // integer-hour approximation (10:00–14:59) disagreed with both egx-hours
+  // and the liquidity heatmap about when the market was "open".
+  return isEgxMarketLive(now)
 }
 
 async function persistBoardSnapshotV2(payload: BoardOutputV2): Promise<boolean> {

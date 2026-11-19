@@ -231,8 +231,11 @@ export interface SignalMetrics {
   ema50: number | null
   atr14: number | null
   macdHist: number | null
-  /** session volume vs the 20-session mean (null when volumes are absent) */
+  /** session volume vs the prior-sessions mean (the mean only counts sessions
+   *  with usable volume — its real size is disclosed in relVolBaseN) */
   relVol: number | null
+  /** how many prior sessions actually back the relVol mean (10–20; null when relVol is null) */
+  relVolBaseN: number | null
   perfM1: number | null
   perfM3: number | null
   /** where the close sits in the 60-session range (0–100) */

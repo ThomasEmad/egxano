@@ -8,7 +8,8 @@ import { alertHit, deactivateAndNotify, resolveAlertPrices, fallbackPriceIsFresh
 import { deliveryInfoFromOutbox, type DeliveryStateInfo } from "@/lib/alerts/logic"
 import { drainOutbox, OUTBOX_DRAIN_PRESETS } from "@/lib/alerts/outbox-dispatch"
 import { getActivePlanId } from "@/lib/subscription"
-import { PLANS } from "@/lib/plans/entitlements"
+import { PLANS, paidPlanCapMessageAr } from "@/lib/plans/entitlements"
+import { withKeyLock } from "@/lib/key-lock"
 
 // GET    /api/v1/alerts            — list the signed-in user's price alerts
 //                                    (lazily evaluates active alerts against
@@ -21,8 +22,8 @@ import { PLANS } from "@/lib/plans/entitlements"
 //                                    so "triggered" never implies "delivered".
 // POST   /api/v1/alerts            — { companyId, direction: ABOVE|BELOW,
 //                                    targetPrice } — capped per plan
-//                                    (FREE 5 / PRO 30 / PRO_PLUS 100 active
-//                                    alerts, from the plans entitlements).
+//                                    (FREE 5 / PRO 30 active alerts — retired
+//                                    PRO_PLUS resolves to PRO; entitlements).
 // DELETE /api/v1/alerts?id=...     — owner-only removal.
 //
 // Evaluation model: alerts fire against RECORDED market prices (the same
@@ -234,35 +235,41 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "NOT_FOUND", message: "Unknown company" }, { status: 404 })
   }
 
-  // per-plan active-alert cap (FREE 5 / PRO 30 / PRO_PLUS 100)
+  // per-plan active-alert cap (FREE 5 / PRO 30 — retired PRO_PLUS resolves to
+  // PRO). Count + create run under the same per-user lock portfolio uses, so
+  // two parallel adds cannot both observe count < cap and slip past it.
   const planId = await getActivePlanId(userId)
   const cap = PLANS[planId].limits.alerts
-  const activeCount = await db.priceAlert.count({ where: { userId, active: true } })
-  if (cap !== "UNLIMITED" && activeCount >= cap) {
+  const createdId = await withKeyLock(`alerts:${userId}`, async () => {
+    const activeCount = await db.priceAlert.count({ where: { userId, active: true } })
+    if (cap !== "UNLIMITED" && activeCount >= cap) return null
+    const alert = await db.priceAlert.create({
+      data: { userId, companyId, direction, targetPrice },
+      select: { id: true },
+    })
+    return alert.id
+  })
+  if (!createdId) {
+    // Honest copy: the caller's CURRENT plan and its real cap — never an
+    // upsell to the retired "Pro Plus" tier (paidPlanCapMessageAr).
     const message =
       planId === "FREE"
         ? `حد التنبيهات للمجانية ${cap} — متاح أكتر مع باقة برو.`
-        : planId === "PRO"
-          ? "حد التنبيهات لباقة برو 30 — متاح أكتر مع باقة برو بلس."
-          : `وصلت الحد الأقصى للتنبيهات في باقة برو بلس (${cap}).`
+        : paidPlanCapMessageAr(planId, cap, "تنبيه نشط")
     return Response.json(
       { error: "QUOTA", message, limit: cap, plan: planId },
       { status: 403 }
     )
   }
 
-  const alert = await db.priceAlert.create({
-    data: { userId, companyId, direction, targetPrice },
-    select: { id: true },
-  })
   await audit("ALERT_CREATED", {
     actor: userId,
     entityType: "PriceAlert",
-    entityId: alert.id,
+    entityId: createdId,
     details: `${direction} ${targetPrice} for company ${companyId}`,
   })
 
-  return Response.json({ ok: true, id: alert.id }, { status: 201 })
+  return Response.json({ ok: true, id: createdId }, { status: 201 })
 }
 
 export async function DELETE(req: NextRequest) {

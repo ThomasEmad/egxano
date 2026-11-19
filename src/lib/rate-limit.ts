@@ -127,6 +127,7 @@ export const RATE_LIMITS = {
   "report-analyze": { key: "report-analyze", max: 20, windowMs: 60 * 60 * 1000 },
   "payment-request": { key: "payment-request", max: 5, windowMs: 60 * 60 * 1000 },
   "subscription-request": { key: "subscription-request", max: 5, windowMs: 60 * 60 * 1000 },
+  "position-review": { key: "position-review", max: 20, windowMs: 5 * 60 * 1000 },
 } as const
 
 export type RateLimitEndpoint = keyof typeof RATE_LIMITS

@@ -738,3 +738,88 @@ describe("reviewPosition — the maker games + the market map integration (2026-
     expect(lines[0]).not.toContain("ملاحظة VSA")
   })
 })
+
+// =============================================================================
+// BUG FIXES (2026-11-19 audit round): the two-cache skew let a stale row
+// lastClose print a price different from the zones the report reads; the
+// branch-2 cushion distance printed a "+" on a below-price level again; RSI 0
+// was skipped by a falsy-zero check; and the hanging-man AR name drifted off
+// the review's substring classifiers (a top-distribution warning narrated as
+// the neutral generic line).
+// =============================================================================
+
+describe("2026-11-19 audit fixes", () => {
+  it("two-cache skew: the SERIES close wins over a stale row.lastClose (one price for the whole report)", () => {
+    const bars = cushionSeries(97) // series-derived close 103, far cushion below
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({
+      row: rowOver(bars, { state: "exit", lastClose: 110 }), // the v2-row cache is stale
+      bars,
+      map,
+      avgBuyPrice: 100, // close 103 → +3.0٪ exit; the stale 110 → +10٪ would flip to take_profit
+    })
+    expect(r.lastClose).toBe(103)
+    expect(r.snapshot.lastClose).toBe(103)
+    expect(r.pnlPct).toBeCloseTo(3.0, 1)
+    expect(r.decision).toBe("exit")
+    expect(JSON.stringify(r)).not.toContain("110.00") // the stale cache value never prints
+    expect(r.reasonsAr.some((x) => x.includes("103.00"))).toBe(true)
+  })
+
+  it("branch-2 cushion distance carries NO plus sign — the cushion is UNDER the price", () => {
+    const bars = cushionSeries(100) // close 103, cushion 100–100.4 → gap ≈ 2.5٪
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({ row: rowOver(bars, { state: "wait" }), bars, map, avgBuyPrice: 105 })
+    expect(r.decision).toBe("wait")
+    const line = r.reasonsAr.find((x) => x.includes("لسه على بعد"))
+    expect(line).toBeDefined()
+    expect(line).toMatch(/على بعد 2\.5٪ بس/)
+    expect(line).not.toMatch(/على بعد \+/)
+  })
+
+  it("RSI 0 is real data, not absence — the oversold-band note prints at rsi14 === 0", () => {
+    const bars = cushionSeries(100, 106.5) // hold branch
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({
+      row: rowOver(bars, { state: "wait", metrics: { ...toSignalMetrics(computeMetrics(bars)!), rsi14: 0 } }),
+      bars,
+      map,
+      avgBuyPrice: 100,
+    })
+    expect(r.decision).toBe("hold")
+    const tech = r.reasonsAr.find((x) => x.startsWith("القراءة الفنية:"))
+    expect(tech).toBeDefined()
+    expect(tech).toContain("RSI 0.00")
+    expect(tech).toContain("منطقة تشبع بيعي")
+  })
+
+  it("a hanging_man candle in ctx → the BEARISH hanging-man narration, never the neutral generic line", () => {
+    // 40 rising sessions + a hanging-man-shaped last bar — the exact geometry
+    // candlestick's own tests certify as hanging_man (long lower wick, small
+    // body at the top, after an advance). Before the 2026-11-19 name fix the
+    // mapped «رجل معلق» missed the review's «مشنوق» substring and fell through
+    // to the neutral generic line.
+    const bars: Bar[] = []
+    let c = 20
+    for (let i = 0; i < 40; i++) {
+      const o = c
+      c = Math.round(c * 1.005 * 100) / 100
+      const ts = `2026-01-${String(i + 1).padStart(2, "0")}-${String(i).padStart(3, "0")}`
+      bars.push({ ts, open: o, high: Math.max(o, c) + 0.05, low: Math.min(o, c) - 0.05, close: c, volume: 1000 })
+    }
+    bars.push({ ts: "2026-01-41-041", open: 44.0, high: 44.3, low: 42.0, close: 44.15, volume: 1200 })
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({
+      row: rowOver(bars, { state: "wait" }),
+      bars,
+      map,
+      avgBuyPrice: 40, // +10.4٪ — the hold/profit branch
+    })
+    expect(r.decision).toBe("hold")
+    const patternLine = r.reasonsAr.find((x) => x.includes("الرجل المشنوقة"))
+    expect(patternLine).toBeDefined()
+    expect(patternLine).toContain("شكل بيع عند القمة") // the BEARISH hanging-man narration
+    expect(r.reasonsAr.some((x) => x.includes("الشمعة الأخيرة رسمت نمط"))).toBe(false) // no neutral fallback
+    expect(JSON.stringify(r)).not.toContain("رجل معلق") // the drifted name is gone
+  })
+})

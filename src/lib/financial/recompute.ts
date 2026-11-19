@@ -29,6 +29,7 @@ import { detectEvents, EVENTS_RULE_VERSION, type PeriodData } from "./events"
 import { reportPeriodKey, parsePeriodKey, periodKeyLabel, periodKey, quarterSequenceIndex } from "./periods"
 import { getLatestPrice, sumDps12m } from "./market"
 import { nonAuthoritativeReason } from "./integrity-policy"
+import { selectOwnValues } from "./own-values"
 
 export interface RecomputeResult {
   companyId: string
@@ -97,15 +98,6 @@ function bucketStatementType(statementType: string): "CONSOLIDATED" | "STANDALON
   return statementType === "STANDALONE" ? "STANDALONE" : "CONSOLIDATED"
 }
 
-/** Sub-period token carried by the report itself (Q1..Q4 / H1 / 9M). */
-function subOf(r: { periodType: string; periodLabel: string }): string | null {
-  const l = r.periodLabel.toUpperCase()
-  if (r.periodType === "QUARTERLY") { const m = l.match(/Q([1-4])/); return m ? `Q${m[1]}` : null }
-  if (r.periodType === "SEMIANNUAL") { const m = l.match(/H([1-2])/); return m ? `H${m[1]}` : null }
-  if (r.periodType === "NINE_MONTH") return "9M"
-  return null
-}
-
 interface SourceValue {
   metricCode: string
   normalizedValue: number
@@ -130,28 +122,15 @@ interface SourceValue {
  * users cannot see.
  */
 function ownValues(r: { periodType: string; periodLabel: string; values: SourceValue[] }): SourceValue[] {
-  const byMetric = new Map<string, SourceValue[]>()
-  for (const v of r.values) {
-    if (!byMetric.has(v.metricCode)) byMetric.set(v.metricCode, [])
-    byMetric.get(v.metricCode)!.push(v)
-  }
-  const expected = subOf(r)
-  const out: SourceValue[] = []
-  for (const list of byMetric.values()) {
-    const current = list.find(v => v.subPeriod === "CURRENT")
-    let chosen: SourceValue | undefined
-    if (current) chosen = current
-    else {
-      const matching = expected ? list.find(v => v.subPeriod === expected) : undefined
-      if (matching) chosen = matching
-      else if (list.length === 1) chosen = list[0]
-    }
-    if (!chosen) continue
-    if (chosen.validationStatus !== "VALID" && chosen.validationStatus !== "PENDING") continue
-    if (nonAuthoritativeReason(chosen) !== null) continue
-    out.push(chosen)
-  }
-  return out
+  // Column selection (CURRENT vs comparative vs single-value) lives in the
+  // shared helper (own-values.ts) so read-path consumers apply the identical
+  // rule. This wrapper keeps recompute's own validation filters: only
+  // VALID/PENDING rows that pass the non-authoritative check may feed buckets.
+  return selectOwnValues(r).filter(
+    (v) =>
+      (v.validationStatus === "VALID" || v.validationStatus === "PENDING") &&
+      nonAuthoritativeReason(v) === null,
+  )
 }
 
 export interface PeriodBucket {

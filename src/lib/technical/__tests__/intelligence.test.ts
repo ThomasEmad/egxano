@@ -184,25 +184,47 @@ describe("structure — events", () => {
 })
 
 describe("weekly resample", () => {
-  it("aggregates ISO weeks with OHLC + summed volume", () => {
+  it("aggregates EGX weeks (Sun–Thu windows) with OHLC + summed volume", () => {
     const bars = mkBars(uptrendBars(12)) // ~2.5 weeks
     const weeks = resampleWeekly(bars)
     expect(weeks.length).toBeLessThan(bars.length)
     for (const w of weeks) {
-      const dayBars = bars.filter((b) => weekKeyOf(b.ts) === weekKeyOf(w.ts))
+      const dayBars = bars.filter((b) => weekKeyOf(b.ts) === w.ts) // w.ts IS the window key
       expect(w.high).toBe(Math.max(...dayBars.map((b) => b.high)))
       expect(w.low).toBe(Math.min(...dayBars.map((b) => b.low)))
       expect(w.close).toBe(dayBars[dayBars.length - 1].close)
       expect(w.volume).toBe(dayBars.reduce((s, b) => s + (b.volume ?? 0), 0))
     }
   })
+
+  it("keys the week on the EGX Sun–Thu window: Sunday + Thursday = ONE candle, Friday quote folds in", () => {
+    const mk = (ts: string, close: number) => ({ ts, open: close - 0.5, high: close + 0.4, low: close - 0.6, close, volume: 100 })
+    const bars = [mk("2026-11-15", 101), mk("2026-11-19", 105)] // Sunday + Thursday, same EGX week
+    let weeks = resampleWeekly(bars)
+    expect(weeks.length).toBe(1)
+    expect(weeks[0].open).toBe(bars[0].open)
+    expect(weeks[0].high).toBe(105.4)
+    expect(weeks[0].low).toBe(100.4)
+    expect(weeks[0].close).toBe(105) // Thursday's close
+    // a Friday-dated holiday quote folds into the SAME window
+    weeks = resampleWeekly([...bars, mk("2026-11-20", 104)])
+    expect(weeks.length).toBe(1)
+    expect(weeks[0].close).toBe(104)
+    // the next Saturday opens a NEW window
+    weeks = resampleWeekly([...bars, mk("2026-11-21", 106)])
+    expect(weeks.length).toBe(2)
+  })
 })
 
 function weekKeyOf(ts: string): string {
+  // the EGX window key (mirrors resampleWeekly): the Saturday that opens the
+  // Sun–Thu window, anchored on its ISO Monday
   const d = new Date(ts + "T00:00:00Z")
-  const day = (d.getUTCDay() + 6) % 7
-  const monday = new Date(d)
-  monday.setUTCDate(d.getUTCDate() - day)
+  const sat = new Date(d)
+  sat.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 1) % 7))
+  const day = (sat.getUTCDay() + 6) % 7
+  const monday = new Date(sat)
+  monday.setUTCDate(sat.getUTCDate() - day)
   return monday.toISOString().slice(0, 10)
 }
 

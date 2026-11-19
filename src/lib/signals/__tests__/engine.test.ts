@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest"
 import { computeCompanySignalV2 } from "../engine"
-import { dailyVolPct, relVol, rangePos } from "../metrics"
+import { computeMetrics, dailyVolPct, relVol, relVolWithBase, rangePos } from "../metrics"
 import type { Bar } from "../types"
 
 const TODAY = "2026-11-15"
@@ -51,6 +51,21 @@ describe("metrics helpers", () => {
     expect(relVol(bars)).toBeCloseTo(3, 5)
     expect(relVol(bars.slice(0, 20))).toBeNull()
   })
+  it("relVolWithBase discloses how many sessions actually back the mean", () => {
+    const bars = uptrend(30) // constant volume → all 20 prior sessions usable
+    const rb = relVolWithBase(bars)
+    expect(rb.value).toBeCloseTo(1, 5)
+    expect(rb.baseN).toBe(20)
+    // 5 sessions in the window lack usable volume → the mean is over 15
+    const sparse = uptrend(30).map((b, i) => (i >= 12 && i <= 16 ? { ...b, volume: null } : b))
+    expect(relVolWithBase(sparse).baseN).toBe(15)
+    // fewer than 10 usable prior sessions → no ratio at all (eligibility unchanged)
+    const thin = uptrend(30).map((b, i) => (i >= 9 ? { ...b, volume: null } : b))
+    expect(relVolWithBase(thin).value).toBeNull()
+    expect(relVolWithBase(thin).baseN).toBeNull()
+    // the published bundle carries the disclosure too
+    expect(computeMetrics(uptrend(30))!.relVolBaseN).toBe(20)
+  })
   it("rangePos pins the extremes to 0 and 100", () => {
     const bars = uptrend(60, 50, 1) // strictly rising → last is the high
     expect(rangePos(bars.map((b) => b.close), 60)).toBeCloseTo(100, 1)
@@ -86,8 +101,10 @@ describe("engine state machine", () => {
       todaySession: TODAY,
     })
     // a runaway thrust with no overhead structure is usually a NEAR (chase RR
-    // fails) — either way the published invariants MUST hold
-    expect(row.state).toBe("buy" === row.state ? "buy" : row.state)
+    // fails) — the published state must be a REAL published state, and a
+    // strong bullish breakout can never be read as an exit (the old
+    // assertion here was a tautology: `row.state` compared against itself)
+    expect(["buy", "near", "wait"]).toContain(row.state)
     if (row.state === "buy") {
       expect(row.plan).not.toBeNull()
       expect(row.plan!.stop).toBeLessThan(row.plan!.entryLow)

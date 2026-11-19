@@ -7,8 +7,9 @@
 //   • "Pro Plus" is REMOVED from the sale — existing PRO_PLUS/PREMIUM
 //     subscriptions keep FULL paid access (see LEGACY_PAID_PLAN_IDS) so no
 //     paying user ever silently drops to the free tier.
-//   • New third plan PRO_3M: 3 months, 450 EGP total, promo = 50% off the
-//     FIRST MONTH ONLY (first cycle 375 EGP instead of 450).
+//   • New third plan PRO_3M: 3 months, 450 EGP total, promo = 17% off the
+//     FIRST MONTH ONLY (first cycle 375 EGP instead of 450 — 375/450 ≈ a 17%
+//     discount; the old "50% off" copy was arithmetically wrong).
 //
 // 2026-11-16 owner addition: a FULL-FEATURE FREE TRIAL month for ANY user.
 // The TRIAL plan id is resolved by subscription.ts from the user's signup
@@ -135,13 +136,13 @@ export const PLANS: Record<PlanId, PlanDef> = {
     price: 450,
     offerPrice: 375,
     offerActive: true,
-    offerLabelAr: "خصم 50% على أول شهر — أول دورة 375 ج بدل 450",
+    offerLabelAr: "خصم 17% على أول شهر — أول دورة 375 ج بدل 450",
     currency: "EGP",
     durationDays: 90,
     featuresAr: [
       "نفس كل مزايا باقة برو بالظبط — ما بينها أي فرق",
       "اشتراك 3 شهور كاملة بدفعة واحدة",
-      "خصم 50% على أول شهر بس — أول دورة 375 ج بدل 450",
+      "خصم 17% على أول شهر بس — أول دورة 375 ج بدل 450",
       "بدون تجديد شهري وبدون انقطاع في الإشارات والتنبيهات",
     ],
     limits: {
@@ -197,6 +198,18 @@ export const FREE_SIGNALS_ROWS = 5
 /** First-month price used on PaymentRequest creation when the offer is active. */
 export function effectiveFirstMonthPrice(plan: PlanDef): number {
   return plan.offerActive && plan.offerPrice != null ? plan.offerPrice : plan.price
+}
+
+/**
+ * Cap-exceeded copy built from the caller's CURRENT plan and its REAL enforced
+ * cap above. Paying users must never be upsold to the retired "Pro Plus" tier
+ * (PRO_PLUS left the sale and resolves to PRO — "upgrade to Pro Plus" was a
+ * dead end for exactly the subscribers it targeted); free users keep the
+ * genuine upgrade path to PRO, which still exists.
+ */
+export function paidPlanCapMessageAr(planId: PlanId, cap: number | "UNLIMITED", nounAr: string): string {
+  if (cap === "UNLIMITED") return `وصلت للحد الأقصى لباقتك الحالية — باقة ${PLANS[planId].nameAr}.`
+  return `وصلت للحد الأقصى لباقتك الحالية — باقة ${PLANS[planId].nameAr} (${cap} ${nounAr}).`
 }
 
 /** Which plans count as "paid/premium" for isPremiumUser-style checks.

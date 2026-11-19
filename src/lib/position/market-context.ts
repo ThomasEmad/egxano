@@ -201,9 +201,9 @@ const VOL_TREND_FALLING_MAX = 0.7
 const CANDLE_PATTERN_AR: Record<CandlePattern, string> = {
   doji: "دوجي",
   hammer: "مطرقة",
-  hanging_man: "رجل معلق",
+  hanging_man: "الرجل المشنوق",
   inverted_hammer: "مطرقة مقلوبة",
-  shooting_star: "شهاب",
+  shooting_star: "النجمة المطلقة",
   engulfing_bull: "ابتلاع صاعد",
   engulfing_bear: "ابتلاع هابط",
   morning_star: "نجمة الصباح",

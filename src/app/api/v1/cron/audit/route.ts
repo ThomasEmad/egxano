@@ -98,14 +98,45 @@ export async function GET(req: NextRequest) {
     } catch (e) {
       console.error("audit-chained market refresh failed:", e instanceof Error ? e.message.slice(0, 200) : e)
     }
-    // Chain the market-enrichment job (chunked + self-chaining): computes the
-    // true 52-week / SMA200 breadth aggregates for the intelligence snapshot.
-    // The chunk runner chains its own remaining windows via after(), so a
-    // single daily anchor is enough — no extra platform cron required.
+    // Chain the market-enrichment job: computes the true 52-week / SMA200
+    // breadth aggregates for the intelligence snapshot. runEnrichmentChunk
+    // does NOT self-chain — the after() chaining lives in the market-enrich
+    // ROUTE, which no cron schedules — so one chunk per day meant the cursor
+    // (which restarts when >6h stale) replayed the same first 40 alphabetical
+    // companies forever while `universe` claimed the full count (audit
+    // 2026-11-19: pctAboveSma20/50/200 and 52w breadth fed the regime
+    // classifier from a biased slice). Loop chunks inside this window's
+    // budget, then chain the remainder through the market-enrich endpoint
+    // (fresh lambda window, same bearer auth).
     let enrichment: { done: boolean; processed: number; remaining: number } | null = null
     try {
       const { runEnrichmentChunk } = await import("@/lib/market/intelligence/service")
-      enrichment = await runEnrichmentChunk(40)
+      const deadline = Date.now() + 180_000 // stay well inside maxDuration=300
+      let chunk = await runEnrichmentChunk(40)
+      enrichment = { ...chunk }
+      while (!chunk.done && chunk.remaining > 0 && Date.now() < deadline) {
+        chunk = await runEnrichmentChunk(40)
+        enrichment = {
+          done: chunk.done,
+          processed: enrichment.processed + chunk.processed,
+          remaining: chunk.remaining,
+        }
+      }
+      if (!enrichment.done && enrichment.remaining > 0) {
+        after(async () => {
+          const base = process.env.NEXT_PUBLIC_SITE_URL ?? req.nextUrl.origin
+          try {
+            await fetch(`${base}/api/v1/cron/market-enrich?limit=40`, {
+              headers: { authorization: `Bearer ${process.env.CRON_SECRET ?? ""}` },
+              signal: AbortSignal.timeout(270_000),
+            }).catch(() => undefined)
+          } catch {
+            // chained chunk failure is retried by the next scheduled run —
+            // and the cursor is now fresh (<6h), so the next audit day
+            // continues the sweep instead of restarting it.
+          }
+        })
+      }
     } catch (e) {
       console.error("audit-chained market-enrich failed:", e instanceof Error ? e.message.slice(0, 200) : e)
     }

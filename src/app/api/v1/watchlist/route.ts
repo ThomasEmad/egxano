@@ -5,17 +5,19 @@ import { CALC_METRIC_MAP } from "@/lib/financial/registry"
 import { fetchCalcMany } from "@/lib/financial/statement-pref"
 import { latestAndBaselinePerCompany } from "@/lib/market/latest-price"
 import { getActivePlanId } from "@/lib/subscription"
-import { PLANS } from "@/lib/plans/entitlements"
+import { PLANS, paidPlanCapMessageAr } from "@/lib/plans/entitlements"
 
 // GET /api/v1/watchlist?ids=a,b,c — snapshot per watched company: latest recorded
 // price + 1Y change, latest verified ANNUAL metrics. The ids come from the
 // client-side watchlist store (a user preference, not server state).
 //
-// Per-plan watchlist cap (from the plans entitlements): FREE 10 / PRO 50 /
-// PRO_PLUS unlimited. Requests exceeding the caller's cap get a 403 with the
-// upgrade path named. Anonymous visitors get the FREE cap. The unlimited plan
-// still passes a generous abuse bound (500 ids) — there are only ~200 EGX
-// listings, so this never binds for real usage, it just protects the query.
+// Per-plan watchlist cap (from the plans entitlements): FREE 10 / PRO 50 —
+// the retired PRO_PLUS resolves to PRO. Requests exceeding the caller's cap
+// get a 403 naming the caller's CURRENT plan and its real cap (never an
+// upsell to the retired "Pro Plus" tier). Anonymous visitors get the FREE cap.
+// (No plan is UNLIMITED today, but the abuse bound below still guards any
+// future unlimited tier — there are only ~200 EGX listings, so it never
+// binds for real usage, it just protects the query.)
 //
 // Calculated metrics are fetched through the shared statement-preference helper
 // (CONSOLIDATED when a company has consolidated rows, otherwise STANDALONE), so
@@ -39,10 +41,12 @@ export async function GET(req: NextRequest) {
   const cap = PLANS[planId].limits.watchlist
 
   if (cap !== "UNLIMITED" && ids.length > cap) {
+    // Honest copy: the caller's CURRENT plan and its real cap — never an
+    // upsell to the retired "Pro Plus" tier (paidPlanCapMessageAr).
     const message =
       planId === "FREE"
         ? `حد قائمة المراقبة للمجانية ${cap} سهم — متاح أكتر مع باقة برو.`
-        : `حد قائمة المراقبة لباقة برو ${cap} سهم — القائمة بلا حدود مع باقة برو بلس.`
+        : paidPlanCapMessageAr(planId, cap, "سهم")
     return Response.json({ error: "QUOTA", message, limit: cap, plan: planId }, { status: 403 })
   }
 
