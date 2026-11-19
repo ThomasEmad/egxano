@@ -593,7 +593,7 @@ describe("veteranLinesAr — the veteran's reading of the last session", () => {
       "الأساسي أولًا: متوسطك 100.00 والسعر 106.50 — يعني إنت +6.5٪ (+6.50 جنيه/سهم). المركز مش في منطقة خطر.",
       "القراءة الفنية: هابط — السعر تحت EMA50 وEMA20 تحت EMA50 (ترتيب سلبي) وRSI 44.32 (منطقة متوازنة).",
       "خط الدفاع: دعم 2× مختبَر (104.00–104.40) على بعد +2.2٪ — طالما السعر فوقه بالإغلاق، القصة سليمة.",
-      "الحلم فوق: أول منطقة تستحق قرار أرباح جزئي عند 112.85–112.85 على بعد +12.8٪ من متوسطك.",
+      "الحلم فوق: أول منطقة تستحق قرار أرباح جزئي عند 112.85 على بعد +12.8٪ من متوسطك.",
       "الخلاصة بصوت واضح: احتفظ. البيع يبقى قرار لما يفلخط الدفاع، مش لما القلق يعلو.",
     ])
     // and whatever the (now live) MarketContext produces, the merged
@@ -692,7 +692,7 @@ describe("reviewPosition — the maker games + the market map integration (2026-
       "الأساسي أولًا: متوسطك 100.00 والسعر 106.50 — يعني إنت +6.5٪ (+6.50 جنيه/سهم). المركز مش في منطقة خطر.",
       "القراءة الفنية: هابط — السعر تحت EMA50 وEMA20 تحت EMA50 (ترتيب سلبي) وRSI 44.32 (منطقة متوازنة).",
       "خط الدفاع: دعم 2× مختبَر (104.00–104.40) على بعد +2.2٪ — طالما السعر فوقه بالإغلاق، القصة سليمة.",
-      "الحلم فوق: أول منطقة تستحق قرار أرباح جزئي عند 112.85–112.85 على بعد +12.8٪ من متوسطك.",
+      "الحلم فوق: أول منطقة تستحق قرار أرباح جزئي عند 112.85 على بعد +12.8٪ من متوسطك.",
       "الخلاصة بصوت واضح: احتفظ. البيع يبقى قرار لما يفلخط الدفاع، مش لما القلق يعلو.",
       "دوجي عند 106.50 — الافتتاح والإغلاق تلاحقوا: تردد في منطقة أرباح معناه إن القرار معلق بين الطرفين، ومن تجارب السوق بيجي قبل انعطاف أو استراحة، والاتجاه المحيط هابط فالترجيح يميل للهبوط.",
       "«الأرقام المستديرة أرضيات وسقوف» — من كلام المحللين اللي بيتكتب كل يوم وبيتأكد على الشاشة: الرقم المستدير 105.00 قاعد تحت الإغلاق 106.50 بفارق 1.4٪، وده أرضية نفسية الطلبات بتتجمع عندها، وفي اتجاه هابط الأرضية دي بتتاختبر كل يوم — واللمسة مش كسر: اختبار الرقم وثباته بالإغلاق هو اللي بيحوله من رقم مكتوب لأرضية فعلية. المتفرج عليه: أي إغلاق يومي تحت 105.00 — عشان الأرقام المستديرة لما بتتكسر بتقلب أدوار وبتدير سقف على الرحلة الجاية.",
@@ -821,5 +821,178 @@ describe("2026-11-19 audit fixes", () => {
     expect(patternLine).toContain("شكل بيع عند القمة") // the BEARISH hanging-man narration
     expect(r.reasonsAr.some((x) => x.includes("الشمعة الأخيرة رسمت نمط"))).toBe(false) // no neutral fallback
     expect(JSON.stringify(r)).not.toContain("رجل معلق") // the drifted name is gone
+  })
+})
+
+// =============================================================================
+// 2026-11-19 AUDIT ROUND — the consistency guards (AMES & friends):
+//   • the ANTI-FLIP rule: the open-field trend break gives ONE verdict for any
+//     P/L sign (the old engine exited −0.03٪ while holding +0.23٪ on the
+//     IDENTICAL tape — the P/L sign picked which exit detector applied)
+//   • the LIVE-session gate: a detected break before the official close is
+//     PROVISIONAL — انتظر + a two-sided close-based plan, no break certainty
+//   • zero-body candles never narrate a direction («بجسم 0.0× ATR نازل»)
+//   • the round-number watch trigger joins the OFFICIAL plan
+//   • an established trend break (15%+ under EMA50) is not today's news
+//   • the market map keeps a reserved narrative slot
+// =============================================================================
+
+import { isLastBarFinal } from "../review"
+import { veteranLinesAr as vetLines } from "../review"
+
+const downTrendAr19 = "هابط — السعر تحت EMA50 وEMA20 تحت EMA50 (ترتيب سلبي)"
+
+function amesBars(): Bar[] {
+  return decliningSeries() // open field: no support zones at all
+}
+
+function amesRow(bars: Bar[]): SignalRowV2 {
+  return rowOver(bars as ReturnType<typeof decliningSeries>, {
+    state: "wait",
+    metrics: { ...toSignalMetrics(computeMetrics(bars)!), ema20: 104, ema50: 107 }, // close 100 < 107, EMA20 < EMA50 → trendBroken
+  })
+}
+
+describe("2026-11-19 — the ANTI-FLIP rule (one verdict for any P/L sign)", () => {
+  it("−0.02٪ and +0.02٪ on the identical open-field tape → the SAME exit verdict, headline and invalidation; only the P/L sentence differs", () => {
+    const bars = amesBars()
+    const map = buildZoneMap(bars)
+    const lossSide = reviewPosition({ row: amesRow(bars), bars, map, avgBuyPrice: 100.02 }) // −0.02٪
+    const gainSide = reviewPosition({ row: amesRow(bars), bars, map, avgBuyPrice: 99.98 }) // +0.02٪
+    expect(lossSide.decision).toBe("exit")
+    expect(gainSide.decision).toBe("exit")
+    expect(lossSide.decisionAr).toBe("اخرج الآن")
+    expect(gainSide.decisionAr).toBe("اخرج الآن")
+    expect(lossSide.headlineAr).toBe(gainSide.headlineAr)
+    expect(lossSide.invalidationAr).toBe(gainSide.invalidationAr)
+    expect(lossSide.planAr).toBe(gainSide.planAr)
+    // the ONLY allowed difference: the P/L echo itself
+    expect(lossSide.reasonsAr.some((x) => x.includes("متوسط شراء 100.02"))).toBe(true)
+    expect(gainSide.reasonsAr.some((x) => x.includes("متوسط شراء 99.98"))).toBe(true)
+    // and the JSON P/L keeps its sign near zero (never ±0.0)
+    expect(lossSide.pnlPct).toBe(-0.02)
+    expect(gainSide.pnlPct).toBe(0.02)
+    expect(JSON.stringify(lossSide)).not.toContain("-0.0٪")
+    expect(JSON.stringify(gainSide)).not.toContain("+0.0٪")
+  })
+
+  it("profit ≥ +6٪ on the same open-field break → TAKE_PROFIT (the owner rule survives the symmetry)", () => {
+    const bars = amesBars()
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({ row: amesRow(bars), bars, map, avgBuyPrice: 94 }) // +6.38٪
+    expect(r.decision).toBe("take_profit")
+    expect(r.planAr).toContain("50–75٪") // bearish posture: EMA20 < EMA50, close < EMA50
+    expect(r.invalidationAr).toContain("الإغلاق")
+  })
+
+  it("an established break is old news: 15%+ under EMA50 names the standing state, not today's candle", () => {
+    const bars = decliningSeries()
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({
+      row: rowOver(bars, {
+        state: "wait",
+        metrics: { ...toSignalMetrics(computeMetrics(bars)!), ema20: 104, ema50: 130 }, // close 100 → −23٪ under EMA50
+      }),
+      bars,
+      map,
+      avgBuyPrice: 105,
+    })
+    expect(r.decision).toBe("exit")
+    expect(r.reasonsAr.some((x) => x.includes("بيع عن EMA50"))).toBe(true)
+    expect(r.reasonsAr.some((x) => x.includes("مش حدث شمعة النهاردة"))).toBe(true)
+  })
+})
+
+describe("2026-11-19 — the LIVE-session gate (الحكم بالإغلاق)", () => {
+  it("a detected break on a LIVE bar → PROVISIONAL: انتظر with the two-sided close-based plan, no exit yet", () => {
+    const bars = cushionSeries(97) // far-cushion break: close 103 under the 104 zone
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({ row: rowOver(bars, { state: "exit" }), bars, map, avgBuyPrice: 105, lastBarFinal: false })
+    expect(r.decision).toBe("wait")
+    expect(r.lastCloseProvisional).toBe(true)
+    expect(r.headlineAr).toContain("مرشح مش محسوم")
+    expect(r.headlineAr).toContain("القاضي")
+    expect(r.planAr).toContain("قفل نهائي تحت مستوى الكسر (104.00)")
+    expect(r.planAr).toContain("قفل نهائي فوق 104.00")
+    expect(r.invalidationAr).toContain("الحكم بالإغلاق مش باللمسة")
+  })
+
+  it("the same break on a FINAL close keeps today's exit verdict (unchanged behavior)", () => {
+    const bars = cushionSeries(97)
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({ row: rowOver(bars, { state: "exit" }), bars, map, avgBuyPrice: 105 })
+    expect(r.decision).toBe("exit")
+    expect(r.lastCloseProvisional).toBe(false)
+  })
+
+  it("veteran slot 1 on a LIVE session → the certainty softens to close-based judgment", () => {
+    const ctx = ctxOver({ volCharacter: "spike" })
+    const live = vetLines(ctx, { branch: "farCushionExit", avgBuyPrice: 100, close: 103, trendAr: downTrendAr19, lastBarFinal: false })
+    expect(live.length).toBe(1)
+    expect(live[0]).toContain("بالإغلاق النهائي")
+    expect(live[0]).not.toContain("سحب سيولة حقيقي مش")
+    const final = vetLines(ctx, { branch: "farCushionExit", avgBuyPrice: 100, close: 103, trendAr: downTrendAr19 })
+    expect(final[0]).toContain("سحب سيولة حقيقي مش كسر كاذب")
+  })
+
+  it("a zero body never narrates a direction — «شبه معدوم» replaces the 0.0× figure", () => {
+    const ctx = ctxOver({ volCharacter: "spike", bodyVsAtr: 0 })
+    const lines = vetLines(ctx, { branch: "farCushionExit", avgBuyPrice: 100, close: 103, trendAr: downTrendAr19 })
+    expect(lines[0]).toContain("شبه معدوم")
+    expect(lines[0]).not.toContain("0.0×")
+    const realBody = vetLines(ctxOver({ volCharacter: "spike", bodyVsAtr: 1.8 }), { branch: "farCushionExit", avgBuyPrice: 100, close: 103, trendAr: downTrendAr19 })
+    expect(realBody[0]).toContain("1.8×")
+  })
+
+  it("isLastBarFinal: yesterday final, today live until 15:00 Cairo, future never trusted", () => {
+    expect(isLastBarFinal("2026-03-11-011", new Date("2026-03-12T09:00:00Z"))).toBe(true)
+    expect(isLastBarFinal("2026-03-12-012", new Date("2026-03-12T09:00:00Z"))).toBe(false) // Cairo 11:00 — live
+    expect(isLastBarFinal("2026-03-12-012", new Date("2026-03-12T14:00:00Z"))).toBe(true) // Cairo 16:00 — final
+    expect(isLastBarFinal("2026-03-13-013", new Date("2026-03-12T14:00:00Z"))).toBe(false)
+    expect(isLastBarFinal(null)).toBe(false)
+  })
+})
+
+describe("2026-11-19 — the round-number trigger joins the OFFICIAL plan", () => {
+  it("hold with the 105.00 round level above the defense line → the plan names the FIRST trigger explicitly", () => {
+    const bars = cushionSeries(100, 106.5)
+    const map = buildZoneMap(bars)
+    const r = reviewPosition({ row: rowOver(bars, { state: "wait" }), bars, map, avgBuyPrice: 100 })
+    expect(r.decision).toBe("hold")
+    expect(r.planAr).toContain("المشغّل الأول للمراقبة")
+    expect(r.planAr).toContain("105.00")
+  })
+})
+
+describe("2026-11-19 — the market map keeps its reserved narrative slot", () => {
+  it("every trigger family firing + the market section → the map STILL reaches the report (last line, no VSA displacement)", () => {
+    const richCtx = ctxOver({
+      divergence: "bearish",
+      volCharacter: "spike",
+      closeLocationPct: 88.1,
+      roundLevelNear: { level: 210, distPct: 0.87 },
+      consolidation: { sessions: 7, tightnessPct: 2.1 },
+      nearRangeTop: true,
+      volTrend5: "falling",
+      vsaNoteAr: "ملاحظة VSA فاقدة الأولوية.",
+    })
+    const frozenBar = (close: number): Bar => ({ ts: "2026-03-12-000", open: close, high: close + 0.04, low: close - 0.04, close, volume: 1000 })
+    const lines = narrativeLinesAr(
+      richCtx,
+      { branch: "hold", avgBuyPrice: 100, close: 208.18, trendAr: upTrendAr },
+      {
+        bars: [frozenBar(208.18), frozenBar(208.18), frozenBar(208.18)],
+        map: null,
+        cushion: null,
+        nearestSupportLow: 200,
+        prevClose: 208.0,
+        mctx: mctxFull(),
+      },
+    )
+    expect(lines.length).toBe(NARRATIVE_MAX_LINES)
+    expect(lines[0]).toContain("انحراف سلبي") // traps still open the pass
+    expect(lines[1]).toContain("فوليوم Spike")
+    expect(lines[lines.length - 1]).toContain("خريطة السوق النهاردة") // the map made it
+    expect(lines.every((l) => !l.includes("ملاحظة VSA"))).toBe(true) // the filler lost its slot to the map
   })
 })

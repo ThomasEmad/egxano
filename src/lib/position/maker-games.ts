@@ -92,11 +92,15 @@ const CROWDED_MARKET_MIN_ABOVE_EMA20 = 85
 // local copies — this module stays free of any runtime edge) ----
 /** 2-decimal level, e.g. 104.00 */
 const fmt = (x: number) => x.toFixed(2)
-/** 1-decimal signed percent — for day changes and relative-strength gaps. */
-const pct1 = (x: number) => `${x >= 0 ? "+" : ""}${x.toFixed(1)}٪`
+/** 1-decimal signed percent — never loses its sign to rounding (the 2026-11-19
+ *  audit rule: −0.03٪ prints «-0.03٪», never «±0.0٪»). */
+const pct1 = (x: number) => `${x >= 0 ? "+" : ""}${Math.abs(x) < 0.05 ? x.toFixed(2) : x.toFixed(1)}٪`
 /** 1-decimal percent WITHOUT a sign — for unsigned quantities like a wick's
  *  share of the range or a distance from a level. */
 const pctPlain = (x: number) => `${x.toFixed(1)}٪`
+/** A zone range whose edges coincide prints ONE value — «100.00–100.00» was a
+ *  broken display of a single-price pivot cluster (2026-11-19 audit). */
+const fmtZone = (low: number, high: number) => (Math.abs(high - low) < 1e-9 ? fmt(low) : `${fmt(low)}–${fmt(high)}`)
 const fin = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x)
 
 /** Arabic session count: جلسة واحدة / جلستين / {n} جلسات. */
@@ -129,6 +133,10 @@ export interface MakerOpts {
   /** the whole-market intelligence section — null/undefined when the service
    *  has none (G5/G6 then stay silent, never invented) */
   mctx: MarketContextSection | null | undefined
+  /** 2026-11-19 doctrine gate: false when the last bar is the LIVE session —
+   *  G1's «مش كسر اتجاه، ده جمع سيولة» verdict is a close-based CERTAINTY, so
+   *  it only speaks on a final close (الحكم بالإغلاق). Undefined = final. */
+  lastBarFinal?: boolean
 }
 
 /** Trusted support zones for the break games: multi-touch supports off the
@@ -201,8 +209,9 @@ export function makerGamesAr(ctx: MarketContext, opts: MakerOpts): string[] {
   // ---- G1 «الكسر الكاذب لجمع السيولة»: closed below a trusted support inside
   // the window, and the LATEST close is back above the zone's low — the
   // recovery itself is the verdict (a live break — the close still under the
-  // zone — never qualifies).
-  if (fin(close) && lastBar !== null && fin(lastBar.close) && lastBar.close > 0 && bars.length >= 2) {
+  // zone — never qualifies). On a LIVE session the recovery is provisional
+  // too, so the certainty verdict waits for the final close (2026-11-19).
+  if (fin(close) && opts.lastBarFinal !== false && lastBar !== null && fin(lastBar.close) && lastBar.close > 0 && bars.length >= 2) {
     const zones = trustedSupportZones(map, cushion).filter((z) => {
       const j = lastCloseBelowIdx(bars, z, MAKER_BREAK_WINDOW)
       return j >= 0 && j <= bars.length - 2 && lastBar.close >= z.low
@@ -212,7 +221,7 @@ export function makerGamesAr(ctx: MarketContext, opts: MakerOpts): string[] {
       const j = lastCloseBelowIdx(bars, z, MAKER_BREAK_WINDOW)
       const back = bars.length - 1 - j
       add(
-        `إيد الصنّاع هنا واضحة — «الكسر الكاذب لجمع السيولة»: نزّلت الإغلاق تحت الدعم (${fmt(z.low)}–${fmt(z.high)}) من ${sessionsAr(back)} ورجّعته فوقه تاني عند ${fmt(close)} — زي ما بيتقال في السوق، الكسر اللي بيرجع في جلسة أو اتنين مش كسر اتجاه، ده جمع سيولة من بيع الخايفين؛ والإغلاق فوق الخط (${fmt(z.low)}) هو الحكم مش اللمسة.`,
+        `إيد الصنّاع هنا واضحة — «الكسر الكاذب لجمع السيولة»: نزّلت الإغلاق تحت الدعم (${fmtZone(z.low, z.high)}) من ${sessionsAr(back)} ورجّعته فوقه تاني عند ${fmt(close)} — زي ما بيتقال في السوق، الكسر اللي بيرجع في جلسة أو اتنين مش كسر اتجاه، ده جمع سيولة من بيع الخايفين؛ والإغلاق فوق الخط (${fmt(z.low)}) هو الحكم مش اللمسة.`,
       )
     }
   }
@@ -240,12 +249,31 @@ export function makerGamesAr(ctx: MarketContext, opts: MakerOpts): string[] {
   }
 
   // ---- G3 «السهم المقفول بالسعر»: a locked tape — one hand boxing the price.
+  // 2026-11-19 CONSISTENCY GUARD (the AMES case): a tight RANGE is not a
+  // liquidity read — claiming «السيولة صفر حاليًا» while the same bar carried
+  // a 2.5× volume spike contradicted itself in ONE report. The detector now
+  // splits: heavy volume + tight range = an ABSORPTION BATTLE at the level;
+  // a gap today means the lock is already breaking (past tense); only a dry
+  // tape may say the zero-liquidity line.
   if (bars.length >= FROZEN_MIN_SESSIONS) {
     const frozen = frozenStretch(bars)
     if (frozen) {
-      add(
-        `سهم متجمد بالسعر على ${sessionsAr(frozen.sessions)} — المدى اليومي ما عدّاش ${pctPlain(frozen.maxSpreadPct)} من السعر (${fmt(close)}) — «السهم المقفول بالسعر» زي ما بيتقال في السوق: يد واحدة حاجزة أو استنفار، والسيولة الصفر معناها مافيش سوق حقيقي حاليًا؛ وأي حركة تطلع من القفل بتبقى مفاجأة بفوليوم — فوق أو تحت، ومحدش يعرف قبلها.`,
-      )
+      const liquidityClause = ctx.volCharacter === "dry"
+        ? "والسيولة الصفر معناها مافيش سوق حقيقي حاليًا"
+        : ""
+      const gapClause =
+        ctx.gapPct !== null && Math.abs(ctx.gapPct) >= 1
+          ? ` — والنهاردة القفل بدأ يتهد بفجوة ${pct1(ctx.gapPct)}: الحركة اللي كانت مفاجأة بقت وقايع، والحكم بالإغلاق`
+          : ""
+      if (ctx.volCharacter === "spike" || ctx.volCharacter === "elevated") {
+        add(
+          `سهم متجمد بالسعر على ${sessionsAr(frozen.sessions)} — المدى اليومي ما عدّاش ${pctPlain(frozen.maxSpreadPct)} من السعر (${fmt(close)}) — «السهم المقفول بالسعر» زي ما بيتقال في السوق، بس الفوليوم النهاردة جاي بوزن ${ctx.volCharacter === "spike" ? "Spike فوق 2.5× من المتوسط" : "أعلى من عادته"} والمدى لسه مقفول: ده مش سوق ميت، ده امتصاص حقيقي عند المستوى — طلب وعرض بيتخانقوا على خط واحد، والخروج من القفل بالحجم ده بيتحسم بالإغلاق مش باللمسة.`,
+        )
+      } else {
+        add(
+          `سهم متجمد بالسعر على ${sessionsAr(frozen.sessions)} — المدى اليومي ما عدّاش ${pctPlain(frozen.maxSpreadPct)} من السعر (${fmt(close)}) — «السهم المقفول بالسعر» زي ما بيتقال في السوق: يد واحدة حاجزة أو استنفار،${liquidityClause ? ` ${liquidityClause}،` : ""} وأي حركة تطلع من القفل بتبقى مفاجأة بفوليوم — فوق أو تحت، ومحدش يعرف قبلها${gapClause}.`,
+        )
+      }
     }
   }
 
@@ -262,7 +290,7 @@ export function makerGamesAr(ctx: MarketContext, opts: MakerOpts): string[] {
     if (z) {
       const dist = (Math.abs(close - z.low) / close) * 100
       add(
-        `اختبار الكسر: الدعم المكسور (${fmt(z.low)}–${fmt(z.high)}) على بُعد ${pctPlain(dist)} بس من الإغلاق (${fmt(close)}) — الكسر حصل في آخر الجلسات القريبة، وده بالظبط مكان «اختبار الكسر»: اختبار بفوليوم تحت المستوى = تأكيد الكسر، وصمود فوقه بفوليوم جاف = قلب أدوار؛ الاختبار هو المحكمة، مش الشمعة اللي كسرت.`,
+        `اختبار الكسر: الدعم المكسور (${fmtZone(z.low, z.high)}) على بُعد ${pctPlain(dist)} بس من الإغلاق (${fmt(close)}) — الكسر حصل في آخر الجلسات القريبة، وده بالظبط مكان «اختبار الكسر»: اختبار بفوليوم تحت المستوى = تأكيد الكسر، وصمود فوقه بفوليوم جاف = قلب أدوار؛ الاختبار هو المحكمة، مش الشمعة اللي كسرت.`,
       )
     }
   }

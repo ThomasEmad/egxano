@@ -30,10 +30,11 @@ vi.mock("@/lib/market/intelligence/context", () => ({
   buildMarketContext: vi.fn(),
 }))
 
-// The service imports reviewPosition directly — mocked so each test asserts
-// the EXACT input object handed to the review engine.
+// The service imports reviewPosition AND isLastBarFinal directly — mocked so
+// each test asserts the EXACT input object handed to the review engine.
 vi.mock("../review", () => ({
   reviewPosition: vi.fn(),
+  isLastBarFinal: vi.fn(() => true),
 }))
 
 const CID = "company-1"

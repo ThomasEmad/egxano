@@ -334,8 +334,11 @@ export default function AnalyzeClient() {
                   <div className="mt-1 text-sm font-medium leading-relaxed text-foreground/80">{r.headlineAr}</div>
                 </div>
                 <div className="text-left" dir="rtl">
+                  {/* 2026-11-19: a −0.03٪ position used to print «+0.0٪» (the
+                      rounded −0 lost both its sign AND its value) — tiny P/L
+                      keeps 2 decimals so the sign survives. */}
                   <div className={`text-3xl font-black tabular-nums ${r.pnlPct >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                    {r.pnlPct >= 0 ? "+" : ""}{r.pnlPct.toFixed(1)}٪
+                    {fmtSignedPct(r.pnlPct)}
                   </div>
                   <div className="text-xs text-muted-foreground">{r.pnlPerShare >= 0 ? "+" : ""}{r.pnlPerShare.toFixed(2)} جنيه/سهم</div>
                 </div>
@@ -344,9 +347,14 @@ export default function AnalyzeClient() {
                 <span className={`rounded-full border px-3 py-1 font-semibold ${DECISION_STYLE[r.decision].chip}`}>{result?.ticker} — {result?.nameAr ?? ""}</span>
                 <span className="rounded-full border bg-background/70 px-3 py-1">متوسط شراءك: <b className="tabular-nums">{r.avgBuyPrice.toFixed(2)}</b></span>
                 <span className="rounded-full border bg-background/70 px-3 py-1">آخر سعر: <b className="tabular-nums">{r.lastClose.toFixed(2)}</b>{r.snapshot.asOf ? ` (${r.snapshot.asOf})` : ""}</span>
+                {r.lastCloseProvisional && (
+                  <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 font-semibold text-amber-700 dark:text-amber-400">
+                    الجلسة لسه شغالة — الحكم بالإغلاق النهائي
+                  </span>
+                )}
                 {r.recoveryPct !== null && (
                   <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 font-bold text-amber-700 dark:text-amber-400">
-                    لو بعت دلوقتي: تحتاج {fmtSigned(r.recoveryPct)} في أي سهم تاني عشان تعوّض
+                    لو بعت دلوقتي: تحتاج {fmtSignedPct(r.recoveryPct)} في أي سهم تاني عشان تعوّض
                   </span>
                 )}
               </div>
@@ -485,11 +493,13 @@ function LevelsTable({ title, rows, emptyAr, icon, tone }: { title: string; rows
             {rows.map((l, i) => (
               <div key={i} className={`rounded-lg border p-3 text-sm transition-colors ${tint.card} hover:shadow-sm`}>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={`rounded-md border px-1.5 py-0.5 font-mono text-sm font-bold tabular ${tint.chip}`}>{l.low.toFixed(2)}–{l.high.toFixed(2)}</span>
+                  {/* 2026-11-19: a single-price pivot cluster printed «112.85–112.85» —
+                      coinciding edges collapse to one value */}
+                  <span className={`rounded-md border px-1.5 py-0.5 font-mono text-sm font-bold tabular ${tint.chip}`}>{Math.abs(l.high - l.low) < 1e-9 ? l.low.toFixed(2) : `${l.low.toFixed(2)}–${l.high.toFixed(2)}`}</span>
                   <Badge variant="outline" className="text-[10px]">{l.touches}× لمسة</Badge>
                   {l.broken && <Badge variant="secondary" className="text-[10px]">مكسورة</Badge>}
                   <span className="ms-auto rounded-full bg-muted px-2 py-0.5 tabular-nums text-xs text-muted-foreground">
-                    من السعر {fmtSigned(l.distFromPricePct)} · من متوسطك {fmtSigned(l.distFromAvgPct)}
+                    من السعر {fmtSignedPct(l.distFromPricePct)} · من متوسطك {fmtSignedPct(l.distFromAvgPct)}
                   </span>
                 </div>
                 <div className="mt-1.5 text-xs text-muted-foreground">{l.noteAr}</div>
@@ -502,8 +512,12 @@ function LevelsTable({ title, rows, emptyAr, icon, tone }: { title: string; rows
   )
 }
 
-function fmtSigned(x: number): string {
-  return `${x >= 0 ? "+" : ""}${x.toFixed(1)}٪`
+function fmtSignedPct(x: number): string {
+  // 2026-11-19: values under 0.05٪ keep 2 decimals so a tiny loss prints
+  // «-0.03٪» — the old «±0.0٪» both hid the magnitude and could flip its sign.
+  const neg = x < 0 || Object.is(x, -0)
+  if (Math.abs(x) < 0.05) return `${neg ? "-" : "+"}${Math.abs(x).toFixed(2)}٪`
+  return `${neg ? "-" : "+"}${Math.abs(x).toFixed(1)}٪`
 }
 
 function Snap({ label, value, wide }: { label: string; value: string; wide?: boolean }) {

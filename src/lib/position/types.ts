@@ -105,6 +105,10 @@ export interface PositionReview {
   levelsBasisAr: string
   /** the line in the sand: the close that flips this decision */
   invalidationAr: string
+  /** 2026-11-19: false when the last bar is the LIVE session (its close is
+   *  not final) — the report then judges by the OFFICIAL close (الحكم
+   *  بالإغلاق) and the UI shows the freshness chip. */
+  lastCloseProvisional: boolean
   /** fundamental / liquidity / data-quality warnings that travel with it */
   warningsAr: string[]
   snapshot: TechnicalSnapshot

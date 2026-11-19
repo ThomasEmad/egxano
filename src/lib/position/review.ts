@@ -71,6 +71,11 @@ export interface ReviewInput {
    *  would. Optional: null/undefined keeps today's behavior (no market lines),
    *  never fabricated from missing intelligence. */
   marketCtx?: MarketContextSection | null
+  /** 2026-11-19 doctrine gate: false when the last bar is the LIVE session
+   *  (its close is not final) — break certainty and break VERDICTS then wait
+   *  for the official close. Undefined/true = final (all callers/tests keep
+   *  today's behavior). Computed by the service (Africa/Cairo session clock). */
+  lastBarFinal?: boolean
 }
 
 /** The support-break + cushion reading, recomputed here so the position view
@@ -158,13 +163,25 @@ function levelLines(map: ZoneMap, close: number, avgBuy: number): { supports: Le
 }
 
 const fmt = (x: number) => x.toFixed(2)
-const pct1 = (x: number) => `${x >= 0 ? "+" : ""}${x.toFixed(1)}٪`
+/** Signed percent — never loses its sign to rounding: −0.03٪ prints as
+ *  «-0.03٪», never as «±0.0٪» (the 2026-11-19 audit: a −0.03٪ position
+ *  printed «-0.0٪», and the UI turned the rounded −0 into «+0.0٪»). */
+const pct1 = (x: number) => `${x >= 0 ? "+" : ""}${Math.abs(x) < 0.05 ? x.toFixed(2) : x.toFixed(1)}٪`
+/** The JSON P/L value gets the same rule: keep 2 decimals near zero so the
+ *  sign survives the round-trip (−0.026 → −0.03, not −0 → «+0.0٪» in the UI). */
+const roundPnl = (p: number): number => (Math.abs(p) < 0.05 ? Math.round(p * 100) / 100 : Math.round(p * 10) / 10)
 /** 1-decimal percent WITHOUT a sign — for unsigned quantities like the close's
  *  location inside its own range or a wick's share of the day's range. */
 const pctPlain = (x: number) => `${x.toFixed(1)}٪`
 /** 1-decimal ×multiple — for volume class bounds, ATR stretch and candle body. */
 const mult1 = (x: number) => `${x.toFixed(1)}×`
+/** A zone range whose edges coincide prints ONE value — «112.85–112.85» was a
+ *  broken display of a single-price pivot cluster (2026-11-19 audit). */
+const fmtZone = (low: number, high: number) => (Math.abs(high - low) < 1e-9 ? fmt(low) : `${fmt(low)}–${fmt(high)}`)
 const finNum = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x)
+/** A candle body below this share of ATR is a doji — quoting «بجسم 0.0× ATR»
+ *  and then a direction is nonsense; the narrative switches wording instead. */
+const BODY_DIRECTION_MIN_ATR = 0.1
 
 // =============================================================================
 // OWNER MANDATE (2026-11-18) — the veteran's voice. «اسلوب تحليل السهم في قسم
@@ -234,6 +251,11 @@ export interface VeteranOpts {
   avgBuyPrice: number
   close: number
   trendAr: string
+  /** the last bar's session-finality flag (2026-11-19 doctrine gate): when
+   *  false the close is still LIVE, so certainty claims («سحب سيولة حقيقي مش
+   *  كسر كاذب», «ما بترجعش بسرعة») soften to close-based judgment — الحكم
+   *  بالإغلاق. Undefined = final (old callers keep today's wording). */
+  lastBarFinal?: boolean
 }
 
 /** Which meaning group the branch belongs to, for the pattern lines:
@@ -361,9 +383,19 @@ function veteranTriggerLinesAr(ctx: MarketContext, opts: VeteranOpts): string[] 
   }
 
   // 1) spike volume ON the break — the exit branches' doctrine moment: is
-  // this the makers' fake break, or a real liquidity pull?
+  // this the makers' fake break, or a real liquidity pull? A doji-tight body
+  // (2026-11-19 audit: «بجسم 0.0× ATR نازل» printed for a zero body) never
+  // claims a direction — the wording switches to the battle-at-the-level read,
+  // and on a LIVE session the certainty softens to close-based judgment.
   if ((b === "farCushionExit" || b === "engineExit") && ctx.volCharacter === "spike") {
-    add(`أنا شايف في الشمعة فوليوم Spike فوق 2.5× من المتوسط${ctx.bodyVsAtr !== null ? ` وبجسم ${mult1(ctx.bodyVsAtr)} ATR` : ""} نازل مع الكسر نفسه — من تجارب السوق ده سحب سيولة حقيقي مش كسر كاذب، والكسور اللي بتيجي بالفوليوم ده نادرًا ما بترجع بسرعة.`)
+    const bodyClause =
+      ctx.bodyVsAtr !== null && ctx.bodyVsAtr >= BODY_DIRECTION_MIN_ATR
+        ? ` وبجسم ${mult1(ctx.bodyVsAtr)} ATR`
+        : " وبجسم شبه معدوم — معركة حجم حقيقية عند المستوى"
+    const certainty = opts.lastBarFinal === false
+      ? "من تجارب السوق الفوليوم ده نمط سحب سيولة معروف — بس الحسم بين سحب حقيقي وكسر كاذب بيتكتب بالإغلاق النهائي مش بلحظة اللمسة"
+      : "من تجارب السوق ده سحب سيولة حقيقي مش كسر كاذب، والكسور اللي بتيجي بالفوليوم ده نادرًا ما بترجع بسرعة"
+    add(`أنا شايف في الشمعة فوليوم Spike فوق 2.5× من المتوسط${bodyClause} نازل مع الكسر نفسه — ${certainty}.`)
   }
   // 2) bearish momentum divergence while riding a profit — the trap at the top
   if ((b === "hold" || b === "takeProfit") && ctx.divergence === "bearish") {
@@ -375,7 +407,11 @@ function veteranTriggerLinesAr(ctx: MarketContext, opts: VeteranOpts): string[] 
   }
   // 4) spike volume closing at the top — real buying pressure, not a flick
   if ((b === "hold" || b === "takeProfit") && ctx.volCharacter === "spike" && ctx.closeLocationPct !== null && ctx.closeLocationPct >= 70) {
-    add(`فوليوم Spike فوق 2.5× من المتوسط${ctx.bodyVsAtr !== null ? ` وبجسم ${mult1(ctx.bodyVsAtr)} ATR` : ""}، والإغلاق قرب قمة المدى (${pctPlain(ctx.closeLocationPct)} من المدى) — ده شراء حقيقي فوق مش رفلة صنّاع، والقوة دي بالتجربة بتكمل جلسات مش يوم واحد.`)
+    const bodyClause =
+      ctx.bodyVsAtr !== null && ctx.bodyVsAtr >= BODY_DIRECTION_MIN_ATR
+        ? ` وبجسم ${mult1(ctx.bodyVsAtr)} ATR`
+        : " وبجسم شبه معدوم"
+    add(`فوليوم Spike فوق 2.5× من المتوسط${bodyClause}، والإغلاق قرب قمة المدى (${pctPlain(ctx.closeLocationPct)} من المدى) — ده شراء حقيقي فوق مش رفلة صنّاع، والقوة دي بالتجربة بتكمل جلسات مش يوم واحد.`)
   }
   // 5) the hollow climb: dry volume into the range top / a multi-day streak
   if (b === "hold" && ctx.volCharacter === "dry" && (ctx.nearRangeTop === true || (ctx.streakUp ?? 0) >= 3)) {
@@ -472,15 +508,23 @@ export interface NarrativeExtra {
 }
 
 export function narrativeLinesAr(ctx: MarketContext, opts: VeteranOpts, extra: NarrativeExtra = {}): string[] {
+  // the market map is decided-CONTEXT (regime + breadth + sector) — it must
+  // not be the first casualty of the 4-line cap (2026-11-19 audit: the map
+  // could drop while proverbs filled the slots). When a map line exists, the
+  // earlier passes cap one line lower so the map ALWAYS reaches the report;
+  // no map (null section) keeps the old behavior byte-for-byte.
+  const mapLines = marketMapAr(extra.mctx ?? null, { close: opts.close, branch: opts.branch })
+  const reserved = mapLines.length
   const lines = veteranTriggerLinesAr(ctx, opts)
   const push = (s: string) => {
-    if (lines.length < NARRATIVE_MAX_LINES && !lines.includes(s)) lines.push(s)
+    if (lines.length < NARRATIVE_MAX_LINES - reserved && !lines.includes(s)) lines.push(s)
   }
   const maker = makerGamesAr(ctx, {
     branch: opts.branch,
     avgBuyPrice: opts.avgBuyPrice,
     close: opts.close,
     trendAr: opts.trendAr,
+    lastBarFinal: opts.lastBarFinal,
     cushion: extra.cushion ?? null,
     nearestSupportLow: extra.nearestSupportLow ?? null,
     prevClose: extra.prevClose ?? null,
@@ -495,9 +539,9 @@ export function narrativeLinesAr(ctx: MarketContext, opts: VeteranOpts, extra: N
   const breakBranch = opts.branch === "farCushionExit" || opts.branch === "engineExit" || opts.branch === "cushionWait"
   const middle = breakBranch ? [...maker, ...lex] : [...lex, ...maker]
   for (const s of middle) push(s)
-  // the market map — LAST before the VSA passthrough
-  for (const s of marketMapAr(extra.mctx ?? null, { close: opts.close, branch: opts.branch })) push(s)
-  if (ctx.vsaNoteAr) push(ctx.vsaNoteAr)
+  // the market map — LAST before the VSA passthrough (with its reserved slot)
+  for (const s of mapLines) if (lines.length < NARRATIVE_MAX_LINES && !lines.includes(s)) lines.push(s)
+  if (ctx.vsaNoteAr && lines.length < NARRATIVE_MAX_LINES && !lines.includes(ctx.vsaNoteAr)) lines.push(ctx.vsaNoteAr)
   return lines
 }
 
@@ -640,6 +684,58 @@ function takeProfitPlanAr(bearish: boolean, close: number, trail: { level: numbe
   return `أنا بفكر معاك كده: ${sizingAr} — ${lineAr}، وأي إغلاق يومي تحت الخط ده بينهي الجزء المتبقي (الحكم بالإغلاق مش باللمسة). ${rationaleAr}.`
 }
 
+// =============================================================================
+// 2026-11-19 AUDIT ROUND — the consistency guards the owner's cases exposed.
+// =============================================================================
+
+/** The session-finality rule: a bar dated BEFORE today (Africa/Cairo) is
+ *  final; a bar dated TODAY is the LIVE session until 15:00 Cairo (the ~14:30
+ *  close plus the vendor's confirmation window); a future-dated bar is never
+ *  trusted. The whole doctrine says «الحكم بالإغلاق» — this is what makes the
+ *  sentence true. Pure: now injectable for tests. */
+export function isLastBarFinal(ts: string | null | undefined, now: Date = new Date()): boolean {
+  if (!ts || ts.length < 10) return false
+  const sessionDay = ts.slice(0, 10)
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Cairo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false,
+  }).formatToParts(now)
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ""
+  const today = `${get("year")}-${get("month")}-${get("day")}`
+  const hour = Number(get("hour"))
+  if (sessionDay < today) return true
+  if (sessionDay === today) return Number.isFinite(hour) && hour >= 15
+  return false
+}
+
+/** The round-number WATCH trigger, integrated into the official plan (2026-11-19
+ *  audit: the lexicon spoke of «الأرقام المستديرة» as wisdom while the plan's
+ *  own trigger ladder ignored the level). Fires when the nearest round level
+ *  sits BETWEEN the close and the defense line — the first daily close under
+ *  it is the first rung of the ladder. */
+function roundWatchTriggerAr(ctx: MarketContext, close: number, defenseLevel: number | null): string | null {
+  const rl = ctx.roundLevelNear
+  if (!rl || rl.level >= close) return null
+  if (defenseLevel !== null && rl.level <= defenseLevel) return null
+  return `المشغّل الأول للمراقبة: إغلاق يومي تحت ${fmt(rl.level)} — رقم مستدير على بعد ${pctPlain(rl.distPct)} (الأرقام المستديرة لما بتتكسر بتقلب أدوار وبتدير سقف) قبل خط الإلغاء الأساسي`
+}
+
+/** The trend-break distance honesty: a price 15%+ below EMA50 did NOT break
+ *  today — narrating an established state as today's candle event was the
+ *  story gap (AMES: −23٪ under EMA50 told as «الكسر نفسه»). Null when the
+ *  break is fresh or the average is missing. */
+export const TREND_BREAK_OLD_NEWS_PCT = 15
+function trendBreakOldNewsAr(close: number, ema50: number | null): string | null {
+  if (ema50 === null || ema50 <= 0) return null
+  const dist = ((ema50 - close) / ema50) * 100
+  if (dist < TREND_BREAK_OLD_NEWS_PCT) return null
+  return `الكسر ده مش حدث شمعة النهاردة: السعر بيع عن EMA50 بـ ${pctPlain(dist)} من فترة — الحالة قائمة قديمًا، واللي بيحصل النهاردة هو القفل/الفجوة والحجم، والقرار بيتقاس على الحالة القائمة مش على شمعة واحدة`
+}
+
 export function reviewPosition(input: ReviewInput): PositionReview {
   const { row, bars, map, avgBuyPrice } = input
   // TWO-CACHE SKEW FIX (2026-11-19): row and bars come from two independent
@@ -685,6 +781,23 @@ export function reviewPosition(input: ReviewInput): PositionReview {
   const reboundZoneLow = avgBuyPrice * 0.75
   const reboundZoneHigh = avgBuyPrice * 0.8
 
+  // ---- the shared state reads (2026-11-19 ANTI-FLIP FIX, AMES) ----
+  // The trend break used to be checked ONLY on the loss side, while the profit
+  // side held unconditionally — so the P/L SIGN picked which exit detector
+  // applied, and two users 10 piasters apart on the identical tape got
+  // opposite verdicts (اخرج الآن vs احتفظ). From today the open-field trend
+  // break is read ONCE and applies to BOTH sides of zero; the owner mandates
+  // stay intact (deep loss → wait, ≥ +6٪ → partial take-profit).
+  const trendBroken = (mt?.ema20 ?? null) !== null && (mt?.ema50 ?? null) !== null && mt!.ema20! < mt!.ema50! && close < mt!.ema50!
+  const closeCushion = nearestSupportBelowClose !== null && Math.abs(nearestSupportBelowClose.distFromPricePct) <= EXIT_SUPPORT_CUSHION_WAIT_PCT
+  const openField = trendBroken && !closeCushion
+  // the session-finality gate: a LIVE last bar means «الحكم بالإغلاق» is not
+  // yet on the table — a detected break stays PROVISIONAL until the close
+  const provisionalClose = input.lastBarFinal === false
+  const breakPending = cushion.brokeLastSession && provisionalClose
+  const roundTrigger = roundWatchTriggerAr(ctx, close, effSupport?.level ?? null)
+  const oldNewsAr = trendBreakOldNewsAr(close, mt?.ema50 ?? null)
+
   const snapshot: TechnicalSnapshot = {
     lastClose: close,
     rsi14: mt?.rsi14 ?? null,
@@ -704,9 +817,9 @@ export function reviewPosition(input: ReviewInput): PositionReview {
   const levelsBasisAr = "المستويات من قيعان وقمم حقيقية متكررة (pivot zones) من بيانات التداول نفسها — مفيش مستوى مُختلق ولا نسب جاهزة."
   const closingAr = "أنا بفكر معاك بصوت عالي وأعرضلك الأرقام — ده تحليل مش قرار مؤكد، والقرار النهائي بيدك وحدك."
   const reasonsAr: string[] = []
-  let decision: PositionDecision
-  let headlineAr: string
-  let invalidationAr: string
+  let decision: PositionDecision = "hold" // init only for definite-assignment across the runTakeProfit closure — every branch assigns before its return
+  let headlineAr = ""
+  let invalidationAr = ""
   let planAr: string | null = null
   let question: ReviewQuestion | null = null
 
@@ -714,12 +827,43 @@ export function reviewPosition(input: ReviewInput): PositionReview {
     ? "ومفيش أي دعم مسجل تحته — يعني الهبوط لسه فاضي"
     : `والدعم التالي تحته (${fmt(cushion.cushionLevel)}) على بعد ${pctPlain(Math.abs(cushion.cushionGapPct ?? 0))} تحت السعر`
   const breakFactAr = cushion.brokeLastSession && cushion.brokenZone
-    ? `التقنية بصراحة: إغلاق النهاردة (${fmt(close)}) كسر دعم ${cushion.brokenZone.touches}× مختبَر (${fmt(cushion.brokenZone.low)}–${fmt(cushion.brokenZone.high)}) — هيكل اتكسر فعلًا`
+    ? `التقنية بصراحة: إغلاق النهاردة (${fmt(close)}) كسر دعم ${cushion.brokenZone.touches}× مختبَر (${fmtZone(cushion.brokenZone.low, cushion.brokenZone.high)}) — هيكل اتكسر فعلًا`
     : `التقنية بصراحة: ${trendAr}`
   // BUG FIX (2026-11-18, CRST review): trendTextAr already carries the full
   // EMA-order clause («هابط — السعر تحت EMA50 وEMA20 تحت EMA50 (ترتيب سلبي)»)
   // — the old conditional tail repeated it a second time inside the same line.
-  const trendFactAr = `الاتجاه: ${trendAr}`
+  // 2026-11-19 symmetry fix: the RSI clause now rides EVERY trend fact line
+  // (it used to appear only on the profit-hold branch — same stock, two
+  // analyses, one showing RSI and one hiding it).
+  const rsiClauseAr =
+    mt?.rsi14 != null
+      ? ` وRSI ${fmt(mt.rsi14)} (${mt.rsi14 > 70 ? "منطقة تشبع شرائي — متصدقش إن الصعود مستحيل يتوقف، خد أرباح جزئية لو عاجلك" : mt.rsi14 < 30 ? "منطقة تشبع بيعي — أرضية محتملة" : "منطقة متوازنة"})`
+      : ""
+  const trendFactAr = `الاتجاه: ${trendAr}${rsiClauseAr}`
+
+  // The shared GREEN partial-take-profit outcome (2026-11-17 owner rule): one
+  // builder for every red-exit branch that finds the position in profit ≥ +6٪
+  // (far-cushion break / engine signal / open-field trend break). The P/L
+  // sign below +6٪ never changes the red exit — that is the owner mandate.
+  const runTakeProfit = (triggerPhraseAr: string) => {
+    decision = "take_profit"
+    const bearish = isBearishPosture(close, mt?.ema20 ?? null, mt?.ema50 ?? null)
+    const trail = trailingLine(effSupport, mt?.ema20 ?? null, mt?.ema50 ?? null, close)
+    headlineAr = bearish
+      ? `إنت رابح ${pct1(pnlPct)} بس ${triggerPhraseAr} — أنا بفكر معاك في تأمين الجزء الأكبر من الربح وسيب جزء صغير بيتابع الإغلاق`
+      : `إنت رابح ${pct1(pnlPct)} بس ${triggerPhraseAr} — أنا بفكر معاك في جني جزء صغير من الربح، والباقي بيفضل في الصعود`
+    planAr = takeProfitPlanAr(bearish, close, trail)
+    invalidationAr = trail
+      ? `خط إلغاء الجزء المتبقي: الإغلاق اليومي تحت ${fmt(trail.level)} بينهي الجزء المتبقي — الحكم بالإغلاق مش باللمسة، لأن الصنّاع بيعملوا كسور كاذبة تحت المستويات`
+      : "خط إلغاء الجزء المتبقي: الإغلاق اليومي تحت قاع آخر 60 جلسة بينهي الجزء المتبقي — الحكم بالإغلاق مش باللمسة"
+    reasonsAr.push(
+      `النقطة اللي ممكن متشوفهاش من جو الربح: الربح فوق ${PROFIT_TAKE_MIN_PCT}٪ مع ${triggerPhraseAr} = سيولة بتخرج من السهم حتى لو إنت رابح — الخزنة بتتحمى بجزء مش بالكل.`,
+      `القراءة الفنية: ${trendAr}${rsiClauseAr} — ${bearish ? "الترتيب سلبي، فتأمين الجزء الأكبر منطقي وأريح من خروج كامل من سهم لسه رابح فيه" : "الهيكل لسه فوق المتوسطات، فالجني يكون جزئي والجزء الأكبر بيفضل شغال"}.`,
+      trail
+        ? `خط تتبع الجزء المتبقي: ${trail.basisAr} — الإلغاء بالإغلاق اليومي تحته، مش باللمسة: الكسور الكاذبة تحت المستويات حاجة معروفة في السوق المصري.`
+        : "خط تتبع الجزء المتبقي: قاع آخر 60 جلسة — الإلغاء بالإغلاق اليومي تحته، مش باللمسة.",
+    )
+  }
 
   // ---------- 0) DEEP LOSS — the owner's compounding-math regime. Any exit
   // verdict collapses into انتظار للارتداد + recovery math + the question.
@@ -760,45 +904,61 @@ export function reviewPosition(input: ReviewInput): PositionReview {
         : `خطة الارتداد (owner mandate): لما السعر يرتد للنطاق ${fmt(reboundZoneLow)}–${fmt(reboundZoneHigh)} تكون خسارتك في حدود 20–25٪ وساعتها الخروج بيكون قرار منظم مش هروب.`,
     )
     question = { ...q, answeredAr: input.downsideAnswer === "yes" ? q.yesOutcomeAr : input.downsideAnswer === "no" ? q.noOutcomeAr : null }
+    // the round-number watch trigger joins the plan when it sits closer than
+    // the waiting line (2026-11-19 integration fix)
+    if (roundTrigger) reasonsAr.push(roundTrigger)
     // the veteran's reading, appended after the recovery math — silent ([])
     // when the context is honestly null
-    reasonsAr.push(...narrativeLinesAr(ctx, { branch: "deepLoss", avgBuyPrice, close, trendAr }, narrativeExtra))
+    reasonsAr.push(...narrativeLinesAr(ctx, { branch: "deepLoss", avgBuyPrice, close, trendAr, lastBarFinal: !provisionalClose }, narrativeExtra))
     return {
       decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
-      avgBuyPrice, lastClose: close, pnlPct: Math.round(pnlPct * 10) / 10, pnlPerShare: Math.round(pnlPerShare * 100) / 100,
+      avgBuyPrice, lastClose: close, pnlPct: roundPnl(pnlPct), pnlPerShare: Math.round(pnlPerShare * 100) / 100,
       recoveryPct, reasonsAr, planAr, question, closingAr,
-      supports, resistances, levelsBasisAr, invalidationAr, warningsAr, snapshot, engine: row.engine,
+      supports, resistances, levelsBasisAr, invalidationAr, warningsAr, snapshot, lastCloseProvisional: provisionalClose, engine: row.engine,
+    }
+  }
+
+  // ---------- 0.5) the LIVE-session break — مرشح مش محسوم (2026-11-19): when
+  // the last bar is the session in progress, a price sitting under a trusted
+  // support is NOT a verdict — «الحكم بالإغلاق» has not happened yet. The
+  // verdict becomes انتظر وراقب with a two-sided close-based plan, and every
+  // certainty line in the narrative softens the same way (veteran slot 1,
+  // lexicon A5, maker G1).
+  if (breakPending) {
+    decision = "wait"
+    headlineAr = `آخر سعر مسجل (${fmt(close)}) واقف تحت دعم ${cushion.brokenZone!.touches}× مختبَر — الكسر مرشح مش محسوم، والإغلاق النهائي هو القاضي`
+    planAr = `الخطة بالإغلاق مش باللحظة: قفل نهائي تحت مستوى الكسر (${fmt(cushion.brokenZone!.low)}) يفعّل الخروج${cushion.cushionLevel !== null ? ` — والدعم اللي تحته (${fmt(cushion.cushionLevel)}) على بعد ${pctPlain(Math.abs(cushion.cushionGapPct ?? 0))} هيحدد حجم الهبوط المتاح` : " — ومفيش بطانة قريبة تحته"}؛ وقفل نهائي فوق ${fmt(cushion.brokenZone!.low)} بيلغي سيناريو الكسر خالص ويرجّح إنه كان جمع سيولة.`
+    invalidationAr = `القاعدة الثابتة: الحكم بالإغلاق مش باللمسة — إغلاق نهائي تحت ${fmt(cushion.brokenZone!.low)} يقلب القرار من انتظار إلى خروج فوري`
+    reasonsAr.push(
+      `الوضع بحسب آخر سعر مسجل: متوسط شراء ${fmt(avgBuyPrice)} وسعر ${fmt(close)} — ${pnlPct >= 0 ? "رابح" : "خاسر"} ${pct1(pnlPct)} (${pnlPerShare >= 0 ? "+" : ""}${fmt(pnlPerShare)} جنيه/سهم).`,
+      `الجلسة لسه شغالة: آخر سعر واقف تحت دعم ${cushion.brokenZone!.touches}× مختبَر (${fmtZone(cushion.brokenZone!.low, cushion.brokenZone!.high)}) — ده مرشح كسر مش حسم، ومن تجارب السوق اللمسات تحت المستويات بتتصلح أو بتتحسم بالإغلاق.`,
+      cushion.farCushion
+        ? `ولو الإغلاق النهائي قفل تحت، الصورة بيثقل: ${openFieldAr} — فالخروج بالإغلاق بيكون قرار إدارة مخاطر مش ردة فعل.`
+        : `ولو الإغلاق النهائي قفل تحت، البطانة القريبة (${fmt(cushion.cushionLevel ?? 0)}) هي اللي بتحدد حجم الهبوط المتبقي — وساعتها بنقيس تاني مع بعض.`,
+    )
+    if (roundTrigger) reasonsAr.push(roundTrigger)
+    if (pnlPct < 0) reasonsAr.push(recoveryReasonAr(pnlPct, recoveryPct ?? 0))
+    reasonsAr.push(...narrativeLinesAr(ctx, { branch: "cushionWait", avgBuyPrice, close, trendAr, lastBarFinal: false }, narrativeExtra))
+    return {
+      decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
+      avgBuyPrice, lastClose: close, pnlPct: roundPnl(pnlPct), pnlPerShare: Math.round(pnlPerShare * 100) / 100,
+      recoveryPct, reasonsAr, planAr, question: null, closingAr,
+      supports, resistances, levelsBasisAr, invalidationAr, warningsAr, snapshot, lastCloseProvisional: true, engine: row.engine,
     }
   }
 
   // ---------- 1) support broke on the last session → the cushion rule decides
   if (cushion.brokeLastSession && cushion.farCushion) {
     reasonsAr.push(
-      `بص بصراحة: إغلاق النهاردة (${fmt(close)}) كسر دعم ${cushion.brokenZone!.touches}× مختبَر (${fmt(cushion.brokenZone!.low)}–${fmt(cushion.brokenZone!.high)}) — ده مش تذبذب، ده هيكل اتكسر.`,
+      `بص بصراحة: إغلاق النهاردة (${fmt(close)}) كسر دعم ${cushion.brokenZone!.touches}× مختبَر (${fmtZone(cushion.brokenZone!.low, cushion.brokenZone!.high)}) — ده مش تذبذب، ده هيكل اتكسر.`,
       openFieldAr + " — يعني مفيش حاجة قريبة تمسك السعر لو السوق نزل أكتر.",
       `مركزك اتفتح بمتوسط ${fmt(avgBuyPrice)} والسعر دلوقتي ${fmt(close)} يعني ${pnlPct >= 0 ? "رابح" : "خاسر"} ${pct1(pnlPct)} (${pnlPerShare >= 0 ? "+" : ""}${fmt(pnlPerShare)} جنيه/سهم)${pnlPct < 0 ? ` — و${recoveryReasonAr(pnlPct, recoveryPct ?? 0).toLowerCase()}` : ""}.`,
     )
     if (pnlPct >= PROFIT_TAKE_MIN_PCT) {
       // the 2026-11-17 owner rule: a PROFITABLE position never gets the red
       // exit — the break becomes a partial take-profit with a trailing runner
-      decision = "take_profit"
-      const bearish = isBearishPosture(close, mt?.ema20 ?? null, mt?.ema50 ?? null)
-      const trail = trailingLine(effSupport, mt?.ema20 ?? null, mt?.ema50 ?? null, close)
-      headlineAr = bearish
-        ? `إنت رابح ${pct1(pnlPct)} بس الكسر حصل والترتيب التقني سلبي — أنا بفكر معاك في تأمين الجزء الأكبر من الربح وسيب جزء صغير بيتابع الإغلاق`
-        : `إنت رابح ${pct1(pnlPct)} بس الكسر حصل والهيكل لسه فوق متوسطاته — أنا بفكر معاك في جني جزء صغير من الربح، والباقي بيفضل في الصعود`
-      planAr = takeProfitPlanAr(bearish, close, trail)
-      invalidationAr = trail
-        ? `خط إلغاء الجزء المتبقي: الإغلاق اليومي تحت ${fmt(trail.level)} بينهي الجزء المتبقي — الحكم بالإغلاق مش باللمسة، لأن الصنّاع بيعملوا كسور كاذبة تحت المستويات`
-        : "خط إلغاء الجزء المتبقي: الإغلاق اليومي تحت قاع آخر 60 جلسة بينهي الجزء المتبقي — الحكم بالإغلاق مش باللمسة"
-      reasonsAr.push(
-        `النقطة اللي ممكن متشوفهاش من جو الربح: الربح فوق ${PROFIT_TAKE_MIN_PCT}٪ مع كسر دعم = سيولة بتخرج من السهم حتى لو إنت رابح — الخزنة بتتحمى بجزء مش بالكل.`,
-        `القراءة الفنية: ${trendAr} — ${bearish ? "الترتيب سلبي، فتأمين الجزء الأكبر منطقي وأريح من خروج كامل من سهم لسه رابح فيه" : "الهيكل لسه فوق المتوسطات، فالجني يكون جزئي والجزء الأكبر بيفضل شغال"}.`,
-        trail
-          ? `خط تتبع الجزء المتبقي: ${trail.basisAr} — الإلغاء بالإغلاق اليومي تحته، مش باللمسة: الكسور الكاذبة تحت المستويات حاجة معروفة في السوق المصري.`
-          : "خط تتبع الجزء المتبقي: قاع آخر 60 جلسة — الإلغاء بالإغلاق اليومي تحته، مش باللمسة.",
-      )
-      reasonsAr.push(...narrativeLinesAr(ctx, { branch: "takeProfit", avgBuyPrice, close, trendAr }, narrativeExtra))
+      runTakeProfit("كسر دعم مختبَر")
+      reasonsAr.push(...narrativeLinesAr(ctx, { branch: "takeProfit", avgBuyPrice, close, trendAr, lastBarFinal: !provisionalClose }, narrativeExtra))
     } else {
       decision = "exit"
       headlineAr = `الكسر حصل ومفيش بطانة قريبة تحت السعر — الخروج هنا إدارة مخاطر مش هيزنة`
@@ -807,13 +967,13 @@ export function reviewPosition(input: ReviewInput): PositionReview {
         "قاعدة البيع على الكسر بتشتغل بس لما الدعم اللي تحت يكون بعيد — وهنا هو بعيد فعلًا، فالقرار خروج.",
         "الخروج مش فشل ولا اعتراف بغلطة — السوق بياخد وبيدي، واللي بيحافظ على رصيده بيلقى باب تاني يدخل منه: ده الفرق بين المتداول اللي عنده خطة والمتداول اللي بيمسك بيديه من غير خطة، وبنقفل الخسارة الصغيرة قبل ما تبقى كبيرة.",
       )
-      reasonsAr.push(...narrativeLinesAr(ctx, { branch: "farCushionExit", avgBuyPrice, close, trendAr }, narrativeExtra))
+      reasonsAr.push(...narrativeLinesAr(ctx, { branch: "farCushionExit", avgBuyPrice, close, trendAr, lastBarFinal: !provisionalClose }, narrativeExtra))
     }
     return {
       decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
-      avgBuyPrice, lastClose: close, pnlPct: Math.round(pnlPct * 10) / 10, pnlPerShare: Math.round(pnlPerShare * 100) / 100,
+      avgBuyPrice, lastClose: close, pnlPct: roundPnl(pnlPct), pnlPerShare: Math.round(pnlPerShare * 100) / 100,
       recoveryPct, reasonsAr, planAr, question: null, closingAr,
-      supports, resistances, levelsBasisAr, invalidationAr, warningsAr, snapshot, engine: row.engine,
+      supports, resistances, levelsBasisAr, invalidationAr, warningsAr, snapshot, lastCloseProvisional: provisionalClose, engine: row.engine,
     }
   }
 
@@ -829,19 +989,20 @@ export function reviewPosition(input: ReviewInput): PositionReview {
     planAr = `أنا بفكر معاك كده: راقب إغلاقات الجلسات القادمة — الإغلاق تحت ${fmt(cushion.cushionLevel ?? 0)} بيرجّح سيناريو الخروج، والإغلاق فوق مستوى الكسر الأصلي (${fmt(cushion.brokenZone!.low)}) بيرجّح إن الكسر كان كاذب ويقرّب من إلغاء السيناريو ده خالص.`
     reasonsAr.push(
       `وضعك محسوب: متوسط شراء ${fmt(avgBuyPrice)} وسعر النهاردة ${fmt(close)} — ${pnlPct >= 0 ? "رابح" : "خاسر"} ${pct1(pnlPct)} (${pnlPerShare >= 0 ? "+" : ""}${fmt(pnlPerShare)} جنيه/سهم).`,
-      `الصدمة: إغلاق النهاردة كسر دعم ${cushion.brokenZone!.touches}× مختبَر (${fmt(cushion.brokenZone!.low)}–${fmt(cushion.brokenZone!.high)}).`,
+      `الصدمة: إغلاق النهاردة كسر دعم ${cushion.brokenZone!.touches}× مختبَر (${fmtZone(cushion.brokenZone!.low, cushion.brokenZone!.high)}).`,
       `بس — وقاعدة البورصة اللي اتفقنا عليها: مش أي كسر يعني بيع فورًا. الدعم اللي تحت (${fmt(cushion.cushionLevel ?? 0)}) لسه على بعد ${pctPlain(Math.abs(cushion.cushionGapPct ?? 0))} بس — يعني الهبوط المتبقي محدود والسوق هياخد قراره قريب جدًا من هنا.`,
       cushion.borderline
         ? "الفرق في المنطقة الحدّية (بين 3٪ و4٪): انتظار مع وقف ذهني أضيق عند البطانة نفسها — ولو كسرتها بإغلاق، دي إشارة تقيلة نتعامل معاها بجدية."
         : "البيع دلوقتي معناه إنك بتسلم السهم عند أول باب قبل ما يبان لو فيه مرتد — استنى الإغلاقات: دعم قريب بيمتص الضغط غالبًا.",
     )
+    if (roundTrigger) reasonsAr.push(roundTrigger)
     if (pnlPct < 0) reasonsAr.push(recoveryReasonAr(pnlPct, recoveryPct ?? 0))
-    reasonsAr.push(...narrativeLinesAr(ctx, { branch: "cushionWait", avgBuyPrice, close, trendAr }, narrativeExtra))
+    reasonsAr.push(...narrativeLinesAr(ctx, { branch: "cushionWait", avgBuyPrice, close, trendAr, lastBarFinal: !provisionalClose }, narrativeExtra))
     return {
       decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
-      avgBuyPrice, lastClose: close, pnlPct: Math.round(pnlPct * 10) / 10, pnlPerShare: Math.round(pnlPerShare * 100) / 100,
+      avgBuyPrice, lastClose: close, pnlPct: roundPnl(pnlPct), pnlPerShare: Math.round(pnlPerShare * 100) / 100,
       recoveryPct, reasonsAr, planAr, question: null, closingAr,
-      supports, resistances, levelsBasisAr, invalidationAr, warningsAr, snapshot, engine: row.engine,
+      supports, resistances, levelsBasisAr, invalidationAr, warningsAr, snapshot, lastCloseProvisional: provisionalClose, engine: row.engine,
     }
   }
 
@@ -850,44 +1011,72 @@ export function reviewPosition(input: ReviewInput): PositionReview {
   if (row.state === "exit") {
     reasonsAr.push(
       `حسبت لك الوضع: متوسط شراء ${fmt(avgBuyPrice)} وسعر النهاردة ${fmt(close)} — ${pnlPct >= 0 ? "رابح" : "خاسر"} ${pct1(pnlPct)} (${pnlPerShare >= 0 ? "+" : ""}${fmt(pnlPerShare)} جنيه/سهم).`,
-      `الاتجاه العام: ${trendAr} — والمحرك الفني سلّم الإشارة "خروج".`,
+      `الاتجاه العام: ${trendAr}${rsiClauseAr} — والمحرك الفني سلّم الإشارة "خروج".`,
     )
     if (pnlPct >= PROFIT_TAKE_MIN_PCT) {
-      decision = "take_profit"
-      const bearish = isBearishPosture(close, mt?.ema20 ?? null, mt?.ema50 ?? null)
-      const trail = trailingLine(effSupport, mt?.ema20 ?? null, mt?.ema50 ?? null, close)
-      headlineAr = bearish
-        ? `إنت رابح ${pct1(pnlPct)} بس المحرك سلّم إشارة خروج — أنا بفكر معاك في تأمين الجزء الأكبر من الربح وسيب جزء صغير بيتابع الإغلاق`
-        : `إنت رابح ${pct1(pnlPct)} والمحرك بيحذر رغم إن الهيكل لسه فوق متوسطاته — أنا بفكر معاك في جني جزء صغير من الربح، والباقي بيفضل في الصعود`
-      planAr = takeProfitPlanAr(bearish, close, trail)
-      invalidationAr = trail
-        ? `خط إلغاء الجزء المتبقي: الإغلاق اليومي تحت ${fmt(trail.level)} بينهي الجزء المتبقي — الحكم بالإغلاق مش باللمسة، لأن الصنّاع بيعملوا كسور كاذبة تحت المستويات`
-        : "خط إلغاء الجزء المتبقي: الإغلاق اليومي تحت قاع آخر 60 جلسة بينهي الجزء المتبقي — الحكم بالإغلاق مش باللمسة"
+      runTakeProfit("المحرك سلّم إشارة خروج")
       reasonsAr.push(
-        `النقطة اللي ممكن متشوفهاش من جو الربح: الربح فوق ${PROFIT_TAKE_MIN_PCT}٪ مع إشارة خروج من المحرك = سيولة بتخرج من السهم حتى لو إنت رابح — الخزنة بتتحمى بجزء مش بالكل.`,
-        `القراءة الفنية: ${trendAr} — ${bearish ? "الترتيب سلبي، فتأمين الجزء الأكبر منطقي وأريح من خروج كامل من سهم لسه رابح فيه" : "الهيكل لسه فوق المتوسطات، فالجني يكون جزئي والجزء الأكبر بيفضل شغال"}.`,
-        trail
-          ? `خط تتبع الجزء المتبقي: ${trail.basisAr} — الإلغاء بالإغلاق اليومي تحته، مش باللمسة: الكسور الكاذبة تحت المستويات حاجة معروفة في السوق المصري.`
-          : "خط تتبع الجزء المتبقي: قاع آخر 60 جلسة — الإلغاء بالإغلاق اليومي تحته، مش باللمسة.",
         "كسر الاتجاه مختلف عن كسر دعم عابر: هنا البنية الزمنية نفسها بتتغير — عشان كده الجني جزئي مش احتفاظ كامل، والجزء المتبقي بيتقفل بالإغلاق تحت خط التتبع.",
       )
-      reasonsAr.push(...narrativeLinesAr(ctx, { branch: "takeProfit", avgBuyPrice, close, trendAr }, narrativeExtra))
+      reasonsAr.push(...narrativeLinesAr(ctx, { branch: "takeProfit", avgBuyPrice, close, trendAr, lastBarFinal: !provisionalClose }, narrativeExtra))
     } else {
       decision = "exit"
       headlineAr = "الاتجاه نفسه اتكسر — ده مش وقت المبادرة، ده وقت حماية اللي فاضل"
-      invalidationAr = `السيناريو يرجع فيه بإغلاق يومي فوق EMA50 (${mt?.ema50 ? fmt(mt.ema50) : "المتوسط"}) مع ترتيب صعودي تاني`
+      const ema50AboveDistAr =
+        mt?.ema50 != null && mt.ema50 > close ? ` — والمسافة (${pct1(((mt.ema50 - close) / close) * 100)}) تأكد إن دي حالة قائمة مش لمسة عابرة` : ""
+      invalidationAr = `السيناريو يرجع فيه بإغلاق يومي فوق EMA50 (${mt?.ema50 ? fmt(mt.ema50) : "المتوسط"}) مع ترتيب صعودي تاني${ema50AboveDistAr}`
       reasonsAr.push(
         "كسر الاتجاه مختلف عن كسر دعم عابر: هنا البنية الزمنية نفسها بتتغير، والأسهم اللي بتكسر EMA50 بترتيب سلبي بتكمل ضعف غالبًا.",
         `الخروج هنا بيحمي الرصيد: أفضل وقت للرجوع هو لما يرجع السهم فوق متوسطاته ويثبت — والموقع هيقولك لحظتها.`,
       )
+      if (oldNewsAr) reasonsAr.push(oldNewsAr)
       if (pnlPct < 0) reasonsAr.push(recoveryReasonAr(pnlPct, recoveryPct ?? 0))
-      reasonsAr.push(...narrativeLinesAr(ctx, { branch: "engineExit", avgBuyPrice, close, trendAr }, narrativeExtra))
+      reasonsAr.push(...narrativeLinesAr(ctx, { branch: "engineExit", avgBuyPrice, close, trendAr, lastBarFinal: !provisionalClose }, narrativeExtra))
     }
     return {
       decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
-      avgBuyPrice, lastClose: close, pnlPct: Math.round(pnlPct * 10) / 10, pnlPerShare: Math.round(pnlPerShare * 100) / 100,
+      avgBuyPrice, lastClose: close, pnlPct: roundPnl(pnlPct), pnlPerShare: Math.round(pnlPerShare * 100) / 100,
       recoveryPct, reasonsAr, planAr, question: null, closingAr,
-      supports, resistances, levelsBasisAr, invalidationAr, warningsAr, snapshot, engine: row.engine,
+      supports, resistances, levelsBasisAr, invalidationAr, warningsAr, snapshot, lastCloseProvisional: provisionalClose, engine: row.engine,
+    }
+  }
+
+  // ---------- 3.5) the open-field trend break — ONE verdict for any P/L sign
+  // (2026-11-19 ANTI-FLIP fix, AMES): the old engine checked the broken-trend
+  // exit ONLY on the loss side while the profit side held unconditionally, so
+  // two users 10 piasters apart on the IDENTICAL tape got opposite verdicts
+  // («اخرج الآن» vs «احتفظ»). From today the open-field break (broken EMA
+  // order + no close cushion under the price) exits BOTH sides of zero; the
+  // owner mandates stay intact: deep loss → انتظار (branch 0), ≥ +6٪ → the
+  // GREEN partial take-profit.
+  if (openField) {
+    reasonsAr.push(
+      `حسبت لك الوضع: متوسط شراء ${fmt(avgBuyPrice)} وسعر النهاردة ${fmt(close)} — ${pnlPct >= 0 ? "رابح" : "خاسر"} ${pct1(pnlPct)} (${pnlPerShare >= 0 ? "+" : ""}${fmt(pnlPerShare)} جنيه/سهم).`,
+      `الاتجاه العام: ${trendAr}${rsiClauseAr} — والبنية الهابطة مش مسكونة بدعم قريب يحكم الإغلاقات (${openFieldAr}).`,
+    )
+    if (pnlPct >= PROFIT_TAKE_MIN_PCT) {
+      runTakeProfit("الاتجاه اتكسر ومفيش بطانة قريبة")
+      reasonsAr.push(
+        "كسر الاتجاه مختلف عن كسر دعم عابر: هنا البنية الزمنية نفسها بتتغير — عشان كده الجني جزئي مش احتفاظ كامل، والجزء المتبقي بيتقفل بالإغلاق تحت خط التتبع.",
+      )
+      reasonsAr.push(...narrativeLinesAr(ctx, { branch: "takeProfit", avgBuyPrice, close, trendAr, lastBarFinal: !provisionalClose }, narrativeExtra))
+    } else {
+      decision = "exit"
+      headlineAr = "الاتجاه اتكسر ومفيش بطانة قريبة تحت السعر — ده وقت حماية اللي فاضل مش وقت المبادرة"
+      invalidationAr = `السيناريو يرجع فيه بإغلاق يومي فوق EMA50 (${mt?.ema50 ? fmt(mt.ema50) : "المتوسط"}) مع ترتيب صعودي تاني`
+      reasonsAr.push(
+        "قاعدتنا الثابتة: مفيش استثمار اسمه «هيرجع» من غير دليل فني — والاتجاه المكسور بحقل مفتوح تحته بيكمل ضعف غالبًا.",
+        "الخروج هنا بيحمي الرصيد: أفضل وقت للرجوع هو لما يرجع السهم فوق متوسطاته ويثبت — والموقع هيقولك لحظتها.",
+      )
+      if (oldNewsAr) reasonsAr.push(oldNewsAr)
+      if (pnlPct < 0) reasonsAr.push(recoveryReasonAr(pnlPct, recoveryPct ?? 0))
+      reasonsAr.push(...narrativeLinesAr(ctx, { branch: "engineExit", avgBuyPrice, close, trendAr, lastBarFinal: !provisionalClose }, narrativeExtra))
+    }
+    return {
+      decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
+      avgBuyPrice, lastClose: close, pnlPct: roundPnl(pnlPct), pnlPerShare: Math.round(pnlPerShare * 100) / 100,
+      recoveryPct, reasonsAr, planAr, question: null, closingAr,
+      supports, resistances, levelsBasisAr, invalidationAr, warningsAr, snapshot, lastCloseProvisional: provisionalClose, engine: row.engine,
     }
   }
 
@@ -911,47 +1100,37 @@ export function reviewPosition(input: ReviewInput): PositionReview {
     invalidationAr = supLine
       ? `الخط اللي هتفرج عليه معايا: الإغلاق تحت ${fmt(supLine.level)} — ساعتها بس نفتح الملف من الأول. مش أي لمسة تحته: الصنّاع بيعملوا كسور كاذبة كتير في السوق المصري، والإغلاق الفعلي هو اللي بيقول الكلمة الأخيرة`
       : "مفيش بطانة معتمدة تحت السعر — فأي إغلاق تحت قاع آخر 60 جلسة يستحق معايا إعادة نظر كاملة"
-    planAr = supLine ? `الفكرة اللي بنشتغل عليها: طالما الإغلاقات واقفة فوق ${fmt(supLine.level)}، مفيش إشارة تقنية تبرر حركة — ولو جلسة قفلت تحته، متتحركش في ثانية اللقطة: استنى الإغلاق، وبين الحكم بالإغلاق والحجم بنعرف هل ده كسر حقيقي ولا كاذب.` : null
+    planAr = supLine
+      ? `الفكرة اللي بنشتغل عليها: طالما الإغلاقات واقفة فوق ${fmt(supLine.level)}، مفيش إشارة تقنية تبرر حركة — ولو جلسة قفلت تحته، متتحركش في ثانية اللقطة: استنى الإغلاق، وبين الحكم بالإغلاق والحجم بنعرف هل ده كسر حقيقي ولا كاذب.${roundTrigger ? ` ${roundTrigger}.` : ""}`
+      : null
     reasonsAr.push(
       `الأساسي أولًا: متوسطك ${fmt(avgBuyPrice)} والسعر ${fmt(close)} — يعني إنت ${pct1(pnlPct)} (${pnlPerShare >= 0 ? "+" : ""}${fmt(pnlPerShare)} جنيه/سهم). المركز مش في منطقة خطر.`,
-      `القراءة الفنية: ${trendAr}${mt?.rsi14 != null ? ` وRSI ${fmt(mt.rsi14)} (${mt.rsi14 > 70 ? "منطقة تشبع شرائي — متصدقش إن الصعود مستحيل يتوقف، خد أرباح جزئية لو عاجلك" : mt.rsi14 < 30 ? "منطقة تشبع بيعي — أرضية محتملة" : "منطقة متوازنة"})` : ""}.`,
+      `القراءة الفنية: ${trendAr}${rsiClauseAr}.`,
       supLine
         ? `خط الدفاع: ${supLine.basisAr} — طالما السعر فوقه بالإغلاق، القصة سليمة.`
         : "ملاحظة أمانة: مفيش دعم معتمد تحت السعر الحالي — الرحلة صاعدة بلا بطانة، ومن كلام أهل السوق: الأرباح بتتاخد بالعقل مش بالجشع، وبيع في القوة واشتري في الضعف — فالقوة اللي السعر واقف فيها دلوقتي هي مكان أخد جزء وانت مرتاح، مش مكان زيادة.",
       profitTarget
-        ? `الحلم فوق: أول منطقة تستحق قرار أرباح جزئي عند ${fmt(profitTarget.low)}–${fmt(profitTarget.high)} على بعد ${pct1(Math.round(((profitTarget.low - avgBuyPrice) / avgBuyPrice) * 1000) / 10)} من متوسطك.`
+        ? `الحلم فوق: أول منطقة تستحق قرار أرباح جزئي عند ${fmtZone(profitTarget.low, profitTarget.high)} على بعد ${pct1(Math.round(((profitTarget.low - avgBuyPrice) / avgBuyPrice) * 1000) / 10)} من متوسطك.`
         : `الحلم فوق: مفيش مقاومة مسجلة فوق متوسطك بـ ${PROFIT_TARGET_MIN_GAP_PCT}٪ أو أكثر في نافذة البيانات — السهم في أرض جديدة، والأرباح الجزئية هنا بيتقررها خط المتوسطات (EMA20/EMA50) مش سقف قديم`,
       "الخلاصة بصوت واضح: احتفظ. البيع يبقى قرار لما يفلخط الدفاع، مش لما القلق يعلو.",
     )
-    reasonsAr.push(...narrativeLinesAr(ctx, { branch: "hold", avgBuyPrice, close, trendAr }, narrativeExtra))
+    if (!supLine && roundTrigger) reasonsAr.push(roundTrigger)
+    reasonsAr.push(...narrativeLinesAr(ctx, { branch: "hold", avgBuyPrice, close, trendAr, lastBarFinal: !provisionalClose }, narrativeExtra))
     return {
       decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
-      avgBuyPrice, lastClose: close, pnlPct: Math.round(pnlPct * 10) / 10, pnlPerShare: Math.round(pnlPerShare * 100) / 100,
+      avgBuyPrice, lastClose: close, pnlPct: roundPnl(pnlPct), pnlPerShare: Math.round(pnlPerShare * 100) / 100,
       recoveryPct, reasonsAr, planAr, question: null, closingAr,
-      supports, resistances, levelsBasisAr, invalidationAr, warningsAr, snapshot, engine: row.engine,
+      supports, resistances, levelsBasisAr, invalidationAr, warningsAr, snapshot, lastCloseProvisional: provisionalClose, engine: row.engine,
     }
   }
 
-  // ---------- 5) small loss (above −20%) → protect the remaining capital
-  const trendBroken = (mt?.ema20 ?? null) !== null && (mt?.ema50 ?? null) !== null && mt!.ema20! < mt!.ema50! && close < mt!.ema50!
-  // the cushion decision rule stays zone-based (owner constants); the DISPLAY
-  // floor and the stop line follow the effective-support rule (EMA20 fallback)
-  const supZone = nearestSupportBelowClose
-  const closeCushion = supZone !== null && Math.abs(supZone.distFromPricePct) <= EXIT_SUPPORT_CUSHION_WAIT_PCT
-  if (trendBroken && !closeCushion) {
-    decision = "exit"
-    headlineAr = "إنت تحت الماء والاتجاه اتكسر — الخسارة الصغيرة دلوقتي أفضل من الكبيرة بعدين"
-    invalidationAr = `السيناريو يرجع فيه بإغلاق يومي فوق EMA50 (${mt?.ema50 ? fmt(mt.ema50) : "المتوسط"})`
-    reasonsAr.push(
-      `الصريح الموجع: متوسطك ${fmt(avgBuyPrice)} والسعر دلوقتي ${fmt(close)} — خسارة ${pct1(pnlPct)} (${fmt(pnlPerShare)} جنيه/سهم).`,
-      recoveryReasonAr(pnlPct, recoveryPct ?? 0),
-      `الاتجاه: ${trendAr} — السعر تحت متوسطاته بالترتيب السلبي، وده وضع بيكمل ضعف في أغلب الحالات.`,
-      openFieldAr + " — يعني مفيش أرضية قريبة تقولك «استنى هنا».",
-      "قاعدتنا الثابتة: مفيش استثمار اسمه «هيرجع» من غير دليل فني. الدليل دلوقتي بيقول عكس كده، فبنقلل التعرض.",
-      "لما يرجع ويثبت فوق متوسطاته، الموقع هيرصد ده وترجع تراجع الدخول تاني بعين صافية.",
-    )
-    reasonsAr.push(...narrativeLinesAr(ctx, { branch: "engineExit", avgBuyPrice, close, trendAr }, narrativeExtra))
-  } else {
+  // ---------- 5) small loss (above −20%) → protect the remaining capital.
+  // (2026-11-19: the trend-break EXIT half of this branch moved to 3.5 — the
+  // open-field break now exits BOTH P/L sides through ONE code path, so the
+  // sign of the P/L can never pick a different detector. What stays here is
+  // the WAIT ladder: a loss riding above a close cushion, or a structure the
+  // trend break hasn't reached yet.)
+  {
     decision = "wait"
     headlineAr = closeCushion
       ? "إنت خاسر بس السعر لاسك على دعم قريب — انتظر بإغلاق واحد يحسم"
@@ -959,13 +1138,14 @@ export function reviewPosition(input: ReviewInput): PositionReview {
     invalidationAr = effSupport
       ? `الإشارة اللي بنتظرها مع بعض: إغلاق يومي تحت ${fmt(effSupport.level)} — لحظتها بنعيد التفكير في الخروج جدًا، لأن الحكم بالإغلاق مش باللمسة واللمسة ممكن تكون كسر كاذب`
       : "الإشارة اللي بنتظرها مع بعض: إغلاق يومي تحت قاع آخر 60 جلسة — لحظتها بنعيد التفكير في الخروج جدًا"
-    planAr = effSupport
+    planAr = (effSupport
       ? `خليني أوضحلك نقطة ممكن متشوفهاش من النظرة الأولى: ${effSupport.basisAr}. يعني السعر لسه في منطقة فيها وقت للتفكير — لو جلسة جاية قفلت تحت ${fmt(effSupport.level)}، ده اللي بيرجّح استمرار الهبوط وبيخلي التخفيف أريح من انتظار مفتوح؛ ولو ثابت فوقه بالإغلاق، فمتابعة الفرد يوميًا على الشاشة كفاية — مفيش قرار مسبق ولا ردة فعل على اللمسات.`
-      : "النقطة اللي تستحق متابعتك على الشاشة هي القاع الأخير: كسره بإغلاق بيرجّح اكتمال الهبوط، وثباته بيرجّح إن الانتظار لسه مشروع — والقرار في الحالتين بين يديك."
+      : "النقطة اللي تستحق متابعتك على الشاشة هي القاع الأخير: كسره بإغلاق بيرجّح اكتمال الهبوط، وثباته بيرجّح إن الانتظار لسه مشروع — والقرار في الحالتين بين يديك.") +
+      (roundTrigger ? ` ${roundTrigger}.` : "")
     reasonsAr.push(
       `الوضع: متوسطك ${fmt(avgBuyPrice)} والسعر ${fmt(close)} — خسارة ${pct1(pnlPct)} (${fmt(pnlPerShare)} جنيه/سهم). القرار دلوقتي بيتاخد بالأرقام مش بالأمل.`,
       recoveryReasonAr(pnlPct, recoveryPct ?? 0),
-      `الاتجاه: ${trendAr}${row.score !== null ? ` ودرجة المحرك ${row.score}/100 (${row.state === "near" ? "إعداد قريب من التفعيل" : "لا فرصة مناسبة دلوقتي"})` : ""}.`,
+      `الاتجاه: ${trendAr}${rsiClauseAr}${row.score !== null ? ` ودرجة المحرك ${row.score}/100 (${row.state === "near" ? "إعداد قريب من التفعيل" : "لا فرصة مناسبة دلوقتي"})` : ""}.`,
       effSupport
         ? `أرضية اللعبة: ${effSupport.basisAr}${closeCushion ? " — قريب جدًا فالبيع هنا بيقفل الخسارة عند أدنى نقطة، والسوق هيحسم قريب" : " — طالما السعر واقف فوقه بالإغلاق، الاحتفاظ المشروط منطقي"}.`
         : "أرضية اللعبة: مفيش دعم معتمد تحت السعر الحالي — الخط الفاصل الوحيد هو قاع آخر 60 جلسة، ومتابعتك للفرد لازم تكون يومية على الشاشة.",
@@ -974,13 +1154,13 @@ export function reviewPosition(input: ReviewInput): PositionReview {
         : "الهيكل لسه ماسك: السعر تحت متوسطك بس مش تحت بنية الدعم — بنستنى إما الارتداد أو الكسر، والاتنين واضحين.",
       "قاعدة السوق المصري: الستوب الآلي بيوقّعك في الكسور الكاذبة — الصنّاع بيكسروا المستويات لمرة واحدة عشان يجمعوا السيولة ويرجّعوا السعر، فمتابعة الفرد جيدًا على الشاشة هي الحماية الحقيقية، والحكم على أي كسر يكون بالإغلاق الفعلي والحجم قبل أي حركة.",
     )
-    reasonsAr.push(...narrativeLinesAr(ctx, { branch: "cushionWait", avgBuyPrice, close, trendAr }, narrativeExtra))
+    reasonsAr.push(...narrativeLinesAr(ctx, { branch: "cushionWait", avgBuyPrice, close, trendAr, lastBarFinal: !provisionalClose }, narrativeExtra))
   }
 
   return {
     decision, decisionAr: POSITION_DECISION_AR[decision], headlineAr,
-    avgBuyPrice, lastClose: close, pnlPct: Math.round(pnlPct * 10) / 10, pnlPerShare: Math.round(pnlPerShare * 100) / 100,
+    avgBuyPrice, lastClose: close, pnlPct: roundPnl(pnlPct), pnlPerShare: Math.round(pnlPerShare * 100) / 100,
     recoveryPct, reasonsAr, planAr, question: null, closingAr,
-    supports, resistances, levelsBasisAr, invalidationAr, warningsAr, snapshot, engine: row.engine,
+    supports, resistances, levelsBasisAr, invalidationAr, warningsAr, snapshot, lastCloseProvisional: provisionalClose, engine: row.engine,
   }
 }
