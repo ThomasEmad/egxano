@@ -5,6 +5,11 @@ Exchange (EGX) companies. Bilingual (EN/AR + RTL). Zero invented data: every fig
 carries source traceability, and missing data renders as "—" — never zero, never
 estimated.
 
+## Live site
+
+**https://egxano.vercel.app** — production deployment (Vercel). This repository is the
+single source of truth; every push to `main` deploys to production automatically.
+
 ## Run (Windows)
 
 ```bash
