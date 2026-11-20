@@ -163,7 +163,10 @@ function serializeAction(a: {
     cashPerShare: a.cashPerShare,
     exDate: a.exDate,
     subscriptionPrice: a.subscriptionPrice,
-    status: a.status,
+    // computed FRESH from the ex-date (2026-11-20 audit): the stored column is
+    // written once at create/PATCH time, so an old «upcoming» row whose ex-date
+    // passed kept displaying «قادم» forever. The DATE is the source of truth.
+    status: statusFor(a.exDate),
     sourceName: a.sourceName,
     notes: a.notes,
     createdAt: a.createdAt,

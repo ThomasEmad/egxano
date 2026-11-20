@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import {
+  CalendarClock,
   ChevronDown,
   Database,
   Layers,
@@ -87,6 +88,23 @@ const tierLabel = (t: string): string => TIER_REC[t]?.short ?? t
 const fmtNum = (n: number): string => String(Number(n.toFixed(6)))
 const day = (iso: string | null | undefined): string => (iso ? iso.slice(0, 10) : "—")
 
+// ── توقيت القاهرة هو مرجع اليوم ─────────────────────────────────────────────
+// الحالة بتتحسب من التاريخ نفسه (2026-11-20): عمود status بيتكتب مرة واحدة
+// وقت الحفظ فبيفضل «قادم» للأبد لو تاريخه عدّى من غير تعديل — التاريخ هو
+// مصدر الحقيقة، والقاهرة هي توقيت السوق.
+const cairoTodayISO = (): string =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())
+const isUpcomingCairo = (exISO: string | null | undefined, todayISO: string): boolean => !!exISO && exISO.slice(0, 10) >= todayISO
+const daysUntilCairo = (exISO: string, todayISO: string): number =>
+  Math.round((Date.parse(`${exISO.slice(0, 10)}T00:00:00.000Z`) - Date.parse(`${todayISO}T00:00:00.000Z`)) / 86_400_000)
+function countdownAr(days: number): string {
+  if (days <= 0) return "النهاردة"
+  if (days === 1) return "غدًا"
+  if (days === 2) return "بعد يومين"
+  if (days <= 10) return `بعد ${days} أيام`
+  return `بعد ${days} يوم`
+}
+
 function numOrUndef(v: unknown): number | undefined {
   const n = Number(v)
   return Number.isFinite(n) ? n : undefined
@@ -147,11 +165,23 @@ export default function AdminActionsPage() {
   // ── ledger filters (complaint ①): reach ANY past action in seconds ──────────
   const [ledgerQuery, setLedgerQuery] = useState("")
   const [ledgerSource, setLedgerSource] = useState<"all" | "admin" | "import">("all")
+  const [ledgerStatus, setLedgerStatus] = useState<"all" | "upcoming" | "executed">("all")
+  // «قادم» بالتاريخ الفعلي بتوقيت القاهرة — مش عمود متخزن يتقادم
+  const todayCairo = useMemo(() => cairoTodayISO(), [actionsQ.data])
+  const upcomingActions = useMemo(
+    () =>
+      actions
+        .filter((a) => isUpcomingCairo(a.exDate, todayCairo))
+        .sort((a, b) => (day(a.exDate) < day(b.exDate) ? -1 : day(a.exDate) > day(b.exDate) ? 1 : 0)),
+    [actions, todayCairo]
+  )
   const filteredActions = useMemo(() => {
     const q = ledgerQuery.trim().toLowerCase()
     return actions.filter((a) => {
       if (ledgerSource === "admin" && a.sourceName !== "MANUAL_ADMIN") return false
       if (ledgerSource === "import" && a.sourceName === "MANUAL_ADMIN") return false
+      if (ledgerStatus === "upcoming" && !isUpcomingCairo(a.exDate, todayCairo)) return false
+      if (ledgerStatus === "executed" && isUpcomingCairo(a.exDate, todayCairo)) return false
       if (!q) return true
       return (
         (a.ticker ?? "").toLowerCase().includes(q) ||
@@ -159,7 +189,7 @@ export default function AdminActionsPage() {
         (a.notes ?? "").toLowerCase().includes(q)
       )
     })
-  }, [actions, ledgerQuery, ledgerSource])
+  }, [actions, ledgerQuery, ledgerSource, ledgerStatus, todayCairo])
 
   // ── form state ─────────────────────────────────────────────────────────────
   const [coSearch, setCoSearch] = useState("")
@@ -206,8 +236,14 @@ export default function AdminActionsPage() {
       if (!r.ok || !j.ok) throw new Error(j.error ?? `فشل تسجيل الإجراء (${r.status})`)
       return j
     },
-    onSuccess: () => {
-      toast.success("اتسجل الإجراء", { description: "التعديل اتطبق تلقائيًا على التحليل الفني — من غير ما تعدّل أي شارت يدويًا." })
+    onSuccess: (_j, payload) => {
+      const ex = typeof payload?.exDate === "string" ? payload.exDate.slice(0, 10) : ""
+      const future = isUpcomingCairo(ex, cairoTodayISO())
+      toast.success("اتسجل الإجراء", {
+        description: future
+          ? `إجراء قادم بتاريخ ${ex} — السعر والرسم البياني والفنيات مش هيتأثروا قبل يوم التنفيذ، والتعديل هيترتب تلقائيًا لحظة وصول شمعة بتاريخه من غير أي تدخل.`
+          : "التعديل اتطبق تلقائيًا على التحليل الفني — من غير ما تعدّل أي شارت يدويًا.",
+      })
       qc.invalidateQueries({ queryKey: ["admin-corporate-actions"] })
       resetForm()
     },
@@ -414,14 +450,10 @@ export default function AdminActionsPage() {
   }
 
   const statusBadge = (a: ActionRow) => {
-    const st = a.status
-    const label = st === "upcoming" ? "قادم" : st === "executed" ? "تم التنفيذ" : (st ?? "—")
-    const cls =
-      st === "upcoming"
-        ? "border-amber-500/40 text-amber-600"
-        : st === "executed"
-          ? "border-emerald-500/40 text-emerald-600"
-          : ""
+    // الحالة من التاريخ بتوقيت القاهرة — عمود قاعدة البيانات ممكن يتقادم
+    const upcoming = isUpcomingCairo(a.exDate, todayCairo)
+    const label = upcoming ? "قادم" : "تم التنفيذ"
+    const cls = upcoming ? "border-amber-500/40 text-amber-600" : "border-emerald-500/40 text-emerald-600"
     return (
       <Badge variant="outline" className={`text-[9px] ${cls}`}>
         {label}
@@ -564,6 +596,9 @@ export default function AdminActionsPage() {
                 onChange={(e) => setExDate(e.target.value)}
                 className="h-9 text-xs tabular-nums"
               />
+              <p className="text-[10px] text-muted-foreground">
+                تاريخ مستقبلي = إعلان قادم: بيتسجل هنا فور صدوره، والسعر والرسم والفنيات مش هيتأثروا غير يوم التنفيذ — والتعديل بيتطبق تلقائيًا لحظتها.
+              </p>
             </div>
           </div>
 
@@ -583,7 +618,67 @@ export default function AdminActionsPage() {
         </CardContent>
       </Card>
 
-      {/* c) الإجراءات المسجلة */}
+      {/* c) التوزيعات القادمة — الإعلانات المسجلة بتاريخ مستقبلي (2026-11-20) */}
+      <Card>
+        <CardHeader className="pb-3 flex flex-col gap-2">
+          <div className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <CalendarClock className="h-4 w-4 text-amber-500" />
+              التوزيعات القادمة ({upcomingActions.length})
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={() => actionsQ.refetch()} disabled={actionsQ.isFetching}>
+              تحديث
+            </Button>
+          </div>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            الإجراء المسجل بتاريخ مستقبلي مش بيلمس السعر أو الرسم البياني أو الفنيات النهاردة — أول ما توصل شمعة بتاريخ الإجراء (ex-date)، التعديل بيتطبق تلقائيًا على السلسلة كلها من غير أي تدخل: البونص والتقسيم بنسبة، النقدية بخصم من الإغلاق السابق، والاكتتاب بمعادلة TERP.
+          </p>
+        </CardHeader>
+        <CardContent className="p-0">
+          {upcomingActions.length === 0 ? (
+            <p className="p-4 text-xs leading-relaxed text-muted-foreground">
+              مفيش إجراءات قادمة مسجلة دلوقتي. سجل الإعلان فور صدوره من الفورم اللي فوق بالتاريخ المستقبلي — وهتلاقيه هنا مع عدّاد الأيام لحد يوم التنفيذ، والتعديل هيحصل لوحده يومها.
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {upcomingActions.map((a) => {
+                const exDay = day(a.exDate)
+                const left = daysUntilCairo(exDay, todayCairo)
+                return (
+                  <li key={a.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2">
+                    <Badge variant="outline" className="border-amber-500/40 font-bold text-amber-600 dark:text-amber-400">
+                      {countdownAr(left)}
+                    </Badge>
+                    <span className="font-mono text-xs font-semibold" dir="ltr">{a.ticker ?? "—"}</span>
+                    {a.nameAr ? <span className="text-xs text-muted-foreground">{a.nameAr}</span> : null}
+                    <span className="text-xs">{TYPE_AR[a.actionType] ?? a.actionType}</span>
+                    <span className="text-xs tabular-nums">{ratioText(a)}</span>
+                    <span className="font-mono text-[11px] tabular-nums text-muted-foreground" dir="ltr">{exDay}</span>
+                    <span className="ms-auto flex items-center gap-2">
+                      <Badge variant="secondary" className="text-[9px]">
+                        {a.sourceName === "MANUAL_ADMIN" ? "إداري" : "استيراد"}
+                      </Badge>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 text-red-500"
+                        title="حذف الإجراء"
+                        onClick={() => {
+                          if (confirm(`حذف إجراء ${a.ticker ?? ""} (${TYPE_AR[a.actionType] ?? a.actionType}) بتاريخ ${exDay}؟`)) del.mutate(a.id)
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* d) الإجراءات المسجلة */}
       <Card>
         <CardHeader className="pb-3 flex flex-col gap-3">
           <div className="flex flex-row items-center justify-between">
@@ -611,6 +706,16 @@ export default function AdminActionsPage() {
               <option value="all">كل المصادر</option>
               <option value="admin">الإدارية فقط</option>
               <option value="import">الاستيراد فقط</option>
+            </select>
+            <select
+              value={ledgerStatus}
+              onChange={(e) => setLedgerStatus(e.target.value as typeof ledgerStatus)}
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+              aria-label="فلترة بالحالة"
+            >
+              <option value="all">كل الحالات</option>
+              <option value="upcoming">القادمة فقط</option>
+              <option value="executed">المنفذة فقط</option>
             </select>
             {ledgerTotal != null && ledgerTotal > 1000 ? (
               <span className="text-[10px] text-amber-600 dark:text-amber-400">السجل أكبر من 1000 صف — استخدم الفلاتر أو حدد شركة</span>
@@ -739,7 +844,7 @@ export default function AdminActionsPage() {
         </CardContent>
       </Card>
 
-      {/* d) تصنيف السوق */}
+      {/* e) تصنيف السوق */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm">
@@ -828,7 +933,7 @@ export default function AdminActionsPage() {
         </CardContent>
       </Card>
 
-      {/* e) استيعاب شموع السنة */}
+      {/* f) استيعاب شموع السنة */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm">
@@ -856,7 +961,7 @@ export default function AdminActionsPage() {
         </CardContent>
       </Card>
 
-      {/* f) التنويه */}
+      {/* g) التنويه */}
       <p className="pb-2 text-[10px] leading-relaxed text-muted-foreground">
         الإجراءات مسؤليتك كمسؤول البيانات — اتأكد من التاريخ الرسمي من البورصة قبل التسجيل.
       </p>

@@ -257,6 +257,33 @@ describe("applyCorporateActionAdjustments — technical series continuity", () =
     expect(adj[0].close).toBeCloseTo(34.74, 6)
   })
 
+  it("the AUTO-APPLY contract (record-announce workflow, 2026-11-20): a future action stays inert today, then rescales by itself the moment a bar crosses its ex-date", () => {
+    // Day 0 — the admin records the announcement with a FUTURE ex-date: the
+    // price, the chart and the technicals keep trading in cum-event terms.
+    const barsBefore = [
+      { ts: "2026-11-12", open: 34.5, high: 35.1, low: 34.2, close: 34.74, volume: 1e6, source: "scanner" as const },
+      { ts: "2026-11-13", open: 34.8, high: 35.0, low: 34.6, close: 34.9, volume: 1e6, source: "scanner" as const },
+    ]
+    const before = applyCorporateActionAdjustments(barsBefore, [{ exDateISO: "2026-11-16", terms: bonusHalf }])
+    expect(before.eventsApplied).toHaveLength(0)
+    expect(before.bars.map((b) => b.close)).toEqual([34.74, 34.9])
+
+    // Ex-date day — a bar dated 2026-11-16 arrives through the SAME read-time
+    // pass (no cron, no admin follow-up): the pre-ex-date history rescales to
+    // the adjusted universe and the event is disclosed.
+    const barsAfter = [
+      ...barsBefore,
+      { ts: "2026-11-16", open: 23.2, high: 23.6, low: 23.0, close: 23.4, volume: 1e6, source: "scanner" as const },
+    ]
+    const after = applyCorporateActionAdjustments(barsAfter, [{ exDateISO: "2026-11-16", terms: bonusHalf }])
+    expect(after.eventsApplied).toHaveLength(1)
+    expect(after.eventsApplied[0]).toMatchObject({ exDateISO: "2026-11-16", actionType: "stock_dividend" })
+    // pre-ex-date closes divided by (1 + 0.5); the ex-date bar stays raw
+    expect(after.bars[0].close).toBeCloseTo(34.74 / 1.5, 4)
+    expect(after.bars[1].close).toBeCloseTo(34.9 / 1.5, 4)
+    expect(after.bars[2].close).toBeCloseTo(23.4, 6)
+  })
+
   it("never mutates the caller's bars", () => {
     const bars = [{ ts: "2026-11-11", open: 50.8, high: 51.4, low: 50.2, close: 51.02, volume: 1e6, source: "scanner" as const }]
     const snapshot = JSON.stringify(bars)
