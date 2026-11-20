@@ -32,7 +32,10 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 30 min stopped being enough: the incremental refresh outgrew the window
+    # and every daily run was cancelled at exactly 30:00 mid-write (run 2026-
+    # 11-19). 120 min gives the import room to finish all stale tickers.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 

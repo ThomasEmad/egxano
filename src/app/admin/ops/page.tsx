@@ -13,7 +13,6 @@ interface WhitelistJob {
   script: string
   args: string[]
   destructive: boolean
-  selfhostOnly?: boolean
   labelEn: string
   labelAr: string
   descEn: string
@@ -29,6 +28,10 @@ interface Run {
   endedAt: string | null
   exitCode: number | null
   pid: number
+  /** execution plane: spawned child of the server, or a GitHub Actions run */
+  plane?: "local" | "actions"
+  /** GitHub Actions run page (actions plane) */
+  htmlUrl?: string
 }
 
 interface OpsData {
@@ -37,6 +40,8 @@ interface OpsData {
   busy: boolean
   runs: Run[]
   hosting?: { serverless: boolean; fsWritable: boolean; workRoot: string }
+  /** GH_OPS_TOKEN is configured — the actions plane can dispatch */
+  actionsReady?: boolean
 }
 
 const JOB_AR: Record<string, string> = {
@@ -52,6 +57,10 @@ const JOB_AR: Record<string, string> = {
   tv_plan: "استيراد TradingView — تخطيط",
   tv_apply: "استيراد TradingView — تنفيذ",
   tv_rollback: "استيراد TradingView — تراجع",
+  dividends_plan: "استيراد التوزيعات — تخطيط",
+  dividends_apply: "استيراد التوزيعات — تنفيذ",
+  dividends_enrich: "إثراء التوزيعات",
+  dividends_rollback: "استيراد التوزيعات — تراجع",
 }
 
 export default function AdminOpsPage() {
@@ -134,54 +143,67 @@ export default function AdminOpsPage() {
         </button>
       </div>
 
-      {/* hosting mode banner — the owner must know the execution limits
-          before pressing Run, not after a failed toast (5-second rule) */}
+      {/* hosting mode banner — the owner must know how jobs execute before
+          pressing Run, not after a failed toast (5-second rule) */}
       {data?.hosting?.serverless && (
         <Card className="border-sky-500/40 bg-sky-500/5 p-0">
           <CardContent className="p-3 text-[11px] leading-relaxed text-muted-foreground">
             <p className="mb-1 font-bold text-foreground">
-              {ar ? "وضع الاستضافة: سيرفرليس (Vercel) — بالحدود دي:" : "Hosting mode: serverless (Vercel) — with these limits:"}
+              {ar ? "وضع الاستضافة: سيرفرليس (Vercel) — التنفيذ عبر GitHub Actions:" : "Hosting mode: serverless (Vercel) — jobs run on GitHub Actions:"}
             </p>
             <ul className="list-inside list-disc space-y-0.5">
-              <li>{ar ? "سكريبتات البيانات الخالصة (استيراد askborsa، تنقية، تدقيق، إعادة حساب، توزيعات) شغالة من هنا." : "Pure data scripts (askborsa import, purge, audit, recompute, dividends) run from here."}</li>
-              <li>{ar ? "أي سكريبت أطول من مدة الدالة (~5 دقائق على خطة Hobby) بيتوقف ويظهر «انقطع» — اضغط تشغيل تاني وبيكمل من حيث وقف (الوظائف قابلة للاستكمال)." : "Any script longer than the function duration (~5 min on the Hobby plan) stops and shows 'interrupted' — run it again to resume (jobs are resumable)."}</li>
-              <li>{ar ? "ملفات العمل (خطط/تراجع/سجلات) مؤقتة على السيرفر — اقرأ السجل قبل ما تعيد التشغيل." : "Work files (plans/rollback/logs) are temporary on the server — check the log before re-running."}</li>
-              <li>{ar ? "وظائف TradingView الأربعة محتاجة متصفح Chromium — تشتغل فقط من سيرفر ذاتي الاستضافة (Docker)." : "The four TradingView jobs need a Chromium browser — they run only on a self-hosted server (Docker)."}</li>
+              <li>{ar ? "كل زر «تشغيل» بيفتح وظيفة على عُدد GitHub بتكتب مباشرة في قاعدة بيانات الإنتاج — نفس البنية اللي بتشغّل تحديث الشموع يوميًا." : "Every Run button dispatches a GitHub Actions job that writes straight to the production database — the same plane that refreshes candles daily."}</li>
+              <li>{ar ? "مفيش حد مدة قاتل: الوظائف الطويلة (8-15 دقيقة وأكتر) بتكمل عادي، وسجل التشغيل الكامل على GitHub." : "No function-duration limit: long jobs (8-15+ minutes) run to completion, with the full log on GitHub."}</li>
+              <li>{ar ? "ملفات العمل (snapshot/ملفات التراجع) بتنتقل بين التشغيلات تلقائيًا كـ artifact — الحصاد بعده التخطيط بعده التنفيذ بيكمّلوا بعض." : "Work files (snapshots/rollback journals) carry over between runs as an artifact — harvest → plan → apply chain across dispatches."}</li>
+              <li>{ar ? "الجاري الآن وآخر التشغيلات بتتسحب من حالة Actions مباشرة، وزر الإيقاف بيلغي الوظيفة على GitHub." : "Running/Recent runs are pulled from the Actions state directly, and Stop cancels the workflow run."}</li>
             </ul>
+            {data?.actionsReady === false && (
+              <p className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-amber-700 dark:text-amber-400">
+                {ar
+                  ? "تنبيه: متغير البيئة GH_OPS_TOKEN غير مضبوط على Vercel — التشغيل هيفشل لحد ما يُضاف (توكن GitHub بصلاحية تشغيل الـ workflows)."
+                  : "Warning: GH_OPS_TOKEN is not configured on Vercel — dispatches will fail until it is added (a GitHub token with workflow-dispatch permission)."}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
 
-      {data?.busy && (
-        <Card className="border-amber-500/50 p-0">
-          <CardContent className="flex items-center gap-2 p-3 text-xs">
-            <span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500 opacity-60" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" /></span>
-            {ar ? `سكريبت شغال دلوقتي: ${JOB_AR[data.running[0]?.job] ?? data.running[0]?.job} — بدأ ${new Date(data.running[0]?.startedAt).toLocaleTimeString(ar ? "ar-EG" : "en-GB")}` : `A job is running: ${data.running[0]?.job} (started ${new Date(data.running[0]?.startedAt).toLocaleTimeString()})`}
-            <button
-              onClick={() => data.running[0] && stop.mutate(data.running[0].id)}
-              disabled={stop.isPending}
-              className="inline-flex items-center gap-1 rounded-lg border border-red-500/50 px-2 py-1 text-[10px] font-semibold text-red-600 transition-colors hover:bg-red-500/10 disabled:opacity-50"
-            >
-              <Square className="h-3 w-3" />
-              {ar ? "إيقاف" : "Stop"}
-            </button>
-          </CardContent>
-        </Card>
-      )}
+      {/* busy banner: the active run may be local OR an Actions run (merged list) */}
+      {data?.busy && (() => {
+        const active = data.running[0] ?? data.runs.find((r) => r.endedAt === null)
+        if (!active) return null
+        return (
+          <Card className="border-amber-500/50 p-0">
+            <CardContent className="flex items-center gap-2 p-3 text-xs">
+              <span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500 opacity-60" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" /></span>
+              {ar ? `سكريبت شغال دلوقتي: ${JOB_AR[active.job] ?? active.job} — بدأ ${new Date(active.startedAt).toLocaleTimeString(ar ? "ar-EG" : "en-GB")}` : `A job is running: ${active.job} (started ${new Date(active.startedAt).toLocaleTimeString()})`}
+              {active.htmlUrl && (
+                <a href={active.htmlUrl} target="_blank" rel="noreferrer" className="font-semibold text-sky-600 underline underline-offset-2">
+                  {ar ? "السجل على GitHub ↗" : "log on GitHub ↗"}
+                </a>
+              )}
+              <button
+                onClick={() => stop.mutate(active.id)}
+                disabled={stop.isPending}
+                className="inline-flex items-center gap-1 rounded-lg border border-red-500/50 px-2 py-1 text-[10px] font-semibold text-red-600 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+              >
+                <Square className="h-3 w-3" />
+                {ar ? "إيقاف" : "Stop"}
+              </button>
+            </CardContent>
+          </Card>
+        )
+      })()}
 
       <div className="grid gap-3 md:grid-cols-2">
         {(data?.jobs ?? []).map((j) => {
-          // browser-dependent jobs can't start on serverless — disable upfront
-          const serverlessBlocked = !!j.selfhostOnly && !!data?.hosting?.serverless
-          const disabled = run.isPending || data?.busy || serverlessBlocked
+          const disabled = run.isPending || data?.busy
           return (
             <Card key={j.key} className={`p-0 ${j.destructive ? "border-amber-500/40" : ""}`}>
               <CardHeader className="pb-1.5">
                 <CardTitle className="flex items-center justify-between gap-2 text-sm">
                   <span>{ar ? JOB_AR[j.key] ?? j.labelAr : j.labelEn}</span>
-                  {serverlessBlocked ? (
-                    <Badge variant="outline" className="shrink-0 border-sky-500/40 text-[9px] text-sky-600">{ar ? "سيرفر ذاتي فقط" : "self-host only"}</Badge>
-                  ) : j.destructive ? (
+                  {j.destructive ? (
                     <Badge variant="outline" className="shrink-0 border-amber-500/40 text-[9px] text-amber-600">{ar ? "يكتب في الداتا" : "writes to DB"}</Badge>
                   ) : null}
                 </CardTitle>
@@ -222,7 +244,8 @@ export default function AdminOpsPage() {
             <p className="py-3 text-center text-xs text-muted-foreground">{ar ? "لا يوجد تشغيلات بعد" : "No runs yet"}</p>
           ) : (
             data.runs.map((r) => {
-              const status = r.endedAt === null ? (r.exitCode === null ? (data.busy ? "running" : "interrupted") : "done") : "done"
+              const isActions = r.plane === "actions" || r.id.startsWith("gh-")
+              const status = r.endedAt === null ? (r.exitCode === null ? (isActions || data.busy ? "running" : "interrupted") : "done") : "done"
               const failed = r.exitCode !== null && r.exitCode !== 0
               return (
                 <div key={r.id} className="rounded-lg border border-border/40">
@@ -235,12 +258,21 @@ export default function AdminOpsPage() {
                       {status === "running" ? (ar ? "شغال…" : "running") : status === "interrupted" ? (ar ? "انقطع" : "interrupted") : (ar ? `خلص (${r.exitCode})` : `exit ${r.exitCode}`)}
                     </Badge>
                     <span className="text-[10px] text-muted-foreground">{new Date(r.startedAt).toLocaleString(ar ? "ar-EG" : "en-GB", { dateStyle: "short", timeStyle: "medium" })}</span>
+                    {isActions && r.htmlUrl && (
+                      <a href={r.htmlUrl} target="_blank" rel="noreferrer" className="text-[10px] font-semibold text-sky-600 underline underline-offset-2">
+                        {ar ? "سجل GitHub ↗" : "GitHub log ↗"}
+                      </a>
+                    )}
                     <span className="ms-auto font-mono text-[10px] text-muted-foreground">{r.args.join(" ") || "(plan)"}</span>
                   </div>
                   {openLog === r.id && (
                     <div className="border-t border-border/40 p-2.5">
                       {log.isLoading ? (
                         <p className="text-center text-[11px] text-muted-foreground">…</p>
+                      ) : log.data?.text?.startsWith("GITHUB_ACTIONS_LOG:") ? (
+                        <a href={log.data.text.slice("GITHUB_ACTIONS_LOG:".length)} target="_blank" rel="noreferrer" className="block rounded-md border border-sky-500/40 bg-sky-500/5 p-3 text-center text-[11px] font-semibold text-sky-600 hover:bg-sky-500/10">
+                          {ar ? "السجل الكامل بيشتغل على GitHub Actions — افتحه من هنا ↗" : "The full log runs on GitHub Actions — open it there ↗"}
+                        </a>
                       ) : (
                         <pre className="max-h-80 overflow-auto rounded-md bg-zinc-950 p-3 font-mono text-[10px] leading-relaxed text-zinc-200" dir="ltr">
                           {log.data?.text || "(empty log)"}

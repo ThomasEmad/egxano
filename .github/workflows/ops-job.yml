@@ -1,0 +1,111 @@
+# Admin ops jobs — the execution plane for /admin/ops on serverless hosting.
+#
+# Why here and not inside the Vercel function?
+#   • A Vercel Hobby lambda cannot host a 5-45 min child process (300 s cap,
+#     background children die with the window).
+#   • Yahoo Finance and TradingView BLOCK Vercel Lambda egress entirely
+#     (verified 2026-11-13: 100% FETCH_FAILED from production, 200 OK from
+#     GitHub runners) — the harvest must run from a runner, writing straight
+#     to the production DB, exactly like the proven candles-refresh pipeline.
+#
+# Dispatched by POST /api/v1/admin/ops { job } (GH_OPS_TOKEN with Actions
+# write permission lives in the Vercel project env). audit_run / recompute_all
+# don't run DB work here — they trigger the site's own in-process engines via
+# the CRON_SECRET bearer (the chunked audit self-chains inside the Next server).
+#
+# Work artifacts (snapshots, rollback journals, enrich caches) persist between
+# runs through the ops-reports artifact: harvest → plan → apply on separate
+# dispatches still see each other's files.
+
+name: admin-ops-job
+
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "Whitelisted admin ops job key"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: admin-ops-job
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      JOB: ${{ inputs.job }}
+      DATABASE_URL: ${{ secrets.CANDLE_DB_URL }}
+      SITE_URL: ${{ secrets.STANCE_REFRESH_URL || 'https://egxano.vercel.app' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: |
+          bun install --frozen-lockfile
+          npx prisma generate
+
+      - name: Browser for TradingView jobs
+        if: startsWith(inputs.job, 'tv_')
+        run: npx playwright install --with-deps chromium
+
+      # Snapshots / rollback journals written by a previous dispatch (harvest,
+      # apply) — a fresh checkout would otherwise lose them between runs.
+      - name: Restore prior reports
+        uses: actions/download-artifact@v4
+        with:
+          name: ops-reports
+          path: reports
+        continue-on-error: true
+
+      # The step NAME carries the job key ("ops:<key>") — the site's ops API
+      # parses it to label the run, because workflow_dispatch inputs are not
+      # echoed back by the GitHub runs API.
+      - name: ops:${{ inputs.job }}
+        run: |
+          case "$JOB" in
+            askborsa_plan)      node scripts/askborsa-sync.mjs ;;
+            askborsa_apply)     node scripts/askborsa-sync.mjs --apply --recompute ;;
+            askborsa_rollback)  node scripts/askborsa-sync.mjs --rollback ;;
+            purge_plan)         node scripts/purge-imputed-values.mjs ;;
+            purge_apply)        node scripts/purge-imputed-values.mjs --apply ;;
+            purge_rollback)     node scripts/purge-imputed-values.mjs --rollback ;;
+            audit_run)          curl -fSs --max-time 290 "$SITE_URL/api/v1/cron/audit?type=daily" -H "Authorization: Bearer $CRON_SECRET" ;;
+            recompute_all)      curl -fSs --max-time 290 "$SITE_URL/api/v1/cron/recompute" -H "Authorization: Bearer $CRON_SECRET" ;;
+            tv_harvest)         node scripts/tradingview-financials-import.mjs --harvest-only --workers=2 --delay-ms=3500 ;;
+            tv_plan)            node scripts/tradingview-financials-import.mjs --from-snapshot ;;
+            tv_apply)           node scripts/tradingview-financials-import.mjs --from-snapshot --apply --recompute ;;
+            tv_rollback)        node scripts/tradingview-financials-import.mjs --rollback ;;
+            dividends_plan)     node scripts/dividends-import.mjs ;;
+            dividends_apply)    node scripts/dividends-import.mjs --apply --recompute ;;
+            dividends_enrich)   node scripts/dividends-enrich.mjs --apply --max-seconds=2400 ;;
+            dividends_rollback) node scripts/dividends-import.mjs --rollback ;;
+            *) echo "unknown admin-ops job: $JOB"; exit 1 ;;
+          esac
+
+      # Persist whatever the job produced (snapshot, rollback journal, plan,
+      # conflicts, caches) so the NEXT dispatch can pick up where this stopped.
+      # overwrite=true because artifact names are immutable within a retention
+      # window and only the latest state matters.
+      - name: Persist reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ops-reports
+          path: reports
+          retention-days: 30
+          overwrite: true
