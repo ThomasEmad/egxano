@@ -22,7 +22,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { ArrowDownRight, ArrowUpRight, Droplets } from "lucide-react"
+import { Droplets } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useI18n } from "@/lib/i18n"
@@ -120,17 +120,32 @@ export function SectorLiquidityHeatmap() {
 
   const sectors = (data?.sectors ?? []).filter((s) => s.valueToday > 0)
   const rect: Rect = { x: 0, y: 0, w: boxW, h: canvasHeightFor(boxW) }
+  // Area floor: a sector below ~0.8% of the map renders as an unreadable
+  // sliver (live example 2026-11-19: Paper ≈ 0.03% → 17×10px speck) and the
+  // bottom corner of the map reads as a blank area. Clamp BEFORE layout so
+  // every sector stays a visible, hoverable tile — squarify renormalizes, so
+  // the floor area is borrowed proportionally from the bigger tiles.
+  const totalToday = sectors.reduce((a, s) => a + s.valueToday, 0)
+  const MIN_SHARE = 0.008
   const rects = squarify(
-    sectors.map((s) => s.valueToday),
+    sectors.map((s) => Math.max(s.valueToday, totalToday * MIN_SHARE)),
     rect,
   )
 
   const maxAbsChg = Math.max(...sectors.map((s) => Math.abs(s.changePct ?? 0)), 40)
 
-  // ---- ranked net-flow list (the owner's literal question) ----------------
+  // ---- ranked net-flow table (the owner's literal question) ----------------
+  // EVERY sector with a net value, ranked, split into two balanced columns —
+  // never the old fixed inflow/outflow columns, which left a large blank
+  // half-card whenever one side of the market was quiet (2026-11-19 live
+  // session: 17 sectors in, 1 out → the outflow column was almost empty).
   const withNet = sectors.filter((s) => s.netValue !== null && s.netValue !== 0)
-  const inflow = [...withNet].filter((s) => s.netValue! > 0).sort((a, b) => b.netValue! - a.netValue!).slice(0, 6)
-  const outflow = [...withNet].filter((s) => s.netValue! < 0).sort((a, b) => a.netValue! - b.netValue!).slice(0, 6)
+  const ranked = [...withNet].sort((a, b) => (b.netValue ?? 0) - (a.netValue ?? 0))
+  const rankedHalf = Math.ceil(ranked.length / 2)
+  const rankedColA = ranked.slice(0, rankedHalf)
+  const rankedColB = ranked.slice(rankedHalf)
+  const inflowCount = ranked.filter((s) => (s.netValue ?? 0) > 0).length
+  const outflowCount = ranked.length - inflowCount
   const maxAbsNet = Math.max(...withNet.map((s) => Math.abs(s.netValue ?? 0)), 1)
 
   // header counters follow the SIGNED net (today − yesterday)
@@ -141,16 +156,19 @@ export function SectorLiquidityHeatmap() {
     ? sectors.reduce((a, s) => a + (s.netValue ?? 0), 0)
     : null
 
-  const NetFlowRow = ({ s }: { s: LiquiditySector }) => {
+  const NetFlowRow = ({ s, rank }: { s: LiquiditySector; rank: number }) => {
     const net = s.netValue!
     const barPct = Math.max((Math.abs(net) / maxAbsNet) * 100, 3)
     return (
       <a
         href={`/sectors/${encodeURIComponent(s.sector)}`}
-        className="group flex items-center gap-2 py-[3px]"
+        className="group flex items-center gap-2 rounded-md px-1.5 py-[3px] transition-colors hover:bg-muted/50"
         title={`${sectorLabel(s.sector, lang)} — ${ar ? "سيولة اليوم" : "today"} ${fmtEgp(s.valueToday, ar)} · ${ar ? "الأمس" : "prev"} ${s.valuePrev !== null ? fmtEgp(s.valuePrev, ar) : "—"}`}
       >
-        <span className="w-[7.25rem] shrink-0 truncate text-[11px] font-semibold text-foreground group-hover:text-primary sm:w-[9rem]">
+        <span className="w-4 shrink-0 text-[10px] font-semibold tabular-nums text-muted-foreground">
+          {rank}
+        </span>
+        <span className="w-[7rem] shrink-0 truncate text-[11px] font-semibold text-foreground group-hover:text-primary sm:w-[8.5rem]">
           {sectorLabel(s.sector, lang)}
         </span>
         <span className="relative h-2 min-w-8 flex-1 overflow-hidden rounded-full bg-muted">
@@ -226,39 +244,39 @@ export function SectorLiquidityHeatmap() {
             </p>
           ) : (
             <>
-              {/* ---- 1) ranked net-flow list: the 5-second answer ------------- */}
-              {withNet.length > 0 ? (
+              {/* ---- 1) ranked net-flow table: every sector, two balanced
+                      columns — no blank half-card when one market side is
+                      quiet --------------------------------------------- */}
+              {ranked.length > 0 ? (
                 <div className="mb-4 rounded-xl border border-border/60 bg-card p-3.5">
-                  <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold text-foreground">
-                    {ar ? "أولاً: صافي السيولة بالجنيه — القطاعات مرتبة من الأعلى للأقل" : "First: net flow in EGP — sectors ranked"}
-                    <span className="font-normal text-muted-foreground">
-                      ({ar ? "السهم الأخضر = دخول صافي · الأحمر = خروج صافي · مقارنة بجلسة الأمس" : "green = net inflow · red = net outflow · vs prev session"})
-                    </span>
-                  </p>
-                  <div className="grid gap-x-8 md:grid-cols-2">
-                    <div>
-                      <p className="mb-1 flex items-center gap-1 text-[10px] font-bold text-positive">
-                        <ArrowUpRight className="h-3 w-3" aria-hidden />
-                        {ar ? "أكبر دخول صافي" : "largest net inflow"}
-                      </p>
-                      {inflow.map((s) => (
-                        <NetFlowRow key={s.sector} s={s} />
-                      ))}
-                    </div>
-                    <div className="mt-3 md:mt-0">
-                      <p className="mb-1 flex items-center gap-1 text-[10px] font-bold text-negative">
-                        <ArrowDownRight className="h-3 w-3" aria-hidden />
-                        {ar ? "أكبر خروج صافي" : "largest net outflow"}
-                      </p>
-                      {outflow.length > 0 ? (
-                        outflow.map((s) => <NetFlowRow key={s.sector} s={s} />)
-                      ) : (
-                        <p className="py-2 text-[11px] text-muted-foreground">
-                          {ar ? "لا يوجد خروج صافي اليوم — كل القطاعات استقبلت سيولة أعلى من الأمس." : "No net outflow today — every sector out-traded yesterday."}
-                        </p>
-                      )}
-                    </div>
+                  <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <p className="text-[11px] font-bold text-foreground">
+                      {ar ? "أولاً: صافي السيولة بالجنيه — كل القطاعات مرتبة من الأعلى للأقل" : "First: net flow in EGP — every sector, ranked"}
+                    </p>
+                    <p className="text-[10px] font-normal text-muted-foreground">
+                      {ar ? "الأخضر دخول صافي · الأحمر خروج صافي · مقارنة بجلسة الأمس" : "green = net inflow · red = net outflow · vs prev session"}
+                    </p>
                   </div>
+                  <div className="grid gap-x-6 sm:grid-cols-2">
+                    {[rankedColA, rankedColB].map((col, ci) => (
+                      <div key={ci} className={ci === 1 ? "mt-0.5 sm:mt-0" : undefined}>
+                        {col.map((s, ri) => (
+                          <NetFlowRow key={s.sector} s={s} rank={ci * rankedHalf + ri + 1} />
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                  {outflowCount === 0 || inflowCount === 0 ? (
+                    <p className="mt-1.5 px-1.5 text-[10px] font-medium text-muted-foreground">
+                      {outflowCount === 0
+                        ? ar
+                          ? "ملاحظة: لا يوجد خروج صافي اليوم — كل القطاعات استقبلت سيولة أعلى من الأمس."
+                          : "Note: no net outflow today — every sector out-traded yesterday."
+                        : ar
+                          ? "ملاحظة: لا يوجد دخول صافي اليوم — كل القطاعات متدنة عن جلسة الأمس."
+                          : "Note: no net inflow today — every sector trailed yesterday's session."}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -297,8 +315,17 @@ export function SectorLiquidityHeatmap() {
                     <a
                       key={s.sector}
                       href={`/sectors/${encodeURIComponent(s.sector)}`}
-                      className="absolute flex flex-col justify-between overflow-hidden rounded-lg p-2.5 ring-1 ring-inset ring-black/10 transition-[left,top,width,height] duration-300 hover:z-10 hover:scale-[1.01] focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-                      style={{ left: r.x, top: r.y, width: r.w, height: r.h, background: firstTracking ? shareFill(s.sharePct) : liquidityFill(s.changePct, maxAbsChg) }}
+                      className="absolute flex flex-col justify-between overflow-hidden rounded-lg p-2.5 transition-[left,top,width,height] duration-300 hover:z-10 hover:scale-[1.01] focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                      style={{
+                        left: r.x,
+                        top: r.y,
+                        width: r.w,
+                        height: r.h,
+                        background: firstTracking ? shareFill(s.sharePct) : liquidityFill(s.changePct, maxAbsChg),
+                        // crisp gutters between tiles without losing layout area
+                        outline: "1px solid var(--card)",
+                        outlineOffset: -0.5,
+                      }}
                       title={`${sectorLabel(s.sector, lang)} — ${ar ? "اليوم" : "today"} ${fmtEgp(s.valueToday, ar)} · ${ar ? "الصافي مقابل الأمس" : "net vs prev"} ${netText ?? "—"} (${fmtChg(s.changePct)}, ${ar ? `نصيب ${s.sharePct.toFixed(1)}٪` : `${s.sharePct.toFixed(1)}% share`}, ${s.companies} ${ar ? "شركة" : "cos"})`}
                     >
                       <span className="flex items-start justify-between gap-1.5">

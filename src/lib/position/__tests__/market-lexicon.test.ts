@@ -35,7 +35,7 @@ describe("lexiconLinesAr — the trigger set", () => {
     expect(l).toContain("0.9٪") // the real distance, 1-decimal
     expect(l).toContain("سقف") // level ABOVE the close → ceiling
     expect(l).toContain("اللمسة مش كسر") // the touch-vs-break law
-    expect(l).toContain("المتفرج عليه") // the watch-next clause
+    expect(l).toContain("اللي بنراقبه") // the watch-next clause
   })
 
   it("a round level BELOW the close reads as أرضية (with the role-reversal law in the watch-next)", () => {
@@ -46,7 +46,7 @@ describe("lexiconLinesAr — the trigger set", () => {
     expect(l).toContain("200.00")
     expect(l).toContain("أرضية")
     expect(l).not.toContain("كسر الغطاء")
-    expect(l).toContain("المتفرج عليه")
+    expect(l).toContain("اللي بنراقبه")
   })
 
   it("standing exactly ON the round level → the standoff line (level === close, distPct 0)", () => {
@@ -54,7 +54,7 @@ describe("lexiconLinesAr — the trigger set", () => {
     const lines = lexiconLinesAr(ctx, opts())
     expect(lines.length).toBe(1)
     expect(lines[0]).toContain("208.18")
-    expect(lines[0]).toContain("المتفرج عليه")
+    expect(lines[0]).toContain("اللي بنراقبه")
   })
 
   it("(b) consolidation {7 sessions, 2.1٪} + nearRangeTop on hold → the «تجميعة» line with both real numbers and the watch-next", () => {
@@ -66,7 +66,7 @@ describe("lexiconLinesAr — the trigger set", () => {
     expect(l).toContain("7")
     expect(l).toContain("2.1٪")
     expect(l).toContain("وقود الحركة الجاية") // the community law, verbatim
-    expect(l).toContain("المتفرج عليه")
+    expect(l).toContain("اللي بنراقبه")
   })
 
   it("the same consolidation at the range BOTTOM (deepLoss) → the capitulation line with the numbers", () => {
@@ -79,7 +79,7 @@ describe("lexiconLinesAr — the trigger set", () => {
     expect(l).toContain("1.8٪")
     expect(l).toContain("القاع بيتصنع بالتدريج")
     expect(l).toContain("دفعة لمّية")
-    expect(l).toContain("المتفرج عليه")
+    expect(l).toContain("اللي بنراقبه")
   })
 
   it("(c) volTrend5 falling + nearRangeTop on hold → the «سيولة مدّارة» line with the dry bound", () => {
@@ -90,7 +90,7 @@ describe("lexiconLinesAr — the trigger set", () => {
     expect(l).toContain("سيولة مدّارة")
     expect(l).toContain("0.7×") // the context's own documented falling bound
     expect(l).toContain("الفوليوم بيكلم قبل السعر")
-    expect(l).toContain("المتفرج عليه")
+    expect(l).toContain("اللي بنراقبه")
   })
 
   it("volTrend5 rising on a red exit → the documented-break line («الكسر الكاذب بيصطاد العجلة»)", () => {
@@ -100,7 +100,7 @@ describe("lexiconLinesAr — the trigger set", () => {
     const l = lines[0]!
     expect(l).toContain("1.3×") // the context's own documented rising bound
     expect(l).toContain("الكسر الكاذب بيصطاد العجلة")
-    expect(l).toContain("المتفرج عليه")
+    expect(l).toContain("اللي بنراقبه")
   })
 
   it("volTrend5 rising in a loss wait → the first-injection («ضخ») hint line", () => {
@@ -109,7 +109,7 @@ describe("lexiconLinesAr — the trigger set", () => {
     expect(lines.length).toBe(1)
     expect(lines[0]).toContain("ضخ")
     expect(lines[0]).toContain("1.3×")
-    expect(lines[0]).toContain("المتفرج عليه")
+    expect(lines[0]).toContain("اللي بنراقبه")
   })
 
   it("branch gating: each trigger stays silent outside its branch family", () => {
@@ -231,7 +231,7 @@ describe("lexiconLinesAr — knowledge density (owner bar: law + number, not slo
     for (const { ctx, o } of battery) {
       for (const line of lexiconLinesAr(ctx, o)) {
         expect(words(line)).toBeGreaterThanOrEqual(12)
-        expect(line).toContain("المتفرج عليه")
+        expect(line).toContain("اللي بنراقبه")
       }
     }
   })
@@ -273,7 +273,7 @@ describe("the lexicon pass — live integration over real bars", () => {
     expect(all).toContain("الأرقام المستديرة") // the idiom reached the report
     expect(all).toContain("105.00") // the computed round level
     expect(all).toContain("أرضية") // level BELOW the close → floor
-    expect(all).toContain("المتفرج عليه") // every lexicon line carries the watch-next
+    expect(all).toContain("اللي بنراقبه") // every lexicon line carries the watch-next
     // and the merged cap still holds end-to-end
     expect(r.reasonsAr.length).toBeLessThanOrEqual(5 + NARRATIVE_MAX_LINES)
   })

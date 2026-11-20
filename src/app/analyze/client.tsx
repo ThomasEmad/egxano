@@ -19,7 +19,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
-  AlertTriangle, ArrowDownRight, ArrowUpRight, BrainCircuit, CircleHelp, LineChart, Loader2,
+  AlertTriangle, ArrowDownRight, ArrowUpRight, BrainCircuit, CircleHelp, Info, LineChart, Loader2,
   Lock, RotateCcw, Scale, Search, ShieldAlert, TrendingDown, TrendingUp, Wallet,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -376,7 +376,12 @@ export default function AnalyzeClient() {
                   </li>
                 ))}
               </ol>
-              <p className="mt-4 border-t pt-3 text-xs italic text-muted-foreground">{r.closingAr}</p>
+              {/* the honesty closer — a proper strip instead of a bare grey line
+                  (owner report 2026-11-20: «الكلام في آخر الصفحة مش ملون») */}
+              <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-border/70 bg-muted/40 p-3.5">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+                <p className="text-xs leading-relaxed text-muted-foreground">{r.closingAr}</p>
+              </div>
             </CardContent>
           </Card>
 
@@ -438,17 +443,19 @@ export default function AnalyzeClient() {
                 القراءة الفنية الكاملة
               </h2>
               <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-                <Snap label="الاتجاه" value={r.snapshot.trendAr} wide />
-                <Snap label="قوة الحركة RSI (14)" value={r.snapshot.rsi14?.toFixed(1) ?? "—"} />
+                {/* semantic color on the reading cells: صاعد/هابط/متذبذب and the
+                    RSI/range extremes read at a glance (owner 2026-11-20) */}
+                <Snap label="الاتجاه" value={r.snapshot.trendAr} wide tone={trendTone(r.snapshot.trendAr)} />
+                <Snap label="قوة الحركة RSI (14)" value={r.snapshot.rsi14?.toFixed(1) ?? "—"} tone={rsiTone(r.snapshot.rsi14)} />
                 <Snap label="متوسط سعر 20 يوم EMA" value={r.snapshot.ema20?.toFixed(2) ?? "—"} />
                 <Snap label="متوسط سعر 50 يوم EMA" value={r.snapshot.ema50?.toFixed(2) ?? "—"} />
                 <Snap label="الحجم النسبي" value={r.snapshot.relVol ? `${r.snapshot.relVol.toFixed(2)}×` : "—"} />
-                <Snap label="موقع السعر في نطاق 60 جلسة (0 قاع / 100 قمة)" value={r.snapshot.rangePos60 !== null ? `${Math.round(r.snapshot.rangePos60)}٪` : "—"} />
+                <Snap label="موقع السعر في نطاق 60 جلسة (0 قاع / 100 قمة)" value={r.snapshot.rangePos60 !== null ? `${Math.round(r.snapshot.rangePos60)}٪` : "—"} tone={rangeTone(r.snapshot.rangePos60)} />
                 <Snap label="مدى التقلب ATR (14)" value={r.snapshot.atr14?.toFixed(2) ?? "—"} />
                 {/* owner alignment: the engine-state cell shows THE SAME verdict
                     as the decision banner (with the engine score), never a
                     contradicting label */}
-                <Snap label="قرار المحرك النهائي" value={`${r.decisionAr} · ${r.snapshot.signalScore ?? "—"}/100`} />
+                <Snap label="قرار المحرك النهائي" value={`${r.decisionAr} · ${r.snapshot.signalScore ?? "—"}/100`} tone={DECISION_STYLE[r.decision].text} />
               </div>
               <p className="mt-4 text-xs leading-relaxed text-muted-foreground">{r.levelsBasisAr}</p>
               {r.warningsAr.length > 0 && (
@@ -520,11 +527,31 @@ function fmtSignedPct(x: number): string {
   return `${neg ? "-" : "+"}${Math.abs(x).toFixed(1)}٪`
 }
 
-function Snap({ label, value, wide }: { label: string; value: string; wide?: boolean }) {
+function Snap({ label, value, wide, tone }: { label: string; value: string; wide?: boolean; tone?: string }) {
   return (
     <div className={`rounded-lg border bg-muted/40 p-3 ${wide ? "col-span-2 md:col-span-4" : ""}`}>
       <div className="text-[11px] font-medium text-muted-foreground">{label}</div>
-      <div className="mt-1 font-bold leading-relaxed tabular-nums">{value}</div>
+      <div className={`mt-1 font-bold leading-relaxed tabular-nums ${tone ?? ""}`}>{value}</div>
     </div>
   )
+}
+
+/** Semantic color for the technical-reading cells (2026-11-20 owner report). */
+function trendTone(trendAr: string): string {
+  if (trendAr.startsWith("صاعد")) return "text-emerald-600 dark:text-emerald-400"
+  if (trendAr.startsWith("هابط")) return "text-red-600 dark:text-red-400"
+  if (trendAr.startsWith("متذبذب")) return "text-amber-600 dark:text-amber-400"
+  return ""
+}
+function rsiTone(rsi: number | null): string {
+  if (rsi === null) return ""
+  if (rsi > 70) return "text-amber-600 dark:text-amber-400"
+  if (rsi < 30) return "text-sky-600 dark:text-sky-400"
+  return ""
+}
+function rangeTone(v: number | null): string {
+  if (v === null) return ""
+  if (v >= 70) return "text-amber-600 dark:text-amber-400"
+  if (v <= 30) return "text-sky-600 dark:text-sky-400"
+  return ""
 }
