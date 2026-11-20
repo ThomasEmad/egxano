@@ -95,8 +95,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F7F8F6" },
-    { media: "(prefers-color-scheme: dark)", color: "#060906" },
+    { media: "(prefers-color-scheme: light)", color: "#F9FAF8" },
+    { media: "(prefers-color-scheme: dark)", color: "#050807" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -107,8 +107,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   // AdSense site-ownership meta tag — required by Google on EVERY page before
   // the account can serve ads on this domain (site verification).
   const adsenseClient = getAdsenseClient()
+  // suppressHydrationWarning: next-themes injects the theme class on <html>
+  // before hydration — without it React logs a mismatch warning on every load.
   return (
-    <html lang="ar" dir="rtl" className={`${geistSans.variable} ${geistMono.variable} ${plexArabic.variable}`}>
+    <html lang="ar" dir="rtl" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} ${plexArabic.variable}`}>
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/png" sizes="64x64" href="/icon-64.png" />

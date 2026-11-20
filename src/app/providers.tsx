@@ -21,7 +21,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+      {/* DARK is the brand's default identity (owner mandate 2026-11-20):
+          premium graphite + acid lime. A returning user's explicit light
+          choice still wins via next-themes' localStorage persistence. */}
+      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
         <I18nProvider>{children}</I18nProvider>
       </ThemeProvider>
     </QueryClientProvider>
