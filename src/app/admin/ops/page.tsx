@@ -144,7 +144,7 @@ export default function AdminOpsPage() {
             </p>
             <ul className="list-inside list-disc space-y-0.5">
               <li>{ar ? "سكريبتات البيانات الخالصة (استيراد askborsa، تنقية، تدقيق، إعادة حساب، توزيعات) شغالة من هنا." : "Pure data scripts (askborsa import, purge, audit, recompute, dividends) run from here."}</li>
-              <li>{ar ? "أي سكريبت أطول من مدة الدالة (~13 دقيقة) بيتوقف ويظهر «انقطع» — اضغط تشغيل تاني وبيكمل من حيث وقف (الوظائف قابلة للاستكمال)." : "Any script longer than the function duration (~13 min) stops and shows 'interrupted' — run it again to resume (jobs are resumable)."}</li>
+              <li>{ar ? "أي سكريبت أطول من مدة الدالة (~5 دقائق على خطة Hobby) بيتوقف ويظهر «انقطع» — اضغط تشغيل تاني وبيكمل من حيث وقف (الوظائف قابلة للاستكمال)." : "Any script longer than the function duration (~5 min on the Hobby plan) stops and shows 'interrupted' — run it again to resume (jobs are resumable)."}</li>
               <li>{ar ? "ملفات العمل (خطط/تراجع/سجلات) مؤقتة على السيرفر — اقرأ السجل قبل ما تعيد التشغيل." : "Work files (plans/rollback/logs) are temporary on the server — check the log before re-running."}</li>
               <li>{ar ? "وظائف TradingView الأربعة محتاجة متصفح Chromium — تشتغل فقط من سيرفر ذاتي الاستضافة (Docker)." : "The four TradingView jobs need a Chromium browser — they run only on a self-hosted server (Docker)."}</li>
             </ul>

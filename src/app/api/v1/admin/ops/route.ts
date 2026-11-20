@@ -11,12 +11,14 @@ import { WHITELIST, startJob, killJob, listRuns, runningJobs, tailLog, anyRunnin
 // Only whitelisted scripts run (fixed argv, no user input in the command line),
 // one at a time, journal persisted to reports/admin-ops-journal.json.
 //
-// maxDuration: the longest non-browser job (AskBorsa apply) takes 8–15 min.
-// On Vercel Fluid compute this also bounds how long the spawned child stays
-// alive after the response — jobs cut by the limit are resumable by design
-// (the runner reconciles "interrupted" runs from the journal).
+// maxDuration: bounded by the Hobby plan ceiling (300 s — the 800 s Fluid
+// maximum is Pro-only and fails the Hobby build). On Vercel Fluid compute this
+// also bounds how long the spawned child stays alive after the response — jobs
+// longer than ~5 min are cut by the platform, but every data job is resumable
+// by design (fill-empty-slots-only / resume-aware) and the runner reconciles
+// "interrupted" runs from the journal. Re-run to continue.
 
-export const maxDuration = 800
+export const maxDuration = 300
 
 export async function GET(req: NextRequest) {
   if (!(await isAdmin(req))) return await unauthorizedResponse()
