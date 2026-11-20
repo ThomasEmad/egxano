@@ -13,6 +13,7 @@ interface WhitelistJob {
   script: string
   args: string[]
   destructive: boolean
+  selfhostOnly?: boolean
   labelEn: string
   labelAr: string
   descEn: string
@@ -35,6 +36,7 @@ interface OpsData {
   running: Run[]
   busy: boolean
   runs: Run[]
+  hosting?: { serverless: boolean; fsWritable: boolean; workRoot: string }
 }
 
 const JOB_AR: Record<string, string> = {
@@ -132,6 +134,24 @@ export default function AdminOpsPage() {
         </button>
       </div>
 
+      {/* hosting mode banner — the owner must know the execution limits
+          before pressing Run, not after a failed toast (5-second rule) */}
+      {data?.hosting?.serverless && (
+        <Card className="border-sky-500/40 bg-sky-500/5 p-0">
+          <CardContent className="p-3 text-[11px] leading-relaxed text-muted-foreground">
+            <p className="mb-1 font-bold text-foreground">
+              {ar ? "وضع الاستضافة: سيرفرليس (Vercel) — بالحدود دي:" : "Hosting mode: serverless (Vercel) — with these limits:"}
+            </p>
+            <ul className="list-inside list-disc space-y-0.5">
+              <li>{ar ? "سكريبتات البيانات الخالصة (استيراد askborsa، تنقية، تدقيق، إعادة حساب، توزيعات) شغالة من هنا." : "Pure data scripts (askborsa import, purge, audit, recompute, dividends) run from here."}</li>
+              <li>{ar ? "أي سكريبت أطول من مدة الدالة (~13 دقيقة) بيتوقف ويظهر «انقطع» — اضغط تشغيل تاني وبيكمل من حيث وقف (الوظائف قابلة للاستكمال)." : "Any script longer than the function duration (~13 min) stops and shows 'interrupted' — run it again to resume (jobs are resumable)."}</li>
+              <li>{ar ? "ملفات العمل (خطط/تراجع/سجلات) مؤقتة على السيرفر — اقرأ السجل قبل ما تعيد التشغيل." : "Work files (plans/rollback/logs) are temporary on the server — check the log before re-running."}</li>
+              <li>{ar ? "وظائف TradingView الأربعة محتاجة متصفح Chromium — تشتغل فقط من سيرفر ذاتي الاستضافة (Docker)." : "The four TradingView jobs need a Chromium browser — they run only on a self-hosted server (Docker)."}</li>
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       {data?.busy && (
         <Card className="border-amber-500/50 p-0">
           <CardContent className="flex items-center gap-2 p-3 text-xs">
@@ -151,13 +171,19 @@ export default function AdminOpsPage() {
 
       <div className="grid gap-3 md:grid-cols-2">
         {(data?.jobs ?? []).map((j) => {
-          const disabled = run.isPending || data?.busy
+          // browser-dependent jobs can't start on serverless — disable upfront
+          const serverlessBlocked = !!j.selfhostOnly && !!data?.hosting?.serverless
+          const disabled = run.isPending || data?.busy || serverlessBlocked
           return (
             <Card key={j.key} className={`p-0 ${j.destructive ? "border-amber-500/40" : ""}`}>
               <CardHeader className="pb-1.5">
                 <CardTitle className="flex items-center justify-between gap-2 text-sm">
                   <span>{ar ? JOB_AR[j.key] ?? j.labelAr : j.labelEn}</span>
-                  {j.destructive && <Badge variant="outline" className="shrink-0 border-amber-500/40 text-[9px] text-amber-600">{ar ? "يكتب في الداتا" : "writes to DB"}</Badge>}
+                  {serverlessBlocked ? (
+                    <Badge variant="outline" className="shrink-0 border-sky-500/40 text-[9px] text-sky-600">{ar ? "سيرفر ذاتي فقط" : "self-host only"}</Badge>
+                  ) : j.destructive ? (
+                    <Badge variant="outline" className="shrink-0 border-amber-500/40 text-[9px] text-amber-600">{ar ? "يكتب في الداتا" : "writes to DB"}</Badge>
+                  ) : null}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2.5">

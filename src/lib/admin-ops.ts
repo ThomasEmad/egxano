@@ -16,7 +16,8 @@
 export const runtime = 'nodejs'
 
 import { spawn } from "node:child_process"
-import { mkdirSync, readFileSync, writeFileSync, existsSync, openSync } from "node:fs"
+import { mkdirSync, readFileSync, writeFileSync, existsSync, openSync, unlinkSync } from "node:fs"
+import os from "node:os"
 import path from "node:path"
 
 // The standalone server chdirs to .next/standalone (server.js does
@@ -24,14 +25,70 @@ import path from "node:path"
 // via EGX_ROOT — otherwise journal/log paths and script cwds would land inside
 // the build output and be wiped on the next rebuild.
 const ROOT = process.env.EGX_ROOT || process.cwd()
-const LOG_DIR = path.join(ROOT, "reports", "admin-ops-logs")
-const JOURNAL = path.join(ROOT, "reports", "admin-ops-journal.json")
+
+// -----------------------------------------------------------------------------
+// Hosting probe (owner bug report 2026-11-20: "كل الاسكريبتات في /admin/ops
+// مش شغالة" on egxano.vercel.app). On Vercel/serverless the deployment root is
+// READ-ONLY, so journal/log writes and every `reports/…` artifact the scripts
+// produce failed at startJob time. Fix: probe for a writable root and fall back
+// to /tmp — the child's cwd (and EGX_ROOT) point there, so every relative
+// `reports/…` path the scripts use lands somewhere writable, while the script
+// FILES themselves are still read from the (read-only) deployment bundle.
+// Self-hosted (Docker/standalone): ROOT stays writable → identical behavior.
+// -----------------------------------------------------------------------------
+export interface OpsHosting {
+  serverless: boolean
+  fsWritable: boolean
+  /** where the child's cwd + journal + logs live (basename only) */
+  workRoot: string
+}
+
+let _probe: { root: string; fsWritable: boolean } | null = null
+
+function writableRoot(): { root: string; fsWritable: boolean } {
+  if (_probe) return _probe
+  const candidates = [ROOT, path.join(os.tmpdir(), "egx-ops")]
+  for (const cand of candidates) {
+    try {
+      const dir = path.join(cand, "reports")
+      mkdirSync(dir, { recursive: true })
+      const probe = path.join(dir, ".writable-probe")
+      writeFileSync(probe, "1", "utf8")
+      unlinkSync(probe)
+      _probe = { root: cand, fsWritable: cand === ROOT }
+      return _probe
+    } catch {
+      // read-only (Vercel) — try the next candidate
+    }
+  }
+  // os.tmpdir() is always writable on every supported runtime; unreachable in practice
+  _probe = { root: candidates[candidates.length - 1], fsWritable: false }
+  return _probe
+}
+
+const PROBE = writableRoot()
+const ROOT_WRITABLE = PROBE.fsWritable
+const IS_SERVERLESS = !ROOT_WRITABLE || process.env.VERCEL === "1"
+
+/** Hosting mode of the current server process — surfaced to the admin UI. */
+export function opsHosting(): OpsHosting {
+  return {
+    serverless: IS_SERVERLESS,
+    fsWritable: ROOT_WRITABLE,
+    workRoot: path.basename(PROBE.root),
+  }
+}
+
+const LOG_DIR = path.join(PROBE.root, "reports", "admin-ops-logs")
+const JOURNAL = path.join(PROBE.root, "reports", "admin-ops-journal.json")
 
 export interface WhitelistEntry {
   key: string
   script: string
   args: string[]
   destructive: boolean
+  /** needs a Chromium browser (Playwright) → impossible on serverless hosting */
+  selfhostOnly?: boolean
   labelEn: string
   labelAr: string
   descEn: string
@@ -124,6 +181,7 @@ export const WHITELIST: WhitelistEntry[] = [
     script: "scripts/tradingview-financials-import.mjs",
     args: ["--harvest-only", "--workers=2", "--delay-ms=3500"],
     destructive: false,
+    selfhostOnly: true,
     labelEn: "TradingView harvest — collect statements",
     labelAr: "حصاد TradingView — جمع القوائم",
     descEn: "Harvests income/balance/cash-flow statements from TradingView's public symbol pages for every company not yet harvested (resume-aware, polite pacing, auto-cooldown on rate limits). Writes nothing to the database. Auto-stops after 45 minutes — run again to continue where it left off.",
@@ -134,6 +192,7 @@ export const WHITELIST: WhitelistEntry[] = [
     script: "scripts/tradingview-financials-import.mjs",
     args: ["--from-snapshot"],
     destructive: false,
+    selfhostOnly: true,
     labelEn: "TradingView import — plan (dry run)",
     labelAr: "استيراد TradingView — تخطيط (بدون كتابة)",
     descEn: "Classifies and validates the harvested snapshot against the database (conflicts, quarter sum-checks, period identity) and prints the import plan. Writes nothing.",
@@ -144,6 +203,7 @@ export const WHITELIST: WhitelistEntry[] = [
     script: "scripts/tradingview-financials-import.mjs",
     args: ["--from-snapshot", "--apply", "--recompute"],
     destructive: true,
+    selfhostOnly: true,
     labelEn: "TradingView import — apply + recompute",
     labelAr: "استيراد TradingView — تنفيذ + إعادة حساب",
     descEn: "Writes the validated plan: creates missing reports, fills empty slots only (never overwrites), rollback file + audit log, then recomputes all derived metrics.",
@@ -154,6 +214,7 @@ export const WHITELIST: WhitelistEntry[] = [
     script: "scripts/tradingview-financials-import.mjs",
     args: ["--rollback"],
     destructive: true,
+    selfhostOnly: true,
     labelEn: "TradingView import — undo last apply",
     labelAr: "استيراد TradingView — تراجع عن آخر تنفيذ",
     descEn: "Reverts the last TradingView apply using its rollback file (values + created reports).",
@@ -267,6 +328,15 @@ export function jobByKey(key: string): WhitelistEntry | undefined {
 export function startJob(key: string): { ok: true; entry: JournalEntry } | { ok: false; error: string } {
   const job = jobByKey(key)
   if (!job) return { ok: false, error: `unknown job "${key}"` }
+  // Browser-dependent jobs (Playwright/Chromium) cannot run on serverless
+  // hosting — no Chromium binary and no persistent process. Fail fast with a
+  // plain-Arabic explanation instead of a confusing ENOENT/import crash.
+  if (job.selfhostOnly && IS_SERVERLESS) {
+    return {
+      ok: false,
+      error: "هذا السكريبت بيحتاج متصفح Chromium (للجمع من صفحات الويب) — غير متاح على استضافة Vercel السيرفرليس. شغّله من السيرفر الذاتي الاستضافة (Docker/standalone).",
+    }
+  }
   // clean stale in-memory entries whose pid died (e.g. after a restart)
   for (const [id, r] of running) if (!pidAlive(r.entry.pid)) running.delete(id)
   if (running.size > 0) {
@@ -287,9 +357,12 @@ export function startJob(key: string): { ok: true; entry: JournalEntry } | { ok:
   }
   // @ts-ignore - dynamic spawn is intentional for admin job execution
   const child = spawn(process.execPath, [/* turbopackIgnore: true */ path.join(ROOT, job.script), ...job.args], {
-    cwd: ROOT,
+    // cwd = the WRITABLE root: every relative `reports/…` artifact the script
+    // writes (snapshots, rollback files, caches) lands somewhere writable,
+    // while the script file itself is read from the deployment bundle.
+    cwd: PROBE.root,
     stdio: ["ignore", fd, fd],
-    env: { ...process.env },
+    env: { ...process.env, EGX_ROOT: PROBE.root },
   })
   const entry: JournalEntry = {
     id,

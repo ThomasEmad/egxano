@@ -53,7 +53,9 @@
 //   tv-financials-rollback.json   undo journal for the last apply
 //   tv-financials-conflicts.json  conflicts with existing DB values
 //   tv-financials-errors.json     per-company harvest errors
-import { chromium } from "playwright"
+// NOTE: playwright is imported lazily at launch time (see harvestBrowser()
+// below) — a static top-level import would crash `--from-snapshot` plan/apply
+// runs on hosts without the browser dependency installed.
 import { PrismaClient } from "@prisma/client"
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs"
 

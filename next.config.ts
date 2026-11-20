@@ -54,6 +54,19 @@ const nextConfig: NextConfig = {
   // Pin tracing/Turbopack to this project. Without this, Next walks up to the
   // parent folder (which has an unrelated package-lock.json) and warns.
   outputFileTracingRoot: process.cwd(),
+  // Admin ops spawns whitelisted scripts/*.mjs as child node processes — a
+  // dynamic path the tracer cannot see. Include them (plus their shared lib/
+  // modules and the Prisma query engine they need) in the /api/v1/admin/ops
+  // bundle so the jobs actually exist on serverless hosting (owner bug
+  // 2026-11-20: every ops script failed on Vercel).
+  outputFileTracingIncludes: {
+    "/api/v1/admin/ops": [
+      "./scripts/*.mjs",
+      "./scripts/lib/**",
+      "./node_modules/@prisma/client/**",
+      "./node_modules/.prisma/**",
+    ],
+  },
   turbopack: { root: process.cwd() },
   // The runtime reads EGX_ROOT-relative paths (scripts/, reports/) directly
   // from the project root — the standalone bundle never needs them. Excluding

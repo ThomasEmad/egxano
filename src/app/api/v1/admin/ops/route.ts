@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { isAdmin, unauthorizedResponse } from "@/lib/admin-auth"
 import { audit } from "@/lib/audit"
-import { WHITELIST, startJob, killJob, listRuns, runningJobs, tailLog, anyRunning } from "@/lib/admin-ops"
+import { WHITELIST, startJob, killJob, listRuns, runningJobs, tailLog, anyRunning, opsHosting } from "@/lib/admin-ops"
 
 // GET  /api/v1/admin/ops                 → whitelist metadata + running jobs + recent runs
 // GET  /api/v1/admin/ops?log=<runId>     → tail a run's log
@@ -10,6 +10,13 @@ import { WHITELIST, startJob, killJob, listRuns, runningJobs, tailLog, anyRunnin
 //
 // Only whitelisted scripts run (fixed argv, no user input in the command line),
 // one at a time, journal persisted to reports/admin-ops-journal.json.
+//
+// maxDuration: the longest non-browser job (AskBorsa apply) takes 8–15 min.
+// On Vercel Fluid compute this also bounds how long the spawned child stays
+// alive after the response — jobs cut by the limit are resumable by design
+// (the runner reconciles "interrupted" runs from the journal).
+
+export const maxDuration = 800
 
 export async function GET(req: NextRequest) {
   if (!(await isAdmin(req))) return await unauthorizedResponse()
@@ -26,6 +33,7 @@ export async function GET(req: NextRequest) {
     running: runningJobs(),
     busy: anyRunning(),
     runs: listRuns(20),
+    hosting: opsHosting(),
   })
 }
 
