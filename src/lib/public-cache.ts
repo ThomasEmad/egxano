@@ -49,3 +49,24 @@ export function queryKey(req: Request, pick: string[], defaults: Record<string, 
     .sort()
   return parts.join("&")
 }
+
+/**
+ * Fingerprint of a table's write state (count + max id/timestamp), memoized
+ * for one minute. Endpoints keyed with this fingerprint roll their cache key
+ * over whenever the underlying table is written — which is how data written
+ * from OUTSIDE the web server becomes visible fast:
+ *
+ *   GitHub Actions ops jobs and self-hosted scripts write directly to the
+ *   production database; there is no channel to invalidate a web-server cache
+ *   from there. A long edge cache (s-maxage) would otherwise serve the
+ *   pre-write response for its full TTL — owner report 2026-11-20: the
+ *   dividends apply inserted 30 rows successfully and the page stayed empty
+ *   for hours because the edge kept serving the empty pre-import snapshot.
+ *
+ * With the fingerprint in the key, the first request after a write (within
+ * the memoize window) computes a NEW key → edge miss → fresh data. The read
+ * itself is a cheap aggregate, executed at most once per minute per instance.
+ */
+export async function tableFingerprint(key: string, read: () => Promise<string>): Promise<string> {
+  return cached(`tf:${key}`, 60_000, read)
+}

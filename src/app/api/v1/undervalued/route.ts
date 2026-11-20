@@ -1,5 +1,5 @@
 import { db } from "@/lib/db"
-import { cachedResponse } from "@/lib/public-cache"
+import { cachedResponse, tableFingerprint } from "@/lib/public-cache"
 import { evaluateUndervaluation, type MetricMap } from "@/lib/analytics/engine"
 import { latestPriceByCompany } from "@/lib/financial/latest-price"
 import { selectOwnValues } from "@/lib/financial/own-values"
@@ -76,7 +76,24 @@ export async function GET() {
   // Annual fundamentals + prices change once per trading day — 6h SWR cache
   // (was 2min, which re-pulled the annual metrics/values/prices slices for
   // every serverless instance many times a day). CDN-edge-cacheable on top.
-  return cachedResponse("undervalued", 6 * 60 * 60 * 1000, buildUndervalued)
+  // The key carries the write fingerprint of the three input tables, so a
+  // successful import (GitHub Actions ops jobs write FinancialReport directly)
+  // or a recompute/market refresh becomes visible within ~60s instead of the
+  // full TTL — no cross-process invalidation channel exists for writers that
+  // run outside the web server (see tableFingerprint).
+  const fp = await tableFingerprint("undervalued", async () => {
+    const [fr, cm, mp] = await Promise.all([
+      db.financialReport.aggregate({ _max: { updatedAt: true }, _count: true }),
+      db.calculatedMetric.aggregate({ _max: { calculatedAt: true }, _count: true }),
+      db.marketPrice.aggregate({ _max: { asOf: true }, _count: true }),
+    ])
+    return [
+      `${fr._count}:${fr._max.updatedAt?.getTime() ?? "-"}`,
+      `${cm._count}:${cm._max.calculatedAt?.getTime() ?? "-"}`,
+      `${mp._count}:${mp._max.asOf?.getTime() ?? "-"}`,
+    ].join("|")
+  })
+  return cachedResponse(`undervalued:v${fp}`, 6 * 60 * 60 * 1000, buildUndervalued)
 }
 
 async function buildUndervalued(): Promise<unknown> {
