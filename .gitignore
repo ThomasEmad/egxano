@@ -74,3 +74,4 @@ reports/dividends-enrich-applied.json
 test-results/
 playwright-report/
 blob-report/
+tsconfig.tsbuildinfo
