@@ -337,10 +337,10 @@ export function MarketIntelligencePanel({
           <StatCell label={ar ? "القيمة المتداولة" : "Traded value"}>
             <span className="tnum text-sm font-bold">{fmtEgpAr(b.tradedValueEgp, ar)}</span>
           </StatCell>
-          <StatCell label={ar ? "فوق SMA20" : "Above SMA20"}>
+          <StatCell label={ar ? "شركات فوق متوسط 20 يوم" : "Above 20-day avg"}>
             <span className="tnum text-sm font-bold" dir="ltr">{b.pctAboveSma20 !== null ? `${b.pctAboveSma20.toFixed(0)}%` : "—"}</span>
           </StatCell>
-          <StatCell label={ar ? "فوق SMA50" : "Above SMA50"}>
+          <StatCell label={ar ? "شركات فوق متوسط 50 يوم" : "Above 50-day avg"}>
             <span className="tnum text-sm font-bold" dir="ltr">{b.pctAboveSma50 !== null ? `${b.pctAboveSma50.toFixed(0)}%` : "—"}</span>
           </StatCell>
           <StatCell label={ar ? "قمم/قيعان 52 أسبوعاً" : "52w highs/lows"}>

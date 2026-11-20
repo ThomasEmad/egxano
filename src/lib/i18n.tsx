@@ -156,7 +156,7 @@ const dict = {
   // dividends
   "dv.announcement": { en: "Announcement", ar: "الإعلان" },
   "dv.eligibility": { en: "Eligibility", ar: "الاستحقاق" },
-  "dv.exDate": { en: "Ex-dividend", ar: "تاريخ السابق" },
+  "dv.exDate": { en: "Ex-dividend date", ar: "تاريخ التأهل للتوزيعة (السابق)" },
   "dv.distribution": { en: "Distribution", ar: "الصرف" },
   "dv.dps": { en: "Per share", ar: "للسهم" },
   "dv.notAnnounced": { en: "Not officially announced", ar: "لم يُعلن رسمياً" },

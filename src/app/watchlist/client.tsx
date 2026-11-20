@@ -144,12 +144,12 @@ export default function WatchlistPage() {
                       <th className="p-3 text-start font-medium">{ar ? "الشركة" : "Company"}</th>
                       <th className="p-3 text-start font-medium">{ar ? "الفترة" : "Period"}</th>
                       <th className="p-3 text-end font-medium">{ar ? "آخر سعر" : "Last price"}</th>
-                      <th className="p-3 text-end font-medium">{ar ? "سنة" : "1Y"}</th>
+                      <th className="p-3 text-end font-medium">{ar ? "تغير سنة %" : "1Y %"}</th>
                       <th className="p-3 text-end font-medium">{ar ? "الإيرادات" : "Revenue"}</th>
                       <th className="p-3 text-end font-medium">{ar ? "صافي الربح" : "Net profit"}</th>
                       <th className="p-3 text-end font-medium">{ar ? "الهامش" : "Margin"}</th>
-                      <th className="p-3 text-end font-medium">ROE</th>
-                      <th className="hidden p-3 text-end font-medium md:table-cell">P/E</th>
+                      <th className="p-3 text-end font-medium">{ar ? "عائد الملكية" : "ROE"}</th>
+                      <th className="hidden p-3 text-end font-medium md:table-cell">{ar ? "مكرر الربحية" : "P/E"}</th>
                       <th className="hidden p-3 text-end font-medium md:table-cell">{ar ? "التوزيعات" : "Div yield"}</th>
                       <th className="p-3 text-end font-medium" />
                     </tr>

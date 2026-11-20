@@ -745,7 +745,10 @@ function MoversPanel({
                         <span className="min-w-0 truncate text-xs font-bold">{m.ticker}</span>
                         <span className="flex shrink-0 items-center gap-2">
                           {col.showVol && fmtVol(m.volume) ? (
-                            <span className="text-[10px] tabular text-muted-foreground" dir="ltr">{fmtVol(m.volume)}</span>
+                            <span className="text-[10px] tabular text-muted-foreground" dir="ltr" title={ar ? "عدد الأسهم المتداولة" : "shares traded"}>
+                              {fmtVol(m.volume)}
+                              {ar ? " سهم" : " sh"}
+                            </span>
                           ) : (
                             <span className="text-[11px] font-semibold tabular text-foreground" dir="ltr">{m.price.toFixed(2)}</span>
                           )}
@@ -1042,7 +1045,7 @@ function OpportunitiesPanel({
               {results.length > 0 ? (
                 <>
                   <p className="text-xs text-text-secondary leading-relaxed mb-3 flex-1">
-                    {ar ? "شركات تفي بمعايير التقييم — اضغط للتفاصيل" : "Companies meeting valuation criteria — tap for details"}
+                    {ar ? "شركات تفي بمعايير التقييم — النسبة بجانب السهم = رخصه عن قيمته المستنتَجة. اضغط للتفاصيل" : "Companies meeting valuation criteria — the % beside a ticker is its discount to estimated fair value"}
                   </p>
                   <div className="flex flex-wrap gap-1.5 mb-3">
                     {results.slice(0, 3).map((r) => (

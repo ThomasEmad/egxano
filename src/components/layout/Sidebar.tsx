@@ -318,7 +318,7 @@ export function Sidebar({ collapsed = false, onCollapseChange }: { collapsed?: b
               <Input
                 ref={searchInputRef}
                 type="search"
-                placeholder="البحث في القائمة... (⌘K)"
+                placeholder="ابحث في صفحات الموقع... (⌘K)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setShowSearch(true)}
@@ -350,7 +350,7 @@ export function Sidebar({ collapsed = false, onCollapseChange }: { collapsed?: b
                       </div>
                     ) : (
                       <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                        {lang === "ar" ? "لا توجد نتائج" : "No results found"}
+                        {lang === "ar" ? "لا نتائج بين صفحات الموقع — للوصول لشركة استخدم صفحة الشركات" : "No page matches — use the companies page to find a company"}
                       </div>
                     )}
                   </AnimatePresence>

@@ -256,10 +256,10 @@ export default function DataQualityPage() {
                     <th className="px-3 py-2 text-start">{ar ? "الرمز" : "Ticker"}</th>
                     <th className="px-3 py-2 text-start">{ar ? "الشركة" : "Company"}</th>
                     <th className="px-3 py-2 text-start">{ar ? "الاعتماد" : "Certification"}</th>
-                    <th className="px-3 py-2 text-end">{ar ? "الدقة" : "Accuracy"}</th>
-                    <th className="px-3 py-2 text-end">{ar ? "الاكتمال" : "Completeness"}</th>
-                    <th className="px-3 py-2 text-end">{ar ? "الحداثة" : "Freshness"}</th>
-                    <th className="px-3 py-2 text-end">{ar ? "سلامة السجل" : "Integrity"}</th>
+                    <th className="px-3 py-2 text-end">{ar ? "الدقة %" : "Accuracy %"}</th>
+                    <th className="px-3 py-2 text-end">{ar ? "الاكتمال %" : "Completeness %"}</th>
+                    <th className="px-3 py-2 text-end">{ar ? "الحداثة %" : "Freshness %"}</th>
+                    <th className="px-3 py-2 text-end">{ar ? "مصدر قابل للتحقق %" : "Provenance %"}</th>
                     <th className="px-3 py-2 text-end">{ar ? "حاجز" : "Blockers"}</th>
                     <th className="px-3 py-2 text-start">{ar ? "الأسباب" : "Root causes"}</th>
                   </tr>
@@ -277,10 +277,10 @@ export default function DataQualityPage() {
                             {ar ? (data.certificationLabels[c.certification]?.ar ?? c.certification) : (data.certificationLabels[c.certification]?.en ?? c.certification)}
                           </span>
                         </td>
-                        <td className={`px-3 py-2 text-end font-bold tabular ${scoreColor(c.accuracy)}`}>{c.accuracy ?? "—"}</td>
-                        <td className="px-3 py-2 text-end tabular">{c.completeness ?? "—"}</td>
-                        <td className="px-3 py-2 text-end tabular">{c.freshness ?? "—"}</td>
-                        <td className="px-3 py-2 text-end tabular">{c.provenance ?? "—"}</td>
+                        <td className={`px-3 py-2 text-end font-bold tabular ${scoreColor(c.accuracy)}`}>{c.accuracy != null ? `${c.accuracy}%` : "—"}</td>
+                        <td className="px-3 py-2 text-end tabular">{c.completeness != null ? `${c.completeness}%` : "—"}</td>
+                        <td className="px-3 py-2 text-end tabular">{c.freshness != null ? `${c.freshness}%` : "—"}</td>
+                        <td className="px-3 py-2 text-end tabular">{c.provenance != null ? `${c.provenance}%` : "—"}</td>
                         <td className="px-3 py-2 text-end tabular font-bold">{c.blockerCount}</td>
                         <td className="px-3 py-2">
                           <div className="flex flex-wrap gap-1">

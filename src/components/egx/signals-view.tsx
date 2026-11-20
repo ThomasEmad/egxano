@@ -255,7 +255,7 @@ function OpportunityCard({ row, ar }: { row: Exclude<BoardRow, GatedRowV2>; ar: 
               )}
             </div>
             <div className="text-[11px] text-muted-foreground">
-              {ar ? "القوة" : "Score"} {fmt(row.score, 0)}
+              {ar ? "القوة" : "Score"} {fmt(row.score, 0)}{ar ? " من 100" : "/100"}
             </div>
           </div>
         </div>
@@ -528,7 +528,7 @@ export function SignalsView() {
         </span>
         {data.breadthAboveEma50Pct !== null ? (
           <span>
-            {ar ? "نسبة فوق EMA50" : "above EMA50"}: <span className="font-semibold text-foreground">{data.breadthAboveEma50Pct}%</span>
+            {ar ? "أسهم فوق متوسطها الحركي 50 يومًا" : "above 50-day avg"}: <span className="font-semibold text-foreground">{data.breadthAboveEma50Pct}%</span>
           </span>
         ) : null}
         {data.computedAt ? (
@@ -674,7 +674,7 @@ export function SignalsView() {
                 <TableHead>{ar ? "وقف" : "Stop"}</TableHead>
                 <TableHead>{ar ? "هدف 1" : "T1"}</TableHead>
                 <TableHead>{ar ? "العائد" : "Return"}</TableHead>
-                <TableHead>R/R</TableHead>
+                <TableHead>{ar ? "عائد/مخاطرة" : "R/R"}</TableHead>
                 <TableHead>{ar ? "تحديث" : "As of"}</TableHead>
                 <TableHead />
               </TableRow>

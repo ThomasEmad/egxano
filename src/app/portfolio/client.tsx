@@ -41,13 +41,15 @@ interface PortfolioData {
   sectors: { sector: string; value: number; pct: number }[]
 }
 
-function fmtEgp(v: number): string {
+function fmtEgp(v: number, ar = false): string {
   const abs = Math.abs(v)
   const sign = v < 0 ? "-" : ""
-  if (abs >= 1e9) return `${sign}${(abs / 1e9).toFixed(2)}B`
-  if (abs >= 1e6) return `${sign}${(abs / 1e6).toFixed(2)}M`
-  if (abs >= 1e3) return `${sign}${(abs / 1e3).toFixed(1)}K`
-  return `${sign}${abs.toFixed(2)}`
+  // Arabic UI: spelled-out units — "B/M/K" means nothing to a non-expert
+  // reader (owner 5-second rule 2026-11-20).
+  if (abs >= 1e9) return ar ? `${sign}${(abs / 1e9).toFixed(2)} مليار ج.م` : `${sign}${(abs / 1e9).toFixed(2)}B`
+  if (abs >= 1e6) return ar ? `${sign}${(abs / 1e6).toFixed(2)} مليون ج.م` : `${sign}${(abs / 1e6).toFixed(2)}M`
+  if (abs >= 1e3) return ar ? `${sign}${(abs / 1e3).toFixed(1)} ألف ج.م` : `${sign}${(abs / 1e3).toFixed(1)}K`
+  return ar ? `${sign}${abs.toFixed(2)} ج.م` : `${sign}${abs.toFixed(2)}`
 }
 
 export default function PortfolioPage() {
@@ -167,13 +169,13 @@ export default function PortfolioPage() {
               <Card className="border-border/60 p-0">
                 <CardContent className="p-4">
                   <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{ar ? "القيمة السوقية" : "Market value"}</p>
-                  <p className="mt-1 text-lg font-bold tabular">{fmtEgp(totals!.marketValue)} EGP</p>
+                  <p className="mt-1 text-lg font-bold tabular">{fmtEgp(totals!.marketValue, ar)}</p>
                 </CardContent>
               </Card>
               <Card className="border-border/60 p-0">
                 <CardContent className="p-4">
                   <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{ar ? "التكلفة" : "Cost"}</p>
-                  <p className="mt-1 text-lg font-bold tabular">{fmtEgp(totals!.cost)} EGP</p>
+                  <p className="mt-1 text-lg font-bold tabular">{fmtEgp(totals!.cost, ar)}</p>
                 </CardContent>
               </Card>
               <Card className={`p-0 ${positive ? "border-emerald-500/30" : "border-red-500/30"}`}>
@@ -181,7 +183,7 @@ export default function PortfolioPage() {
                   <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{ar ? "الربح/الخسارة" : "P&L"}</p>
                   <p className={`mt-1 flex items-center gap-1.5 text-lg font-bold tabular ${positive ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                     {positive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                    {fmtEgp(totals!.pl)} EGP
+                    {fmtEgp(totals!.pl, ar)}
                   </p>
                 </CardContent>
               </Card>
@@ -196,7 +198,7 @@ export default function PortfolioPage() {
               <Card className="border-teal-500/30 p-0">
                 <CardContent className="p-4">
                   <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{ar ? "توزيعات سنوية متوقعة" : "Expected annual dividends"}</p>
-                  <p className="mt-1 text-lg font-bold tabular text-teal-700 dark:text-teal-300">{totals!.expectedDividend > 0 ? `${fmtEgp(totals!.expectedDividend)} EGP` : "—"}</p>
+                  <p className="mt-1 text-lg font-bold tabular text-teal-700 dark:text-teal-300">{totals!.expectedDividend > 0 ? fmtEgp(totals!.expectedDividend, ar) : "—"}</p>
                   {totals!.dividendYieldOnCost !== null ? (
                     <p className="text-[10px] text-muted-foreground">{ar ? "عائد على التكلفة" : "yield on cost"}: <span className="tabular font-semibold">{totals!.dividendYieldOnCost.toFixed(1)}%</span></p>
                   ) : null}
@@ -243,9 +245,9 @@ export default function PortfolioPage() {
                                 <span className="text-[11px] text-muted-foreground italic">{ar ? "لا سعر مسجّل" : "no recorded price"}</span>
                               )}
                             </td>
-                            <td className="p-3 text-end font-semibold tabular">{h.marketValue !== null ? fmtEgp(h.marketValue) : fmtEgp(h.cost)}</td>
+                            <td className="p-3 text-end font-semibold tabular">{h.marketValue !== null ? fmtEgp(h.marketValue, ar) : fmtEgp(h.cost, ar)}</td>
                             <td className={`p-3 text-end font-bold tabular ${h.pl === null ? "text-muted-foreground" : good ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                              {h.pl !== null ? `${good ? "+" : ""}${fmtEgp(h.pl)} (${h.plPct !== null ? `${h.plPct >= 0 ? "+" : ""}${h.plPct.toFixed(1)}%` : "—"})` : "—"}
+                              {h.pl !== null ? `${good ? "+" : ""}${fmtEgp(h.pl, ar)} (${h.plPct !== null ? `${h.plPct >= 0 ? "+" : ""}${h.plPct.toFixed(1)}%` : "—"})` : "—"}
                             </td>
                             <td className="p-3 text-end">
                               <Button variant="ghost" size="sm" className="h-7 w-7 px-0 text-muted-foreground hover:text-red-500" onClick={() => del.mutate(h.id)} aria-label={ar ? "حذف" : "Remove"}>

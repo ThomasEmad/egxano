@@ -45,11 +45,11 @@ export default function ForgotPasswordPage() {
                 <MailQuestion className="mx-auto h-8 w-8 text-primary" aria-hidden />
                 <h1 className="text-base font-semibold">تم استلام الطلب — Request received</h1>
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  لو البريد مسجّل عندنا، هتقدر تعيد تعيين كلمة المرور. في البيئة الحالية مفيش خدمة بريد مفعّلة —
-                  تواصل مع مشرف المنصة لإكمال إعادة التعيين.
+                  لو البريد مسجّل عندنا، طلب إعادة التعيين هيوصل لفريق الدعم والتنفيذ بيتم يدويًا خلال وقت قصير —
+                  تواصل معنا وهنرجعلك في أسرع وقت.
                   <br />
-                  If that email is registered, a reset can be issued. This environment has no mail service — contact
-                  the platform administrator to complete the reset.
+                  If that email is registered, the reset request reaches the support team and is processed manually
+                  within a short time — contact us and we will get back to you promptly.
                 </p>
                 <Link href="/login" className="inline-block text-xs font-medium text-primary hover:underline">
                   العودة لتسجيل الدخول — Back to sign in

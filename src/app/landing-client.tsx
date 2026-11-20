@@ -75,6 +75,20 @@ function metricValue(metrics: MetricsData | undefined, code: string): string {
   return egp(cell.value, false)
 }
 
+/** Plain-Arabic preset names — the raw key (e.g. TURNAROUND) means nothing
+ *  to a non-expert visitor on the landing page. */
+function scannerName(presetKey: string): string {
+  const known: Record<string, string> = {
+    TURNAROUND: "شركات انقلبت من خسارة إلى ربح",
+    DETERIORATION: "شركات انقلبت من ربح إلى خسارة",
+    DEBT_REDUCTION: "شركات خفّضت ديونها",
+    STRONG_CASH_FLOW: "تدفق نقدي تشغيلي قوي",
+    STRONG_ROE: "عائد مرتفع على حقوق الملكية",
+    HIGH_ASSETS: "أصول كبيرة",
+  }
+  return known[presetKey] ?? "قاعدة فحص مخصصة"
+}
+
 function scannerDescription(
   card: { presetKey: string | null; description: string | null },
   ar: boolean,
@@ -827,7 +841,7 @@ function MetricPreview({
         {unit && <span className="text-xs text-muted-foreground shrink-0">{unit}</span>}
       </div>
       {change && (
-        <p className="mt-1 text-xs font-medium text-success">
+        <p className={`mt-1 text-xs font-medium ${change.startsWith("-") ? "text-destructive" : "text-success"}`}>
           {change.startsWith("+") ? change : change.startsWith("-") ? change : `+${change}`}
         </p>
       )}
@@ -921,7 +935,7 @@ function ScannerCard({
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-foreground">
-            {ar ? (card.presetKey ? `ماسح: ${card.presetKey}` : "ماسح مالي") : card.presetKey ? `Screen: ${card.presetKey}` : "Financial screen"}
+            {ar ? (card.presetKey ? `ماسح جاهز: ${scannerName(card.presetKey)}` : "ماسح مالي") : card.presetKey ? `Screen: ${card.presetKey}` : "Financial screen"}
           </p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground line-clamp-3">{scannerDescription(card, ar)}</p>
         </div>
@@ -950,14 +964,14 @@ function ResultRow({ result, ar }: { result: { id: string; companyId: string; co
         <div className="flex items-center gap-4">
           <div className="text-right min-w-[120px]">
             <p className="text-sm font-bold tabular text-foreground">
-              {result.netProfit == null ? "—" : result.netProfit >= 1e9 ? `${(result.netProfit / 1e9).toFixed(2)}B` : result.netProfit >= 1e6 ? `${(result.netProfit / 1e6).toFixed(1)}M` : `${result.netProfit?.toLocaleString(ar ? "ar-EG" : "en-GB")}`}
+              {result.netProfit == null ? "—" : formatEgp(result.netProfit, { lang: ar ? "ar" : "en" })}
             </p>
             <p className="text-[10px] text-muted-foreground">{ar ? "صافي الربح" : "Net profit"}</p>
           </div>
           {result.change != null && (
             <div className={`text-right font-semibold ${result.change >= 0 ? "text-success" : "text-destructive"}`}>
               <p className="text-sm">{result.change >= 0 ? "+" : ""}{result.change.toFixed(1)}%</p>
-              <p className="text-[10px] text-muted-foreground">{ar ? "التغير" : "Change"}</p>
+              <p className="text-[10px] text-muted-foreground">{ar ? "التغير عن آخر فترة" : "Change"}</p>
             </div>
           )}
           <Link

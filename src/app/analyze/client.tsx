@@ -439,12 +439,12 @@ export default function AnalyzeClient() {
               </h2>
               <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
                 <Snap label="الاتجاه" value={r.snapshot.trendAr} wide />
-                <Snap label="RSI (14)" value={r.snapshot.rsi14?.toFixed(1) ?? "—"} />
-                <Snap label="EMA20" value={r.snapshot.ema20?.toFixed(2) ?? "—"} />
-                <Snap label="EMA50" value={r.snapshot.ema50?.toFixed(2) ?? "—"} />
+                <Snap label="قوة الحركة RSI (14)" value={r.snapshot.rsi14?.toFixed(1) ?? "—"} />
+                <Snap label="متوسط سعر 20 يوم EMA" value={r.snapshot.ema20?.toFixed(2) ?? "—"} />
+                <Snap label="متوسط سعر 50 يوم EMA" value={r.snapshot.ema50?.toFixed(2) ?? "—"} />
                 <Snap label="الحجم النسبي" value={r.snapshot.relVol ? `${r.snapshot.relVol.toFixed(2)}×` : "—"} />
-                <Snap label="موقع النطاق 60 جلسة" value={r.snapshot.rangePos60 !== null ? `${Math.round(r.snapshot.rangePos60)}٪` : "—"} />
-                <Snap label="ATR (14)" value={r.snapshot.atr14?.toFixed(2) ?? "—"} />
+                <Snap label="موقع السعر في نطاق 60 جلسة (0 قاع / 100 قمة)" value={r.snapshot.rangePos60 !== null ? `${Math.round(r.snapshot.rangePos60)}٪` : "—"} />
+                <Snap label="مدى التقلب ATR (14)" value={r.snapshot.atr14?.toFixed(2) ?? "—"} />
                 {/* owner alignment: the engine-state cell shows THE SAME verdict
                     as the decision banner (with the engine score), never a
                     contradicting label */}

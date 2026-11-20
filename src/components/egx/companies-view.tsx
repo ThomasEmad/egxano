@@ -394,8 +394,8 @@ export function CompaniesView({ onOpenCompany }: { onOpenCompany: (id: string) =
                     <th scope="col" className="p-3 text-end font-medium">{ar ? "السعر / التغير" : "Price / change"}</th>
                     <th scope="col" className="hidden p-3 text-end font-medium md:table-cell">{ar ? "الإيرادات" : "Revenue"}</th>
                     <th scope="col" className="hidden p-3 text-end font-medium sm:table-cell">{ar ? "صافي الربح" : "Net profit"}</th>
-                    <th scope="col" className="p-3 text-end font-medium">{ar ? "ROE" : "ROE"}</th>
-                    <th scope="col" className="hidden p-3 text-end font-medium lg:table-cell">{ar ? "P/E" : "P/E"}</th>
+                    <th scope="col" className="p-3 text-end font-medium">{ar ? "عائد حقوق الملكية" : "ROE"}</th>
+                    <th scope="col" className="hidden p-3 text-end font-medium lg:table-cell">{ar ? "مكرر الربحية" : "P/E"}</th>
                     <th scope="col" className="hidden p-3 text-end font-medium lg:table-cell">{ar ? "القيمة السوقية" : "Market cap"}</th>
                     <th scope="col" className="w-20 p-3 text-center font-medium"><span className="sr-only">{ar ? "إجراءات" : "Actions"}</span></th>
                   </tr>
@@ -444,14 +444,14 @@ export function CompaniesView({ onOpenCompany }: { onOpenCompany: (id: string) =
                           )}
                         </td>
                         <td className="hidden p-3 text-end tabular md:table-cell">
-                          {c.snapshot.revenue?.value != null ? formatEgp(c.snapshot.revenue.value) : "—"}
+                          {c.snapshot.revenue?.value != null ? formatEgp(c.snapshot.revenue.value, { lang: ar ? "ar" : "en" }) : "—"}
                           {c.snapshot.revenue?.periodLabel ? (
                             <span className="block text-[9px] font-normal text-muted-foreground/80">{c.snapshot.revenue.periodLabel}</span>
                           ) : null}
                         </td>
                         <td className="hidden p-3 text-end tabular sm:table-cell">
                           <span className={`font-semibold ${(c.snapshot.net_profit?.value ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>
-                            {c.snapshot.net_profit?.value != null ? formatEgp(c.snapshot.net_profit.value) : "—"}
+                            {c.snapshot.net_profit?.value != null ? formatEgp(c.snapshot.net_profit.value, { lang: ar ? "ar" : "en" }) : "—"}
                           </span>
                           {c.snapshot.net_profit?.periodLabel ? (
                             <span className="block text-[9px] font-normal text-muted-foreground/80">{c.snapshot.net_profit.periodLabel}</span>
@@ -473,7 +473,7 @@ export function CompaniesView({ onOpenCompany }: { onOpenCompany: (id: string) =
                           )}
                         </td>
                         <td className="hidden p-3 text-end tabular lg:table-cell">
-                          <span className="text-xs text-muted-foreground">{c.marketCap != null ? formatEgp(c.marketCap) : "—"}</span>
+                          <span className="text-xs text-muted-foreground">{c.marketCap != null ? formatEgp(c.marketCap, { lang: ar ? "ar" : "en" }) : "—"}</span>
                         </td>
                         <td className="p-3 text-center">
                           <span className="inline-flex items-center gap-1">

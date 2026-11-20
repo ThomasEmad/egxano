@@ -74,14 +74,17 @@ const FALLBACK_LABELS: Record<string, { en: string; ar: string; unit: string }> 
   net_profit: { en: "Net profit", ar: "صافي الربح", unit: "EGP" },
 }
 
-function fmtValue(unit: string, v: number): string {
+function fmtValue(unit: string, v: number, ar = false): string {
   if (unit === "PERCENT") return `${v.toFixed(1)}%`
   if (unit === "EGP") {
-    if (Math.abs(v) >= 1e9) return `${(v / 1e9).toFixed(2)}B`
-    if (Math.abs(v) >= 1e6) return `${(v / 1e6).toFixed(2)}M`
-    if (Math.abs(v) >= 1e3) return `${(v / 1e3).toFixed(1)}K`
+    // Arabic UI: spelled-out units — "B/M/K" suffixes mean nothing to a
+    // non-expert reader (owner 5-second rule 2026-11-20).
+    if (Math.abs(v) >= 1e9) return ar ? `${(v / 1e9).toFixed(2)} مليار ج.م` : `${(v / 1e9).toFixed(2)}B`
+    if (Math.abs(v) >= 1e6) return ar ? `${(v / 1e6).toFixed(2)} مليون ج.م` : `${(v / 1e6).toFixed(2)}M`
+    if (Math.abs(v) >= 1e3) return ar ? `${(v / 1e3).toFixed(1)} ألف ج.م` : `${(v / 1e3).toFixed(1)}K`
+    return ar ? `${Math.round(v).toLocaleString("ar-EG")} ج.م` : `${v.toFixed(0)}`
   }
-  if (unit === "EGP_PER_SHARE") return `${v.toFixed(2)}`
+  if (unit === "EGP_PER_SHARE") return ar ? `${v.toFixed(2)} ج` : `${v.toFixed(2)}`
   return v.toFixed(2)
 }
 
@@ -469,7 +472,7 @@ export default function RankingsPage() {
                             </td>
                             <td className="hidden p-3 text-xs text-muted-foreground sm:table-cell">{sectorLabel(r.sector, lang)}</td>
                             <td className="p-3 text-end">
-                              <span className={`font-extrabold tabular ${signTint || (top ? "text-foreground" : "")}`}>{fmtValue(unit, r.value)}</span>
+                              <span className={`font-extrabold tabular ${signTint || (top ? "text-foreground" : "")}`}>{fmtValue(unit, r.value, ar)}</span>
                               {median !== null && (beatsMedian || trailsMedian) ? (
                                 <span
                                   className={`ms-1 inline-block text-[10px] font-bold ${beatsMedian ? "text-positive" : "text-negative"}`}
@@ -482,7 +485,7 @@ export default function RankingsPage() {
                             </td>
                             {hasSectorMedian ? (
                               <td className="hidden p-3 text-end text-xs tabular text-muted-foreground md:table-cell">
-                                {median !== null ? fmtValue(unit, median) : "—"}
+                                {median !== null ? fmtValue(unit, median, ar) : "—"}
                               </td>
                             ) : null}
                             <td className="hidden p-3 text-end text-[11px] text-muted-foreground md:table-cell">

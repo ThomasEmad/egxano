@@ -174,6 +174,11 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
         {/* Market heatmap (company tiles, price-change colored) */}
         <section aria-label={ar ? "الخريطة الحرارية للسوق" : "Market heatmap"} className="mb-8">
           <SectorTreemap />
+          <p className="mt-2 px-1 text-[10px] leading-relaxed text-muted-foreground">
+            {ar
+              ? "نسبة القطاع في الخريطة مرجّحة بحجم شركاته (القيمة السوقية) — لذلك قد تختلف قليلًا عن المتوسط البسيط في بطاقات الأداء تحت."
+              : "The sector % in this map is market-cap weighted — it may differ slightly from the simple average in the performance cards below."}
+          </p>
         </section>
 
         {/* Sector LIQUIDITY heatmap — where the money traded today vs yesterday
@@ -283,7 +288,7 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
                       <tr className="border-b border-border/40 text-[10px] uppercase tracking-wider text-muted-foreground">
                         <th className="p-3 text-start font-medium">{ar ? "القطاع" : "Sector"}</th>
                         <th className="p-3 text-end font-medium">{ar ? "الشركات" : "Companies"}</th>
-                        <th className="p-3 text-end font-medium">{ar ? "وسيط ROE" : "Median ROE"}</th>
+                        <th className="p-3 text-end font-medium">{ar ? "تغير اليوم" : "Today's Change"}</th>
                         <th className="p-3 text-end font-medium">{ar ? "القيمة السوقية" : "Market Cap"}</th>
                         <th className="p-3 text-end font-medium">{ar ? "إجمالي الإيرادات" : "Total Revenue"}</th>
                         <th className="p-3 text-end font-medium">{ar ? "إجمالي صافي الربح" : "Total Net Profit"}</th>
@@ -332,7 +337,7 @@ export function SectorsPageShell({ sectors, counts }: SectorsPageShellProps) {
               <CardHeader className="pb-4 px-5">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground">
                   <TrendingUp className="h-3.5 w-3.5 text-positive" />
-                  {ar ? "أعلى وسيط ROE قطاعي" : "Top sector median ROE"}
+                  {ar ? "أعلى القطاعات صعودًا اليوم" : "Top sectors up today"}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4">

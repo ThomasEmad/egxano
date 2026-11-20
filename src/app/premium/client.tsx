@@ -191,7 +191,7 @@ export default function PremiumPage() {
 
   const benefits = [
     { icon: Gauge, t: ar ? "مؤشر الصحة المالية" : "Financial Health Score", d: ar ? "درجة 0-100 من 5 محاور موثقة مع تفصيل بكل محور" : "0-100 score across 5 verified axes, each one explained" },
-    { icon: Gem, t: ar ? "فرص التقييم القطاعي" : "Sector Valuation Screen", d: ar ? "الشركات الأقل من وسيط قطاعها في P/E و P/B" : "Companies below their sector median P/E & P/B" },
+    { icon: Gem, t: ar ? "فرص التقييم القطاعي" : "Sector Valuation Screen", d: ar ? "الشركات الأرخص من متوسط قطاعها في مكرر الربحية (P/E) ومضاعف القيمة الدفترية (P/B)" : "Companies below their sector median P/E & P/B" },
     { icon: FileCheck2, t: ar ? "أحدث النتائج المعلنة" : "Latest Announced Results", d: ar ? "آخر صافي ربح معلن لكل شركة — الأحدث أولاً" : "Most recent announced net profit per company — newest first" },
     { icon: BellRing, t: ar ? "أحداث استثمارية" : "Investment Events", d: ar ? "انقلاب أرباح، خفض دين، تحسن تدفق نقدي — مع الشرح" : "Profit turns, debt cuts, cash-flow improvements — with explanations" },
     { icon: Layers, t: ar ? "أرباع 2026 موثقة" : "Verified 2026 quarters", d: ar ? "قوائم ربعية بسلاسل زمنية كاملة لكل شركة" : "Quarterly statements with full time series per company" },

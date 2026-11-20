@@ -121,7 +121,7 @@ function RegisterForm() {
               {field("name") ? <p className="text-[11px] text-red-600 dark:text-red-400">{field("name")}</p> : null}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs font-medium" htmlFor="reg-email">Email</Label>
+              <Label className="text-xs font-medium" htmlFor="reg-email">البريد الإلكتروني — Email</Label>
               <Input
                 id="reg-email"
                 type="email"
@@ -183,7 +183,7 @@ function RegisterForm() {
             <Button type="submit" className="w-full" disabled={loading || !valid}>
               {loading && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
               <UserPlus className="me-1 h-4 w-4" aria-hidden />
-              Create account
+              إنشاء حساب
             </Button>
             <p className="text-center text-xs text-muted-foreground">
               لديك حساب بالفعل؟{" "}

@@ -169,7 +169,13 @@ function PresetScanners({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold tracking-tight">{t("nav.scanners")}</h1>
-          <p className="text-sm text-muted-foreground">{pick(selectedRule?.description, selectedRule?.description ?? "")}</p>
+          <p className="text-sm text-muted-foreground">
+            {selectedRule?.description ||
+              pick(
+                "فلاتر جاهزة تجيب فورًا: أنهي شركات البورصة تحقق شرطًا معينًا — أرباح قوية، دين منخفض، انقلاب من خسارة إلى ربح… اختر ماسحًا من القائمة.",
+                "Ready-made screens answer one question instantly: which listed companies meet a specific condition — strong profits, low debt, profit turnaround… Pick a screen to start.",
+              )}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Label htmlFor="basis" className="text-xs text-muted-foreground whitespace-nowrap">{t("sc.basis")}</Label>

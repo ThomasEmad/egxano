@@ -411,7 +411,7 @@ export function AppHeader({
                       <Button variant="ghost" size="sm" onClick={() => setNotificationOpen(false)}>{lang === "ar" ? "إغلاق" : "Close"}</Button>
                     </div>
                     <div className="p-3 space-y-3">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{lang === "ar" ? "تحولات دورة الحياة" : "Lifecycle transitions"}</p>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{lang === "ar" ? "تحولات مالية مهمة في الشركات" : "Notable company transitions"}</p>
                       {feedAlerts.length > 0 ? (
                         <div className="max-h-72 space-y-2 overflow-y-auto scrollbar-thin">
                           {feedAlerts.map((a, i) => (
@@ -434,7 +434,7 @@ export function AppHeader({
                           </p>
                           <p>
                             {lang === "ar"
-                              ? "تنبيهات دورة الحياة تُحسب يوميًا بعد إغلاق السوق (تفعّل/دخول/هدف/وقف/إلغاء/انتهاء) وتظهر هنا حسب باقتك. لا نعرض تنبيهات تجريبية."
+                              ? "تنبيهات الأحداث المالية — تفعيل إشارة، بلوغ هدف، وقف خسارة، انقلاب أرباح — بتُحسب يوميًا بعد إغلاق السوق وتظهر هنا حسب باقتك، بدون تنبيهات تجريبية."
                               : "Lifecycle alerts are computed daily after market close (activation/entry/target/stop/invalidation/expiry) and appear here according to your plan. We do not display sample alerts."}
                           </p>
                         </div>

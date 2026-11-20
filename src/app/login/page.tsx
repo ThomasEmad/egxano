@@ -109,7 +109,7 @@ function LoginForm() {
           <div className="h-1 w-full bg-gradient-to-r from-primary/70 via-primary/40 to-primary/10" />
           <form onSubmit={submit} className="space-y-4 p-6">
             <div className="space-y-1">
-              <Label className="text-xs font-medium" htmlFor="login-email">Email</Label>
+              <Label className="text-xs font-medium" htmlFor="login-email">البريد الإلكتروني — Email</Label>
               <Input
                 id="login-email"
                 type="email"
@@ -123,7 +123,7 @@ function LoginForm() {
             </div>
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Label className="text-xs font-medium" htmlFor="login-password">Password</Label>
+                <Label className="text-xs font-medium" htmlFor="login-password">كلمة المرور — Password</Label>
                 <Link href="/forgot-password" className="text-[11px] font-semibold text-primary hover:underline">
                   <span dir="auto">نسيت كلمة المرور؟</span>
                 </Link>
@@ -158,7 +158,7 @@ function LoginForm() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
               <LogIn className="me-1 h-4 w-4" aria-hidden />
-              Sign in
+              تسجيل الدخول
             </Button>
             <p className="text-center text-xs text-muted-foreground">
               <span dir="auto">ليس لديك حساب؟</span>{" "}
