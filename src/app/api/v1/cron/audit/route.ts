@@ -88,6 +88,38 @@ export async function GET(req: NextRequest) {
       })
     }
 
+    // Scheduled preset-scanner runs (2026-11-21 reviewer pass): ScannerRun rows
+    // were only ever written by manual premium-user runs, so /scanners showed
+    // 11–24-day-old "Last ran" dates and two presets read "—" forever. The
+    // daily cron is a guaranteed invocation — persist one honest run per preset
+    // here (0 matches is a result; "—" reads as broken). Contexts were just
+    // invalidated above, so runScan rebuilds them fresh and also picks up any
+    // dividend rows imported since the last scan.
+    let scanners: { presets: number; totalMatched: number } | null = null
+    try {
+      const { db } = await import("@/lib/db")
+      const { runScan } = await import("@/lib/financial/scan-service")
+      const rules = await db.scannerRule.findMany({ where: { isPreset: true, isActive: true } })
+      let totalMatched = 0
+      for (const rule of rules) {
+        const output = await runScan(JSON.parse(rule.conditions), "LATEST_ANNUAL")
+        totalMatched += output.matched.length
+        await db.scannerRun.create({
+          data: {
+            ruleId: rule.id,
+            ruleName: rule.name,
+            ruleSnapshot: rule.conditions,
+            periodBasis: "LATEST_ANNUAL",
+            matchedCount: output.matched.length,
+            matchedCompanyIds: JSON.stringify(output.matched.map((m) => m.companyId)),
+          },
+        })
+      }
+      scanners = { presets: rules.length, totalMatched }
+    } catch (e) {
+      console.error("audit-chained preset scanner runs failed:", e instanceof Error ? e.message.slice(0, 200) : e)
+    }
+
     // Chain a market refresh: the audit cron is a guaranteed daily invocation,
     // so this anchors at least one EOD price pull per day even with zero
     // visitors (the DB-based refresh survives serverless, unlike the old file).
@@ -150,6 +182,7 @@ export async function GET(req: NextRequest) {
       byCategory: last.summary?.byCategory ?? null,
       market,
       enrichment,
+      scanners,
     })
   } catch (error) {
     return Response.json(

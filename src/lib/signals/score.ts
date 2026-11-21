@@ -91,8 +91,13 @@ export function computeScore(input: ScoreInput): ScoreResult {
   }
 
   // ---------------- VOLUME (max 15) ----------------
+  // Calibration (2026-11-21 reviewer pass): 2× the 20-session mean IS strong
+  // participation and the scale now says so — the old top bucket started at
+  // 1.5×/+8, so a normal liquid name at 1.1–1.4× scored the same as near-spike
+  // volume and the group read as miscalibrated ("COMI 4/15").
   if (m.relVol !== null) {
-    if (m.relVol >= 1.5) add(acc, "volume", 8, `حجم اليوم ${m.relVol.toFixed(2)}× المتوسط — مشاركة قوية`, `Volume ${m.relVol.toFixed(2)}× the mean — strong participation`)
+    if (m.relVol >= 2.0) add(acc, "volume", 10, `حجم اليوم ${m.relVol.toFixed(2)}× المتوسط — مشاركة قوية جدًا (ضعف المتوسط أو أكثر)`, `Volume ${m.relVol.toFixed(2)}× the mean — very strong participation (2× average or more)`)
+    else if (m.relVol >= 1.5) add(acc, "volume", 8, `حجم اليوم ${m.relVol.toFixed(2)}× المتوسط — مشاركة قوية`, `Volume ${m.relVol.toFixed(2)}× the mean — strong participation`)
     else if (m.relVol >= 1.2) add(acc, "volume", 6, `حجم اليوم ${m.relVol.toFixed(2)}× المتوسط — مشاركة فوق الطبيعي`, `Volume ${m.relVol.toFixed(2)}× the mean — above-normal participation`)
     else if (m.relVol >= 1.0) add(acc, "volume", 4, `حجم اليوم ${m.relVol.toFixed(2)}× المتوسط — مشاركة طبيعية`, `Volume ${m.relVol.toFixed(2)}× the mean — normal participation`)
     else add(acc, "volume", 0, `حجم اليوم ${m.relVol.toFixed(2)}× المتوسط — مشاركة ضعيفة`, `Volume ${m.relVol.toFixed(2)}× the mean — weak participation`)

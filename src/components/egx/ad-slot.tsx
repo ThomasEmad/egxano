@@ -18,7 +18,6 @@
 //   slot="sidebar"      — 300×250 rectangle on wide viewports
 
 import { useEffect, useRef } from "react"
-import Script from "next/script"
 import { adsenseClient } from "@/lib/adsense"
 
 type AdFormat = "leaderboard" | "in-article" | "sidebar" | "in-feed"
@@ -40,11 +39,14 @@ export function AdSenseScript(): React.ReactElement | null {
   const client = adsenseClient()
   if (!client) return null
   return (
-    <Script
+    // Plain <script>, NOT next/script: next/script injects a data-nscript="…"
+    // attribute on the rendered tag, which the AdSense head tag rejects with a
+    // console warning on every page ("AdSense head tag doesn't support
+    // data-nscript attribute") and which can stop ads from serving.
+    <script
       async
       src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(client)}`}
       crossOrigin="anonymous"
-      strategy="afterInteractive"
     />
   )
 }

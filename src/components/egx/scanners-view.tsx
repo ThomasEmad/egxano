@@ -287,10 +287,10 @@ function PresetScanners({
             </div>
           ) : premiumBlocked ? (
             <PremiumGate
-              title={lang === "ar" ? "تشغيل الماسحات لباقات Pro" : "Scans are part of Pro"}
+              title={lang === "ar" ? "تشغيل الماسحات لباقة Pro" : "Scans are part of Pro"}
               description={lang === "ar"
-                ? "الماسحات الجاهزة تعرض الشركات المطابقة لمعايير الاستثمار مباشرة — متاحة لمشتركي باقتي Pro وPro Plus."
-                : "Preset scans surface the companies matching investment criteria — available to Pro and Pro Plus subscribers."}
+                ? "الماسحات الجاهزة تعرض الشركات المطابقة لمعايير الاستثمار مباشرة — متاحة لمشتركي باقة Pro."
+                : "Preset scans surface the companies matching investment criteria — available to Pro subscribers."}
             />
           ) : result ? (
             <>

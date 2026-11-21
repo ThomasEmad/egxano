@@ -474,3 +474,19 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* RTL helpers (2026-11-21 reviewer pass):
+   • .rtl-flip is applied at 15+ call-sites (landing directional arrows) but was
+     never defined anywhere — icons silently never mirrored in Arabic.
+   • overflow-x: clip (NOT hidden — clip creates no scroll container, so
+     position:sticky keeps working) stops any stray wide fixed element from
+     shifting the entire page sideways on mobile RTL (the ~139px homepage
+     horizontal shift the reviewer measured at 390px). */
+[dir="rtl"] .rtl-flip {
+  transform: scaleX(-1);
+}
+
+html,
+body {
+  overflow-x: clip;
+}

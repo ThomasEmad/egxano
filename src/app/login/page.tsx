@@ -87,7 +87,7 @@ function LoginForm() {
             Sign in
           </h1>
           <p className="text-center text-xs text-muted-foreground">
-            <span dir="auto">ادخل لمتابعة قائمة المتابعة والتنبيهات — التصفح العامة متاحة بدون حساب.</span>
+            <span dir="auto">ادخل لمتابعة قائمة المتابعة والتنبيهات — التصفح العام متاح بدون حساب.</span>
             <br />
             Sign in for watchlists and alerts — public browsing needs no account.
           </p>

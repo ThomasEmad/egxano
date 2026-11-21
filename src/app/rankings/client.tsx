@@ -338,6 +338,14 @@ export default function RankingsPage() {
             </p>
           ) : null}
 
+          {metric.endsWith("_margin") && basis === "latest" ? (
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              {ar
+                ? "هوامش الربح في أساس «أحدث بيانات» بتتحسب على آخر فترة كاملة (TTM أو سنوية) — أرباع منفردة ما بتتزاحمش مع فترات سنوية. الهامش فوق 100% غالباً بنود غير متكررة (بيع أصول أو إعادة تقييم) مش نشاط تشغيلي — بيتقدّم بعد القيم العادية ومتعتمدش عليه."
+                : "On the latest basis, profit margins use the latest full period (TTM or annual) — single quarters are not ranked against annual figures. A margin above 100% usually reflects one-off items (asset sales, revaluations), not operations — such rows are demoted below normal values; treat them with caution."}
+            </p>
+          ) : null}
+
           {LOWER_IS_BETTER.has(metric) ? (
             <p className="mt-1 text-[11px] text-muted-foreground">
               {ar
@@ -497,6 +505,15 @@ export default function RankingsPage() {
                                   title={ar ? "الفترة أقدم من أحدث فترة بالسوق بأكثر من أربعة أرباع" : "More than four quarters behind the market's freshest period"}
                                 >
                                   {ar ? "قديمة" : "stale"}
+                                </Badge>
+                              ) : null}
+                              {metric.endsWith("_margin") && r.value > 100 ? (
+                                <Badge
+                                  variant="outline"
+                                  className="ms-1 border-warning/40 px-1 py-0 text-[9px] text-warning"
+                                  title={ar ? "هامش فوق 100% — بنود غير متكررة مش نشاط تشغيلي" : "Margin above 100% — one-off items, not operations"}
+                                >
+                                  {ar ? "غير متكرر" : "one-off"}
                                 </Badge>
                               ) : null}
                             </td>

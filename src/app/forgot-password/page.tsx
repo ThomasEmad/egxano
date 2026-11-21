@@ -59,7 +59,7 @@ export default function ForgotPasswordPage() {
               <>
                 <div className="space-y-1 text-center">
                   <h1 className="text-base font-semibold">نسيت كلمة المرور؟ — Forgot password?</h1>
-                  <p className="text-xs text-muted-foreground">أدخل بريدك وسجّلنا طلب إعادة التعيين.</p>
+                  <p className="text-xs text-muted-foreground">أدخل بريدك وهنسجّل طلب إعادة التعيين.</p>
                 </div>
                 <form onSubmit={submit} className="space-y-3">
                   <div className="space-y-1">

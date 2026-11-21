@@ -171,10 +171,23 @@ export function StatusView({ data }: { data: StatusPayload | null }) {
               <dd className="tabular-nums">{loaded ? fmtDate(data.data.latestReportImportedAt, ar) : "—"}</dd>
             </div>
             <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between">
+              <dt className="text-muted-foreground">{ar ? "التحديث المتوقع القادم للأسعار" : "Next expected price update"}</dt>
+              <dd>{loaded ? (ar ? "كل 15 دقيقة — المصدر بيوقف التحديث خارج ساعات التداول" : "every 15 min — the source pauses outside trading hours") : "—"}</dd>
+            </div>
+            <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between">
+              <dt className="text-muted-foreground">{ar ? "موعد تحديث الشموع اليومية" : "Next daily candles import"}</dt>
+              <dd>{loaded ? (ar ? "13:30 UTC بعد إغلاق الجلسة" : "13:30 UTC after market close") : "—"}</dd>
+            </div>
+            <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between">
               <dt className="text-muted-foreground">{ar ? "وقت فحص الحالة" : "Status checked at"}</dt>
               <dd className="tabular-nums">{loaded ? fmtDate(data.time, ar) : "—"}</dd>
             </div>
           </dl>
+          <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground/80">
+            {ar
+              ? "القوائم المالية بتتستورد أول ما تنشر الشركات إفصاحاتها — مفيش موعد ثابت؛ الصفحة بتوضح آخر استيراد فعلي بدل الوعد بموعد غير حقيقي."
+              : "Financial statements are imported as companies publish disclosures — there is no fixed schedule; this page shows the actual latest import instead of promising a cadence we can't guarantee."}
+          </p>
         </Card>
       </section>
 

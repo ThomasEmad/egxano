@@ -40,8 +40,9 @@ import { MetricTip } from "@/components/brand/metric-tip"
 import { AdSlot } from "@/components/egx/ad-slot"
 
 function egp(value: number | null | undefined, ar: boolean): string {
-  const text = formatEgp(value)
-  return ar ? text.replace("EGP", "ج.م") : text
+  // Arabic gets the native formatter ("61.6 مليار ج.م") — the old naive
+  // EGP→ج.م string replace left an English "B" behind ("ج.م 61.6B").
+  return formatEgp(value, { lang: ar ? "ar" : "en" })
 }
 
 function priceText(value: number | null | undefined): string {
@@ -762,7 +763,7 @@ function HeroPreview({
         <div className="flex items-start justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <div>
-              <p className="text-sm font-semibold text-foreground">{company.nameEn}</p>
+              <p className="text-sm font-semibold text-foreground">{ar ? company.nameAr ?? company.nameEn : company.nameEn}</p>
               <p className="text-[11px] text-muted-foreground">{company.ticker} · {sectorLabel(company.sector ?? "", ar ? "ar" : "en")}</p>
             </div>
           </div>

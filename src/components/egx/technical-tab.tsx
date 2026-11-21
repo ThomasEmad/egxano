@@ -869,8 +869,8 @@ export function TechnicalTab({ companyId, ticker }: { companyId: string; ticker?
               </Badge>
               <p className="text-sm text-muted-foreground">
                 {ar
-                  ? "التحليل الفني لكل شركات البورصة (مناطق الدخول والخروج ووقف الخسارة) متاح في باقتي Pro و Pro Plus."
-                  : "Technical analysis for every listed company (entry/exit zones and stop levels) is available on Pro and Pro Plus."}
+                  ? "التحليل الفني لكل شركات البورصة (مناطق الدخول والخروج ووقف الخسارة) متاح مع باقة Pro."
+                  : "Technical analysis for every listed company (entry/exit zones and stop levels) is available on Pro."}
               </p>
               <Link
                 href="/premium"

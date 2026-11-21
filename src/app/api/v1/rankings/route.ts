@@ -158,8 +158,10 @@ async function buildRankings(
     // single quarter's revenue/profit against TTM/annual figures of other
     // companies is apples-to-oranges (a bank's one quarter can exceed another
     // company's year). Flow metrics rank on TTM or annual only — the row's
-    // periodLabel always states which.
-    fullPeriodCodes: ["roe", "roa", "roic", "roce", "revenue", "net_profit"],
+    // periodLabel always states which. Margins too (2026-11-21 reviewer pass):
+    // a one-off-driven quarter like SPHT's Q2 2026 must not top a leaderboard
+    // that mixes in other companies' full-year margins.
+    fullPeriodCodes: ["roe", "roa", "roic", "roce", "revenue", "net_profit", "net_margin"],
   })
   const anchors = [...latest.values()]
     .map((v) => v.periods[metric])
@@ -185,8 +187,16 @@ async function buildRankings(
       stale: isStalePeriod(period, freshestOrder),
     })
   }
+  // Margins above 100% come from one-off items (asset sales, revaluations,
+  // write-backs), not operations — the leaderboard must not reward exactly the
+  // outliers a researcher should distrust (2026-11-21 reviewer pass). In a
+  // higher-is-better ranking they are demoted below every normal value
+  // (still listed, never hidden); in a lower-is-better ordering they sink
+  // naturally. The client renders a "one-off" badge on such rows.
+  const marginOutlier = (v: number) => metric.endsWith("_margin") && v > 100
   results.sort((a, b) =>
     Number(a.stale) - Number(b.stale) ||
+    Number(marginOutlier(a.value)) - Number(marginOutlier(b.value)) ||
     (order === "ASC" ? a.value - b.value : b.value - a.value)
   )
 

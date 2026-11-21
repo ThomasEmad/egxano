@@ -49,7 +49,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return Response.json(
       {
         error: "PREMIUM_REQUIRED",
-        message: "التحليل الفني الكامل لكل الشركات متاح في باقتي Pro وPro Plus.",
+        message: "التحليل الفني الكامل لكل الشركات متاح مع باقة Pro.",
         plan,
       },
       { status: 403, headers: { "cache-control": "no-store" } },

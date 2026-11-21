@@ -20,7 +20,7 @@ export default function PrivacyClient() {
         },
         {
           h: "3. لماذا نستخدم البيانات",
-          p: "لإنشاء الحساب وتوثيق الدخول، تقديم الخدمة والاشتراك، حماية الخدمة من إساءة الاستخدام والاحتيال، الرد على طلبات الدعم، والامتثال للالتزامات القانونية. لا نبيع البيانات الشخصية ولا نستخدمها لإعلانات سلوكية.",
+          p: "لإنشاء الحساب وتوثيق الدخول، تقديم الخدمة والاشتراك، حماية الخدمة من إساءة الاستخدام والاحتيال، الرد على طلبات الدعم، والامتثال للالتزامات القانونية. لا نبيع البيانات الشخصية. الإعلانات المعروضة للمستوى المجاني تُقدَّم عبر Google AdSense (راجع البند 8) — وبخلاف ذلك لا نستخدم البيانات الشخصية لأي إعلانات سلوكية.",
         },
         {
           h: "4. الأساس القانوني",
@@ -28,7 +28,7 @@ export default function PrivacyClient() {
         },
         {
           h: "5. المشاركة",
-          p: "قد نشارك البيانات مع مزوّدي الاستضافة وقاعدة البيانات ومزوّدي البريد الذين يعالجونها نيابة عنا بموجب تعهدات سرية، ومع السلطات عندما يقتضي القانون. لا نشارك بيانات الحساب مع مزوّدي البيانات المالية.",
+          p: "قد نشارك البيانات مع مزوّدي الاستضافة وقاعدة البيانات ومزوّدي البريد الذين يعالجونها نيابة عنا بموجب تعهدات سرية، ومع Google بوصفها مزوّد خدمة الإعلانات بموجب البند 8، ومع السلطات عندما يقتضي القانون. لا نشارك بيانات الحساب مع مزوّدي البيانات المالية.",
         },
         {
           h: "6. الاحتفاظ",
@@ -39,8 +39,8 @@ export default function PrivacyClient() {
           p: "لك الحق في الوصول إلى بياناتك وتصحيحها وحذفها وتقييد معالجتها والاعتراض عليها ونقلها حيث ينطبق القانون. أرسل طلبك من خلال قناة التواصل المنشورة في صفحة «من نحن» وسنرد خلال المدة القانونية. يمكنك أيضاً تقديم شكوى إلى الجهة المختصة.",
         },
         {
-          h: "8. ملفات تعريف الارتباط",
-          p: "نستخدم ملف تعريف ارتباط أساسياً للجلسة (HttpOnly، Secure، SameSite). لا نستخدم ملفات تعريف ارتباط إعلانية أو تتبعية من أطراف ثالثة. إذا أُضيف تحليل استخدام مستقبلاً فسنطلب الموافقة حيث يلزم.",
+          h: "8. ملفات تعريف الارتباط والإعلانات",
+          p: "نستخدم ملف تعريف ارتباط أساسياً للجلسة (HttpOnly، Secure، SameSite). الموقع يعرض إعلانات Google AdSense للمستوى المجاني: عند عرض الإعلانات قد تضع Google ملفات ارتباط إعلانية وتحليلية من أطراف ثالثة في متصفح الزائر وفق سياساتها الخاصة (سياسة إعلانات Google والإعدادات الإعلانية). تُفعَّل الإعلانات بوصفها جزءاً من الاستخدام المجاني، ونتيّج لك التحكم في إعدادات إعلانات Google من حسابك لديها. إذا أُضيف تحليل استخدام مستقبلاً فسنطلب الموافقة حيث يلزم.",
         },
         {
           h: "9. الأمان",
@@ -70,7 +70,7 @@ export default function PrivacyClient() {
         },
         {
           h: "3. Why we use it",
-          p: "To create and authenticate accounts, deliver the service and subscriptions, protect the service against abuse and fraud, respond to support requests, and meet legal obligations. We do not sell personal data and do not use it for behavioural advertising.",
+          p: "To create and authenticate accounts, deliver the service and subscriptions, protect the service against abuse and fraud, respond to support requests, and meet legal obligations. We do not sell personal data. Advertising shown to free-tier visitors is served via Google AdSense (see section 8) — beyond that, we do not use personal data for behavioural advertising.",
         },
         {
           h: "4. Legal basis",
@@ -78,7 +78,7 @@ export default function PrivacyClient() {
         },
         {
           h: "5. Sharing",
-          p: "We may share data with hosting, database and email providers acting on our behalf under confidentiality obligations, and with authorities where required by law. We do not share account data with financial-data providers.",
+          p: "We may share data with hosting, database and email providers acting on our behalf under confidentiality obligations, with Google as the advertising provider described in section 8, and with authorities where required by law. We do not share account data with financial-data providers.",
         },
         {
           h: "6. Retention",
@@ -89,8 +89,8 @@ export default function PrivacyClient() {
           p: "You may access, correct, delete, restrict or object to processing, and request portability where applicable. Send requests through the contact channel published on the About page; we respond within the legal period. You may also complain to the competent authority.",
         },
         {
-          h: "8. Cookies",
-          p: "We use one essential session cookie (HttpOnly, Secure, SameSite). We do not use advertising or third-party tracking cookies. If usage analytics are added later, we will request consent where required.",
+          h: "8. Cookies and advertising",
+          p: "We use one essential session cookie (HttpOnly, Secure, SameSite). The site serves Google AdSense advertising to free-tier visitors: when ads serve, Google may set third-party advertising and measurement cookies in the visitor's browser under its own policies (Google's Advertising policies and Ads Settings). Ads are part of the free tier; you retain control of Google's ad settings from your Google account. If usage analytics are added later, we will request consent where required.",
         },
         {
           h: "9. Security",
@@ -116,7 +116,7 @@ export default function PrivacyClient() {
         <div>
           <h1 className="text-2xl font-bold">{ar ? "سياسة الخصوصية" : "Privacy Policy"}</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            {ar ? "آخر تحديث: 3 نوفمبر 2026" : "Last updated: 3 November 2026"}
+            {ar ? "آخر تحديث: 21 نوفمبر 2026" : "Last updated: 21 November 2026"}
           </p>
         </div>
         <div className="space-y-5">

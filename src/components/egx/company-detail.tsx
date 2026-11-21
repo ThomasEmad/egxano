@@ -1443,7 +1443,7 @@ function PeersTab({ companyId }: { companyId: string }) {
       <Card className="p-6 text-center text-sm text-muted-foreground">
         {pick(
           `Not enough peers for a fair comparison — only ${data.sectorCount} listed companies in the ${data.sector} sector (minimum 3).`,
-          `عدد الشركات لا يكفي لمقارنة عادلة — يوجد ${data.sectorCount} فقط من الشركات المدرجة في قطاع ${data.sector} (الحد الأدنى 3).`
+          `عدد الشركات لا يكفي لمقارنة عادلة — يوجد ${data.sectorCount} فقط من الشركات المدرجة في قطاع ${sectorLabel(data.sector, "ar")} (الحد الأدنى 3).`
         )}
       </Card>
     )
@@ -1464,7 +1464,7 @@ function PeersTab({ companyId }: { companyId: string }) {
       <CardHeader className="pb-3">
         <CardTitle className="text-sm flex flex-wrap items-center gap-2">
           {t("peers.title")}
-          <Badge variant="secondary" className="text-[10px]">{data.sector}</Badge>
+          <Badge variant="secondary" className="text-[10px]">{sectorLabel(data.sector, lang)}</Badge>
           <Badge variant="outline" className="text-[10px]">{data.period.label}</Badge>
           <a
             href={`/compare?ids=${companyId}`}

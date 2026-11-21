@@ -272,7 +272,14 @@ export function MarketDataLine({
       {source ? (
         <>
           <span aria-hidden="true">·</span>
-          <span>{source}</span>
+          {/* The stored sourceName is an English identifier ("market-ticker
+              (15-min delayed)") — localize the well-known one instead of
+              printing English inside an Arabic sentence. */}
+          <span>
+            {lang === "ar" && source.startsWith("market-ticker")
+              ? "بيانات سوق عامة (متأخرة 15 دقيقة)"
+              : source}
+          </span>
         </>
       ) : null}
     </p>

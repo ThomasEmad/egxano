@@ -36,6 +36,18 @@ export async function GET() {
         marketPricePoints: prices,
         latestReportImportedAt: latestReport?.createdAt.toISOString() ?? null,
       },
+      // Documented import cadence (2026-11-21 reviewer pass): a freshness gap
+      // read as broken data — publishing the schedule turns it into a set
+      // expectation. Prices sync every 15 min (GitHub Actions); daily candles
+      // import 13:30 UTC after the EGX close; statements have no fixed
+      // schedule — they are imported as companies publish disclosures.
+      schedule: {
+        priceSyncMinutes: 15,
+        candlesDailyUtc: "13:30",
+        auditDailyUtc: "06:00",
+        alertsPushUtc: "14:00",
+        statements: "as filings publish — imported via ops jobs, no fixed cadence",
+      },
       usage: { activePriceAlerts: alerts },
     }
   })

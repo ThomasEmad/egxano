@@ -71,11 +71,11 @@ export default async function CompanyReportPage({ params }: { params: Promise<{ 
           <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-700">
             <Lock className="h-5 w-5" aria-hidden />
           </span>
-          <p className="mt-4 text-base font-bold text-amber-800">تقرير PDF القابل للطباعة متاح لباقة برو بلس</p>
+          <p className="mt-4 text-base font-bold text-amber-800">تقرير PDF القابل للطباعة متاح مع باقة برو — 3 شهور</p>
           <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-amber-700">
             {company.nameAr ?? company.nameEn} ({company.ticker}) — التقرير الكامل متعدد السنوات مع جدول الاتجاهات وأحدث الأحداث المالية وسجل التوزيعات وزر الطباعة/PDF.
             {planId !== "FREE"
-              ? " باقتك الحالية برو — برو بلس هو اللي بيضم التقرير القابل للطباعة."
+              ? " باقتك الحالية برو — باقة برو — 3 شهور هي اللي بتضم التقرير القابل للطباعة."
               : ""}
           </p>
           <a href="/premium" className="mt-4 inline-block rounded-lg bg-amber-600 px-4 py-2 text-xs font-bold text-white">

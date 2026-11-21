@@ -16,7 +16,11 @@ const ToastViewport = React.forwardRef<
   <ToastPrimitives.Viewport
     ref={ref}
     className={cn(
-      "fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]",
+      // inset-x-0 anchors the viewport horizontally on mobile — previously it
+      // had NO left/right anchor (<sm), so its static position (re-laid-out by
+      // the i18n dir flip) could push the whole page ~139px sideways on RTL
+      // phones. sm:end-0 (logical) replaces the physical sm:right-0.
+      "fixed inset-x-0 top-0 z-[100] flex max-h-screen flex-col-reverse p-4 sm:inset-x-auto sm:bottom-0 sm:end-0 sm:top-auto sm:flex-col md:max-w-[420px]",
       className
     )}
     {...props}

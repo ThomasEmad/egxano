@@ -18,18 +18,20 @@ interface PremiumGateProps {
  * Premium gate. Copy rules (docs/brand/audit-trust.md P14 — updated to the
  * برو package naming):
  *  • name the gated section,
- *  • state what the برو packages add and what the free account keeps,
+ *  • state what the برو package adds and what the free account keeps,
  *  • mention activation: تفعيل فوري بعد تأكيد التحويل — never imply a hidden catch,
- *  • use the same "برو / برو بلس" naming everywhere — never "بريميوم".
+ *  • use the same "باقة برو / Pro" naming everywhere — never "بريميوم" and
+ *    never "برو بلس / Pro Plus" (that tier left the sale; legacy Pro Plus
+ *    subscriptions resolve to Pro — see src/lib/subscription.ts aliases).
  */
 export function PremiumGate({ title, description, compact = false }: PremiumGateProps) {
   const { lang } = useI18n()
   const ar = lang === "ar"
 
-  const defaultTitle = ar ? "القسم ده من باقات برو وبرو بلس" : "This section is part of Pro and Pro Plus"
+  const defaultTitle = ar ? "القسم ده من باقة برو" : "This section is part of Pro"
   const defaultDescription = ar
-    ? "القسم ده متاح لباقات برو وبرو بلس — التفعيل بيتم بعد تأكيد الحوالة."
-    : "This section is available on Pro and Pro Plus — activation happens after the transfer is confirmed."
+    ? "القسم ده متاح لباقة برو — التفعيل بيتم بعد تأكيد الحوالة."
+    : "This section is available on Pro — activation happens after the transfer is confirmed."
 
   const upgradeCta = ar ? "ترقية الآن" : "Upgrade now"
 
@@ -44,7 +46,7 @@ export function PremiumGate({ title, description, compact = false }: PremiumGate
             <Lock className="h-3 w-3 text-white" />
           </span>
           <span className="font-medium text-foreground">
-            {title ?? (ar ? "القسم ده من باقات برو وبرو بلس" : "Part of Pro and Pro Plus")}
+            {title ?? (ar ? "القسم ده من باقة برو" : "Part of Pro")}
           </span>
           <Button asChild size="sm" variant="link" className="ms-auto h-auto gap-1 px-0 text-xs font-semibold">
             <Link href="/premium">
@@ -73,7 +75,7 @@ export function PremiumGate({ title, description, compact = false }: PremiumGate
                 {title ?? defaultTitle}
               </CardTitle>
               <Badge variant="outline" className="mt-1 border-primary/40 text-primary">
-                {ar ? "باقة برو وبرو بلس" : "Pro / Pro Plus"}
+                {ar ? "باقة برو" : "Pro"}
               </Badge>
             </div>
           </div>
