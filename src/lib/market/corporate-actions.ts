@@ -430,6 +430,9 @@ export interface SeriesBar {
   volume: number | null
   /** Which source produced this bar — decides phase-1 de-adjustment. */
   source?: "yahoo" | "scanner" | "pricebar"
+  /** Close-only scanner row (no observed OHLC) — carried through adjustment
+   *  so downstream anatomy narrators can refuse to invent structure. */
+  synthetic?: boolean
 }
 
 export interface SeriesAction {

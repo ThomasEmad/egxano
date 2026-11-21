@@ -187,8 +187,8 @@ async function buildBoardUncached(): Promise<BoardOutputV2> {
   // per-company day-bucketed series: PriceBar (full OHLC) first, scanner
   // day-rows overlay their session (freshest wins for that day); Fri/Sat
   // quotes anchor onto the session they restate — no phantom weekend bars.
-  const ohlc = new Map<string, { ts: string; open: number; high: number; low: number; close: number; volume: number | null }[]>()
-  const byDay = new Map<string, Map<string, { ts: string; open: number; high: number; low: number; close: number; volume: number | null }>>()
+  const ohlc = new Map<string, { ts: string; open: number; high: number; low: number; close: number; volume: number | null; synthetic?: boolean }[]>()
+  const byDay = new Map<string, Map<string, { ts: string; open: number; high: number; low: number; close: number; volume: number | null; synthetic?: boolean }>>()
   for (const b of barRows) {
     if (!validBar(b)) continue
     const day = b.ts.toISOString().slice(0, 10)
@@ -223,7 +223,7 @@ async function buildBoardUncached(): Promise<BoardOutputV2> {
       existing.close = r.price
       if (existing.volume === null && volume !== null) existing.volume = volume
     } else {
-      m.set(day, { ts: day, open: r.price, high: r.price, low: r.price, close: r.price, volume })
+      m.set(day, { ts: day, open: r.price, high: r.price, low: r.price, close: r.price, volume, synthetic: true })
     }
   }
 
@@ -281,10 +281,11 @@ async function buildBoardUncached(): Promise<BoardOutputV2> {
           low: b.low,
           close: b.close,
           volume: b.volume,
+          synthetic: b.synthetic,
           source: "scanner",
         }))
         const adjusted = applyCorporateActionAdjustments(bars, actions)
-        series = adjusted.bars.map((b) => ({ ts: b.ts, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume }))
+        series = adjusted.bars.map((b) => ({ ts: b.ts, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume, synthetic: b.synthetic }))
       }
     } catch {
       // best-effort — the raw series remains the honest fallback
@@ -407,7 +408,7 @@ export async function getCompanySeriesUncached(companyId: string): Promise<Compa
 
   // PriceBar OHLC per UTC day (freshest row wins per day via asc ordering),
   // then scanner day-rows overlay their session — identical to the board build.
-  const byDay = new Map<string, { ts: string; open: number; high: number; low: number; close: number; volume: number | null }>()
+  const byDay = new Map<string, { ts: string; open: number; high: number; low: number; close: number; volume: number | null; synthetic?: boolean }>()
   for (const b of barRows) {
     if (!validBar(b)) continue
     byDay.set(b.ts.toISOString().slice(0, 10), {
@@ -429,7 +430,7 @@ export async function getCompanySeriesUncached(companyId: string): Promise<Compa
       existing.close = r.price
       if (existing.volume === null && volume !== null) existing.volume = volume
     } else {
-      byDay.set(day, { ts: day, open: r.price, high: r.price, low: r.price, close: r.price, volume })
+      byDay.set(day, { ts: day, open: r.price, high: r.price, low: r.price, close: r.price, volume, synthetic: true })
     }
   }
 
@@ -445,7 +446,7 @@ export async function getCompanySeriesUncached(companyId: string): Promise<Compa
           series.map((b) => ({ ...b, source: "scanner" as const })),
           companyActions,
         )
-        series = adjusted.bars.map((b) => ({ ts: b.ts, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume }))
+        series = adjusted.bars.map((b) => ({ ts: b.ts, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume, synthetic: b.synthetic }))
       }
     } catch {
       // best-effort — the raw series remains the honest fallback

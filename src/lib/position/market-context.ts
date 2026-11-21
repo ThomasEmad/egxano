@@ -76,6 +76,11 @@ export interface MarketContext {
   nearRangeBottom: boolean | null
   /** (open − prevClose) / prevClose × 100 of the last bar, when |gap| ≥ 1%. */
   gapPct: number | null
+  /** true = the LAST bar is a close-only scanner row (open/high/low mirror
+   *  the close — never observed). Body/gap/shadow/range anatomy is
+   *  UNVERIFIABLE on it: the narrative must refuse to invent it and should
+   *  disclose the thinner data basis instead. */
+  lastSynthetic: boolean
   /** Last ADX value (computeAdx) + strength: <20 weak · <25 developing · ≥25 strong. */
   adx: number | null
   adxStrength: "weak" | "developing" | "strong" | null
@@ -271,6 +276,7 @@ function emptyContext(): MarketContext {
     nearRangeTop: null,
     nearRangeBottom: null,
     gapPct: null,
+    lastSynthetic: false,
     adx: null,
     adxStrength: null,
     divergence: null,
@@ -327,10 +333,15 @@ export function buildMarketContext(_bars: readonly Bar[], _metrics: MetricsLike 
   const m = _metrics ?? null
 
   // ---- 1) last-bar anatomy ----
+  // SYNTHETIC GUARD (2026-11-21, the AMES case): a close-only scanner row's
+  // open mirrors its close — a "0.0 body" computed from it is MISSING DATA,
+  // not a doji. On a synthetic last bar every anatomy reading below is
+  // forced null; closes (streaks, EMAs, RSI) stay real and keep flowing.
+  const lastSynthetic = last.synthetic === true
   const range = fin(last.high) && fin(last.low) ? last.high - last.low : NaN
   const hasRange = fin(range) && range > 0 // high === low (or crossed) → no anatomy
   const closeLocationPct = hasRange && fin(last.close) ? ((last.close - last.low) / range) * 100 : null
-  const body = fin(last.open) && fin(last.close) ? Math.abs(last.close - last.open) : null
+  const body = !lastSynthetic && fin(last.open) && fin(last.close) ? Math.abs(last.close - last.open) : null
   const upperShadow = fin(last.high) && fin(last.open) && fin(last.close) ? last.high - Math.max(last.open, last.close) : null
   const lowerShadow = fin(last.low) && fin(last.open) && fin(last.close) ? Math.min(last.open, last.close) - last.low : null
   const upperShadowPct = hasRange && upperShadow !== null ? (upperShadow / range) * 100 : null
@@ -432,7 +443,7 @@ export function buildMarketContext(_bars: readonly Bar[], _metrics: MetricsLike 
 
   // ---- 5) gap of the last bar (signed; sub-1% opens are drift, not data)
   let gapPct: number | null = null
-  if (prev !== null && fin(last.open) && fin(prev.close) && prev.close > 0) {
+  if (prev !== null && !lastSynthetic && fin(last.open) && fin(prev.close) && prev.close > 0) {
     const gap = ((last.open - prev.close) / prev.close) * 100
     if (Math.abs(gap) >= GAP_MIN_PCT) gapPct = gap
   }
@@ -580,6 +591,7 @@ export function buildMarketContext(_bars: readonly Bar[], _metrics: MetricsLike 
     nearRangeTop,
     nearRangeBottom,
     gapPct,
+    lastSynthetic,
     adx,
     adxStrength,
     divergence,

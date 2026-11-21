@@ -160,6 +160,12 @@ describe("buildMarketContext — honesty gates (nulls, never invented numbers)",
   it("(f) 10 bars + null metrics → EVERY field null (below the 21-session honesty gate)", () => {
     const ctx = buildMarketContext(trendSeries(10, 10, 0.05, 0.15), null)
     for (const [key, value] of Object.entries(ctx)) {
+      // lastSynthetic is a data-provenance FLAG, not a market reading — it is
+      // always honestly computable from the bar itself (false = full OHLC).
+      if (key === "lastSynthetic") {
+        expect(value, key).toBe(false)
+        continue
+      }
       expect(value, key).toBeNull()
     }
   })

@@ -172,6 +172,12 @@ function frozenStretch(bars: Bar[]): { sessions: number; maxSpreadPct: number } 
   for (let i = bars.length - 1; i >= 0; i--) {
     const b = bars[i]
     if (!b || !fin(b.high) || !fin(b.low) || !fin(b.close) || b.close <= 0 || b.high < b.low) break
+    // SYNTHETIC GUARD (2026-11-21, the AMES case): a close-only scanner row
+    // (open=high=low=close) is NOT a locked session — its 0.0٪ spread is
+    // missing data, not an observed one-price day. Reading it as «متجمد
+    // بالسعر» narrated a −16٪ close staircase as an absorption battle. The
+    // trailing lock must be verifiable in OBSERVED OHLC only.
+    if (b.synthetic === true) break
     const spreadPct = ((b.high - b.low) / b.close) * 100
     if (spreadPct > FROZEN_RANGE_MAX_PCT) break
     sessions++

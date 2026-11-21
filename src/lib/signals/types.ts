@@ -28,6 +28,11 @@ export interface Bar {
   low: number
   close: number
   volume: number | null
+  /** true = close-only scanner row: open/high/low mirror the CLOSE, they are
+   *  not observed prices. Every intraday anatomy read (range, body, gap at
+   *  open, shadows, locked-tape spread) is UNVERIFIABLE on it and must never
+   *  be narrated. Absent/undefined = full OHLC observed. */
+  synthetic?: boolean
 }
 
 /** The four published states (the owner's trading-logic spec):

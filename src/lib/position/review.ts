@@ -389,14 +389,19 @@ function veteranTriggerLinesAr(ctx: MarketContext, opts: VeteranOpts): string[] 
   // and on a LIVE session the certainty softens to close-based judgment.
   if ((b === "farCushionExit" || b === "engineExit") && ctx.volCharacter === "spike") {
     const tinyBody = ctx.bodyVsAtr === null || ctx.bodyVsAtr < BODY_DIRECTION_MIN_ATR
-    const bodyClause =
-      ctx.bodyVsAtr !== null && ctx.bodyVsAtr >= BODY_DIRECTION_MIN_ATR
+    // SYNTHETIC GUARD (2026-11-21, the AMES case): on a close-only bar the
+    // body DOES NOT EXIST — «بجسم شبه معدوم» fabricated anatomy from missing
+    // data, and «معركة حجم حقيقية» narrated a battle nobody observed. The
+    // volume and the close direction are real; the candle anatomy is not.
+    const bodyClause = ctx.lastSynthetic
+      ? ""
+      : ctx.bodyVsAtr !== null && ctx.bodyVsAtr >= BODY_DIRECTION_MIN_ATR
         ? ` وبجسم ${mult1(ctx.bodyVsAtr)} ATR`
         : " وبجسم شبه معدوم"
     const certainty = opts.lastBarFinal === false
       ? "من تجارب السوق الفوليوم ده نمط سحب سيولة معروف — بس الحسم بين سحب حقيقي وكسر كاذب بيتكتب بالإغلاق النهائي مش بلحظة اللمسة"
       : "من تجارب السوق ده سحب سيولة حقيقي مش كسر كاذب، والكسور اللي بتيجي بالفوليوم ده نادرًا ما بترجع بسرعة"
-    add(`أنا شايف في الشمعة فوليوم Spike فوق 2.5× من المتوسط${bodyClause} نازل مع الكسر نفسه${tinyBody ? " — معركة حجم حقيقية عند المستوى" : ""}، و${certainty}.`)
+    add(`أنا شايف ${ctx.lastSynthetic ? "" : "في الشمعة "}فوليوم Spike فوق 2.5× من المتوسط${bodyClause} نازل مع الكسر نفسه${tinyBody && !ctx.lastSynthetic ? " — معركة حجم حقيقية عند المستوى" : ""}، و${certainty}.`)
   }
   // 2) bearish momentum divergence while riding a profit — the trap at the top
   if ((b === "hold" || b === "takeProfit") && ctx.divergence === "bearish") {
@@ -543,6 +548,15 @@ export function narrativeLinesAr(ctx: MarketContext, opts: VeteranOpts, extra: N
   // the market map — LAST before the VSA passthrough (with its reserved slot)
   for (const s of mapLines) if (lines.length < NARRATIVE_MAX_LINES && !lines.includes(s)) lines.push(s)
   if (ctx.vsaNoteAr && lines.length < NARRATIVE_MAX_LINES && !lines.includes(ctx.vsaNoteAr)) lines.push(ctx.vsaNoteAr)
+  // DATA-BASIS DISCLOSURE (2026-11-21, the AMES case): when the trailing tape
+  // is close-only scanner rows, every candle-anatomy claim above is silently
+  // absent — the reader deserves to know WHY, un-capped and first. Volume and
+  // closes stay real; the intraday structure was never observed.
+  if (ctx.lastSynthetic) {
+    lines.unshift(
+      "شفافية البيانات: شموع اليوم الكاملة (فتح/أعلى/أدنى) مش متاحة لآخر جلسات السهم — القراءة هنا على إغلاقات موثقة من سكانر السوق وحجمه، ومن غير أي قراءة جوه الشمعة.",
+    )
+  }
   return lines
 }
 
