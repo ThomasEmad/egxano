@@ -16,6 +16,7 @@
 import { db } from "@/lib/db"
 import { cached } from "@/lib/server-cache"
 import { applyCorporateActionAdjustments, loadSeriesActionsByCompany, type SeriesBar } from "@/lib/market/corporate-actions"
+import { loadUnifiedHistory, loadUnifiedHistoryOne, type UnifiedBar } from "@/lib/market/unified-candles"
 import { effectiveEgxSessionDate } from "@/lib/market/egx-session"
 import { isEgxMarketLive } from "@/lib/market/egx-hours"
 import { applyAdminPriceOverrideToLastBar, getAdminPriceOverride, getAdminPriceOverrides } from "@/lib/market/price-override"
@@ -167,14 +168,12 @@ async function buildBoardUncached(): Promise<BoardOutputV2> {
   const ids = companies.map((c) => c.id)
   const cutoff = new Date(Date.now() - WINDOW_DAYS * 86_400_000)
 
-  const [barRows, priceRows] = await Promise.all([
-    ids.length
-      ? db.priceBar.findMany({
-          where: { companyId: { in: ids }, ts: { gte: cutoff } },
-          orderBy: { ts: "asc" },
-          select: { companyId: true, ts: true, open: true, high: true, low: true, close: true, volume: true },
-        })
-      : Promise.resolve([] as { companyId: string; ts: Date; open: number; high: number; low: number; close: number; volume: number | null }[]),
+  // SAME-SOURCE MANDATE (2026-11-21): the history comes from the unified
+  // candle reader — MarketCandle (verified) first, PriceBar only as the
+  // fallback for uncovered companies. The scanner feed may overlay ONLY the
+  // live (unsettled) session below; settled sessions are never restated.
+  const [history, priceRows] = await Promise.all([
+    ids.length ? loadUnifiedHistory(ids, cutoff) : Promise.resolve(new Map<string, UnifiedBar[]>()),
     ids.length
       ? db.marketPrice.findMany({
           where: { companyId: { in: ids }, sourceName: "TRADINGVIEW_SCANNER", isDemoData: false, asOf: { gte: cutoff }, price: { gt: 0 } },
@@ -183,28 +182,22 @@ async function buildBoardUncached(): Promise<BoardOutputV2> {
         })
       : Promise.resolve([] as { companyId: string; asOf: Date; price: number; volume: number | null }[]),
   ])
+  const todaySession = effectiveEgxSessionDate(new Date())
 
-  // per-company day-bucketed series: PriceBar (full OHLC) first, scanner
-  // day-rows overlay their session (freshest wins for that day); Fri/Sat
-  // quotes anchor onto the session they restate — no phantom weekend bars.
-  const ohlc = new Map<string, { ts: string; open: number; high: number; low: number; close: number; volume: number | null; synthetic?: boolean }[]>()
+  // per-company day-bucketed series from the unified history; Fri/Sat quotes
+  // anchor onto the session they restate — no phantom weekend bars.
   const byDay = new Map<string, Map<string, { ts: string; open: number; high: number; low: number; close: number; volume: number | null; synthetic?: boolean }>>()
-  for (const b of barRows) {
-    if (!validBar(b)) continue
-    const day = b.ts.toISOString().slice(0, 10)
-    const bar = { ts: day, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume !== null && Number.isFinite(b.volume) && b.volume > 0 ? b.volume : null }
-    let list = ohlc.get(b.companyId)
-    if (!list) {
-      list = []
-      ohlc.set(b.companyId, list)
+  for (const [companyId, bars] of history) {
+    for (const b of bars) {
+      if (b.barSource !== "candle" && !validBar(b)) continue
+      const day = b.ts.toISOString().slice(0, 10)
+      let m = byDay.get(companyId)
+      if (!m) {
+        m = new Map()
+        byDay.set(companyId, m)
+      }
+      m.set(day, { ts: day, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume !== null && Number.isFinite(b.volume) && b.volume > 0 ? b.volume : null })
     }
-    list.push(bar)
-    let m = byDay.get(b.companyId)
-    if (!m) {
-      m = new Map()
-      byDay.set(b.companyId, m)
-    }
-    m.set(day, bar)
   }
   for (const r of priceRows) {
     let m = byDay.get(r.companyId)
@@ -215,10 +208,12 @@ async function buildBoardUncached(): Promise<BoardOutputV2> {
     const rawDay = r.asOf.toISOString().slice(0, 10)
     const day = effectiveEgxSessionDate(r.asOf)
     if (day !== rawDay && m.has(day)) continue
-    // scanner rows are close-only: the bar keeps OHLC from PriceBar when the
-    // day already exists there; otherwise a flat close-only bar (disclosed)
-    const existing = m.get(day)
+    // scanner rows are close-only: they may create the LIVE session's bar
+    // (synthetic, disclosed) — but a settled session keeps its stored candle.
+    // A weekend restatement (Fri/Sat quote → Thursday) is skipped outright.
+    if (day !== todaySession) continue
     const volume = r.volume !== null && Number.isFinite(r.volume) && r.volume > 0 ? r.volume : null
+    const existing = m.get(day)
     if (existing) {
       existing.close = r.price
       if (existing.volume === null && volume !== null) existing.volume = volume
@@ -228,7 +223,6 @@ async function buildBoardUncached(): Promise<BoardOutputV2> {
   }
 
   const companyById = new Map(companies.map((c) => [c.id, c]))
-  const todaySession = effectiveEgxSessionDate(new Date())
 
   // one batched corporate-action load for the whole universe (same as v1)
   const allSeries: { companyId: string; firstTs: string; lastTs: string }[] = []
@@ -270,10 +264,16 @@ async function buildBoardUncached(): Promise<BoardOutputV2> {
     if (companyOverride && series.length > 0) applyAdminPriceOverrideToLastBar(series, companyOverride)
 
     // corporate-action continuity: rescale sessions before each ex-date so
-    // bonus/split/cash events are not read as market losses (same engine v1)
+    // bonus/split/cash events are not read as market losses (same engine v1).
+    // PROVENANCE (same-source mandate): candle-covered companies carry
+    // Yahoo-sourced (already split-adjusted) history → source "yahoo" so the
+    // engine's phase-1 de-adjustment cancels its own re-adjustment; the
+    // PriceBar fallback and the live-session overlay stay raw.
     try {
       const actions = actionsByCompany.get(companyId) ?? []
       if (series.length >= 2 && actions.length > 0) {
+        const firstBarSource = history.get(companyId)?.[0]?.barSource
+        const caSource: SeriesBar["source"] = firstBarSource === "candle" ? "yahoo" : firstBarSource === "pricebar" ? "pricebar" : "scanner"
         const bars: SeriesBar[] = series.map((b) => ({
           ts: b.ts,
           open: b.open,
@@ -282,7 +282,7 @@ async function buildBoardUncached(): Promise<BoardOutputV2> {
           close: b.close,
           volume: b.volume,
           synthetic: b.synthetic,
-          source: "scanner",
+          source: caSource,
         }))
         const adjusted = applyCorporateActionAdjustments(bars, actions)
         series = adjusted.bars.map((b) => ({ ts: b.ts, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume, synthetic: b.synthetic }))
@@ -393,26 +393,28 @@ export async function getCompanySeriesUncached(companyId: string): Promise<Compa
   if (!c || !c.isActive) return null
 
   const cutoff = new Date(Date.now() - WINDOW_DAYS * 86_400_000)
-  const [barRows, priceRows] = await Promise.all([
-    db.priceBar.findMany({
-      where: { companyId, ts: { gte: cutoff } },
-      orderBy: { ts: "asc" },
-      select: { ts: true, open: true, high: true, low: true, close: true, volume: true },
-    }),
+  // SAME-SOURCE MANDATE (2026-11-21): unified candle reader — MarketCandle
+  // (verified) first, PriceBar only as the uncovered-companies fallback. The
+  // scanner feed may overlay ONLY the live (unsettled) session; settled
+  // sessions keep their stored candle.
+  const [bars, priceRows] = await Promise.all([
+    loadUnifiedHistoryOne(companyId, cutoff),
     db.marketPrice.findMany({
       where: { companyId, sourceName: "TRADINGVIEW_SCANNER", isDemoData: false, asOf: { gte: cutoff }, price: { gt: 0 } },
       orderBy: { asOf: "asc" },
       select: { asOf: true, price: true, volume: true },
     }),
   ])
+  const todaySession = effectiveEgxSessionDate(new Date())
 
-  // PriceBar OHLC per UTC day (freshest row wins per day via asc ordering),
-  // then scanner day-rows overlay their session — identical to the board build.
+  // OHLC per UTC day from the unified history, then the live-session scanner
+  // overlay — identical to the board build.
   const byDay = new Map<string, { ts: string; open: number; high: number; low: number; close: number; volume: number | null; synthetic?: boolean }>()
-  for (const b of barRows) {
-    if (!validBar(b)) continue
-    byDay.set(b.ts.toISOString().slice(0, 10), {
-      ts: b.ts.toISOString().slice(0, 10),
+  for (const b of bars) {
+    if (b.barSource !== "candle" && !validBar(b)) continue
+    const day = b.ts.toISOString().slice(0, 10)
+    byDay.set(day, {
+      ts: day,
       open: b.open,
       high: b.high,
       low: b.low,
@@ -424,6 +426,7 @@ export async function getCompanySeriesUncached(companyId: string): Promise<Compa
     const rawDay = r.asOf.toISOString().slice(0, 10)
     const day = effectiveEgxSessionDate(r.asOf)
     if (day !== rawDay && byDay.has(day)) continue
+    if (day !== todaySession) continue
     const volume = r.volume !== null && Number.isFinite(r.volume) && r.volume > 0 ? r.volume : null
     const existing = byDay.get(day)
     if (existing) {
@@ -442,8 +445,14 @@ export async function getCompanySeriesUncached(companyId: string): Promise<Compa
       const actions = await loadSeriesActionsByCompany([companyId], series[0].ts, series[series.length - 1].ts)
       const companyActions = actions.get(companyId) ?? []
       if (companyActions.length > 0) {
+        // PROVENANCE (same-source mandate): candle-covered history is
+        // Yahoo-sourced (already split-adjusted) → "yahoo" so the engine's
+        // phase-1 de-adjustment cancels its own re-adjustment; the PriceBar
+        // fallback and the live-session overlay stay raw.
+        const firstBarSource = bars[0]?.barSource
+        const caSource = firstBarSource === "candle" ? ("yahoo" as const) : firstBarSource === "pricebar" ? ("pricebar" as const) : ("scanner" as const)
         const adjusted = applyCorporateActionAdjustments(
-          series.map((b) => ({ ...b, source: "scanner" as const })),
+          series.map((b) => ({ ...b, source: caSource })),
           companyActions,
         )
         series = adjusted.bars.map((b) => ({ ts: b.ts, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume, synthetic: b.synthetic }))

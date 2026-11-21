@@ -30,6 +30,7 @@ vi.mock("@/lib/db", () => ({
       findMany: async () => [{ id: "co-1", ticker: "TEST", nameEn: "Test Co", nameAr: "شركة اختبار", sector: "Banks", sharesOutstanding: null }],
     },
     priceBar: { findMany: async () => [] },
+    marketCandle: { findMany: async () => [] }, // unified reader: uncovered → empty history
     marketIntelligenceDay: {
       findMany: async () => [],
       upsert: async (args: { where: { day: Date }; create: Record<string, unknown>; update: Record<string, unknown> }) => {

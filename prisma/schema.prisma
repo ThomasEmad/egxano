@@ -59,6 +59,8 @@ model Company {
   marketPrices      MarketPrice[]
   aiAnalyses        AiAnalysis[]
   priceBars         PriceBar[]
+  marketCandles     MarketCandle[]
+  candleSource      MarketCandleSource?
   aiReports         AiAnalysisReport[]
   aiJobs            AiAnalysisJob[]
   debtInstruments       DebtInstrument[]
@@ -341,6 +343,46 @@ model PriceBar {
   createdAt  DateTime @default(now())
 
   @@unique([companyId, ts])
+}
+
+// THE unified candle history (2026-11-21 same-source mandate): every analysis
+// (signals board, «حلل سهمي», technical tab, chart) reads verified rows from
+// HERE — never from a mix of feeds. Rows carry verified=true only when they
+// passed candle-quality validation (candle-quality.ts); failed rows stay
+// verified=false for audit and are invisible to analysis.
+model MarketCandle {
+  id         String   @id @default(cuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tradeDate  DateTime // session date (UTC midnight of the Cairo trading day)
+  open       Float
+  high       Float
+  low        Float
+  close      Float
+  volume     Float? // null/0 = no volume reported — the OHLC is still real
+  sourceName String // e.g. YAHOO_EGX_FULL (provenance, not a second source)
+  verified   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@unique([companyId, tradeDate])
+  @@index([companyId, tradeDate])
+}
+
+// Yahoo symbol resolution cache (ticker.CA direct or name-search fallback) so
+// the daily refresh never re-pays the search/probe cost, and failures stay
+// recorded (lastError) instead of being re-attempted blindly every day.
+model MarketCandleSource {
+  id                  String   @id @default(cuid())
+  companyId           String
+  company             Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  yahooSymbol         String
+  via                 String // "ticker" | "name-search"
+  sourceFirstTradeDate DateTime?
+  lastFetchAt         DateTime @default(now())
+  lastError           String?
+  createdAt           DateTime @default(now())
+
+  @@unique([companyId])
 }
 
 // Versioned AI analysis report. reportKey is the DETERMINISTIC cache identity:

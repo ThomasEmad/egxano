@@ -20,6 +20,7 @@
 // =============================================================================
 
 import { db } from "@/lib/db"
+import { loadUnifiedHistoryOne } from "@/lib/market/unified-candles"
 import { readCanonicalStance } from "./stance-store"
 import {
   computeLifecycle,
@@ -53,12 +54,10 @@ export const defaultLifecycleDeps: LifecycleDeps = {
     return canonical ? { stance: canonical.stance, dataAsOf: canonical.dataAsOf } : null
   },
   async loadBars(companyId, fromTs) {
-    const rows = await db.priceBar.findMany({
-      where: { companyId, ts: { gte: fromTs } },
-      orderBy: { ts: "asc" },
-      select: { ts: true, open: true, high: true, low: true, close: true, volume: true },
-    })
-    return rows.map((r) => ({
+    // SAME-SOURCE MANDATE (2026-11-21): unified candle reader — MarketCandle
+    // (verified) first, PriceBar only as the uncovered fallback.
+    const bars = await loadUnifiedHistoryOne(companyId, fromTs)
+    return bars.map((r) => ({
       ts: r.ts.toISOString().slice(0, 10),
       open: r.open,
       high: r.high,

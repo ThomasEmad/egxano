@@ -12,6 +12,7 @@
 // =============================================================================
 
 import { db } from "@/lib/db"
+import { loadUnifiedHistory, loadUnifiedHistoryOne } from "@/lib/market/unified-candles"
 import { emaSeries } from "@/lib/technical/indicators"
 import { effectiveEgxSessionDate } from "../egx-session"
 import {
@@ -61,19 +62,20 @@ function readSnapshotMovers(snapshotValue: string): { asOf: string; delayMinutes
   }
 }
 
-/** Build ticker → 20/60-session volume baselines from PriceBar (excludes the latest stored session). */
+/** Build ticker → 20/60-session volume baselines from the unified candle
+ *  store (same-source mandate 2026-11-21; excludes the latest stored session). */
 async function loadBaselines(): Promise<Record<string, VolumeBaseline>> {
   const cutoff = new Date(Date.now() - BASELINE_LOOKBACK_DAYS * 86_400_000)
-  const bars = await db.priceBar.findMany({
-    where: { volume: { not: null }, ts: { gte: cutoff } },
-    orderBy: { ts: "asc" },
-    select: { companyId: true, volume: true },
-  })
+  const ids = (await db.company.findMany({ where: { isActive: true }, select: { id: true } })).map((c) => c.id)
+  const history = await loadUnifiedHistory(ids, cutoff)
   const byCompany = new Map<string, number[]>()
-  for (const b of bars) {
-    const arr = byCompany.get(b.companyId) ?? []
-    arr.push(b.volume as number)
-    byCompany.set(b.companyId, arr)
+  for (const [companyId, bars] of history) {
+    for (const b of bars) {
+      if (b.volume === null || !Number.isFinite(b.volume) || b.volume <= 0) continue
+      const arr = byCompany.get(companyId) ?? []
+      arr.push(b.volume)
+      byCompany.set(companyId, arr)
+    }
   }
   const out: Record<string, VolumeBaseline> = {}
   for (const [companyId, vols] of byCompany) {
@@ -371,13 +373,15 @@ export async function runEnrichmentChunk(limit = 40): Promise<{ done: boolean; p
     }
   }
 
-  const { fetchRecentBarsForCompany } = await import("@/lib/technical/live-bars")
+  // SAME-SOURCE MANDATE (2026-11-21): enrichment reads the unified candle
+  // store — no per-company on-demand Yahoo fetch on the daily job's hot path.
   const batch = cursor.companyIds.slice(cursor.index, cursor.index + limit)
   let processed = 0
   for (const companyId of batch) {
     cursor.index++
     try {
-      const bars = await fetchRecentBarsForCompany(companyId)
+      // SMA200 + the 252-session high/low window need ~450 calendar days.
+      const bars = await loadUnifiedHistoryOne(companyId, new Date(Date.now() - 450 * 86_400_000))
       if (!bars || bars.length < 21) {
         partial[companyId] = { above20: null, above50: null, above200: null, aboveE20: null, aboveE50: null, aboveE200: null, newHigh: null, newLow: null }
         continue

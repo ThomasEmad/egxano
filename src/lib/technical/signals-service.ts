@@ -24,6 +24,7 @@
 import { db } from "@/lib/db"
 import { cached } from "@/lib/server-cache"
 import { applyCorporateActionAdjustments, loadSeriesActionsByCompany, type SeriesBar } from "@/lib/market/corporate-actions"
+import { loadUnifiedHistory, type UnifiedBar } from "@/lib/market/unified-candles"
 import { effectiveEgxSessionDate } from "@/lib/market/egx-session"
 import { computeCloseSignal, SIGNALS_VERSION, type CloseSignalOutput, type TechStance } from "./signals"
 import { emaSeries, type Bar } from "./indicators"
@@ -456,22 +457,14 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
   const cutoff = new Date(Date.now() - WINDOW_DAYS * 86_400_000)
   const ids = companies.map((c) => c.id)
 
-  // Source 1 — PriceBar: the deep stored history.
-  // Source 2 — MarketPrice day-rows: the freshest scanner sessions (the
-  // intraday refreshes rewrite the same UTC day). Precedence mirrors
-  // buildTechnicalBundle: the scanner day-row WINS for its day (it carries the
-  // latest recorded price), PriceBar fills the deep history behind it.
+  // SAME-SOURCE MANDATE (2026-11-21) — one history for everything:
+  // Source 1 — the unified candle reader: MarketCandle (verified) first,
+  // PriceBar only as the uncovered-companies fallback. Its bars carry REAL
+  // OHLC (opportunity layer input).
+  // Source 2 — MarketPrice day-rows: the live-session overlay ONLY (the
+  // unsettled session's freshest close); settled sessions keep their candle.
   const [barRows, priceRows] = await Promise.all([
-    ids.length
-      ? db.priceBar.findMany({
-          where: { companyId: { in: ids }, ts: { gte: cutoff } },
-          orderBy: { ts: "asc" },
-          // Opportunity layer (opportunity@1): the stored candles' OHLC rides
-          // the SAME query (columns widened — one fetch, no refetch). The
-          // map reads this stored anatomy; scanner day-rows stay close-only.
-          select: { companyId: true, ts: true, open: true, high: true, low: true, close: true, volume: true },
-        })
-      : Promise.resolve([] as { companyId: string; ts: Date; open: number; high: number; low: number; close: number; volume: number | null }[]),
+    ids.length ? loadUnifiedHistory(ids, cutoff) : Promise.resolve(new Map<string, UnifiedBar[]>()),
     ids.length
       ? db.marketPrice.findMany({
           where: { companyId: { in: ids }, sourceName: "TRADINGVIEW_SCANNER", isDemoData: false, asOf: { gte: cutoff }, price: { gt: 0 } },
@@ -481,37 +474,45 @@ async function buildMarketSignalsUncached(): Promise<MarketSignalsOutput> {
       : Promise.resolve([] as { companyId: string; asOf: Date; price: number; volume: number | null }[]),
   ])
 
-  // Stored daily OHLC candles per company (opportunity layer input) — the
-  // SAME PriceBar rows fetched above, kept as real anatomy. Scanner-overlay
+  // Real daily OHLC per company (opportunity layer input) — from the unified
+  // history (candles + fallback both carry observed OHLC). Scanner-overlay
   // days carry no anatomy and are honestly absent (the map's flat-bar rule
   // would skip them anyway); zones are historical structure and every
   // opportunity gate reads the row's OWN freshest lastClose.
   const ohlcByCompany = new Map<string, { ts: string; open: number; high: number; low: number; close: number; volume: number | null }[]>()
-  for (const b of barRows) {
-    if (![b.open, b.high, b.low, b.close].every((v) => Number.isFinite(v) && v > 0) || b.high < b.low) continue
-    let list = ohlcByCompany.get(b.companyId)
-    if (!list) { list = []; ohlcByCompany.set(b.companyId, list) }
-    list.push({ ts: b.ts.toISOString().slice(0, 10), open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume !== null && Number.isFinite(b.volume) && b.volume > 0 ? b.volume : null })
+  for (const [companyId, bars] of barRows) {
+    for (const b of bars) {
+      if (![b.open, b.high, b.low, b.close].every((v) => Number.isFinite(v) && v > 0) || b.high < b.low) continue
+      let list = ohlcByCompany.get(companyId)
+      if (!list) { list = []; ohlcByCompany.set(companyId, list) }
+      list.push({ ts: b.ts.toISOString().slice(0, 10), open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume !== null && Number.isFinite(b.volume) && b.volume > 0 ? b.volume : null })
+    }
   }
 
-  // Day-bucket per company: PriceBar first, then MarketPrice overlays its days.
+  // Day-bucket per company: unified history first, the scanner overlays ONLY
+  // the live (unsettled) session.
   const byDayAll = new Map<string, Map<string, { ts: string; close: number; volume: number | null }>>()
-  for (const b of barRows) {
-    let m = byDayAll.get(b.companyId)
-    if (!m) { m = new Map(); byDayAll.set(b.companyId, m) }
-    const day = b.ts.toISOString().slice(0, 10)
-    m.set(day, { ts: day, close: b.close, volume: b.volume !== null && Number.isFinite(b.volume) && b.volume > 0 ? b.volume : null })
+  for (const [companyId, bars] of barRows) {
+    let m = byDayAll.get(companyId)
+    if (!m) { m = new Map(); byDayAll.set(companyId, m) }
+    for (const b of bars) {
+      const day = b.ts.toISOString().slice(0, 10)
+      m.set(day, { ts: day, close: b.close, volume: b.volume !== null && Number.isFinite(b.volume) && b.volume > 0 ? b.volume : null })
+    }
   }
+  const liveSession = effectiveEgxSessionDate(new Date())
   for (const r of priceRows) {
     let m = byDayAll.get(r.companyId)
     if (!m) { m = new Map(); byDayAll.set(r.companyId, m) }
     // EGX session anchoring (2026-11-14 audit): Fri/Sat quotes restate the
     // previous close — anchor them onto the session they belong to instead of
-    // minting a phantom weekend session. Never clobber an existing close for
-    // the anchored day (the real session bar stays authoritative).
+    // minting a phantom weekend session. Same-source rule (2026-11-21): a
+    // settled session keeps its stored candle — the scanner touches only the
+    // live, unsettled session.
     const rawDay = r.asOf.toISOString().slice(0, 10)
     const day = effectiveEgxSessionDate(r.asOf)
     if (day !== rawDay && m.has(day)) continue
+    if (day !== liveSession) continue
     m.set(day, { ts: day, close: r.price, volume: r.volume !== null && Number.isFinite(r.volume) && r.volume > 0 ? r.volume : null })
   }
   const companyById = new Map(companies.map((c) => [c.id, c]))

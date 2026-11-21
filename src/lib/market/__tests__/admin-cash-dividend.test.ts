@@ -42,6 +42,22 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@/lib/db", () => ({
   db: {
+    // The unified candle reader (same-source mandate) — the seeded PriceBar
+    // fixtures ride through as verified MarketCandle rows so the bundle e2e
+    // tests exercise the SAME history every analysis reads.
+    marketCandle: {
+      findMany: async (args?: { where?: { companyId?: { in?: string[] } } }) =>
+        h.priceBars.map((b) => ({
+          companyId: args?.where?.companyId?.in?.[0] ?? "co",
+          tradeDate: b.ts,
+          open: b.open,
+          high: b.high,
+          low: b.low,
+          close: b.close,
+          volume: b.volume,
+          verified: true,
+        })),
+    },
     priceBar: { findMany: async () => h.priceBars },
     marketPrice: { findMany: async () => [] },
     company: { findUnique: async () => ({ ticker: "PTRY" }) },

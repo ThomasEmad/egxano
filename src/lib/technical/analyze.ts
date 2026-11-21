@@ -27,6 +27,7 @@ import {
 } from "./indicators"
 import { analyzeStructure, type StructureSnapshot } from "./structure"
 import { effectiveEgxSessionDate } from "@/lib/market/egx-session"
+import { loadUnifiedHistoryOne } from "@/lib/market/unified-candles"
 // VSA and the analytical quality score were REMOVED from the assembled bundle
 // per owner directive (technical@4): the tab no longer renders them and the
 // market-intelligence framing replaced them. The types stay imported so the
@@ -333,13 +334,15 @@ export interface RawScannerRow {
   volume: number | null
 }
 
-/** Pure merge of the three bar sources into one session series.
+/** Pure merge of the session series into one daily series.
  *
- *  Precedence per session day: the freshest scanner row is authoritative for
- *  its own session; Yahoo restores real OHLC for older days; stored PriceBar
- *  rows fill what neither covers. Off-session (Fri/Sat) quotes are anchored
- *  onto the Sun–Thu session they restate and only FILL GAPS — a close-only
- *  flat bar must never flatten a real OHLC bar (2026-11-14 audit).
+ *  SAME-SOURCE MANDATE (2026-11-21): the history is the unified candle store
+ *  (MarketCandle verified → provenance "yahoo"; legacy PriceBar fallback →
+ *  "pricebar"). The scanner feed may touch ONLY the live, unsettled session —
+ *  a close-only flat bar must never flatten or restate a settled candle
+ *  (2026-11-14 audit; the 2026-11-21 AMES case made the rule absolute).
+ *  Off-session (Fri/Sat) quotes are anchored onto the Sun–Thu session they
+ *  restate and are skipped when that session is already settled.
  *
  *  STORED BARS ARE SANITIZED BEFORE THE MERGE: a degenerate imported row
  *  (0-valued OHLC from a partial import) must not occupy the day bucket —
@@ -351,8 +354,10 @@ export function mergeSessionSeries(
   priceBars: RawPriceBarRow[],
   scannerRows: RawScannerRow[],
   yahooBars: RawPriceBarRow[] | null,
+  todaySession?: string,
 ): { bars: Bar[]; sourceByDay: Map<string, "yahoo" | "scanner" | "pricebar">; syntheticCount: number } {
   let syntheticCount = 0
+  const today = todaySession ?? effectiveEgxSessionDate(new Date())
   const scannerByDay = new Map<string, Bar>()
   const anchoredFromOffSession = new Set<string>()
   for (const r of scannerRows) {
@@ -372,11 +377,18 @@ export function mergeSessionSeries(
 
   const byDay = new Map<string, Bar>()
   const sourceByDay = new Map<string, "yahoo" | "scanner" | "pricebar">()
-  for (const b of sanitizeBars(priceBars)) {
-    byDay.set(b.ts, b)
-    sourceByDay.set(b.ts, "pricebar")
+  for (const b of priceBars) {
+    // provenance read BEFORE sanitize (sanitizeBars returns the plain Bar
+    // shape): unified candle rows are Yahoo-sourced (split-adjusted) — the
+    // corporate-action engine's phase-1 de-adjustment keys on "yahoo"
+    const prov = (b as RawPriceBarRow & { barSource?: string }).barSource === "candle" ? "yahoo" : "pricebar"
+    for (const s of sanitizeBars([b])) {
+      byDay.set(s.ts, s)
+      sourceByDay.set(s.ts, prov)
+    }
   }
   for (const [day, bar] of scannerByDay) {
+    if (day !== today) continue // settled sessions keep their stored candle
     if (anchoredFromOffSession.has(day) && byDay.has(day)) continue
     byDay.set(day, bar)
     sourceByDay.set(day, "scanner")
@@ -399,43 +411,31 @@ export function mergeSessionSeries(
   return { bars: sanitizeBars(merged), sourceByDay, syntheticCount }
 }
 
-/** Build the technical snapshot from the FRESHEST available bars:
+/** Build the technical snapshot from the unified candle store:
  *
- *   1. stored PriceBar rows (deep history, frozen fallback),
- *   2. Yahoo daily bars on demand (full OHLC, ~2y — best-effort: Yahoo
- *      rate-limits datacenter IPs, so it may be unavailable),
- *   3. MarketPrice day-rows from the public TradingView EGX scanner
- *      (one row per company per UTC day, refreshed intraday by
- *      /api/v1/cron/market + the in-session stale kick) — these carry the
- *      LATEST session price, which is what makes the analysis run on the
- *      last updated price instead of a stale import. Synthetic bars are
- *      O=H=L=C (close-only): RSI/MACD/SMA are close-based; ATR/Bollinger
- *      lose the day range for those few days and that is disclosed via the
- *      snapshot limitations rather than hidden.
+ *   1. MarketCandle (verified) — THE history (owner same-source mandate
+ *      2026-11-21): quality-gated daily OHLCV refreshed after every EGX
+ *      close by the candles cron. Legacy PriceBar rows serve only companies
+ *      the unified store does not cover at all.
+ *   2. MarketPrice day-rows from the TradingView EGX scanner — for the LIVE,
+ *      unsettled session only (close-only synthetic bar, disclosed via the
+ *      snapshot limitations). Settled sessions are never restated.
  *
- * Precedence per session day: scanner day-row > Yahoo bar > stored row for
- * the most recent day; Yahoo OHLC wins for older days where it exists (real
- * high/low beats the flat synthetic bar). Nothing new is written to the DB. */
+ * Nothing is fetched per-request anymore: the old on-demand Yahoo pull
+ * duplicated ~2y of candles on every cold lambda and never fed any other
+ * feature. Nothing new is written to the DB here. */
 export async function buildTechnicalBundle(companyId: string, context: MarketContextSection | null = null): Promise<TechnicalBundle> {
-  const raw = await db.priceBar.findMany({
-    where: { companyId },
-    orderBy: { ts: "asc" },
-    take: MAX_BARS,
-    select: { ts: true, open: true, high: true, low: true, close: true, volume: true },
-  })
+  const raw = await loadUnifiedHistoryOne(companyId, new Date(0))
 
-  // Scanner day-rows: latest row per UTC day (intraday refreshes rewrite the
-  // same day bucket, so rows are naturally one-per-day, but dedupe anyway).
+  // Scanner day-rows for the live-session overlay only — a recent window is
+  // enough (older scanner rows can never touch a settled session anymore).
   const priceRows = await db.marketPrice.findMany({
-    where: { companyId, sourceName: "TRADINGVIEW_SCANNER", isDemoData: false, price: { gt: 0 } },
+    where: { companyId, sourceName: "TRADINGVIEW_SCANNER", isDemoData: false, price: { gt: 0 }, asOf: { gte: new Date(Date.now() - 7 * 86_400_000) } },
     orderBy: { asOf: "asc" },
     select: { asOf: true, price: true, volume: true },
   })
 
-  const { fetchRecentBarsForCompany } = await import("./live-bars")
-  const live = await fetchRecentBarsForCompany(companyId)
-
-  const merged = mergeSessionSeries(raw, priceRows, live && live.length >= 30 ? live : null)
+  const merged = mergeSessionSeries(raw, priceRows, null)
   // Contiguous-suffix trim: sparse ancient bars (COMI 2016-2017 scatter) must
   // never dilute the live reading — indicators and the chart read the LIVE
   // daily segment, and the trim is disclosed.
