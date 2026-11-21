@@ -14,7 +14,7 @@ const h = vi.hoisted(() => ({
   dayUpserts: [] as { where: { day: Date }; create: Record<string, unknown>; update: Record<string, unknown> }[],
 }))
 
-vi.mock("@/lib/db", () => ({
+vi.mock("@/infrastructure/db", () => ({
   db: {
     setting: {
       findUnique: async ({ where }: { where: { key: string } }) => {
@@ -44,6 +44,8 @@ vi.mock("@/lib/db", () => ({
     },
   },
 }))
+// the legacy @/lib/db path is a re-export shim — alias it to the same mock
+vi.mock("@/lib/db", async () => await vi.importMock("@/infrastructure/db"))
 
 import { rebuildIntelligence } from "../service"
 

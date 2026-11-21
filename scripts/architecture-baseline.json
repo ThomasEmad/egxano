@@ -1,0 +1,10 @@
+{
+  "counts": {
+    "domain-purity": 0,
+    "no-upward-deps": 0
+  },
+  "files": {
+    "domain-purity": [],
+    "no-upward-deps": []
+  }
+}

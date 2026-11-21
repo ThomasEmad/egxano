@@ -18,7 +18,7 @@ const h = vi.hoisted(() => ({
   priceBars: [] as Record<string, unknown>[],
 }))
 
-vi.mock("@/lib/db", () => ({
+vi.mock("@/infrastructure/db", () => ({
   db: {
     marketCandle: {
       findMany: async (args?: { distinct?: string[]; where?: { tradeDate?: { gte?: Date } }; orderBy?: unknown }) => {

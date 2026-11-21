@@ -2,6 +2,8 @@
 
 // Typed API client for the EGXANO REST API (/api/v1).
 
+import type { TechSnapshot } from "@/components/egx/technical-tab"
+
 export type MetricResultStatus = "OK" | "DATA_UNAVAILABLE" | "NOT_APPLICABLE" | "NOT_COMPUTABLE"
 
 export interface ConditionEval {
@@ -454,7 +456,7 @@ export const api = {
       handle<{
         companyId: string
         ticker: string
-        snapshot: import("@/components/egx/technical-tab").TechSnapshot
+        snapshot: TechSnapshot
         hash: string
         /** Corporate-action-adjusted daily candles for the client chart. */
         candles?: { t: string; o: number; h: number; l: number; c: number }[]

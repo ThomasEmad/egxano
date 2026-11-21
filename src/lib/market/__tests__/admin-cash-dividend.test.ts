@@ -40,7 +40,7 @@ const h = vi.hoisted(() => ({
   dividends: [] as Record<string, unknown>[],
 }))
 
-vi.mock("@/lib/db", () => ({
+vi.mock("@/infrastructure/db", () => ({
   db: {
     // The unified candle reader (same-source mandate) — the seeded PriceBar
     // fixtures ride through as verified MarketCandle rows so the bundle e2e
@@ -66,6 +66,8 @@ vi.mock("@/lib/db", () => ({
     stanceSnapshot: { deleteMany: async () => ({ count: 0 }) },
   },
 }))
+// the legacy @/lib/db path is a re-export shim — alias it to the same mock
+vi.mock("@/lib/db", async () => await vi.importMock("@/infrastructure/db"))
 vi.mock("@/lib/technical/live-bars", () => ({
   fetchRecentBarsForCompany: vi.fn(async () => null),
   fetchRecentBarsYahoo: vi.fn(async () => null),
